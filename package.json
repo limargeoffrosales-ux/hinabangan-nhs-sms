@@ -7,7 +7,7 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "build": "cd web && npm ci && npm run build",
+    "build": "cd web && npm ci && npm run build && cd ../server && npm ci",
     "start": "cd server && npm start"
   }
 }
