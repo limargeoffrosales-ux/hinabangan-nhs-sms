@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hinabangan NHS</string>
+    <string name="title_activity_main">Hinabangan NHS</string>
+    <string name="package_name">ph.edu.hnshs.app</string>
+    <string name="custom_url_scheme">ph.edu.hnshs.app</string>
+</resources>

@@ -1,0 +1,32 @@
+Hinabangan National High School - Staff Account Credentials (non-admin)
+username | password | role | name
+teacher01 | HnHS-2026!teacher01 | teacher | Celia Abarquez
+teacher02 | HnHS-2026!teacher02 | teacher | Dennis Abello
+teacher03 | HnHS-2026!teacher03 | teacher | Elena Aguirre
+teacher04 | HnHS-2026!teacher04 | teacher | Ferdinand Alcazar
+teacher05 | HnHS-2026!teacher05 | teacher | Gina Arcega
+teacher06 | HnHS-2026!teacher06 | teacher | Henry Bautista
+teacher07 | HnHS-2026!teacher07 | teacher | Irene Bering
+teacher08 | HnHS-2026!teacher08 | teacher | Jocelyn Bustamante
+teacher09 | HnHS-2026!teacher09 | teacher | Kenneth Cabrera
+teacher10 | HnHS-2026!teacher10 | teacher | Lorna Caballero
+teacher11 | HnHS-2026!teacher11 | teacher | Marvin Canlas
+teacher12 | HnHS-2026!teacher12 | teacher | Nenita Casil
+teacher13 | HnHS-2026!teacher13 | teacher | Orlando Cruzado
+teacher14 | HnHS-2026!teacher14 | teacher | Precious Daclan
+teacher15 | HnHS-2026!teacher15 | teacher | Quirino Dalangin
+teacher16 | HnHS-2026!teacher16 | teacher | Rosalinda Datu
+teacher17 | HnHS-2026!teacher17 | teacher | Salvador Diputado
+teacher18 | HnHS-2026!teacher18 | teacher | Teresita Ejara
+teacher19 | HnHS-2026!teacher19 | teacher | Uriel Esguerra
+teacher20 | HnHS-2026!teacher20 | teacher | Vivian Fabian
+teacher21 | HnHS-2026!teacher21 | teacher | Wilfredo Galang
+teacher22 | HnHS-2026!teacher22 | teacher | Xenia Guray
+teacher23 | HnHS-2026!teacher23 | teacher | Yolanda Hilario
+teacher24 | HnHS-2026!teacher24 | teacher | Zandro Ibabao
+teacher25 | HnHS-2026!teacher25 | teacher | Aimee Jacinto
+guidance1 | HnHS-2026!guidance26 | guidance | Benjie Joloro
+nurse1 | HnHS-2026!nurse27 | nurse | Catherine Kintanar
+librarian1 | HnHS-2026!librarian28 | librarian | Danny Laguardia
+cashier1 | HnHS-2026!cashier29 | cashier | Editha Manalo
+ict1 | HnHS-2026!ict30 | ict | Felix Nisperos
