@@ -1,0 +1,24 @@
+{
+  "name": "meridianed-server",
+  "version": "0.1.0",
+  "description": "MeridianEd MVP backend — Express + PostgreSQL (node:sqlite local fallback)",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "dev": "node --watch --env-file-if-exists=.env src/index.js",
+    "seed": "node --env-file-if-exists=.env src/seed.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
+    "pg": "^8.16.0"
+  }
+}
