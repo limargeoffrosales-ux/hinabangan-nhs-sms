@@ -23,6 +23,7 @@ import ReadingNumeracy from './pages/ReadingNumeracy';
 import Interventions from './pages/Interventions';
 import Assessment from './pages/Assessment';
 import DepedForms from './pages/DepedForms';
+import Immersion from './pages/Immersion';
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -55,6 +56,7 @@ export default function App() {
       <Route path="/interventions" element={<Protected><Interventions /></Protected>} />
       <Route path="/assessment" element={<Protected><Assessment /></Protected>} />
       <Route path="/forms" element={<Protected><DepedForms /></Protected>} />
+      <Route path="/immersion" element={<Protected><Immersion /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

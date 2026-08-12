@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, Sun, Moon, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
-  KeyRound,
+  KeyRound, Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -26,6 +26,7 @@ const NAV = [
   { to: '/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/users', label: 'Users & Roles', icon: ShieldCheck },
   { to: '/audit', label: 'Audit Logs', icon: Search },
+  { to: '/immersion', label: 'Immersion & JDVP', icon: Briefcase },
 ];
 
 const AI_NAV = [

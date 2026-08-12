@@ -6,6 +6,7 @@ import {
 import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, Sparkles, AlertTriangle, FileStack, CheckCircle2, Wand2, BadgeCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
+import DashboardSections from '../components/DashboardSections';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942'];
 
@@ -90,6 +91,10 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      <div style={{ height: 18 }} />
+
+      <DashboardSections />
 
       <div style={{ height: 18 }} />
 
