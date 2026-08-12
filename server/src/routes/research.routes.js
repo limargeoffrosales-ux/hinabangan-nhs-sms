@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 
@@ -52,7 +52,7 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const f = (k) => b[k] !== undefined ? b[k] : row[k];
   await qr(
     `UPDATE research_projects SET title = ?, research_type = ?, status = ?, abstract = ?, methodology = ?,
-     findings = ?, conclusion = ?, funding_source = ?, timeline_start = ?, timeline_end = ?, updated_at = datetime('now') WHERE id = ?`,
+     findings = ?, conclusion = ?, funding_source = ?, timeline_start = ?, timeline_end = ?, updated_at = ${nowSql()} WHERE id = ?`,
     [f('title'), f('research_type'), f('status'), f('abstract'), f('methodology'),
       f('findings'), f('conclusion'), f('funding_source'), f('timeline_start'), f('timeline_end'), row.id]);
   await audit(req, 'UPDATE_RESEARCH', 'research_projects', row.id);

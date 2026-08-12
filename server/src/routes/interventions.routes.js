@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { renderTemplate } = require('../ai/templates');
@@ -56,7 +56,7 @@ router.get('/at-risk', asyncH(async (req, res) => {
             AVG(g.computed_grade) AS avg_grade
      FROM grades g JOIN students s ON s.id = g.student_id
      LEFT JOIN sections sec ON sec.id = g.section_id
-     WHERE g.school_year = ? GROUP BY g.student_id`, [sy]);
+      WHERE g.school_year = ? GROUP BY g.student_id, s.first_name, s.last_name, s.grade_level, s.sex, sec.name`, [sy]);
   const att = await qa(
     `SELECT student_id, SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absents, COUNT(*) AS days
      FROM attendance GROUP BY student_id`);
@@ -115,7 +115,7 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const f = (k) => b[k] !== undefined ? b[k] : row[k];
   await qr(
     `UPDATE intervention_plans SET title = ?, category = ?, strategy = ?, frequency = ?, start_date = ?, end_date = ?,
-     status = ?, progress_notes = ?, updated_at = datetime('now') WHERE id = ?`,
+     status = ?, progress_notes = ?, updated_at = ${nowSql()} WHERE id = ?`,
     [f('title'), f('category'), f('strategy'), f('frequency'), f('start_date'), f('end_date'),
       f('status'), f('progress_notes'), row.id]);
   await audit(req, 'UPDATE_INTERVENTION', 'intervention_plans', row.id);
