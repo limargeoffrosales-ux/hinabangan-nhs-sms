@@ -41,7 +41,7 @@ async function seedReportTypes() {
       id = exists.id;
     } else {
       id = await qi(
-        'INSERT INTO report_types (code, name, group_name, frequency, is_deped_form, auto_generate, required, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)',
+        'INSERT INTO report_types (code, name, group_name, frequency, is_deped_form, auto_generate, required, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?)',
         [t.code, t.name, t.group, t.frequency, t.isDeped, t.autoGen, t.required, idx]);
     }
     const wf = GROUP_WORKFLOWS[t.group] || DEFAULT_WORKFLOW;

@@ -46,7 +46,7 @@ router.post('/refresh', asyncH(async (req, res) => {
   if (!row || row.revoked) return res.status(401).json({ error: 'Invalid refresh token' });
   if (new Date(row.expires_at) < new Date()) return res.status(401).json({ error: 'Refresh token expired' });
   if (row.status !== 'active') return res.status(401).json({ error: 'Account disabled' });
-  await qr('UPDATE refresh_tokens SET revoked = 1 WHERE id = ?', [row.token_id]);
+  await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE id = ?', [row.token_id]);
   const accessToken = signAccess({ id: row.user_id, username: row.username, name: row.name, role: row.role });
   const newRefresh = await issueRefresh(row.user_id);
   res.json({ token: accessToken, refreshToken: newRefresh });
@@ -55,7 +55,7 @@ router.post('/refresh', asyncH(async (req, res) => {
 router.post('/logout', asyncH(async (req, res) => {
   const { refreshToken } = req.body || {};
   if (refreshToken) {
-    await qr('UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = ?', [hashToken(refreshToken)]);
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hashToken(refreshToken)]);
   }
   res.json({ ok: true });
 }));
@@ -74,7 +74,7 @@ router.post('/change-password', authenticate, asyncH(async (req, res) => {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
   await qr('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(String(newPassword), 10), req.user.id]);
-  await qr('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?', [req.user.id]);
+  await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
   await audit(req, 'CHANGE_PASSWORD', 'auth', req.user.id);
   res.json({ ok: true });
 }));
