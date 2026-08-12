@@ -27,6 +27,11 @@ const assessmentRoutes = require('./routes/assessment.routes');
 
 (async () => {
   await db.init();
+  if (process.env.SEED_ON_BOOT === '1') {
+    const { seed } = require('./seed');
+    await seed();
+    console.log('SEED_ON_BOOT: demo + staff accounts ensured (idempotent)');
+  }
   const app = express();
   app.disable('x-powered-by');
   app.use(helmet());
