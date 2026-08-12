@@ -19,14 +19,15 @@ function overlaps(a1, a2, b1, b2) {
 }
 
 function effectiveRoom(a) {
-  return a.room || a.section_room || (a.section_name ? `${a.section_name} Rm` : `Rm ${a.section_id}`);
+  return a.room || a.teacher_room || a.section_room || (a.section_name ? `${a.section_name} Rm` : `Rm ${a.section_id}`);
 }
 
 function loadAssignments(schoolYear) {
   return qa(
     `SELECT ca.*, s.title AS subject_title, s.code AS subject_code, s.units,
             sec.name AS section_name, sec.grade_level, sec.strand, sec.room AS section_room,
-            t.first_name || ' ' || t.last_name AS teacher_name
+            t.first_name || ' ' || t.last_name AS teacher_name,
+            t.room AS teacher_room
      FROM class_assignments ca
      JOIN sections sec ON sec.id = ca.section_id
      JOIN subjects s ON s.id = ca.subject_id
@@ -76,7 +77,8 @@ function findConflicts(rows) {
 }
 
 async function generateSchedule(schoolYear, options = {}) {
-  const day = Object.assign({}, DEFAULT_DAY, options);
+  const day = Object.assign({}, DEFAULT_DAY, Object.fromEntries(
+    Object.entries(options).filter(([, v]) => v !== undefined && v !== '')));
   const dayStart = toMin(day.start);
   const dayEnd = toMin(day.end);
   const lunchStart = toMin(day.lunchStart);
@@ -98,25 +100,23 @@ async function generateSchedule(schoolYear, options = {}) {
   const entries = [];
   const occupied = { section: {}, teacher: {}, room: {} };
   const failures = [];
-  const keyFor = (kind, id) => `${kind}|${id}`;
-  const isFree = (dayIdx, st, en, a) => {
-    const room = effectiveRoom(a).toUpperCase();
-    const sec = keyFor('section', a.section_id);
-    const tea = a.teacher_id ? keyFor('teacher', a.teacher_id) : null;
-    const rm = keyFor('room', room);
-    const busy = (kind, k) => (occupied[kind][`${dayIdx}|${k}`] || []).some((x) => overlaps(st, en, x[0], x[1]));
-    if (busy('section', sec)) return false;
-    if (tea && busy('teacher', tea)) return false;
-    if (busy('room', rm)) return false;
-    return true;
+  const keyFor = (kind, id) => `${kind}|${String(id).toUpperCase()}`;
+  const busy = (kind, dayIdx, id, st, en) =>
+    (occupied[kind][`${dayIdx}|${keyFor(kind, id)}`] || []).some((x) => overlaps(st, en, x[0], x[1]));
+  const occupy = (dayIdx, id, st, en, kind) => {
+    const k = `${dayIdx}|${keyFor(kind, id)}`;
+    (occupied[kind][k] = occupied[kind][k] || []).push([st, en]);
   };
-  const occupy = (dayIdx, st, en, a) => {
-    const room = effectiveRoom(a).toUpperCase();
-    for (const kind of ['section', 'teacher', 'room']) {
-      let k = kind === 'section' ? keyFor('section', a.section_id) : kind === 'teacher' ? keyFor('teacher', a.teacher_id) : keyFor('room', room);
-      if (!k) continue;
-      (occupied[kind][`${dayIdx}|${k}`] = occupied[kind][`${dayIdx}|${k}`] || []).push([st, en]);
+
+  const roomPool = [...new Set(
+    assignments.flatMap((a) => [a.room, a.teacher_room, a.section_room]).filter(Boolean)
+  )];
+  const roomsFor = (a) => {
+    const prefs = [];
+    for (const r of [a.room, a.teacher_room, a.section_room]) {
+      if (r && !prefs.some((p) => p.toUpperCase() === r.toUpperCase())) prefs.push(r);
     }
+    return prefs.length ? prefs : (roomPool.length ? roomPool : [`${a.section_name || 'Section'} Rm`]);
   };
 
   let seedDay = 0;
@@ -126,14 +126,18 @@ async function generateSchedule(schoolYear, options = {}) {
     let placed = 0;
     const rotated = Array.from({ length: 5 }, (_, i) => (seedDay + i) % 5);
     seedDay = (seedDay + 1) % 5;
+    const secKey = `s${a.section_id}`;
+    const teaKey = a.teacher_id ? `t${a.teacher_id}` : null;
     for (const dayIdx of rotated) {
       if (placed >= need) break;
       for (const st of starts) {
         const en = st + dur;
         if (en > dayEnd) continue;
         if (st < lunchEnd && en > lunchStart) continue;
-        if (!isFree(dayIdx, st, en, a)) continue;
-        const room = effectiveRoom(a);
+        if (busy('section', dayIdx, secKey, st, en)) continue;
+        if (teaKey && busy('teacher', dayIdx, teaKey, st, en)) continue;
+        const room = roomsFor(a).find((r) => !busy('room', dayIdx, r, st, en));
+        if (!room) continue;
         const id = await qi(
           `INSERT INTO schedule_entries (school_year, section_id, subject_id, teacher_id, day, start_time, end_time, room)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -144,7 +148,9 @@ async function generateSchedule(schoolYear, options = {}) {
           section_name: a.section_name, subject_code: a.subject_code, subject_title: a.subject_title,
           teacher_name: a.teacher_name,
         });
-        occupy(dayIdx, st, en, a);
+        occupy(dayIdx, secKey, st, en, 'section');
+        if (teaKey) occupy(dayIdx, teaKey, st, en, 'teacher');
+        occupy(dayIdx, room, st, en, 'room');
         placed++;
         break;
       }

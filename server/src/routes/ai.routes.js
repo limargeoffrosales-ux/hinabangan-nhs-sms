@@ -1,13 +1,14 @@
 const express = require('express');
-const { q, qi } = require('../db');
-const { authenticate } = require('../auth');
+const { q, qa, qi, qr } = require('../db');
+const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { TEMPLATES, renderTemplate } = require('../ai/templates');
+const { TEMPLATES, renderTemplate, fill, DEFAULTS } = require('../ai/templates');
 const { ask, SUGGESTED_QUESTIONS } = require('../ai/knowledge');
 const { improve, summarize, insights } = require('../ai/engine');
 
 const router = express.Router();
 router.use(authenticate);
+const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
 const INTENTS = [
   { id: 'greeting', test: (t) => /^(hello|hi|hey|good (morning|afternoon|evening|day)|kamusta|kumusta|magandang|salamat|thanks|thank you|opo|okay)\b/.test(t) },
@@ -87,10 +88,55 @@ router.get('/templates', asyncH(async (req, res) => {
 
 router.post('/generate', asyncH(async (req, res) => {
   const b = req.body || {};
-  const doc = renderTemplate(b.template_id, b.context || {});
+  const ctx = { ...DEFAULTS, prepared_by: req.user?.name || DEFAULTS.prepared_by, noted_by: req.user?.name || DEFAULTS.noted_by, ...(b.context || {}) };
+  if (b.format_id) {
+    const fmt = await q('SELECT * FROM doc_formats WHERE id = ?', [b.format_id]);
+    if (!fmt) return res.status(404).json({ error: 'Custom format not found' });
+    const doc = { id: `format_${fmt.id}`, name: fmt.name, group: 'Custom Formats', body: fill(fmt.body, ctx) };
+    await audit(req, 'AI_GENERATE_DOC', 'doc_formats', fmt.id, { name: fmt.name });
+    return res.json({ ...doc, words: doc.body.split(/\s+/).filter(Boolean).length });
+  }
+  const doc = renderTemplate(b.template_id, ctx);
   if (!doc) return res.status(404).json({ error: 'Template not found' });
   await audit(req, 'AI_GENERATE_DOC', 'templates', doc.id, { name: doc.name });
   res.json({ ...doc, words: doc.body.split(/\s+/).filter(Boolean).length });
+}));
+
+// Custom document formats (user-uploaded layouts) -------------
+router.get('/formats', asyncH(async (req, res) => {
+  const rows = await qa(
+    `SELECT f.*, u.name AS created_by_name FROM doc_formats f
+     LEFT JOIN users u ON u.id = f.created_by
+     ORDER BY f.name`);
+  res.json({ data: rows, count: rows.length });
+}));
+
+router.post('/formats', requireRole(...ADMIN), asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.name || !b.body) return res.status(400).json({ error: 'name and body are required' });
+  const id = await qi('INSERT INTO doc_formats (name, body, fields, created_by) VALUES (?, ?, ?, ?)',
+    [b.name.trim(), b.body, JSON.stringify(b.fields || []), req.user.id]);
+  await audit(req, 'CREATE_DOC_FORMAT', 'doc_formats', id, { name: b.name.trim() });
+  res.status(201).json({ id });
+}));
+
+router.patch('/formats/:id', requireRole(...ADMIN), asyncH(async (req, res) => {
+  const row = await q('SELECT * FROM doc_formats WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Format not found' });
+  const b = req.body || {};
+  const f = (k, d) => b[k] !== undefined ? b[k] : d;
+  await qr('UPDATE doc_formats SET name = ?, body = ?, fields = ? WHERE id = ?',
+    [f('name', row.name).trim(), f('body', row.body), JSON.stringify(f('fields', JSON.parse(row.fields || '[]'))), row.id]);
+  await audit(req, 'UPDATE_DOC_FORMAT', 'doc_formats', row.id, { name: row.name });
+  res.json({ ok: true });
+}));
+
+router.delete('/formats/:id', requireRole(...ADMIN), asyncH(async (req, res) => {
+  const row = await q('SELECT id FROM doc_formats WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Format not found' });
+  await qr('DELETE FROM doc_formats WHERE id = ?', [row.id]);
+  await audit(req, 'DELETE_DOC_FORMAT', 'doc_formats', row.id);
+  res.json({ ok: true });
 }));
 
 router.post('/improve', asyncH(async (req, res) => {

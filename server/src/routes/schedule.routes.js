@@ -15,8 +15,9 @@ router.get('/assignments', requireRole(...WRITE, 'teacher'), asyncH(async (req, 
   const schoolYear = req.query.school_year || null;
   let sql =
     `SELECT ca.*, s.code AS subject_code, s.title AS subject_title, s.units,
-            sec.name AS section_name, sec.grade_level, sec.room AS section_room,
-            t.first_name || ' ' || t.last_name AS teacher_name
+             sec.name AS section_name, sec.grade_level, sec.room AS section_room,
+             t.first_name || ' ' || t.last_name AS teacher_name,
+             t.room AS teacher_room
      FROM class_assignments ca
      JOIN sections sec ON sec.id = ca.section_id
      JOIN subjects s ON s.id = ca.subject_id

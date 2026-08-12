@@ -346,4 +346,4 @@ function renderTemplate(id, ctx = {}) {
   return { id: t.id, name: t.name, group: t.group, body: t.build(merged) };
 }
 
-module.exports = { TEMPLATES, getTemplate, renderTemplate, DEFAULTS };
+module.exports = { TEMPLATES, getTemplate, renderTemplate, DEFAULTS, fill };

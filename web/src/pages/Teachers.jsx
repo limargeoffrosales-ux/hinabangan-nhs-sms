@@ -5,7 +5,7 @@ import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../componen
 
 const EMPTY_FORM = {
   employee_no: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: '',
-  position: '', prc_no: '', email: '', contact: '', status: 'active',
+  position: '', prc_no: '', email: '', contact: '', room: '', status: 'active',
 };
 
 export default function Teachers() {
@@ -92,7 +92,7 @@ export default function Teachers() {
           <table>
             <thead>
               <tr>
-                <th>Employee No.</th><th>Name</th><th>Position</th><th>PRC No.</th>
+                <th>Employee No.</th><th>Name</th><th>Position</th><th>Assigned Room</th><th>PRC No.</th>
                 <th>Email</th><th>Contact</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
@@ -102,6 +102,7 @@ export default function Teachers() {
                   <td style={{ fontFamily: 'monospace' }}>{t.employee_no || '—'}</td>
                   <td><strong>{t.last_name}, {t.first_name} {t.middle_name || ''}</strong></td>
                   <td>{t.position || '—'}</td>
+                  <td>{t.room || '—'}</td>
                   <td>{t.prc_no || '—'}</td>
                   <td>{t.email || '—'}</td>
                   <td>{t.contact || '—'}</td>
@@ -135,9 +136,10 @@ export default function Teachers() {
               <div><label>Suffix</label>{field('suffix')}</div>
               <div><label>Sex</label>{field('sex')}</div>
               <div><label>Position</label>{field('position')}</div>
-              <div><label>PRC no.</label>{field('prc_no')}</div>
+              <div><label>Assigned room <span className="muted">(used by program generator)</span></label>{field('room', { placeholder: 'e.g. Rm 203' })}</div>
             </div>
             <div className="form-row">
+              <div><label>PRC no.</label>{field('prc_no')}</div>
               <div><label>Email</label>{field('email', { type: 'email' })}</div>
               <div><label>Contact</label>{field('contact')}</div>
               <div><label>Status</label>

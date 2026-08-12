@@ -11,7 +11,7 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 export default function Programs() {
   const { user } = useAuth();
   const canWrite = WRITE.includes(user?.role);
-  const [schoolYear, setSchoolYear] = useState('2025-2026');
+  const [schoolYear, setSchoolYear] = useState('2026-2027');
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -121,7 +121,7 @@ export default function Programs() {
           value={schoolYear}
           onChange={(e) => setSchoolYear(e.target.value)}
         >
-          {[schoolYear, '2024-2025'].filter((v, i, a) => a.indexOf(v) === i).map((y) => <option key={y}>{y}</option>)}
+          {['2026-2027', '2025-2026', '2024-2025'].filter((v, i, a) => a.indexOf(v) === i).map((y) => <option key={y}>{y}</option>)}
         </select>
       </PageHead>
 
@@ -138,7 +138,8 @@ export default function Programs() {
         </h3>
         <p className="sub">
           Places every subject assignment into conflict-free slots (Mon–Fri). Supports 1-hour, 1.5-hour and 2-hour classes;
-          auto-detects section, teacher and classroom clashes, and skips the lunch break.
+          rooms follow the priority assignment room → teacher room → section room → free room pool, so vacant rooms are
+          delegated to teachers without rooms. Skips the lunch break.
         </p>
         <div className="form-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', maxWidth: 660 }}>
           <label>First class
@@ -378,7 +379,7 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
             </select>
           </label>
         </div>
-        <label>Room <span className="muted">(defaults to section room)</span></label>
+        <label>Room <span className="muted">(defaults to teacher room, then section room)</span></label>
         <input className="input" value={form.room} onChange={set('room')} placeholder="e.g. ICT Lab 1" />
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
