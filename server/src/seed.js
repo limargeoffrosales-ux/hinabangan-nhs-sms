@@ -118,8 +118,13 @@ async function seed() {
   console.log(`+ ${staffCount} staff accounts written to accounts.txt`);
 
   const hasStudents = await qa('SELECT COUNT(*) AS n FROM students');
+  if (process.env.DEMO_SEED !== '1') {
+    console.log('= DEMO_SEED not set — demo data skipped (report types, users and staff accounts are still ensured).');
+    if (require.main === module) await close();
+    return;
+  }
   if (Number(hasStudents[0].n) > 0) {
-    console.log('= Seed data already present — kept as-is (no reset; user data preserved).');
+    console.log('= Demo data already present — kept as-is (no reset; user data preserved).');
     if (require.main === module) await close();
     return;
   }

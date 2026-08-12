@@ -30,8 +30,10 @@ const assessmentRoutes = require('./routes/assessment.routes');
   if (process.env.SEED_ON_BOOT === '1') {
     const { seed } = require('./seed');
     await seed();
-    console.log('SEED_ON_BOOT: demo + staff accounts ensured (idempotent)');
+    console.log('SEED_ON_BOOT: report types, demo + staff accounts ensured (idempotent)');
   }
+  const { purgeDemo } = require('./purge-demo');
+  await purgeDemo();
   if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
     const bcrypt = require('bcryptjs');
     const rows = await db.q('SELECT id FROM users WHERE username = ?', ['superadmin']);
