@@ -78,27 +78,36 @@ remote manually at https://github.com/new, then
 ## 4. Deploy on Render
 
 `render.yaml` in the repo root is a **Blueprint**: it declares the web service
-and the PostgreSQL database in one file.
+in one file.
 
 1. Go to https://render.com → **New → Blueprint**.
 2. Connect GitHub and select the `hinabangan-nhs-sms` repository.
-3. Render reads `render.yaml` and shows two resources:
-   - Web Service `hinabangan-nhs` (Node 22, free)
-   - PostgreSQL `hinabangan-nhs-db` (free)
-4. Click **Apply**. Render creates the database, then builds the web portal
-   (`npm run build`) and starts the server (`npm start`). First build takes
-   ~5–10 minutes.
+3. Render reads `render.yaml` and shows the Web Service `hinabangan-nhs`
+   (Node 22, free).
+4. Click **Apply**. Render builds the web portal (`npm run build`) and starts
+   the server (`npm start`). First build takes ~5–10 minutes.
+5. Add the database connection string (section 4a) before/after the first
+   build — the app auto-migrates the schema on first boot.
 
-### Manual alternative (skip the Blueprint if it is unavailable)
+### 4a. Connect a database with NO expiry (Neon free — recommended)
 
-1. At https://neon.tech, create a project (`pitr` region close to Samar, e.g.
-   Singapore), copy the **connection string** (starts with `postgresql://`).
-2. On Render: **New → Web Service** → pick the repo.
-   - Build command: `npm run build`
-   - Start command: `npm start`
-   - Environment variables (see section 5).
-3. Render hosts its own managed Postgres too (**New → PostgreSQL** on Render, free
-   plan) and gives you the connection string either way.
+Render's own free PostgreSQL **expires 30 days after creation** — unsuitable
+for a school system in public use. **Neon** free tier has **no expiry** and
+never deletes data (it only sleeps after ~7 days idle and wakes automatically
+on the next request).
+
+1. Go to https://neon.tech and sign in (GitHub/Google — free).
+2. **Create a project** — pick a region close to the Philippines
+   (e.g. **Singapore**). Leave the rest as defaults.
+3. Copy the **connection string** (starts with `postgresql://...neon.tech/...`).
+4. On Render: **hinabangan-nhs** → **Environment** → set **DATABASE_URL** to
+   that string → **Save** → **Deploy latest commit**.
+5. First boot runs all migrations automatically and seeds the report
+   taxonomy + superadmin + staff accounts (`accounts.txt`).
+6. Sign in with `superadmin` / `MeridianEd2026!` and change the password
+   (key icon, top bar).
+
+No maintenance needed afterwards: the Neon database never expires.
 
 ## 5. Environment variables
 
@@ -106,7 +115,7 @@ Set these on the service (Dashboard → the service → **Environment**):
 
 | Key | Value |
 |---|---|
-| `DATABASE_URL` | The Neon (or Render) connection string — the Blueprint fills this automatically from `hinabangan-nhs-db` |
+| `DATABASE_URL` | Your Neon connection string (set manually, see section 4a) |
 | `JWT_SECRET` | A long random string — the Blueprint generates one automatically |
 | `NODE_VERSION` | `22` |
 
@@ -169,9 +178,12 @@ On the phone/tablet:
 - Render free web services **sleep after 15 minutes of no traffic**. The first
   request after idle takes ~30–60 seconds to wake up. Acceptable for school
   hours; upgrade (≈$7/mo) if not.
-- Free Postgres storage limit: 256 MB — thousands of students' records fit
+- Neon free storage limit: 3 GB — tens of thousands of student records fit
   easily; exports and media should be stored elsewhere (the upload folder is
   `server/data/uploads`).
+- Neon free autosuspends after ~7 days of no activity and wakes automatically
+  on the next request; **data is never deleted and the database never
+  expires**.
 - The URL is a `*.onrender.com` subdomain; HTTPS is automatic.
 - 750 instance-hours per month — a sleeping service consumes ~0.
 
