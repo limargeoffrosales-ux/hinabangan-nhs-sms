@@ -119,18 +119,10 @@ async function seed() {
 
   const hasStudents = await qa('SELECT COUNT(*) AS n FROM students');
   if (Number(hasStudents[0].n) > 0) {
-    console.log('Seed data already present — resetting demo data.');
+    console.log('= Seed data already present — kept as-is (no reset; user data preserved).');
+    if (require.main === module) await close();
+    return;
   }
-  await qr('DELETE FROM schedule_entries');
-  await qr('DELETE FROM class_assignments');
-  await qr('DELETE FROM attendance');
-  await qr('DELETE FROM grades');
-  await qr('DELETE FROM enrollments');
-  await qr('DELETE FROM students');
-  await qr('DELETE FROM sections');
-  await qr('DELETE FROM subjects');
-  await qr('DELETE FROM teachers');
-  await qr('DELETE FROM announcements');
   await qr('DELETE FROM refresh_tokens');
 
   const teachers = [
