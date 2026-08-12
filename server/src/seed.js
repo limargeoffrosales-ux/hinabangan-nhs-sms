@@ -36,7 +36,7 @@ async function seedReportTypes() {
     let id;
     if (exists) {
       await qr(
-        'UPDATE report_types SET name = ?, group_name = ?, frequency = ?, is_deped_form = ?, auto_generate = ?, required = ?, active = 1, sort_order = ? WHERE id = ?',
+        'UPDATE report_types SET name = ?, group_name = ?, frequency = ?, is_deped_form = ?, auto_generate = ?, required = ?, active = TRUE, sort_order = ? WHERE id = ?',
         [t.name, t.group, t.frequency, t.isDeped, t.autoGen, t.required, idx, exists.id]);
       id = exists.id;
     } else {
@@ -350,7 +350,7 @@ async function seed() {
 
   console.log('Seed complete: 40 users (10 demo + 30 staff), 8 teachers, 79 subjects (MATATAG JHS + Strengthened SHS), 6 sections, 30 students, grades, attendance, assignments.');
   await seedAiModules();
-  await close();
+  if (require.main === module) await close();
 }
 
 async function seedAiModules() {
@@ -472,8 +472,12 @@ async function seedAiModules() {
   console.log('+ AI modules seeded: research, PHIL-IRI/numeracy records, interventions, question bank, rubrics, TOS, item analysis.');
 }
 
-seed().catch(async (err) => {
-  console.error('Seed failed:', err);
-  await close();
-  process.exit(1);
-});
+module.exports = { seed };
+
+if (require.main === module) {
+  seed().catch(async (err) => {
+    console.error('Seed failed:', err);
+    await close();
+    process.exit(1);
+  });
+}
