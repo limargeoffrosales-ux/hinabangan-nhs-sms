@@ -3,15 +3,15 @@ import { Save, FileText } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
-const QUARTERS = [1, 2, 3, 4];
+const TERMS = [1, 2, 3];
 
 export default function Grades() {
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [schoolYear, setSchoolYear] = useState('2025-2026');
+  const [schoolYear, setSchoolYear] = useState('2026-2027');
   const [sectionId, setSectionId] = useState('');
   const [subjectId, setSubjectId] = useState('');
-  const [quarter, setQuarter] = useState(1);
+  const [term, setTerm] = useState(1);
   const [rows, setRows] = useState(null);
   const [weights, setWeights] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -36,7 +36,7 @@ export default function Grades() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api(`/grades/class?section_id=${sectionId}&subject_id=${subjectId}&school_year=${encodeURIComponent(schoolYear)}&quarter=${quarter}`);
+      const res = await api(`/grades/class?section_id=${sectionId}&subject_id=${subjectId}&school_year=${encodeURIComponent(schoolYear)}&term=${term}`);
       setRows(res.data);
       setWeights(res.weights);
     } catch (e) {
@@ -59,7 +59,7 @@ export default function Grades() {
         .map((r) => ({ student_id: r.id, written_work: r.written_work, performance_task: r.performance_task, quarterly_exam: r.quarterly_exam }));
       const res = await api('/grades/class', {
         method: 'POST',
-        body: { section_id: Number(sectionId), subject_id: Number(subjectId), school_year: schoolYear, quarter, rows: payload },
+        body: { section_id: Number(sectionId), subject_id: Number(subjectId), school_year: schoolYear, term, rows: payload },
       });
       alert(`Saved grades for ${res.saved} student(s).`);
       loadClass();
@@ -71,7 +71,7 @@ export default function Grades() {
   }
 
   async function viewReportCard(studentId) {
-    const res = await api(`/grades/report-card/${studentId}?school_year=${encodeURIComponent(schoolYear)}&quarter=${quarter}`);
+    const res = await api(`/grades/report-card/${studentId}?school_year=${encodeURIComponent(schoolYear)}&term=${term}`);
     setReport(res);
   }
 
@@ -82,7 +82,7 @@ export default function Grades() {
     <>
       <PageHead
         title="Class Records"
-        sub="Enter written work, performance tasks, and quarterly exams — grades are computed automatically (DepEd weights)"
+        sub="Enter written work, performance tasks, and term assessments — grades are computed automatically (DepEd weights, 3-term calendar)"
       />
       <ErrorBanner error={error} />
 
@@ -107,10 +107,10 @@ export default function Grades() {
             <input value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} />
           </div>
           <div>
-            <label>Quarter</label>
+            <label>Term</label>
             <div className="seg">
-              {QUARTERS.map((q) => (
-                <button key={q} className={quarter === q ? 'on' : ''} onClick={() => { setQuarter(q); setRows(null); }} type="button">{q}</button>
+              {TERMS.map((t) => (
+                <button key={t} className={term === t ? 'on' : ''} onClick={() => { setTerm(t); setRows(null); }} type="button">{t}</button>
               ))}
             </div>
           </div>
@@ -125,7 +125,7 @@ export default function Grades() {
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
             <strong>{section?.name} · {subject?.title}</strong>
             <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>
-              Weights: Written Work {weights.written_work}% · Performance Tasks {weights.performance_task}% · Quarterly {weights.quarterly_exam}%
+              Weights: Written Work {weights.written_work}% · Performance Tasks {weights.performance_task}% · Term {weights.quarterly_exam}%
             </span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" onClick={save} disabled={saving}><Save size={14} /> {saving ? 'Saving…' : 'Save grades'}</button>
@@ -137,7 +137,7 @@ export default function Grades() {
                 <th>LRN</th><th>Learner</th>
                 <th style={{ textAlign: 'center' }}>Written Work ({weights.written_work}%)</th>
                 <th style={{ textAlign: 'center' }}>Performance Task ({weights.performance_task}%)</th>
-                <th style={{ textAlign: 'center' }}>Quarterly Exam ({weights.quarterly_exam}%)</th>
+                <th style={{ textAlign: 'center' }}>Term Exam ({weights.quarterly_exam}%)</th>
                 <th style={{ textAlign: 'center' }}>Final Grade</th>
                 <th>Remarks</th><th></th>
               </tr>
@@ -175,7 +175,7 @@ export default function Grades() {
       {report && (
         <Modal
           title={`Report Card — ${report.student.last_name}, ${report.student.first_name}`}
-          sub={`LRN ${report.student.lrn} · ${report.school_year} · Quarter ${report.quarter}`}
+          sub={`LRN ${report.student.lrn} · ${report.school_year} · Term ${report.term || report.quarter}`}
           onClose={() => setReport(null)}
           wide
         >

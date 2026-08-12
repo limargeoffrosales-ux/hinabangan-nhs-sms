@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Plus, Upload, Download, Wand2, CheckCheck, Undo2, Send } from 'lucide-react';
-import { api, getApiBase, getToken } from '../lib/api';
-import { useAuth } from '../lib/auth';
+import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList } from 'lucide-react';
+import { api } from '../lib/api';
+import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
 
+const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const FREQS = ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'periodic'];
 const STATUS_BADGE = {
   draft: 'badge-gray', submitted: 'badge-blue', reviewed: 'badge-yellow',
   approved: 'badge-green', returned: 'badge-red',
 };
+const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
 function defaultPeriod(freq) {
   const now = new Date();
@@ -22,31 +24,12 @@ function defaultPeriod(freq) {
   if (freq === 'monthly') return iso.slice(0, 7);
   if (freq === 'quarterly') return 'Q' + (Math.floor(now.getMonth() / 3) + 1) + ' ' + now.getFullYear();
   if (freq === 'annual') return 'SY ' + iso.slice(0, 4);
-  return 'SY 2025-2026';
-}
-
-function fmtBytes(n) {
-  if (!n) return '—';
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-  return (n / 1024 / 1024).toFixed(1) + ' MB';
-}
-
-async function downloadFile(fileId, filename) {
-  const res = await fetch(`${getApiBase()}/submissions/files/${fileId}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('Download failed');
-  const blob = await res.blob();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename || 'download';
-  a.click();
-  URL.revokeObjectURL(a.href);
+  return 'SY 2026-2027';
 }
 
 export default function Submissions() {
   const { user } = useAuth();
+  const canAssign = can(user?.role, ...ADMIN);
   const [tab, setTab] = useState('mine');
   const [types, setTypes] = useState([]);
   const [rows, setRows] = useState([]);
@@ -63,8 +46,8 @@ export default function Submissions() {
     try {
       const [t, r, q] = await Promise.all([
         api('/submissions/types'),
-        api('/submissions?school_year=2025-2026'),
-        api('/submissions?school_year=2025-2026'),
+        api('/submissions'),
+        api('/submissions'),
       ]);
       setTypes(t.data);
       const mine = (r.data || []).filter((s) => String(s.user_id) === String(user.id));
@@ -123,7 +106,12 @@ export default function Submissions() {
 
   return (
     <div>
-      <PageHead title="Teacher Submissions" sub="Paperless submission of every required report — DLLs, accomplishment reports, DepEd forms, and more. Configurable review & approval workflows.">
+      <PageHead title="Teacher Submissions" sub="Paperless submission of every required report — input the data online or mark the task as done. No file uploads.">
+        {canAssign && (
+          <button className="btn" style={{ marginRight: 8 }} onClick={() => setModal({ mode: 'assign' })}>
+            <ClipboardList size={15} /> Assign task
+          </button>
+        )}
         <button className="btn btn-primary" onClick={() => setModal({ mode: 'new' })}>
           <Plus size={15} /> New submission
         </button>
@@ -148,39 +136,29 @@ export default function Submissions() {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Report</th><th>Period</th><th>Status</th><th>Attachments</th><th>Last updated</th><th>Actions</th></tr>
+                <tr><th>Report</th><th>Period</th><th>Status</th><th>Last updated</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {shown.map((s) => (
                   <tr key={s.id}>
                     <td>
                       <strong>{s.report_name}</strong>
-                      {s.is_deped_form ? ' ' : ''}
+                      {s.is_deped_form === 1 || s.is_deped_form === true ? ' ' : ''}
                       {s.is_deped_form === 1 || s.is_deped_form === true ? <Badge status="high" /> : ''}
                       <br /><span className="muted">{s.group_name} · {s.frequency}</span>
+                      {s.assigned_by ? <span className="badge badge-blue" style={{ marginLeft: 6 }}>ASSIGNED TASK</span> : null}
+                      {s.due_date && <div className="muted" style={{ fontSize: 12 }}>Due: {s.due_date}</div>}
                       {s.review_note && s.status === 'returned' && <div className="muted" style={{ color: 'var(--danger)' }}>Note: {s.review_note}</div>}
                     </td>
                     <td>{s.period}</td>
                     <td><Badge status={s.status} /></td>
-                    <td>
-                      {s.files && s.files.length ? s.files.map((f) => (
-                        <div key={f.id}>
-                          <a className="link" onClick={() => downloadFile(f.id, f.filename)} style={{ cursor: 'pointer' }}>
-                            <Download size={11} style={{ verticalAlign: -1 }} /> {f.filename} <span className="muted">({fmtBytes(f.size_bytes)})</span>
-                          </a>
-                        </div>
-                      )) : <span className="muted">none</span>}
-                    </td>
                     <td className="muted">{(s.updated_at || '').slice(0, 10)}</td>
                     <td className="row-actions">
                       {(s.status === 'draft' || s.status === 'returned') && (
-                        <button className="btn btn-sm" onClick={() => setModal({ mode: 'edit', s })}><Upload size={13} /> Files / submit</button>
+                        <button className="btn btn-sm" onClick={() => setModal({ mode: 'edit', s })}><FileText size={13} /> Fill data</button>
                       )}
-                      {s.status === 'draft' && (
-                        <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act(s.id, 'submit', {})}><Send size={13} /> Submit</button>
-                      )}
-                      {s.status === 'returned' && (
-                        <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act(s.id, 'submit', {})}><Send size={13} /> Re-submit</button>
+                      {(s.status === 'draft' || s.status === 'returned') && (
+                        <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act(s.id, 'submit', {})}><CheckCheck size={13} /> Mark as done</button>
                       )}
                     </td>
                   </tr>
@@ -209,7 +187,15 @@ export default function Submissions() {
         </div>
       )}
 
-      {modal && (
+      {modal && modal.mode === 'assign' && (
+        <AssignModal
+          types={types}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load(); }}
+          onNotice={(t) => setNotice(t)}
+        />
+      )}
+      {modal && modal.mode !== 'assign' && (
         <SubmissionModal
           mode={modal.mode}
           submission={modal.s}
@@ -223,6 +209,105 @@ export default function Submissions() {
   );
 }
 
+function AssignModal({ types, onClose, onSaved, onNotice }) {
+  const groups = useMemo(() => [...new Set(types.map((t) => t.group_name))], [types]);
+  const [typeId, setTypeId] = useState('');
+  const [users, setUsers] = useState([]);
+  const [userIds, setUserIds] = useState([]);
+  const [period, setPeriod] = useState('');
+  const [schoolYear, setSchoolYear] = useState('2026-2027');
+  const [due, setDue] = useState('');
+  const [notes, setNotes] = useState('');
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api('/submissions/teachers').then((r) => setUsers(r.data || [])).catch((e) => setErr(e.message));
+  }, []);
+
+  const staff = users.filter((u) => !['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'].includes(u.role));
+  const type = types.find((t) => String(t.id) === typeId);
+
+  function pickType(id) {
+    setTypeId(id);
+    const t = types.find((x) => String(x.id) === id);
+    if (t) setPeriod(defaultPeriod(t.frequency));
+  }
+
+  function toggleUser(id) {
+    setUserIds((sel) => (sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]));
+  }
+
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await api('/submissions/assign', {
+        method: 'POST',
+        body: {
+          report_type_id: Number(typeId), user_ids: userIds,
+          school_year: schoolYear, period, due_date: due || null, notes: notes || null,
+        },
+      });
+      onNotice(`Assigned ${res.count} task${res.count === 1 ? '' : 's'} to teachers.`);
+      onSaved();
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Assign submission task" sub="Admin gives a report task to selected teachers — they input the data online or mark it as done. No uploads." onClose={onClose} wide>
+      <ErrorBanner error={err} />
+      <label>Report type</label>
+      <select className="input" value={typeId} onChange={(e) => pickType(e.target.value)}>
+        <option value="">Select a report…</option>
+        {groups.map((g) => (
+          <optgroup key={g} label={g}>
+            {types.filter((t) => t.group_name === g).map((t) => (
+              <option key={t.id} value={String(t.id)}>{t.name}{t.auto_generate ? '  ✦ AI' : ''}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      <label>Teachers <span className="muted">({userIds.length} selected)</span></label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 4, maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8 }}>
+        {staff.length === 0 && <div className="muted">No teacher accounts found.</div>}
+        {staff.map((u) => (
+          <label key={u.id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={userIds.includes(u.id)} onChange={() => toggleUser(u.id)} />
+            <span>{u.name} <span className="muted">@{u.username}</span></span>
+          </label>
+        ))}
+      </div>
+      <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <label>School year
+          <select className="input" value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)}>
+            {SCHOOL_YEARS.map((y) => <option key={y}>{y}</option>)}
+          </select>
+        </label>
+        <label>Period
+          <input className="input" value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="e.g. Q1 2026-2027" />
+        </label>
+      </div>
+      <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <label>Due date
+          <input type="date" className="input" value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
+        <label>Notes for the teachers</label>
+        <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" disabled={busy || !typeId || userIds.length === 0} onClick={save}>
+          {busy ? 'Assigning…' : `Assign to ${userIds.length} teacher${userIds.length === 1 ? '' : 's'}`}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }) {
   const groups = useMemo(() => [...new Set(types.map((t) => t.group_name))], [types]);
   const [typeId, setTypeId] = useState(submission?.report_type_id ? String(submission.report_type_id) : '');
@@ -231,7 +316,6 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
   const [notes, setNotes] = useState(submission?.notes || '');
   const [due, setDue] = useState(submission?.due_date || '');
   const [draft, setDraft] = useState(submission?.draft_body || '');
-  const [files, setFiles] = useState([]);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -248,7 +332,7 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
     try {
       const res = await api('/submissions/generate-draft', {
         method: 'POST',
-        body: { report_type_id: type.id, period, school_year: '2025-2026' },
+        body: { report_type_id: type.id, period },
       });
       setDraft(res.draft_body);
       onNotice('Draft generated — review and edit it before submitting.');
@@ -267,25 +351,13 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
       if (!id) {
         const res = await api('/submissions', {
           method: 'POST',
-          body: {
-            report_type_id: Number(typeId), period, notes, due_date: due || null,
-            draft_body: draft || null, school_year: '2025-2026',
-          },
+          body: { report_type_id: Number(typeId), period, notes, due_date: due || null, draft_body: draft || null },
         });
         id = res.id;
       } else {
         await api(`/submissions/${id}`, {
           method: 'PATCH',
           body: { period, notes, due_date: due || null, draft_body: draft || null },
-        });
-      }
-      if (files.length) {
-        const form = new FormData();
-        for (const f of files) form.append('files', f);
-        await fetch(`${getApiBase()}/submissions/${id}/files`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${getToken()}` },
-          body: form,
         });
       }
       if (submitNow) await api(`/submissions/${id}/submit`, { method: 'POST', body: {} });
@@ -298,7 +370,7 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
   }
 
   return (
-    <Modal title={mode === 'new' ? 'New report submission' : 'Update submission'} sub="Attach files, use the AI draft builder, then save as draft or submit for review." onClose={onClose} wide>
+    <Modal title={mode === 'new' ? 'New report submission' : 'Update submission'} sub="Input the necessary data online, or mark the task as done — file uploads are not required." onClose={onClose} wide>
       <ErrorBanner error={err} />
       {mode === 'new' && (
         <>
@@ -317,37 +389,28 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
       )}
       <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <label>Period
-          <input className="input" value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="e.g. 2026-08-11 or Q1 2025-2026" />
+          <input className="input" value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="e.g. Q1 2026-2027" />
         </label>
         <label>Due date <span className="muted">(optional)</span>
           <input type="date" className="input" value={due} onChange={(e) => setDue(e.target.value)} />
         </label>
       </div>
-      <label>Notes for the reviewer</label>
-      <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <label>Report data</label>
+      <textarea className="input" rows={7} value={draft} onChange={(e) => setDraft(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12.5 }} placeholder="Enter the data / details of the report here — or leave blank and just mark the task as done." />
       {type?.auto_generate ? (
-        <>
-          <label>AI draft</label>
-          <textarea className="input" rows={8} value={draft} onChange={(e) => setDraft(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12.5 }} />
-          <div style={{ margin: '8px 0' }}>
-            <button type="button" className="btn" onClick={generateDraft} disabled={busy || !typeId}>
-              <Wand2 size={14} /> {busy ? 'Generating…' : 'Generate draft'}
-            </button>
-          </div>
-        </>
-      ) : null}
-      <label>Attachments <span className="muted">(up to 10 files, 25 MB each — DLL, PDF, images…)</span></label>
-      <input type="file" multiple className="input" onChange={(e) => setFiles([...e.target.files])} />
-      {submission?.files?.length ? (
-        <div className="muted" style={{ marginTop: 6 }}>
-          Already attached: {submission.files.map((f) => f.filename).join(', ')}
+        <div style={{ margin: '8px 0' }}>
+          <button type="button" className="btn" onClick={generateDraft} disabled={busy || !typeId}>
+            <Wand2 size={14} /> {busy ? 'Generating…' : 'Generate AI draft'}
+          </button>
         </div>
       ) : null}
+      <label>Notes for the reviewer</label>
+      <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onClose}>Cancel</button>
         <button type="button" className="btn" disabled={busy} onClick={() => save(false)}>Save as draft</button>
         <button type="button" className="btn btn-primary" disabled={busy || !typeId && !submission} onClick={() => save(true)}>
-          <Send size={14} /> {busy ? 'Saving…' : 'Save & submit for review'}
+          <Send size={14} /> {busy ? 'Saving…' : 'Save & mark as done'}
         </button>
       </div>
     </Modal>

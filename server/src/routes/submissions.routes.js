@@ -1,26 +1,11 @@
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
 const express = require('express');
 const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { DATA_DIR } = require('../config');
 const { REPORT_TYPES } = require('../report-types');
 
 const router = express.Router();
 router.use(authenticate);
-
-const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname || '').toLowerCase()}`),
-  }),
-  limits: { fileSize: 25 * 1024 * 1024, files: 10 },
-});
 
 const GROUP_WORKFLOWS = {
   'Daily Attendance': [['registrar', 'assistant_principal'], ['principal']],
@@ -84,7 +69,6 @@ async function submissionDetail(req, id) {
      WHERE r.id = ?`,
     [id]);
   if (!row) return null;
-  row.files = await qa('SELECT id, filename, size_bytes, mime, uploaded_at FROM submission_files WHERE submission_id = ? ORDER BY id', [id]);
   row.workflow = workflowFor(row.group_name);
   row.my_review = req && canReview(req, row.workflow) && row.user_id !== req.user.id;
   row.my_approve = req && canApprove(req, row.workflow) && row.user_id !== req.user.id;
@@ -157,44 +141,9 @@ router.post('/', asyncH(async (req, res) => {
   const id = await qi(
     `INSERT INTO report_submissions (report_type_id, user_id, teacher_id, school_year, period, status, notes, due_date, draft_body)
      VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
-    [type.id, req.user.id, teacherId, b.school_year || '2025-2026', b.period, b.notes || null, b.due_date || null, b.draft_body || null]);
+    [type.id, req.user.id, teacherId, b.school_year || '2026-2027', b.period, b.notes || null, b.due_date || null, b.draft_body || null]);
   await audit(req, 'CREATE_SUBMISSION', 'report_submissions', id, { report: type.code, period: b.period });
   res.status(201).json({ id, detail: await submissionDetail(req, id) });
-}));
-
-router.post('/:id/files', upload.array('files', 10), asyncH(async (req, res) => {
-  const row = await q('SELECT * FROM report_submissions WHERE id = ?', [req.params.id]);
-  if (!row) return res.status(404).json({ error: 'Submission not found' });
-  if (row.user_id !== req.user.id && !isAdminRole(req.user.role)) {
-    return res.status(403).json({ error: 'Only the owner can attach files' });
-  }
-  const files = req.files || [];
-  const created = [];
-  for (const f of files) {
-    const fid = await qi(
-      'INSERT INTO submission_files (submission_id, filename, stored_name, size_bytes, mime) VALUES (?, ?, ?, ?, ?)',
-      [row.id, f.originalname, f.filename, f.size, f.mimetype]);
-    created.push({ id: fid, filename: f.originalname });
-  }
-  await qr(`UPDATE report_submissions SET updated_at = ${nowSql()} WHERE id = ?`, [row.id]);
-  await audit(req, 'UPLOAD_FILES', 'report_submissions', row.id, { count: created.length });
-  res.status(201).json({ files: created });
-}));
-
-router.get('/files/:fileId', asyncH(async (req, res) => {
-  const f = await q(
-    `SELECT f.*, r.user_id FROM submission_files f JOIN report_submissions r ON r.id = f.submission_id WHERE f.id = ?`,
-    [req.params.fileId]);
-  if (!f) return res.status(404).json({ error: 'File not found' });
-  const sub = await q('SELECT * FROM report_submissions WHERE id = ?', [f.submission_id]);
-  const wf = workflowFor((await q('SELECT group_name FROM report_types WHERE id = ?', [sub.report_type_id])).group_name);
-  if (!canSee(req, sub, wf)) return res.status(403).json({ error: 'Not allowed' });
-  const disk = path.join(UPLOAD_DIR, f.stored_name);
-  if (!fs.existsSync(disk)) return res.status(404).json({ error: 'File missing on disk' });
-  res.setHeader('Content-Type', f.mime || 'application/octet-stream');
-  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(f.filename)}"`);
-  res.setHeader('X-Filename', encodeURIComponent(f.filename));
-  fs.createReadStream(disk).pipe(res);
 }));
 
 router.patch('/:id', asyncH(async (req, res) => {
@@ -236,7 +185,7 @@ router.post('/:id/review', asyncH(async (req, res) => {
   const note = (req.body || {}).review_note || null;
   const next = approved ? 'reviewed' : 'returned';
   await qr(
-    `UPDATE report_submissions SET status = ?, review_note = ?, reviewer_id = ?, reviewed_at = nowSql(), updated_at = nowSql() WHERE id = ?`,
+    `UPDATE report_submissions SET status = ?, review_note = ?, reviewer_id = ?, reviewed_at = ${nowSql()}, updated_at = ${nowSql()} WHERE id = ?`,
     [next, note, req.user.id, row.id]);
   await audit(req, 'REVIEW_REPORT', 'report_submissions', row.id, { outcome: next, note });
   res.json({ detail: await submissionDetail(req, row.id) });
@@ -250,7 +199,7 @@ router.post('/:id/approve', asyncH(async (req, res) => {
   if (!canApprove(req, wf)) return res.status(403).json({ error: 'You are not the approver for this report' });
   if (row.status !== 'reviewed') return res.status(409).json({ error: 'Report must be reviewed before approval' });
   await qr(
-    `UPDATE report_submissions SET status = 'approved', approver_id = ?, approved_at = nowSql(), updated_at = nowSql() WHERE id = ?`,
+    `UPDATE report_submissions SET status = 'approved', approver_id = ?, approved_at = ${nowSql()}, updated_at = ${nowSql()} WHERE id = ?`,
     [req.user.id, row.id]);
   await audit(req, 'APPROVE_REPORT', 'report_submissions', row.id);
   res.json({ detail: await submissionDetail(req, row.id) });
@@ -268,7 +217,7 @@ router.post('/:id/return', asyncH(async (req, res) => {
     return res.status(409).json({ error: 'Cannot return this report at its current stage' });
   }
   await qr(
-    `UPDATE report_submissions SET status = 'returned', review_note = ?, reviewer_id = ?, reviewed_at = nowSql(), updated_at = nowSql() WHERE id = ?`,
+    `UPDATE report_submissions SET status = 'returned', review_note = ?, reviewer_id = ?, reviewed_at = ${nowSql()}, updated_at = ${nowSql()} WHERE id = ?`,
     [(req.body || {}).review_note || null, req.user.id, row.id]);
   await audit(req, 'RETURN_REPORT', 'report_submissions', row.id, { note: (req.body || {}).review_note || null });
   res.json({ detail: await submissionDetail(req, row.id) });
@@ -283,18 +232,13 @@ router.delete('/:id', requireRole(...ADMIN_ROLES, 'teacher'), asyncH(async (req,
   if (row.status !== 'draft' && !isAdminRole(req.user.role)) {
     return res.status(409).json({ error: 'Only draft submissions can be deleted' });
   }
-  const files = await qa('SELECT stored_name FROM submission_files WHERE submission_id = ?', [row.id]);
-  for (const f of files) {
-    const disk = path.join(UPLOAD_DIR, f.stored_name);
-    if (fs.existsSync(disk)) fs.unlinkSync(disk);
-  }
   await qr('DELETE FROM report_submissions WHERE id = ?', [row.id]);
   await audit(req, 'DELETE_SUBMISSION', 'report_submissions', row.id);
   res.json({ ok: true });
 }));
 
 function draftFor(code, ctx) {
-  const school = 'Hinabangan National High School\nHinabangan, Samar\nSchool Year: ' + (ctx.school_year || '2025-2026');
+  const school = 'Hinabangan National High School\nHinabangan, Samar\nSchool Year: ' + (ctx.school_year || '2026-2027');
   const by = ctx.user_name || '______________________';
   const period = ctx.period || '';
   const footer = 'Prepared by: ' + by + '\nNoted by / Approved by:\n\n______________________\n______________________';
@@ -375,7 +319,7 @@ router.post('/generate-draft', asyncH(async (req, res) => {
   if (!type.auto_generate) return res.status(400).json({ error: 'This report type does not support auto-drafting' });
   const ctx = {
     user_name: req.user.name,
-    school_year: b.school_year || '2025-2026',
+    school_year: b.school_year || '2026-2027',
     period: b.period || '',
     subject: b.subject || '____________',
     quarter: b.quarter || '1',
@@ -383,55 +327,103 @@ router.post('/generate-draft', asyncH(async (req, res) => {
   res.json({ code: type.code, name: type.name, draft_body: draftFor(type.code, ctx) });
 }));
 
+// Active non-admin users that can be given submission tasks
+router.get('/teachers', asyncH(async (req, res) => {
+  const rows = await qa(
+    `SELECT id, username, name, role FROM users
+     WHERE status = 'active' AND role NOT IN ('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar')
+     ORDER BY name`);
+  res.json({ data: rows });
+}));
+
+// Admin-initiated task assignment — creates a submission task for each
+// selected teacher. Compliance is computed only from these assigned tasks.
+router.post('/assign', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.report_type_id || !b.period) return res.status(400).json({ error: 'report_type_id and period are required' });
+  const type = await q('SELECT * FROM report_types WHERE id = ?', [b.report_type_id]);
+  if (!type) return res.status(404).json({ error: 'Report type not found' });
+  const userIds = Array.isArray(b.user_ids) ? [...new Set(b.user_ids.map(Number).filter(Boolean))] : [];
+  if (!userIds.length) return res.status(400).json({ error: 'Select at least one teacher to assign the task to' });
+  const users = await qa('SELECT id, username FROM users WHERE id IN (' + userIds.map(() => '?').join(',') + ') AND status = ?', [...userIds, 'active']);
+  const validIds = new Set(users.map((u) => u.id));
+  const sy = b.school_year || '2026-2027';
+  const created = [];
+  const skipped = [];
+  for (const uid of userIds) {
+    if (!validIds.has(uid)) { skipped.push({ user_id: uid, reason: 'no active user account' }); continue; }
+    const dup = await q(
+      'SELECT id FROM report_submissions WHERE user_id = ? AND report_type_id = ? AND school_year = ? AND period = ?',
+      [uid, type.id, sy, b.period]);
+    if (dup) { skipped.push({ user_id: uid, reason: 'already assigned' }); continue; }
+    const id = await qi(
+      `INSERT INTO report_submissions (report_type_id, user_id, teacher_id, school_year, period, status, notes, due_date, draft_body, assigned_by)
+       VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?)`,
+      [type.id, uid, sy, b.period, b.notes || null, b.due_date || null, b.draft_body || null, req.user.id]);
+    created.push(id);
+  }
+  await audit(req, 'ASSIGN_TASK', 'report_submissions', created[0] || null,
+    { report: type.code, period: b.period, school_year: sy, assigned: created.length, skipped: skipped.length });
+  res.status(201).json({ created, skipped, count: created.length });
+}));
+
 router.get('/compliance', asyncH(async (req, res) => {
-  const schoolYear = req.query.school_year || '2025-2026';
+  const schoolYear = req.query.school_year || '2026-2027';
   const all = await qa('SELECT id, username, name, role FROM users WHERE status = ?', ['active']);
   const staff = all.filter((u) => !isAdminRole(u.role));
-  const template = await qa('SELECT id, code, group_name FROM report_types WHERE active = TRUE AND required = TRUE');
-  const subs = await qa(
-    `SELECT user_id, report_type_id, status, due_date FROM report_submissions WHERE school_year = ?`,
+  const tasks = await qa(
+    `SELECT r.user_id, r.report_type_id, r.status, r.due_date, t.code, t.group_name
+     FROM report_submissions r
+     JOIN report_types t ON t.id = r.report_type_id
+     WHERE r.school_year = ? AND r.assigned_by IS NOT NULL`,
     [schoolYear]);
   const today = new Date().toISOString().slice(0, 10);
   const kpis = { draft: 0, submitted: 0, reviewed: 0, approved: 0, returned: 0, overdue: 0, missing: 0 };
   const byUser = {};
-  for (const s of subs) {
+  const taskByUser = {};
+  for (const s of tasks) {
     kpis[s.status] = (kpis[s.status] || 0) + 1;
     if (s.due_date && s.due_date < today && s.status !== 'approved' && s.status !== 'returned') kpis.overdue++;
-    if (!byUser[s.user_id]) byUser[s.user_id] = new Set();
-    if (['submitted', 'reviewed', 'approved'].includes(s.status)) byUser[s.user_id].add(s.report_type_id);
+    (taskByUser[s.user_id] = taskByUser[s.user_id] || []).push(s);
+    if (['submitted', 'reviewed', 'approved'].includes(s.status)) {
+      (byUser[s.user_id] = byUser[s.user_id] || new Set()).add(s.report_type_id);
+    }
   }
   const teachers = [];
   const dept = {};
   for (const u of staff) {
+    const assigned = taskByUser[u.id] || [];
     const doneSet = byUser[u.id] || new Set();
     const done = doneSet.size;
-    const missing = template.filter((t) => !doneSet.has(t.id)).map((t) => t.code);
-    const pct = template.length ? Math.round((done / template.length) * 100) : 0;
+    const missing = assigned.filter((t) => !doneSet.has(t.report_type_id)).map((t) => t.code);
+    const pct = assigned.length ? Math.round((done / assigned.length) * 100) : 0;
     kpis.missing += missing.length;
-    teachers.push({ user_id: u.id, username: u.username, name: u.name, role: u.role, required: template.length, done, percent: pct, missing });
-    const d = (dept[u.role] = dept[u.role] || { users: 0, total: 0 });
-    d.users++;
-    d.total += pct;
+    teachers.push({
+      user_id: u.id, username: u.username, name: u.name, role: u.role,
+      required: assigned.length, done, percent: pct, missing,
+    });
+    if (assigned.length) {
+      const d = (dept[u.role] = dept[u.role] || { users: 0, total: 0 });
+      d.users++;
+      d.total += pct;
+    }
   }
   const departments = Object.keys(dept).map((role) => ({
     role, teachers: dept[role].users, percent: Math.round(dept[role].total / dept[role].users),
   })).sort((a, b) => a.percent - b.percent);
-  const overall = teachers.length ? Math.round(teachers.reduce((s, t) => s + t.percent, 0) / teachers.length) : 0;
-  const coveredTypes = new Set();
-  for (const u of staff) {
-    for (const tId of byUser[u.id] || []) coveredTypes.add(tId);
-  }
+  const withTasks = teachers.filter((t) => t.required > 0);
+  const overall = withTasks.length ? Math.round(withTasks.reduce((s, t) => s + t.percent, 0) / withTasks.length) : 0;
   const gaps = {};
-  for (const t of template) {
-    if (!gaps[t.group_name]) gaps[t.group_name] = { required: 0, covered: 0 };
-    gaps[t.group_name].required++;
-    if (coveredTypes.has(t.id)) gaps[t.group_name].covered++;
+  for (const t of tasks) {
+    const g = gaps[t.group_name] = gaps[t.group_name] || { required: 0, covered: 0 };
+    g.required++;
+    if (['submitted', 'reviewed', 'approved'].includes(t.status)) g.covered++;
   }
   const groups = Object.keys(gaps).map((g) => ({
     group: g, required: gaps[g].required, covered: gaps[g].covered,
     percent: Math.round((gaps[g].covered / gaps[g].required) * 100),
   })).sort((a, b) => a.percent - b.percent);
-  res.json({ school_year: schoolYear, overall, kpis, teachers, departments, groups });
+  res.json({ school_year: schoolYear, overall, kpis, teachers, departments, groups, assigned_tasks: tasks.length });
 }));
 
 router.get('/portfolio', asyncH(async (req, res) => {
@@ -454,18 +446,11 @@ router.get('/portfolio', asyncH(async (req, res) => {
     (categories[s.group_name] = categories[s.group_name] || []).push(s);
     counts[s.status] = (counts[s.status] || 0) + 1;
   }
-  const files = await qa(
-    `SELECT f.id, f.filename, f.size_bytes, f.uploaded_at, t.code FROM submission_files f
-     JOIN report_submissions r ON r.id = f.submission_id
-     JOIN report_types t ON t.id = r.report_type_id
-     WHERE r.user_id = ? ORDER BY f.uploaded_at DESC LIMIT 50`,
-    [targ]);
   const attendanceCount = (await q('SELECT COUNT(*) AS n FROM attendance WHERE recorded_by = ?', [targ]))?.n || 0;
   res.json({
     user: me,
     categories,
     counts,
-    files,
     attendanceCount,
     total_submissions: subs.length,
   });

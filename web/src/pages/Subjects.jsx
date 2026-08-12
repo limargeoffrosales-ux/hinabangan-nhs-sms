@@ -9,12 +9,12 @@ const TERM_OPTIONS = [
   { value: 'first', label: 'First Term' },
   { value: 'second', label: 'Second Term' },
   { value: 'third', label: 'Third Term' },
-  { value: '', label: 'Not term-based (quarter-based)' },
+  { value: '', label: 'Not term-based (whole-year)' },
 ];
 const EMPTY_FORM = { code: '', title: '', description: '', grade_level: 'Grade 11', track: 'academic', units: 0, term: '' };
 
 function TermBadge({ term }) {
-  if (!term) return <span className="term-badge term-quar">Quarter-based</span>;
+  if (!term) return <span className="term-badge term-quar">Not term-based</span>;
   const map = { first: 'term-red', second: 'term-gold', third: 'term-blue', all: 'term-green' };
   return <span className={`term-badge ${map[term] || 'term-gray'}`}>{TERM_LABELS[term]}</span>;
 }

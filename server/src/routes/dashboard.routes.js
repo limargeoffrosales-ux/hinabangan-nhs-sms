@@ -200,6 +200,274 @@ router.get('/subject-enrollment', asyncH(async (req, res) => {
 }));
 
 // ------------------------------------------------------------
+// Aral Program — enrolled learners per section/term
+// ------------------------------------------------------------
+router.get('/aral-summary', asyncH(async (req, res) => {
+  const sy = req.query.school_year || null;
+  const term = (req.query.term || '').toLowerCase().trim();
+  const params = [];
+  let where = "e.is_aral = 1 AND e.status = 'enrolled'";
+  if (sy) { where += ' AND e.school_year = ?'; params.push(sy); }
+  if (term) { where += ' AND e.term = ?'; params.push(term); }
+  const rows = await qa(
+    `SELECT s.grade_level, s.name AS section_name, s.strand,
+       COUNT(*) AS aral,
+       SUM(CASE WHEN st.sex = 'Male' THEN 1 ELSE 0 END) AS male,
+       SUM(CASE WHEN st.sex = 'Female' THEN 1 ELSE 0 END) AS female
+     FROM enrollments e
+     JOIN sections s ON s.id = e.section_id
+     JOIN students st ON st.id = e.student_id
+     WHERE ${where}
+     GROUP BY s.grade_level, s.name, s.strand
+     ORDER BY s.grade_level, s.name`, params);
+  const by_grade = {};
+  let totals = { male: 0, female: 0, total: 0 };
+  for (const r of rows) {
+    const g = r.grade_level;
+    by_grade[g] = by_grade[g] || { male: 0, female: 0, total: 0, sections: [] };
+    const male = Number(r.male), female = Number(r.female);
+    by_grade[g].male += male; by_grade[g].female += female; by_grade[g].total += male + female;
+    by_grade[g].sections.push({ name: r.section_name, strand: r.strand, male, female, total: male + female });
+    totals.male += male; totals.female += female; totals.total += male + female;
+  }
+  res.json({ school_year: sy, term: term || null, by_grade, rows, totals });
+}));
+
+// ------------------------------------------------------------
+// Aral Program — remediation session attendance
+// Filters: school_year, grade_level, section_id, subject_area
+// ------------------------------------------------------------
+router.get('/aral-attendance', asyncH(async (req, res) => {
+  const sy = req.query.school_year || null;
+  const gradeLevel = req.query.grade_level || null;
+  const sectionId = req.query.section_id || null;
+  const area = req.query.subject_area || null;
+  const where = [];
+  const params = [];
+  if (sy) { where.push('sess.school_year = ?'); params.push(sy); }
+  if (area) { where.push('sess.subject_area = ?'); params.push(area); }
+  if (sectionId) { where.push('sess.section_id = ?'); params.push(sectionId); }
+  if (gradeLevel) {
+    where.push('sect.grade_level = ?');
+    params.push(gradeLevel);
+  }
+  const scope = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  const sessions = await qa(
+    `SELECT sess.id, sess.school_year, sess.section_id, sess.subject_area, sess.session_date, sess.session_no, sess.tutor,
+       sect.name AS section_name, sect.grade_level,
+       (SELECT COUNT(*) FROM aral_session_attendance aa WHERE aa.session_id = sess.id) AS logged,
+       (SELECT COUNT(*) FROM aral_session_attendance aa WHERE aa.session_id = sess.id AND aa.status = 'present') AS present,
+       (SELECT COUNT(*) FROM aral_session_attendance aa WHERE aa.session_id = sess.id AND aa.status = 'absent') AS absent,
+       (SELECT COUNT(*) FROM aral_session_attendance aa WHERE aa.session_id = sess.id AND aa.status = 'excused') AS excused
+     FROM aral_sessions sess JOIN sections sect ON sect.id = sess.section_id${scope}
+     ORDER BY sess.session_date DESC, sess.id DESC`, params);
+  const perLearner = await qa(
+    `SELECT st.id AS student_id, st.first_name, st.last_name, st.sex, st.grade_level,
+       sect.id AS section_id, sect.name AS section_name,
+       COUNT(aa.id) AS sessions,
+       SUM(CASE WHEN aa.status = 'present' THEN 1 ELSE 0 END) AS present,
+       SUM(CASE WHEN aa.status = 'absent' THEN 1 ELSE 0 END) AS absent,
+       SUM(CASE WHEN aa.status = 'excused' THEN 1 ELSE 0 END) AS excused
+     FROM aral_session_attendance aa
+     JOIN aral_sessions sess ON sess.id = aa.session_id
+     JOIN students st ON st.id = aa.student_id
+     JOIN sections sect ON sect.id = sess.section_id${scope}
+     GROUP BY st.id, st.first_name, st.last_name, st.sex, st.grade_level, sect.id, sect.name
+     ORDER BY sect.name, st.last_name`, params);
+  const perLearnerOut = perLearner.map((r) => {
+    const total = Number(r.sessions);
+    const present = Number(r.present), absent = Number(r.absent), excused = Number(r.excused);
+    return {
+      ...r,
+      present, absent, excused,
+      rate: total ? Math.round((present + excused) / total * 100) : 0,
+    };
+  });
+  const perSection = {};
+  for (const r of perLearnerOut) {
+    const k = `${r.section_id}`;
+    perSection[k] = perSection[k] || { section_id: r.section_id, section_name: r.section_name, learners: 0, sessions: 0, present: 0, absent: 0, excused: 0 };
+    perSection[k].learners++;
+    perSection[k].sessions += r.sessions;
+    perSection[k].present += r.present;
+    perSection[k].absent += r.absent;
+    perSection[k].excused += r.excused;
+  }
+  const perSectionOut = Object.values(perSection).map((r) => ({
+    ...r,
+    rate: r.sessions ? Math.round((r.present + r.excused) / r.sessions * 100) : 0,
+  }));
+  const totals = sessions.reduce((a, s) => {
+    a.sessions++;
+    a.logged += Number(s.logged); a.present += Number(s.present);
+    a.absent += Number(s.absent); a.excused += Number(s.excused);
+    return a;
+  }, { sessions: 0, logged: 0, present: 0, absent: 0, excused: 0 });
+  const rate = totals.logged ? Math.round((totals.present + totals.excused) / totals.logged * 100) : 0;
+  res.json({ school_year: sy, subject_area: area, sessions, per_section: perSectionOut, per_learner: perLearnerOut, totals: { ...totals, rate } });
+}));
+
+// ------------------------------------------------------------
+// Aral Program — learner progress (baseline vs latest assessment)
+// Filters: school_year, grade_level, section_id, subject_area
+// ------------------------------------------------------------
+const LEVEL_ORDER = {
+  reading: { Independent: 1, Instructional: 2, Frustration: 3, 'Non-Reader': 4 },
+  numeracy: { Independent: 1, Developing: 2, Frustration: 3, 'Non-Numerate': 4 },
+};
+const ARAL_EXIT = { reading: ['Independent'], numeracy: ['Independent'] };
+
+router.get('/aral-progress', asyncH(async (req, res) => {
+  const sy = req.query.school_year || null;
+  const gradeLevel = req.query.grade_level || null;
+  const sectionId = req.query.section_id || null;
+  const area = req.query.subject_area || null;
+  const where = ["e.is_aral = 1 AND e.status = 'enrolled'"];
+  const params = [];
+  if (sy) { where.push('e.school_year = ?'); params.push(sy); }
+  if (sectionId) { where.push('e.section_id = ?'); params.push(sectionId); }
+  if (gradeLevel) { where.push('sect.grade_level = ?'); params.push(gradeLevel); }
+  const learners = await qa(
+    `SELECT DISTINCT st.id AS student_id, st.first_name, st.last_name, st.sex, st.grade_level,
+       sect.id AS section_id, sect.name AS section_name
+     FROM enrollments e
+     JOIN students st ON st.id = e.student_id
+     JOIN sections sect ON sect.id = e.section_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY sect.name, st.last_name`, params);
+  const startYear = sy ? Number(sy.slice(0, 4)) : null;
+  const dateWhere = startYear
+    ? ` AND la.date >= '${startYear}-07-01' AND la.date < '${startYear + 1}-07-01'`
+    : '';
+  const assessments = await qa(
+    `SELECT la.student_id, la.kind, la.date, la.level, la.score
+     FROM learner_assessments la
+     WHERE la.student_id IN (${learners.length ? learners.map((l) => l.student_id).join(',') : 'NULL'})${dateWhere}
+     ORDER BY la.date ASC, la.id ASC`);
+  const attRows = await qa(
+    `SELECT aa.student_id, COUNT(aa.id) AS sessions,
+       SUM(CASE WHEN aa.status IN ('present', 'excused') THEN 1 ELSE 0 END) AS attended
+     FROM aral_session_attendance aa
+     JOIN aral_sessions sess ON sess.id = aa.session_id
+     WHERE aa.student_id IN (${learners.length ? learners.map((l) => l.student_id).join(',') : 'NULL'})
+     GROUP BY aa.student_id`);
+  const attMap = {};
+  for (const a of attRows) attMap[a.student_id] = { sessions: Number(a.sessions), attended: Number(a.attended) };
+  const byLearner = {};
+  for (const a of assessments) {
+    (byLearner[a.student_id] = byLearner[a.student_id] || {})[a.kind] = byLearner[a.student_id][a.kind] || [];
+    byLearner[a.student_id][a.kind].push(a);
+  }
+  const kinds = area ? [area] : ['reading', 'numeracy'];
+  const data = [];
+  for (const l of learners) {
+    const att = attMap[l.student_id] || { sessions: 0, attended: 0 };
+    for (const kind of kinds) {
+      const list = (byLearner[l.student_id] || {})[kind] || [];
+      const baseline = list[0] || null;
+      const latest = list[list.length - 1] || null;
+      let movement = 'not assessed';
+      let exitMet = false;
+      if (baseline && latest) {
+        const order = LEVEL_ORDER[kind] || {};
+        const bb = order[baseline.level] != null ? order[baseline.level] : null;
+        const ll = order[latest.level] != null ? order[latest.level] : null;
+        if (bb != null && ll != null) {
+          if (ll < bb) movement = 'improved';
+          else if (ll > bb) movement = 'declined';
+          else movement = 'stable';
+          exitMet = (ARAL_EXIT[kind] || []).includes(latest.level);
+        }
+      }
+      data.push({
+        student_id: l.student_id, first_name: l.first_name, last_name: l.last_name, sex: l.sex,
+        grade_level: l.grade_level, section_id: l.section_id, section_name: l.section_name,
+        kind, baseline, latest, movement, exit_met: exitMet,
+        attendance_rate: att.sessions ? Math.round(att.attended / att.sessions * 100) : null,
+      });
+    }
+  }
+  const summary = {
+    learners: new Set(data.map((d) => d.student_id)).size,
+    improved: data.filter((d) => d.movement === 'improved').length,
+    declined: data.filter((d) => d.movement === 'declined').length,
+    stable: data.filter((d) => d.movement === 'stable').length,
+    not_assessed: data.filter((d) => d.movement === 'not assessed').length,
+    exit_met: data.filter((d) => d.exit_met).length,
+  };
+  res.json({ school_year: sy, subject_area: area, data, summary });
+}));
+
+// ------------------------------------------------------------
+// Aral Program — record a remediation session
+// ------------------------------------------------------------
+router.post('/aral-sessions', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.section_id || !b.session_date || !b.subject_area) {
+    return res.status(400).json({ error: 'section_id, session_date and subject_area are required' });
+  }
+  const area = ['reading', 'numeracy'].includes(b.subject_area) ? b.subject_area : 'reading';
+  const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+  const sy = b.school_year || '2026-2027';
+  const sesId = await qi(
+    `INSERT INTO aral_sessions (school_year, section_id, subject_area, session_date, session_no, tutor, remarks, recorded_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [sy, b.section_id, area, b.session_date, b.session_no || null, b.tutor || null, b.remarks || null, req.user.id]);
+  let recorded = 0;
+  const valid = ['present', 'absent', 'excused'];
+  for (const r of (b.attendance || [])) {
+    if (!r.student_id || !valid.includes(r.status)) continue;
+    await qr(
+      'INSERT INTO aral_session_attendance (session_id, student_id, status, remarks) VALUES (?, ?, ?, ?)',
+      [sesId, r.student_id, r.status, r.remarks || null]);
+    recorded++;
+  }
+  await audit(req, 'ARAL_SESSION', 'aral_sessions', sesId, { section_id: b.section_id, subject_area: area, session_date: b.session_date, recorded });
+  res.status(201).json({ id: sesId, recorded });
+}));
+
+// ------------------------------------------------------------
+// Student progress — computed grades per learner (SHS)
+// ------------------------------------------------------------
+router.get('/student-progress', asyncH(async (req, res) => {
+  const sy = req.query.school_year || null;
+  const term = (req.query.term || '').toLowerCase().trim();
+  const params = [];
+  let where = "e.status = 'enrolled'";
+  if (sy) { where += ' AND e.school_year = ?'; params.push(sy); }
+  if (term) { where += ' AND e.term = ?'; params.push(term); }
+  const rows = await qa(
+    `SELECT st.id AS student_id, st.first_name, st.last_name, st.sex,
+       s.name AS section_name, s.grade_level, e.strand, e.term, e.is_aral,
+       COUNT(DISTINCT g.subject_id) AS subjects,
+       AVG(g.computed_grade) AS average,
+       SUM(CASE WHEN g.computed_grade >= 75 THEN 1 ELSE 0 END) AS passed,
+       SUM(CASE WHEN g.computed_grade < 75 THEN 1 ELSE 0 END) AS failed
+     FROM enrollments e
+     JOIN students st ON st.id = e.student_id
+     JOIN sections s ON s.id = e.section_id
+     LEFT JOIN grades g ON g.student_id = e.student_id AND g.school_year = e.school_year
+     WHERE ${where}
+     GROUP BY st.id, st.first_name, st.last_name, st.sex, s.name, s.grade_level, e.strand, e.term, e.is_aral
+     ORDER BY s.grade_level, s.name, st.last_name, st.first_name`, params);
+  const decorated = rows.map((r) => ({
+    ...r,
+    average: r.average == null ? null : Math.round(Number(r.average) * 100) / 100,
+    passed: Number(r.passed), failed: Number(r.failed),
+    status: r.average == null ? 'no grades' : (Number(r.average) >= 75 ? 'passing' : 'at risk'),
+  }));
+  const summary = {
+    learners: decorated.length,
+    passing: decorated.filter((r) => r.status === 'passing').length,
+    at_risk: decorated.filter((r) => r.status === 'at risk').length,
+    no_grades: decorated.filter((r) => r.status === 'no grades').length,
+    aral: decorated.filter((r) => r.is_aral).length,
+  };
+  res.json({ school_year: sy, term: term || null, data: decorated, summary });
+}));
+
+// ------------------------------------------------------------
 // Work Immersion summary — by batch, program, partner, status
 // ------------------------------------------------------------
 router.get('/immersion-summary', asyncH(async (req, res) => {
