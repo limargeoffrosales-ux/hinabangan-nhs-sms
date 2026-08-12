@@ -81,17 +81,9 @@ async function purgeDemo() {
   const sectionIds = await countWhere(
     'SELECT id FROM sections WHERE name IN (?,?,?,?,?,?) AND school_year = ?', [...DEMO_SECTIONS, '2025-2026']);
   log('demo sections', sectionIds.length);
-  const subjectIds = await countWhere(
-    `SELECT id FROM subjects WHERE code LIKE 'G7-%' OR code LIKE 'G8-%' OR code LIKE 'G9-%' OR code LIKE 'G10-%'
-       OR code LIKE 'SSHS-%' OR code LIKE 'AAC-%' OR code LIKE 'STP-%'
-       OR code IN ('CORE-MIL','CORE-PR2','CORE-ENTREP','HUMSS-TRENDS','HUMSS-DISS','STEM-PHYSCI','TVL-EMPOWER')`,
-    []);
-  log('demo subjects', subjectIds.length);
 
   const sIn = inClause(sectionIds);
-  const tIn = inClause(subjectIds);
-  log('class assignments', await countAndDel(
-    'class_assignments', `section_id IN (${sIn}) OR subject_id IN (${tIn})`, []));
+  log('class assignments', await countAndDel('class_assignments', `section_id IN (${sIn})`, []));
   log('schedule entries', await countAndDel('schedule_entries', `section_id IN (${sIn})`, []));
 
   log('question bank (demo)', await countAndDel(
@@ -103,8 +95,8 @@ async function purgeDemo() {
 
   log('sections', await countAndDel('sections', `id IN (${sIn})`, []));
   log('teachers', await countAndDel('teachers', `id IN (${inClause(teacherIds)})`, []));
-  log('subjects', await countAndDel('subjects', `id IN (${tIn})`, []));
   log('students', await countAndDel('students', `id IN (${sid})`, []));
+  console.log('PURGE: subjects kept — the SHS curriculum catalog is preserved (migration-managed).');
 
   await mark('1');
   console.log('PURGE: demo data removed. System is now production-ready (one-shot flag saved).');

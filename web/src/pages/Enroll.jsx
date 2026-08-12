@@ -7,7 +7,7 @@ export default function Enroll() {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ student_id: '', section_id: '', school_year: '2025-2026', grade_level: 'Grade 11', strand: '', status: 'enrolled', enrolled_at: '' });
+  const [form, setForm] = useState({ student_id: '', section_id: '', school_year: '2026-2027', grade_level: 'Grade 11', strand: '', term: 'first', status: 'enrolled', enrolled_at: '' });
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(null);
 
@@ -37,10 +37,10 @@ export default function Enroll() {
     if (!form.student_id || !form.section_id) return setError('Select a student and a section.');
     try {
       const selected = students.find((s) => s.id === Number(form.student_id));
-      await api('/enrollments', {
-        method: 'POST',
-        body: { ...form, student_id: Number(form.student_id), section_id: Number(form.section_id), grade_level: selected?.grade_level || form.grade_level },
-      });
+      const isShs = /^Grade 1[12]$/.test(form.grade_level || selected?.grade_level || '');
+      const body = { ...form, student_id: Number(form.student_id), section_id: Number(form.section_id), grade_level: selected?.grade_level || form.grade_level };
+      if (!isShs) delete body.term;
+      await api('/enrollments', { method: 'POST', body });
       alert('Student enrolled successfully.');
       setForm((f) => ({ ...f, student_id: '', section_id: '' }));
     } catch (e2) {
@@ -82,6 +82,15 @@ export default function Enroll() {
                 <div>
                   <label>School year</label>
                   <input required value={form.school_year} onChange={(e) => set('school_year', e.target.value)} />
+                </div>
+                <div>
+                  <label>Term (SHS)</label>
+                  <select value={form.term} onChange={(e) => set('term', e.target.value)}>
+                    <option value="first">First Term</option>
+                    <option value="second">Second Term</option>
+                    <option value="third">Third Term</option>
+                  </select>
+                  <div className="hint">SHS learners enroll once per term (3× per school year).</div>
                 </div>
                 <div>
                   <label>Strand (SHS)</label>
@@ -133,12 +142,13 @@ export default function Enroll() {
           {showHistory.rows.length === 0 ? <Empty text="No enrollment records." /> : (
             <table>
               <thead>
-                <tr><th>School Year</th><th>Section</th><th>Grade</th><th>Status</th><th>Date</th></tr>
+                <tr><th>School Year</th><th>Term</th><th>Section</th><th>Grade</th><th>Status</th><th>Date</th></tr>
               </thead>
               <tbody>
                 {showHistory.rows.map((r) => (
                   <tr key={r.id}>
                     <td>{r.school_year}</td>
+                    <td>{r.term ? r.term[0].toUpperCase() + r.term.slice(1) : '—'}</td>
                     <td>{r.section_name || '—'}</td>
                     <td>{r.grade_level}</td>
                     <td>{r.status}</td>

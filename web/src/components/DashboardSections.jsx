@@ -30,6 +30,7 @@ export default function DashboardSections() {
   const { user } = useAuth();
   const canWrite = can(user?.role, ...WRITE);
   const [sy, setSy] = useState('2026-2027');
+  const [term, setTerm] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,7 +49,7 @@ export default function DashboardSections() {
       setError(null);
       try {
         const [en, at, ts, se, im, jv] = await Promise.all([
-          api(`/dashboard/enrollment?school_year=${encodeURIComponent(sy)}`),
+          api(`/dashboard/enrollment?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
           api(`/dashboard/attendance-groups?date=${encodeURIComponent(date)}`),
           api(`/dashboard/teacher-status?date=${encodeURIComponent(date)}`),
           api(`/dashboard/subject-enrollment?school_year=${encodeURIComponent(sy)}`),
@@ -65,7 +66,7 @@ export default function DashboardSections() {
       }
     })();
     return () => { dead = true; };
-  }, [sy, date]);
+  }, [sy, term, date]);
 
   async function markTeacher(id, status) {
     setMarking((m) => ({ ...m, [id]: 'busy' }));
@@ -106,6 +107,15 @@ export default function DashboardSections() {
             </select>
           </label>
           <label className="input-label" style={{ margin: 0 }}>
+            Term
+            <select className="input" value={term} onChange={(e) => setTerm(e.target.value)} style={{ marginTop: 4, width: 130 }}>
+              <option value="">Whole year</option>
+              <option value="first">First</option>
+              <option value="second">Second</option>
+              <option value="third">Third</option>
+            </select>
+          </label>
+          <label className="input-label" style={{ margin: 0 }}>
             Date
             <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} style={{ marginTop: 4, width: 150 }} />
           </label>
@@ -115,7 +125,7 @@ export default function DashboardSections() {
       {/* 1 — Enrollment data */}
       <div className="card">
         <div className="dashboard-block-head">
-          <h3 style={{ margin: 0 }}><Users size={16} /> Enrollment Data — {sy}</h3>
+          <h3 style={{ margin: 0 }}><Users size={16} /> Enrollment Data — {sy}{term ? ` (${term[0].toUpperCase() + term.slice(1)} Term)` : ''}</h3>
           <div className="kpi-row">
             <StatChip label="Grade 11" value={enrollment?.by_grade?.['Grade 11']?.total ?? 0} color="#4D96FF" />
             <StatChip label="Grade 12" value={enrollment?.by_grade?.['Grade 12']?.total ?? 0} color="#2FD6A0" />

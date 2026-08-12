@@ -68,22 +68,25 @@ router.get('/latest-activity', requireRole('super_admin', 'school_admin', 'princ
 }));
 
 // ------------------------------------------------------------
-// SHS Enrollment — Grade 11/12 per section, by gender
+// SHS Enrollment — Grade 11/12 per section, by gender (term-aware)
 // ------------------------------------------------------------
 router.get('/enrollment', asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
+  const term = (req.query.term || '').toLowerCase().trim();
   const params = [...SHS_GRADES];
   let syWhere = '';
+  let termWhere = '';
   if (sy) { syWhere = ' AND e.school_year = ?'; params.push(sy); }
+  if (term) { termWhere = ' AND e.term = ?'; params.push(term); }
   const rows = await qa(
     `SELECT s.grade_level, s.name AS section_name, s.strand,
-       SUM(CASE WHEN st.sex = 'Male' THEN 1 ELSE 0 END) AS male,
-       SUM(CASE WHEN st.sex = 'Female' THEN 1 ELSE 0 END) AS female,
-       COUNT(*) AS total
+       COUNT(DISTINCT e.student_id) AS total,
+       COUNT(DISTINCT CASE WHEN st.sex = 'Male' THEN e.student_id END) AS male,
+       COUNT(DISTINCT CASE WHEN st.sex = 'Female' THEN e.student_id END) AS female
      FROM enrollments e
      JOIN sections s ON s.id = e.section_id
      JOIN students st ON st.id = e.student_id
-     WHERE e.status = 'enrolled' AND s.grade_level IN (?, ?) ${syWhere}
+     WHERE e.status = 'enrolled' AND s.grade_level IN (?, ?) ${syWhere} ${termWhere}
      GROUP BY s.grade_level, s.name, s.strand
      ORDER BY s.grade_level, s.name`,
     params);
@@ -97,7 +100,7 @@ router.get('/enrollment', asyncH(async (req, res) => {
     by_grade[g].sections.push({ name: r.section_name, strand: r.strand, male, female, total: male + female });
     grand.male += male; grand.female += female; grand.total += male + female;
   }
-  res.json({ school_year: sy, grades: SHS_GRADES, by_grade, by_section: rows, totals: grand });
+  res.json({ school_year: sy, term: term || null, grades: SHS_GRADES, by_grade, by_section: rows, totals: grand });
 }));
 
 // ------------------------------------------------------------

@@ -26,9 +26,10 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.first_name || !b.last_name) return res.status(400).json({ error: 'first_name and last_name are required' });
   const id = await qi(
-    'INSERT INTO teachers (employee_no, first_name, middle_name, last_name, suffix, sex, position, prc_no, email, contact, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO teachers (employee_no, first_name, middle_name, last_name, suffix, sex, position, prc_no, email, contact, room, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [b.employee_no || null, b.first_name, b.middle_name || null, b.last_name, b.suffix || null,
-      b.sex || null, b.position || null, b.prc_no || null, b.email || null, b.contact || null, b.status || 'active']);
+      b.sex || null, b.position || null, b.prc_no || null, b.email || null, b.contact || null,
+      b.room || null, b.status || 'active']);
   await audit(req, 'CREATE_TEACHER', 'teachers', id, { name: `${b.last_name}, ${b.first_name}` });
   res.status(201).json({ id });
 }));
@@ -39,10 +40,11 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   await qr(
-    'UPDATE teachers SET employee_no = ?, first_name = ?, middle_name = ?, last_name = ?, suffix = ?, sex = ?, position = ?, prc_no = ?, email = ?, contact = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE teachers SET employee_no = ?, first_name = ?, middle_name = ?, last_name = ?, suffix = ?, sex = ?, position = ?, prc_no = ?, email = ?, contact = ?, room = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
     [f('employee_no', row.employee_no), f('first_name', row.first_name), f('middle_name', row.middle_name),
       f('last_name', row.last_name), f('suffix', row.suffix), f('sex', row.sex), f('position', row.position),
-      f('prc_no', row.prc_no), f('email', row.email), f('contact', row.contact), f('status', row.status), row.id]);
+      f('prc_no', row.prc_no), f('email', row.email), f('contact', row.contact), f('room', row.room),
+      f('status', row.status), row.id]);
   await audit(req, 'UPDATE_TEACHER', 'teachers', row.id);
   res.json({ ok: true });
 }));
