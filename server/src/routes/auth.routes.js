@@ -68,7 +68,7 @@ router.get('/me', authenticate, asyncH(async (req, res) => {
 router.post('/change-password', authenticate, asyncH(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword are required' });
-  if (String(newPassword).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
+  if (String(newPassword).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   const user = await q('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
   if (!(await bcrypt.compare(String(currentPassword), user.password_hash))) {
     return res.status(400).json({ error: 'Current password is incorrect' });
