@@ -88,7 +88,8 @@ router.get('/templates', asyncH(async (req, res) => {
 
 router.post('/generate', asyncH(async (req, res) => {
   const b = req.body || {};
-  const ctx = { ...DEFAULTS, prepared_by: req.user?.name || DEFAULTS.prepared_by, noted_by: req.user?.name || DEFAULTS.noted_by, ...(b.context || {}) };
+  const { format_id, template_id, context, ...top } = b;
+  const ctx = { ...DEFAULTS, prepared_by: req.user?.name || DEFAULTS.prepared_by, noted_by: req.user?.name || DEFAULTS.noted_by, ...top, ...(context || {}) };
   if (b.format_id) {
     const fmt = await q('SELECT * FROM doc_formats WHERE id = ?', [b.format_id]);
     if (!fmt) return res.status(404).json({ error: 'Custom format not found' });
