@@ -86,7 +86,7 @@ async function insights(req) {
      FROM grades g
      JOIN students s ON s.id = g.student_id
      LEFT JOIN sections sec ON sec.id = g.section_id
-     WHERE g.school_year = ? GROUP BY g.student_id`,
+     WHERE g.school_year = ? GROUP BY g.student_id, s.first_name, s.last_name, s.sex, s.grade_level, sec.name`,
     [sy]);
 
   const attRows = await qa(
@@ -163,7 +163,7 @@ async function insights(req) {
      WHERE r.school_year = ? AND r.status = 'reviewed' ORDER BY r.updated_at DESC LIMIT 6`, [sy]);
 
   const staff = (await qa("SELECT id, role FROM users WHERE status = 'active' AND role NOT IN ('super_admin','school_admin','principal','assistant_principal','registrar','student','parent')"));
-  const required = (await qa('SELECT id FROM report_types WHERE active = 1 AND required = 1'));
+  const required = (await qa('SELECT id FROM report_types WHERE active = TRUE AND required = TRUE'));
   const done = await qa(
     `SELECT user_id, COUNT(DISTINCT report_type_id) AS n FROM report_submissions
      WHERE school_year = ? AND status IN ('submitted','reviewed','approved') GROUP BY user_id`, [sy]);
