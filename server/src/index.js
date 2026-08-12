@@ -32,6 +32,17 @@ const assessmentRoutes = require('./routes/assessment.routes');
     await seed();
     console.log('SEED_ON_BOOT: demo + staff accounts ensured (idempotent)');
   }
+  if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
+    const bcrypt = require('bcryptjs');
+    const rows = await db.q('SELECT id FROM users WHERE username = ?', ['superadmin']);
+    if (rows && rows.length) {
+      await db.qr(
+        'UPDATE users SET password_hash = ? WHERE id = ?',
+        [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), rows[0].id],
+      );
+      console.log('SUPERADMIN_PASSWORD: superadmin password set from env');
+    }
+  }
   const app = express();
   app.disable('x-powered-by');
   app.use(helmet());

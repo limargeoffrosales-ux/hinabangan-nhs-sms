@@ -71,7 +71,7 @@ router.post('/change-password', authenticate, asyncH(async (req, res) => {
   if (String(newPassword).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
   const user = await q('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
   if (!(await bcrypt.compare(String(currentPassword), user.password_hash))) {
-    return res.status(401).json({ error: 'Current password is incorrect' });
+    return res.status(400).json({ error: 'Current password is incorrect' });
   }
   await qr('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(String(newPassword), 10), req.user.id]);
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);

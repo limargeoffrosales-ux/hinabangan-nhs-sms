@@ -4,9 +4,11 @@ import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, Sun, Moon, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { initials } from './ui';
+import { initials, Modal } from './ui';
+import { api } from '../lib/api';
 import AiAssistant from './AiAssistant';
 
 const NAV = [
@@ -40,6 +42,32 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const [theme, setTheme] = useState(() => localStorage.getItem('meridianed_theme') || 'dark');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState(null);
+  const [pwErr, setPwErr] = useState(null);
+
+  async function onChangePassword(e) {
+    e.preventDefault();
+    setPwMsg(null);
+    setPwErr(null);
+    if (pw.next.length < 8) return setPwErr('New password must be at least 8 characters');
+    if (pw.next !== pw.confirm) return setPwErr('New passwords do not match');
+    setPwBusy(true);
+    try {
+      await api('/auth/change-password', {
+        method: 'POST',
+        body: { currentPassword: pw.current, newPassword: pw.next },
+      });
+      setPw({ current: '', next: '', confirm: '' });
+      setPwMsg('Password updated successfully');
+    } catch (err) {
+      setPwErr(err.message || 'Failed to update password');
+    } finally {
+      setPwBusy(false);
+    }
+  }
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -88,11 +116,36 @@ export default function Layout({ children }) {
           <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
+          <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title="Change password">
+            <KeyRound size={16} />
+          </button>
           <div className="avatar" title={user?.name}>{initials(user?.name)}</div>
           <button className="icon-btn" onClick={onLogout} title="Sign out">
             <LogOut size={16} />
           </button>
         </div>
+        {pwOpen && (
+          <Modal title="Change password" sub={`Update your sign-in credentials, ${user?.name || ''}`} onClose={() => setPwOpen(false)}>
+            <form onSubmit={onChangePassword}>
+              <label>Current password</label>
+              <input className="input" type="password" autoComplete="current-password" value={pw.current}
+                onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
+              <label>New password</label>
+              <input className="input" type="password" autoComplete="new-password" value={pw.next}
+                onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
+              <label>Confirm new password</label>
+              <input className="input" type="password" autoComplete="new-password" value={pw.confirm}
+                onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
+              <div className="sub" style={{ marginTop: 8 }}>At least 8 characters.</div>
+              {pwErr && <div className="err-banner">{pwErr}</div>}
+              {pwMsg && <div className="notice" style={{ marginTop: 10 }}>{pwMsg}</div>}
+              <div className="modal-actions">
+                <button type="button" className="btn" onClick={() => setPwOpen(false)}>Cancel</button>
+                <button className="btn btn-primary" disabled={pwBusy}>{pwBusy ? 'Updating...' : 'Update password'}</button>
+              </div>
+            </form>
+          </Modal>
+        )}
         <div className="content">{children}</div>
         <div className="footer-note">Hinabangan National High School · Hinabangan, Samar · AI-Powered School Management System</div>
       </div>
