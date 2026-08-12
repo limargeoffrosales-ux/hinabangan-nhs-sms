@@ -61,7 +61,7 @@ router.get('/stats', asyncH(async (req, res) => {
     return { name: l, value: Number(r ? r.n : 0) };
   });
   const growth = await qa(
-    `SELECT assessment_type, date, AVG(score / NULLIF(max_score, 0)) * 100 AS avg_pct
+    `SELECT date, AVG(1.0 * score / NULLIF(max_score, 0)) * 100 AS avg_pct
      FROM learner_assessments WHERE kind = 'reading' AND score IS NOT NULL AND max_score > 0
      GROUP BY date ORDER BY date LIMIT 10`);
   const riskCount = Number((await q(

@@ -26,8 +26,7 @@ export default function Students() {
     setLoading(true);
     setError(null);
     try {
-      const q = query ? `?q=${encodeURIComponent(query)}` : '';
-      const res = await api(`/students${q}&limit=100`.replace('?&', '?'));
+      const res = await api(query ? `/students?q=${encodeURIComponent(query)}&limit=100` : '/students?limit=100');
       setRows(res.data);
     } catch (e) {
       setError(e.message);

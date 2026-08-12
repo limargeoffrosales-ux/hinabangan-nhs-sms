@@ -1,5 +1,6 @@
 const express = require('express');
-const { q, qa, dialect } = require('../db');
+const db = require('../db');
+const { q, qa } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, page } = require('../utils');
 
@@ -48,7 +49,7 @@ router.get('/summary', asyncH(async (req, res) => {
 
 router.get('/attendance-trend', asyncH(async (req, res) => {
   const days = Number(req.query.days || 7);
-  const cutoff = dialect === 'pg'
+  const cutoff = db.dialect === 'pg'
     ? `CURRENT_DATE - (? * INTERVAL '1 day')`
     : `date('now', '-' || ? || ' days')`;
   const rows = await qa(

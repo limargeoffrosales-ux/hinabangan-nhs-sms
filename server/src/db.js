@@ -124,4 +124,8 @@ function close() {
   return driver && driver.close();
 }
 
-module.exports = { init, q, qa, qr, qi, close, usePg, get dialect() { return dialect; } };
+function nowSql() {
+  return dialect === 'pg' ? 'now()' : "datetime('now')";
+}
+
+module.exports = { init, q, qa, qr, qi, close, nowSql, usePg, get dialect() { return dialect; } };

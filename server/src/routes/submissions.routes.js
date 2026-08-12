@@ -1,8 +1,8 @@
-﻿const path = require('path');
+const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { DATA_DIR } = require('../config');
@@ -93,11 +93,11 @@ async function submissionDetail(req, id) {
 
 router.get('/types', asyncH(async (req, res) => {
   const { frequency, group, deped } = req.query;
-  let sql = 'SELECT * FROM report_types WHERE active = 1';
+  let sql = 'SELECT * FROM report_types WHERE active = TRUE';
   const params = [];
   if (frequency) { sql += ' AND frequency = ?'; params.push(frequency); }
   if (group) { sql += ' AND group_name = ?'; params.push(group); }
-  if (deped === '1') { sql += ' AND is_deped_form = 1'; }
+  if (deped === '1') { sql += ' AND is_deped_form = TRUE'; }
   sql += ' ORDER BY sort_order, id';
   const rows = await qa(sql, params);
   res.json({ data: rows, groups: await qa('SELECT DISTINCT group_name FROM report_types ORDER BY group_name') });
@@ -176,7 +176,7 @@ router.post('/:id/files', upload.array('files', 10), asyncH(async (req, res) => 
       [row.id, f.originalname, f.filename, f.size, f.mimetype]);
     created.push({ id: fid, filename: f.originalname });
   }
-  await qr('UPDATE report_submissions SET updated_at = datetime(\'now\') WHERE id = ?', [row.id]);
+  await qr(`UPDATE report_submissions SET updated_at = ${nowSql()} WHERE id = ?`, [row.id]);
   await audit(req, 'UPLOAD_FILES', 'report_submissions', row.id, { count: created.length });
   res.status(201).json({ files: created });
 }));
@@ -209,7 +209,7 @@ router.patch('/:id', asyncH(async (req, res) => {
   const b = req.body || {};
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   await qr(
-    'UPDATE report_submissions SET period = ?, notes = ?, due_date = ?, draft_body = ?, updated_at = datetime(\'now\') WHERE id = ?',
+    `UPDATE report_submissions SET period = ?, notes = ?, due_date = ?, draft_body = ?, updated_at = ${nowSql()} WHERE id = ?`,
     [f('period', row.period), f('notes', row.notes), f('due_date', row.due_date), f('draft_body', row.draft_body), row.id]);
   await audit(req, 'UPDATE_SUBMISSION', 'report_submissions', row.id);
   res.json({ detail: await submissionDetail(req, row.id) });
@@ -220,7 +220,7 @@ router.post('/:id/submit', asyncH(async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Submission not found' });
   if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Only the owner can submit' });
   if (row.status !== 'draft' && row.status !== 'returned') return res.status(409).json({ error: 'Already submitted' });
-  await qr('UPDATE report_submissions SET status = \'submitted\', updated_at = datetime(\'now\') WHERE id = ?', [row.id]);
+  await qr(`UPDATE report_submissions SET status = 'submitted', updated_at = ${nowSql()} WHERE id = ?`, [row.id]);
   await audit(req, 'SUBMIT_REPORT', 'report_submissions', row.id);
   res.json({ detail: await submissionDetail(req, row.id) });
 }));
@@ -236,7 +236,7 @@ router.post('/:id/review', asyncH(async (req, res) => {
   const note = (req.body || {}).review_note || null;
   const next = approved ? 'reviewed' : 'returned';
   await qr(
-    `UPDATE report_submissions SET status = ?, review_note = ?, reviewer_id = ?, reviewed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
+    `UPDATE report_submissions SET status = ?, review_note = ?, reviewer_id = ?, reviewed_at = nowSql(), updated_at = nowSql() WHERE id = ?`,
     [next, note, req.user.id, row.id]);
   await audit(req, 'REVIEW_REPORT', 'report_submissions', row.id, { outcome: next, note });
   res.json({ detail: await submissionDetail(req, row.id) });
@@ -250,7 +250,7 @@ router.post('/:id/approve', asyncH(async (req, res) => {
   if (!canApprove(req, wf)) return res.status(403).json({ error: 'You are not the approver for this report' });
   if (row.status !== 'reviewed') return res.status(409).json({ error: 'Report must be reviewed before approval' });
   await qr(
-    `UPDATE report_submissions SET status = 'approved', approver_id = ?, approved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
+    `UPDATE report_submissions SET status = 'approved', approver_id = ?, approved_at = nowSql(), updated_at = nowSql() WHERE id = ?`,
     [req.user.id, row.id]);
   await audit(req, 'APPROVE_REPORT', 'report_submissions', row.id);
   res.json({ detail: await submissionDetail(req, row.id) });
@@ -268,7 +268,7 @@ router.post('/:id/return', asyncH(async (req, res) => {
     return res.status(409).json({ error: 'Cannot return this report at its current stage' });
   }
   await qr(
-    `UPDATE report_submissions SET status = 'returned', review_note = ?, reviewer_id = ?, reviewed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
+    `UPDATE report_submissions SET status = 'returned', review_note = ?, reviewer_id = ?, reviewed_at = nowSql(), updated_at = nowSql() WHERE id = ?`,
     [(req.body || {}).review_note || null, req.user.id, row.id]);
   await audit(req, 'RETURN_REPORT', 'report_submissions', row.id, { note: (req.body || {}).review_note || null });
   res.json({ detail: await submissionDetail(req, row.id) });
@@ -361,7 +361,7 @@ function draftFor(code, ctx) {
     return `${school}\n\nLEAVE APPLICATION (DRAFT)\nApplicant: ${by}\nType of leave: ______________________\nInclusive dates: ______________________\n\n` +
       `Reason: ______________________\n\nApproved by (dept head): ______________\nRecommended by: ______________________\nApproved by: ______________________`;
   }
-  return `${school}\n\n${code.toUpperCase()} â€” REPORT (DRAFT)\nPeriod: ${period}\n\n` +
+  return `${school}\n\n${code.toUpperCase()} — REPORT (DRAFT)\nPeriod: ${period}\n\n` +
     `A. Background\nB. Details / Data\nC. Findings\nD. Recommendations\nE. Attachments\n\n${footer}`;
 }
 
@@ -387,7 +387,7 @@ router.get('/compliance', asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || '2025-2026';
   const all = await qa('SELECT id, username, name, role FROM users WHERE status = ?', ['active']);
   const staff = all.filter((u) => !isAdminRole(u.role));
-  const template = await qa('SELECT id, code, group_name FROM report_types WHERE active = 1 AND required = 1');
+  const template = await qa('SELECT id, code, group_name FROM report_types WHERE active = TRUE AND required = TRUE');
   const subs = await qa(
     `SELECT user_id, report_type_id, status, due_date FROM report_submissions WHERE school_year = ?`,
     [schoolYear]);
