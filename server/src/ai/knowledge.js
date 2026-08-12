@@ -3,13 +3,13 @@ const KB = [
     topic: 'Classroom Assessment', order: 'DepEd Order No. 8, s. 2015',
     q: 'Policy Guidelines on Classroom Assessment for the K to 12 Basic Education Program',
     keywords: ['assessment', 'grading', 'written work', 'performance task', 'quarterly exam', 'grade', 'transmutation', '80%', '60%', 'weight'],
-    a: 'Classroom assessment follows DO 8, s. 2015. Grades are based on Written Work (WW), Performance Tasks (PT), and Quarterly Assessment (QA). In the Senior High School, the weights are: WW 25%, PT 45%, QA 30%. The Quarterly Grade is the transmuted grade from the raw weighted score. A learner must earn at least 75 to Pass a subject. Remediation is encouraged for learners who do not meet expectations.',
+    a: 'Classroom assessment follows DO 8, s. 2015. Grades are based on Written Work (WW), Performance Tasks (PT), and the Term/Quarterly Assessment. In the Senior High School, the weights are: WW 25%, PT 45%, QA 30%. This school uses a three-term calendar (Term 1, Term 2, Term 3) per school year; the computed grade for each term is the transmuted grade from the raw weighted score, and the Final Grade is the average of the three terms. A learner must earn at least 75 to Pass a subject. Remediation is encouraged for learners who do not meet expectations.',
   },
   {
     topic: 'School Calendar', order: 'DepEd Order No. 34, s. 2022 (and succeeding)', 
     q: 'School Calendar and Activities for School Year 2022-2023 and beyond',
     keywords: ['calendar', 'school year', 'quarter', 'classes', 'break', 'semester', 'holiday'],
-    a: 'The school calendar is issued annually by DepEd. In general, SY is divided into two semesters for SHS and four quarters for basic education. Quarter ends are marked by quarterly examinations. Specific dates are released via an annual School Calendar and Activities memorandum; the school implements it as issued by the Schools Division Office.',
+    a: 'The school calendar is issued annually by DepEd. This school operates on a three-term calendar (Term 1, Term 2, Term 3) per school year; each term ends with a term assessment. Specific dates are released via an annual School Calendar and Activities memorandum; the school implements it as issued by the Schools Division Office.',
   },
   {
     topic: 'LRN', order: 'Learner Reference Number (LRN) Policy',
@@ -57,7 +57,7 @@ const KB = [
     topic: 'Report Card', order: 'SF9 and learner progress reports',
     q: 'Report card (SF9) and grading periods',
     keywords: ['sf9', 'report card', 'grade card', 'progress report', 'reporting', 'card'],
-    a: 'SF9 (Learner Progress Report Card) is issued every grading period. It reflects quarterly grades per subject, the general average, and remarks. Parents receive and sign SF9; a copy is retained in the learner\u2019s records. Report periods in SHS: 2 per semester (4 per school year).',
+    a: 'SF9 (Learner Progress Report Card) is issued every grading period (Term 1, Term 2, Term 3) and reflects the learner\u2019s own enrolled subjects with their term grades, the final grade and general average, attendance, and promotion status. Parents receive and sign SF9; a copy is retained in the learner\u2019s records. Report periods at this school: 3 terms per school year.',
   },
   {
     topic: 'Discipline', order: 'DO 40, s. 2012 (DepEd Child Protection Policy)',

@@ -2,7 +2,7 @@ export function Badge({ status }) {
   const map = {
     present: 'badge-green', active: 'badge-green', enrolled: 'badge-green', PASSED: 'badge-green', ok: 'badge-green',
     absent: 'badge-red', FAILED: 'badge-red', dropped: 'badge-red', disabled: 'badge-red',
-    late: 'badge-yellow', normal: 'badge-blue', excused: 'badge-blue', transferred: 'badge-blue', high: 'badge-blue',
+    late: 'badge-yellow', normal: 'badge-blue', excused: 'badge-blue', transferred: 'badge-blue', high: 'badge-blue', aral: 'badge-blue',
     urgent: 'badge-red',
   };
   const cls = map[status] || 'badge-gray';

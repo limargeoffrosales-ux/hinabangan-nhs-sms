@@ -132,7 +132,7 @@ export default function Assessment() {
     const total = rows.reduce((s, r) => s + (Number(r.items) || 0), 0);
     const body = [
       'Hinabangan National High School — TABLE OF SPECIFICATIONS',
-      `${t.title}   Subject: ${t.subject_title || '—'}   Quarter: ${t.quarter}`,
+      `${t.title}   Subject: ${t.subject_title || '—'}   Term: ${t.quarter}`,
       '',
       'Competency | No. of Items | Type | %',
       rows.map((r) => `${r.competency} | ${r.items} | ${r.type} | ${total ? Math.round((r.items / total) * 100) : 0}%`).join('\n'),
@@ -242,7 +242,7 @@ export default function Assessment() {
               <h4>New TOS</h4>
               <div className="form-row">
                 <label>Title *<input value={tosForm.title} onChange={(e) => setTosForm({ ...tosForm, title: e.target.value })} /></label>
-                <label>Quarter<select value={tosForm.quarter} onChange={(e) => setTosForm({ ...tosForm, quarter: Number(e.target.value) })}>{[1, 2, 3, 4].map((q) => <option key={q}>{q}</option>)}</select></label>
+                <label>Term<select value={tosForm.quarter} onChange={(e) => setTosForm({ ...tosForm, quarter: Number(e.target.value) })}>{[1, 2, 3].map((q) => <option key={q}>{q}</option>)}</select></label>
                 <label>Subject<select value={tosForm.subject_id} onChange={(e) => setTosForm({ ...tosForm, subject_id: e.target.value })}>
                   <option value="">General</option>
                   {subjects.map((s) => <option key={s.id} value={s.id}>{s.code}</option>)}
@@ -269,7 +269,7 @@ export default function Assessment() {
               <div key={t.id} className="rubric-item">
                 <div>
                   <b>{t.title}</b>
-                  <div className="sub">Quarter {t.quarter} · {t.subject_title || 'General'}</div>
+                  <div className="sub">Term {t.quarter} · {t.subject_title || 'General'}</div>
                   <div className="sub">{(t.data || []).map((r) => `${r.competency} (${r.items})`).join(' · ')}</div>
                 </div>
                 <div className="card-actions" style={{ gap: 6 }}>

@@ -202,6 +202,8 @@ async function seed() {
   subjects.push(...sshsCores, ...sshsAcademicElectives, ...sshsTechProElectives, ...grade12Existing);
   const subjectIds = [];
   for (const s of subjects) {
+    const existing = await q('SELECT id FROM subjects WHERE code = ?', [s[0]]);
+    if (existing) { subjectIds.push(existing.id); continue; }
     const id = await qi('INSERT INTO subjects (code, title, grade_level, track, units, term) VALUES (?, ?, ?, ?, ?, ?)',
       [s[0], s[1], s[2], s[3], s[4], s[5]]);
     subjectIds.push(id);
@@ -219,7 +221,7 @@ async function seed() {
   for (const s of sections) {
     const id = await qi(
       'INSERT INTO sections (name, grade_level, strand, adviser_teacher_id, room, capacity, school_year, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [s[0], s[1], s[2], s[3], s[4], 40, '2025-2026', 'active']);
+      [s[0], s[1], s[2], s[3], s[4], 40, '2026-2027', 'active']);
     sectionIds.push(id);
   }
 
@@ -240,7 +242,7 @@ async function seed() {
       await qi(
         `INSERT INTO class_assignments (school_year, section_id, subject_id, teacher_id, duration_minutes, meetings_per_week, room)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ['2025-2026', sectionIds[s], subjectIds[sidx], teacherIds[(s * 3 + i) % teacherIds.length],
+        ['2026-2027', sectionIds[s], subjectIds[sidx], teacherIds[(s * 3 + i) % teacherIds.length],
           durations[(s + i) % 3], meetings[(s + i) % 3], sections[s][4]]);
     }
   }
@@ -271,19 +273,22 @@ async function seed() {
         `${firstNames[(i + 1) % 20]} ${lastNames[i]}`, `09${String(900000000 + i * 987654).slice(0, 9)}`, strands[i]]);
     studentIds.push(id);
     const secId = sectionFor[i];
-    await qi(
+    const enrId = await qi(
       'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, secId, '2025-2026', 'Grade 11', strands[i], 'enrolled', '2025-06-02']);
+      [id, secId, '2026-2027', 'Grade 11', strands[i], 'enrolled', '2025-06-02']);
     const sidx = secId === sectionIds[0] ? 0 : (secId === sectionIds[1] ? 1 : 2);
     const subjectPool = subjectPools[sidx].map((i) => subjectIds[i]);
     for (const subjId of subjectPool) {
-      const ww = 60 + (i * 7 + subjId) % 40;
-      const pt = 65 + (i * 5 + subjId * 2) % 33;
-      const qe = 62 + (i * 3 + subjId * 5) % 36;
-      const grade = Math.round((ww * 0.25 + pt * 0.45 + qe * 0.30) * 10) / 10;
-      await qi(
-        'INSERT INTO grades (student_id, subject_id, section_id, school_year, quarter, written_work, performance_task, quarterly_exam, computed_grade, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, subjId, secId, '2025-2026', 1, ww, pt, qe, grade, grade >= 75 ? 'PASSED' : 'FAILED']);
+      await qi('INSERT INTO enrollment_subjects (enrollment_id, subject_id) VALUES (?, ?)', [enrId, subjId]);
+      for (const t of [1, 2, 3]) {
+        const ww = 60 + (i * 7 + subjId + t * 11) % 40;
+        const pt = 65 + (i * 5 + subjId * 2 + t * 7) % 33;
+        const qe = 62 + (i * 3 + subjId * 5 + t * 3) % 36;
+        const grade = Math.round((ww * 0.25 + pt * 0.45 + qe * 0.30) * 10) / 10;
+        await qi(
+          'INSERT INTO grades (student_id, subject_id, section_id, school_year, quarter, written_work, performance_task, quarterly_exam, computed_grade, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [id, subjId, secId, '2026-2027', t, ww, pt, qe, grade, grade >= 75 ? 'PASSED' : 'FAILED']);
+      }
     }
   }
 
@@ -305,23 +310,31 @@ async function seed() {
         `${firstNames[(k + 1) % 20]} ${lastNames[i]}`, `09${String(900000000 + k * 987654).slice(0, 9)}`,
         grade12StrandFor[i]]);
     studentIds.push(id);
-    await qi(
+    const enrId = await qi(
       'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, grade12SecFor[i], '2025-2026', 'Grade 12', grade12StrandFor[i], 'enrolled', '2025-06-02']);
+      [id, grade12SecFor[i], '2026-2027', 'Grade 12', grade12StrandFor[i], 'enrolled', '2025-06-02']);
     const sidx = grade12SecFor[i] === sectionIds[3] ? 0 : (grade12SecFor[i] === sectionIds[4] ? 1 : 2);
     const pool = subjectPools[3 + sidx];
     for (const subjId of pool) {
-      const ww = 60 + (k * 7 + subjId) % 40;
-      const pt = 65 + (k * 5 + subjId * 2) % 33;
-      const qe = 62 + (k * 3 + subjId * 5) % 36;
-      const grade = Math.round((ww * 0.25 + pt * 0.45 + qe * 0.30) * 10) / 10;
-      await qi(
-        'INSERT INTO grades (student_id, subject_id, section_id, school_year, quarter, written_work, performance_task, quarterly_exam, computed_grade, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, subjectIds[subjId], grade12SecFor[i], '2025-2026', 1, ww, pt, qe, grade, grade >= 75 ? 'PASSED' : 'FAILED']);
+      await qi('INSERT INTO enrollment_subjects (enrollment_id, subject_id) VALUES (?, ?)', [enrId, subjectIds[subjId]]);
+      for (const t of [1, 2, 3]) {
+        const ww = 60 + (k * 7 + subjId + t * 11) % 40;
+        const pt = 65 + (k * 5 + subjId * 2 + t * 7) % 33;
+        const qe = 62 + (k * 3 + subjId * 5 + t * 3) % 36;
+        const grade = Math.round((ww * 0.25 + pt * 0.45 + qe * 0.30) * 10) / 10;
+        await qi(
+          'INSERT INTO grades (student_id, subject_id, section_id, school_year, quarter, written_work, performance_task, quarterly_exam, computed_grade, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [id, subjectIds[subjId], grade12SecFor[i], '2026-2027', t, ww, pt, qe, grade, grade >= 75 ? 'PASSED' : 'FAILED']);
+      }
     }
   }
 
   const today = new Date();
+  const studentSection = {};
+  const enrRows = await qa(
+    'SELECT student_id, section_id FROM enrollments WHERE school_year = ? AND status = ?',
+    ['2026-2027', 'enrolled']);
+  for (const e of enrRows) studentSection[e.student_id] = e.section_id;
   for (let d = 6; d >= 1; d--) {
     const date = new Date(today);
     date.setDate(today.getDate() - d);
@@ -334,12 +347,12 @@ async function seed() {
       const status = miss ? 'absent' : (late ? 'late' : 'present');
       await qi(
         'INSERT INTO attendance (student_id, section_id, date, status, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [sid, null, ds, status, status !== 'present' ? 'seed data' : null, 1]);
+        [sid, studentSection[sid] || null, ds, status, status !== 'present' ? 'seed data' : null, 1]);
     }
   }
 
   await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
-    ['Welcome to School Year 2025-2026', 'Classes officially begin on June 2. All learners must report to their assigned rooms by 6:45 AM.', 'all', 'high', 2]);
+    ['Welcome to School Year 2026-2027', 'Classes officially begin on June 2. All learners must report to their assigned rooms by 6:45 AM.', 'all', 'high', 2]);
   await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
     ['First Quarter Examinations', 'The First Quarter Exams will be held on October 8-12. Review schedule will be posted by advisers.', 'students', 'high', 2]);
   await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
@@ -409,6 +422,68 @@ async function seedAiModules() {
       [sid, '2025-08-01', lev === 'Independent' ? 41 : 28, lev, teachers[1].id]);
   });
 
+  // ---- ARAL Program demo: tag learners, baseline+post assessments, sessions ----
+  const aralRows = await qa(
+    `SELECT e.student_id, e.section_id FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     WHERE e.school_year = '2026-2027' AND s.grade_level = 'Grade 11' AND e.status = 'enrolled'
+     ORDER BY e.student_id`);
+  const aralLearners = aralRows.filter((r, i) => i % 3 === 0);
+  if (aralLearners.length) {
+    const aralIds = aralLearners.map((r) => r.student_id);
+    await qr(`UPDATE enrollments SET is_aral = 1 WHERE school_year = '2026-2027' AND student_id IN (${aralIds.join(',')})`);
+    const baseLevels = ['Frustration', 'Frustration', 'Non-Reader', 'Frustration', 'Frustration', 'Non-Reader'];
+    const postLevels = ['Instructional', 'Independent', 'Instructional', 'Frustration', 'Independent', 'Instructional'];
+    const baseScore = { Frustration: 9, 'Non-Reader': 4 };
+    const postScore = { Instructional: 14, Independent: 17, Frustration: 9 };
+    aralLearners.forEach((lr, i) => {
+      const bLevel = baseLevels[i % baseLevels.length];
+      const pLevel = postLevels[i % postLevels.length];
+      qi(
+        `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, fluency, comprehension, remarks, recorded_by)
+         VALUES (?, 'reading', 'PHIL-IRI', '2026-07-10', ?, 20, ?, 'Slow', 'Literal comprehension only', 'ARAL baseline (pre-test)', ?)`,
+        [lr.student_id, baseScore[bLevel], bLevel, teachers[0].id]);
+      qi(
+        `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, fluency, comprehension, remarks, recorded_by)
+         VALUES (?, 'reading', 'PHIL-IRI', '2026-11-18', ?, 20, ?, ?, 'Improved comprehension with guidance', 'ARAL post-test', ?)`,
+        [lr.student_id, postScore[pLevel], pLevel, pLevel === 'Independent' ? 'Fluent' : 'Fairly Fluent', teachers[0].id]);
+      if (i % 2 === 0) {
+        qi(
+          `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, remarks, recorded_by)
+           VALUES (?, 'numeracy', 'Numeracy Assessment', '2026-07-12', 25, 50, 'Frustration', 'ARAL numeracy baseline', ?)`,
+          [lr.student_id, teachers[1].id]);
+        const pLevel = i % 4 === 0 ? 'Independent' : 'Developing';
+        const pScore = i % 4 === 0 ? 41 : 38;
+        qi(
+          `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, remarks, recorded_by)
+           VALUES (?, 'numeracy', 'Numeracy Assessment', '2026-11-18', ?, 50, ?, 'ARAL numeracy post-test', ?)`,
+          [lr.student_id, pScore, pLevel, teachers[1].id]);
+      }
+    });
+    const numeracyIds = new Set(aralLearners.filter((_, i) => i % 2 === 0).map((r) => r.student_id));
+    const bySection = {};
+    for (const lr of aralLearners) (bySection[lr.section_id] = bySection[lr.section_id] || []).push(lr.student_id);
+    for (const [secId, members] of Object.entries(bySection)) {
+      let seq = 0;
+      for (const [sDate, area] of [['2026-11-02', 'reading'], ['2026-11-09', 'reading'], ['2026-11-12', 'numeracy']]) {
+        seq++;
+        const targets = area === 'numeracy' ? members.filter((id) => numeracyIds.has(id)) : members;
+        if (!targets.length) continue;
+        const sesId = await qi(
+          `INSERT INTO aral_sessions (school_year, section_id, subject_area, session_date, session_no, tutor, remarks, recorded_by)
+           VALUES ('2026-2027', ?, ?, ?, ?, ?, 'Seeded ARAL remediation session', ?)`,
+          [Number(secId), area, sDate, seq, `Tutor ${seq}`, teachers[0].id]);
+        targets.forEach((sid, pos) => {
+          const roll = (pos + seq) % 5;
+          const status = roll === 0 ? 'absent' : roll === 1 ? 'excused' : 'present';
+          qi(
+            'INSERT INTO aral_session_attendance (session_id, student_id, status, remarks) VALUES (?, ?, ?, ?)',
+            [sesId, sid, status, status === 'present' ? null : 'seeded']);
+        });
+      }
+    }
+  }
+
   const ip1 = await qi(
     `INSERT INTO intervention_plans (student_id, title, category, strategy, frequency, start_date, end_date, status, progress_notes, recorded_by)
      VALUES (?, ?, 'reading', 'Daily 20-minute guided reading with leveled texts; weekly fluency checks.', 'Daily (20 min)', '2025-09-01', '2025-12-15', 'active', 'Showing steady improvement in word recognition.', ?)`,
@@ -461,7 +536,7 @@ async function seedAiModules() {
       ])]);
 
   await qi('INSERT INTO item_analyses (user_id, title, school_year, subject_id, total_items, learners, data, computed) VALUES (?, ?, ?, ?, 10, 30, ?, ?)',
-    [teachers[1].id, 'Q1 General Mathematics Item Analysis', '2025-2026', subjId,
+    [teachers[1].id, 'Q1 General Mathematics Item Analysis', '2026-2027', subjId,
       JSON.stringify({ note: 'Sample: enter per-item correct counts for upper/lower 27% groups.\n' }),
       JSON.stringify({ average_difficulty: 0.52, interpretation: 'Overall: test difficulty is appropriate.', poor_items: 1,
         results: [{ item_no: 1, difficulty: 0.55, discrimination: 0.30, difficulty_level: 'Average', discrimination_level: 'Good' }] })]);

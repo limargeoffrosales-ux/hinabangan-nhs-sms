@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck } from 'lucide-react';
+import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { Empty, Spinner } from './ui';
+import { Empty, Spinner, Modal } from './ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
@@ -40,7 +40,19 @@ export default function DashboardSections() {
   const [subjectEnr, setSubjectEnr] = useState(null);
   const [immersion, setImmersion] = useState(null);
   const [jdvp, setJdvp] = useState(null);
+  const [aral, setAral] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [aralAtt, setAralAtt] = useState(null);
+  const [aralProg, setAralProg] = useState(null);
   const [marking, setMarking] = useState({});
+  const [sections, setSections] = useState([]);
+  const [aralFilter, setAralFilter] = useState({ grade: '', section: '', area: '' });
+  const [reloadTick, setReloadTick] = useState(0);
+  const [showAralModal, setShowAralModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [aralForm, setAralForm] = useState({ session_date: '', subject_area: 'reading', session_no: '', tutor: '', section_id: '', remarks: '' });
+  const [aralRoll, setAralRoll] = useState([]);
+  const [rollLoading, setRollLoading] = useState(false);
 
   useEffect(() => {
     let dead = false;
@@ -48,17 +60,20 @@ export default function DashboardSections() {
       setLoading(true);
       setError(null);
       try {
-        const [en, at, ts, se, im, jv] = await Promise.all([
+        const [en, at, ts, se, im, jv, ar, pr] = await Promise.all([
           api(`/dashboard/enrollment?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
           api(`/dashboard/attendance-groups?date=${encodeURIComponent(date)}`),
           api(`/dashboard/teacher-status?date=${encodeURIComponent(date)}`),
           api(`/dashboard/subject-enrollment?school_year=${encodeURIComponent(sy)}`),
           api('/dashboard/immersion-summary'),
           api('/dashboard/jdvp-summary'),
+          api(`/dashboard/aral-summary?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
+          api(`/dashboard/student-progress?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
         ]);
         if (dead) return;
         setEnrollment(en); setAttGroups(at); setTeacherStatus(ts);
         setSubjectEnr(se); setImmersion(im); setJdvp(jv);
+        setAral(ar); setProgress(pr);
       } catch (e) {
         if (!dead) setError(e.message);
       } finally {
@@ -67,6 +82,30 @@ export default function DashboardSections() {
     })();
     return () => { dead = true; };
   }, [sy, term, date]);
+
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const qs = `school_year=${encodeURIComponent(sy)}`
+          + (aralFilter.grade ? `&grade_level=${encodeURIComponent(aralFilter.grade)}` : '')
+          + (aralFilter.section ? `&section_id=${encodeURIComponent(aralFilter.section)}` : '')
+          + (aralFilter.area ? `&subject_area=${encodeURIComponent(aralFilter.area)}` : '');
+        const [secs, att, prog] = await Promise.all([
+          api(`/sections?school_year=${encodeURIComponent(sy)}`),
+          api(`/dashboard/aral-attendance?${qs}`),
+          api(`/dashboard/aral-progress?${qs}`),
+        ]);
+        if (dead) return;
+        setSections(secs.data);
+        setAralAtt(att);
+        setAralProg(prog);
+      } catch (e) {
+        if (!dead) setError(e.message);
+      }
+    })();
+    return () => { dead = true; };
+  }, [sy, aralFilter, reloadTick]);
 
   async function markTeacher(id, status) {
     setMarking((m) => ({ ...m, [id]: 'busy' }));
@@ -78,6 +117,65 @@ export default function DashboardSections() {
       setError(e.message);
     } finally {
       setMarking((m) => ({ ...m, [id]: false }));
+    }
+  }
+
+  const canRecordAral = canWrite || user?.role === 'teacher' || user?.role === 'guidance';
+
+  async function openAralModal() {
+    const first = sections[0]?.id || '';
+    setAralForm({
+      session_date: new Date().toISOString().slice(0, 10),
+      subject_area: 'reading',
+      session_no: '',
+      tutor: user?.name || '',
+      section_id: first,
+      remarks: '',
+    });
+    setShowAralModal(true);
+    if (first) await loadAralRoll(first);
+  }
+
+  async function loadAralRoll(sectionId) {
+    if (!sectionId) { setAralRoll([]); return; }
+    setRollLoading(true);
+    try {
+      const r = await api(`/sections/${sectionId}/students`);
+      setAralRoll(r.data.map((s) => ({ student_id: s.id, name: `${s.last_name}, ${s.first_name}`, status: 'present' })));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRollLoading(false);
+    }
+  }
+
+  function setRollStatus(id, status) {
+    setAralRoll((list) => list.map((r) => (r.student_id === id ? { ...r, status } : r)));
+  }
+
+  async function saveAralSession(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api('/dashboard/aral-sessions', {
+        method: 'POST',
+        body: {
+          school_year: sy,
+          section_id: aralForm.section_id,
+          session_date: aralForm.session_date,
+          subject_area: aralForm.subject_area,
+          session_no: aralForm.session_no || null,
+          tutor: aralForm.tutor || null,
+          remarks: aralForm.remarks || null,
+          attendance: aralRoll.map((r) => ({ student_id: r.student_id, status: r.status })),
+        },
+      });
+      setShowAralModal(false);
+      setReloadTick((t) => t + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -372,6 +470,265 @@ export default function DashboardSections() {
           </table>
         </div>
       </div>
+
+      {/* 7 — Aral Program */}
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><GraduationCap size={16} /> Aral Program Enrollment — {sy}{term ? ` (${term[0].toUpperCase() + term.slice(1)} Term)` : ''}</h3>
+          <div className="kpi-row">
+            <StatChip label="Aral learners" value={aral?.totals.total ?? 0} color="#A78BFA" />
+            <StatChip label="Male" value={aral?.totals.male ?? 0} color="#4D96FF" />
+            <StatChip label="Female" value={aral?.totals.female ?? 0} color="#F5B942" />
+            <StatChip label="Attendance rate" value={aralAtt?.totals.rate != null ? aralAtt.totals.rate + '%' : '—'} color="#2FD6A0" />
+          </div>
+        </div>
+        <div className="table-wrap" style={{ marginTop: 12 }}>
+          <table>
+            <thead>
+              <tr><th>Grade Level</th><th>Section</th><th>Strand</th><th style={{ textAlign: 'center' }}>Male</th><th style={{ textAlign: 'center' }}>Female</th><th style={{ textAlign: 'center' }}>Total</th></tr>
+            </thead>
+            <tbody>
+              {(!aral || aral.rows.length === 0) && (
+                <tr><td colSpan={6} className="sub">No learners tagged under the Aral Program for {sy}{term ? ` (${term} term)` : ''}.</td></tr>
+              )}
+              {aral?.rows.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.grade_level}</td><td>{r.section_name}</td><td className="sub">{r.strand || '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{r.male}</td>
+                  <td style={{ textAlign: 'center' }}>{r.female}</td>
+                  <td style={{ textAlign: 'center' }}><strong>{Number(r.male) + Number(r.female)}</strong></td>
+                </tr>
+              ))}
+              {(aral?.totals.total ?? 0) > 0 && (
+                <tr className="subtotal-row">
+                  <td colSpan={2}><strong>Total Aral Learners</strong></td><td></td>
+                  <td style={{ textAlign: 'center' }}><strong>{aral.totals.male}</strong></td>
+                  <td style={{ textAlign: 'center' }}><strong>{aral.totals.female}</strong></td>
+                  <td style={{ textAlign: 'center' }}><strong>{aral.totals.total}</strong></td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 8 — Student progress */}
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><TrendingUp size={16} /> Student Progress — {sy}{term ? ` (${term[0].toUpperCase() + term.slice(1)} Term)` : ''}</h3>
+          <div className="kpi-row">
+            <StatChip label="Learners" value={progress?.summary.learners ?? 0} color="#4D96FF" />
+            <StatChip label="Passing" value={progress?.summary.passing ?? 0} color="#2FD6A0" />
+            <StatChip label="At risk" value={progress?.summary.at_risk ?? 0} color="#F2555A" />
+            <StatChip label="No grades" value={progress?.summary.no_grades ?? 0} color="#8A94A6" />
+            <StatChip label="Aral" value={progress?.summary.aral ?? 0} color="#A78BFA" />
+          </div>
+        </div>
+        <div className="table-wrap" style={{ marginTop: 12, maxHeight: 380, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Learner</th><th>Grade &amp; Section</th><th>Strand</th><th style={{ textAlign: 'center' }}>Subjects</th><th style={{ textAlign: 'center' }}>Average</th><th style={{ textAlign: 'center' }}>Passed</th><th style={{ textAlign: 'center' }}>Failed</th><th style={{ textAlign: 'center' }}>Status</th></tr>
+            </thead>
+            <tbody>
+              {(!progress || progress.data.length === 0) && (
+                <tr><td colSpan={8} className="sub">No enrolled learners with recorded grades for {sy}{term ? ` (${term} term)` : ''}.</td></tr>
+              )}
+              {progress?.data.slice(0, 100).map((r) => (
+                <tr key={r.student_id}>
+                  <td>{r.last_name}, {r.first_name}{r.is_aral ? ' ' : ''}{r.is_aral ? <span className="badge badge-blue" style={{ marginLeft: 6 }}>ARAL</span> : null}</td>
+                  <td>{r.grade_level} — {r.section_name}</td>
+                  <td className="sub">{r.strand || '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{r.subjects}</td>
+                  <td style={{ textAlign: 'center' }}><strong>{r.average ?? '—'}</strong></td>
+                  <td style={{ textAlign: 'center' }} className="sub">{r.passed}</td>
+                  <td style={{ textAlign: 'center' }} className="sub">{r.failed}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className={`badge ${r.status === 'passing' ? 'badge-green' : r.status === 'at risk' ? 'badge-red' : 'badge-gray'}`}>{r.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {progress && progress.data.length > 100 && <div className="sub" style={{ marginTop: 6 }}>Showing first 100 of {progress.data.length} learners.</div>}
+      </div>
+
+      {/* 9 — Aral program attendance (remediation sessions) */}
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><CalendarCheck size={16} /> Aral Program Remediation — {sy}</h3>
+          <div className="kpi-row">
+            <StatChip label="Sessions" value={aralAtt?.totals.sessions ?? 0} color="#4D96FF" />
+            <StatChip label="Present" value={aralAtt?.totals.present ?? 0} color="#2FD6A0" />
+            <StatChip label="Absent" value={aralAtt?.totals.absent ?? 0} color="#F2555A" />
+            <StatChip label="Excused" value={aralAtt?.totals.excused ?? 0} color="#F5B942" />
+            <StatChip label="Attendance rate" value={aralAtt?.totals.rate != null ? aralAtt.totals.rate + '%' : '—'} color="#A78BFA" />
+          </div>
+        </div>
+        <div className="filter-row" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap', display: 'flex', alignItems: 'center' }}>
+          <select value={aralFilter.area} onChange={(e) => setAralFilter((f) => ({ ...f, area: e.target.value }))}>
+            <option value="">All subject areas</option>
+            <option value="reading">Reading</option>
+            <option value="numeracy">Numeracy</option>
+          </select>
+          <select value={aralFilter.grade} onChange={(e) => setAralFilter((f) => ({ ...f, grade: e.target.value, section: '' }))}>
+            <option value="">All grade levels</option>
+            <option value="Grade 11">Grade 11</option>
+            <option value="Grade 12">Grade 12</option>
+          </select>
+          <select value={aralFilter.section} onChange={(e) => setAralFilter((f) => ({ ...f, section: e.target.value }))}>
+            <option value="">All sections</option>
+            {sections.filter((s) => !aralFilter.grade || s.grade_level === aralFilter.grade).map((s) => (
+              <option key={s.id} value={s.id}>{s.grade_level} — {s.name}</option>
+            ))}
+          </select>
+          {canRecordAral && (
+            <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={openAralModal}>
+              <ClipboardList size={15} /> Record Session
+            </button>
+          )}
+        </div>
+
+        <div className="table-wrap" style={{ marginTop: 12, maxHeight: 320, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Section</th><th style={{ textAlign: 'center' }}>Learners</th><th style={{ textAlign: 'center' }}>Sessions</th><th style={{ textAlign: 'center' }}>Present</th><th style={{ textAlign: 'center' }}>Absent</th><th style={{ textAlign: 'center' }}>Excused</th><th style={{ textAlign: 'center' }}>Rate</th></tr>
+            </thead>
+            <tbody>
+              {(!aralAtt || aralAtt.per_section.length === 0) && (
+                <tr><td colSpan={7} className="sub">No remediation sessions recorded for the selected filters.</td></tr>
+              )}
+              {aralAtt?.per_section.map((r) => (
+                <tr key={r.section_id}>
+                  <td>{r.section_name}</td>
+                  <td style={{ textAlign: 'center' }}>{r.learners}</td>
+                  <td style={{ textAlign: 'center' }}>{r.sessions}</td>
+                  <td style={{ textAlign: 'center' }}>{r.present}</td>
+                  <td style={{ textAlign: 'center' }}>{r.absent}</td>
+                  <td style={{ textAlign: 'center' }}>{r.excused}</td>
+                  <td style={{ textAlign: 'center' }}><strong>{r.rate}%</strong></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <h4 style={{ marginTop: 18, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Target size={15} /> Learner Progress <span className="sub">(baseline → latest assessment)</span>
+        </h4>
+        <div className="table-wrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Learner</th><th>Grade &amp; Section</th><th>Area</th><th style={{ textAlign: 'center' }}>Baseline</th><th style={{ textAlign: 'center' }}>Latest</th><th style={{ textAlign: 'center' }}>Movement</th><th style={{ textAlign: 'center' }}>Exit</th><th style={{ textAlign: 'center' }}>Attendance</th></tr>
+            </thead>
+            <tbody>
+              {(!aralProg || aralProg.data.length === 0) && (
+                <tr><td colSpan={8} className="sub">No Aral learners matched the selected filters.</td></tr>
+              )}
+              {aralProg?.data.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.last_name}, {r.first_name}</td>
+                  <td>{r.grade_level} — {r.section_name}</td>
+                  <td className="sub" style={{ textTransform: 'capitalize' }}>{r.kind}</td>
+                  <td style={{ textAlign: 'center' }}>{r.baseline ? `${r.baseline.level}` : '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{r.latest ? `${r.latest.level}` : '—'}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className={`badge ${r.movement === 'improved' ? 'badge-green' : r.movement === 'declined' ? 'badge-red' : r.movement === 'stable' ? 'badge-yellow' : 'badge-gray'}`}>{r.movement}</span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    {r.exit_met ? <span className="badge badge-blue">Exit met</span> : <span className="sub">—</span>}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{r.attendance_rate != null ? r.attendance_rate + '%' : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <h4 style={{ marginTop: 18, marginBottom: 8 }}>Session Log</h4>
+        <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Section</th><th>Area</th><th style={{ textAlign: 'center' }}>No.</th><th>Tutor</th><th style={{ textAlign: 'center' }}>Present</th><th style={{ textAlign: 'center' }}>Absent</th><th style={{ textAlign: 'center' }}>Excused</th><th style={{ textAlign: 'center' }}>Rate</th></tr>
+            </thead>
+            <tbody>
+              {(!aralAtt || aralAtt.sessions.length === 0) && (
+                <tr><td colSpan={9} className="sub">No sessions recorded.</td></tr>
+              )}
+              {aralAtt?.sessions.map((s) => {
+                const total = Number(s.present) + Number(s.absent) + Number(s.excused);
+                return (
+                  <tr key={s.id}>
+                    <td>{fmtDate(s.session_date)}</td>
+                    <td>{s.section_name}</td>
+                    <td className="sub" style={{ textTransform: 'capitalize' }}>{s.subject_area}</td>
+                    <td style={{ textAlign: 'center' }}>{s.session_no || '—'}</td>
+                    <td>{s.tutor || '—'}</td>
+                    <td style={{ textAlign: 'center' }}>{s.present}</td>
+                    <td style={{ textAlign: 'center' }}>{s.absent}</td>
+                    <td style={{ textAlign: 'center' }}>{s.excused}</td>
+                    <td style={{ textAlign: 'center' }}><strong>{total ? Math.round((Number(s.present) + Number(s.excused)) / total * 100) + '%' : '—'}</strong></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="sub" style={{ marginTop: 8 }}>Attendance is tracked per remediation session (date, subject area, tutor).</div>
+      </div>
+
+      {showAralModal && (
+        <Modal title="Record ARAL remediation session" sub={`Session for ${sy} · ${aralForm.section_id ? sections.find((s) => s.id == aralForm.section_id)?.grade_level + ' — ' + sections.find((s) => s.id == aralForm.section_id)?.name : 'select a section'}`} onClose={() => setShowAralModal(false)} wide>
+          <form onSubmit={saveAralSession}>
+            <div className="grid-2" style={{ marginTop: 10 }}>
+              <label>Session date <input type="date" required value={aralForm.session_date} onChange={(e) => setAralForm((f) => ({ ...f, session_date: e.target.value }))} /></label>
+              <label>Subject area <select value={aralForm.subject_area} onChange={(e) => setAralForm((f) => ({ ...f, subject_area: e.target.value }))}>
+                <option value="reading">Reading</option>
+                <option value="numeracy">Numeracy</option>
+              </select></label>
+              <label>Section <select required value={aralForm.section_id} onChange={(e) => { setAralForm((f) => ({ ...f, section_id: e.target.value })); loadAralRoll(e.target.value); }}>
+                <option value="">Select section…</option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>{s.grade_level} — {s.name}</option>
+                ))}
+              </select></label>
+              <label>Session no. <input type="number" min="1" value={aralForm.session_no} onChange={(e) => setAralForm((f) => ({ ...f, session_no: e.target.value }))} /></label>
+              <label>Tutor <input value={aralForm.tutor} onChange={(e) => setAralForm((f) => ({ ...f, tutor: e.target.value }))} /></label>
+              <label>Remarks <input value={aralForm.remarks} onChange={(e) => setAralForm((f) => ({ ...f, remarks: e.target.value }))} /></label>
+            </div>
+            <h4 style={{ margin: '14px 0 8px' }}>Attendance <span className="sub">({aralRoll.length} learners)</span></h4>
+            <div className="table-wrap" style={{ maxHeight: 260, overflowY: 'auto' }}>
+              <table>
+                <thead>
+                  <tr><th>Learner</th><th style={{ textAlign: 'center' }}>Status</th></tr>
+                </thead>
+                <tbody>
+                  {rollLoading && <tr><td colSpan={2} className="sub">Loading learners…</td></tr>}
+                  {!rollLoading && aralRoll.length === 0 && (
+                    <tr><td colSpan={2} className="sub">No enrolled learners in this section.</td></tr>
+                  )}
+                  {aralRoll.map((r) => (
+                    <tr key={r.student_id}>
+                      <td>{r.name}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <select value={r.status} onChange={(e) => setRollStatus(r.student_id, e.target.value)}>
+                          <option value="present">Present</option>
+                          <option value="absent">Absent</option>
+                          <option value="excused">Excused</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setShowAralModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving || !aralForm.section_id}>{saving ? 'Saving…' : 'Save Session'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </>
   );
 }

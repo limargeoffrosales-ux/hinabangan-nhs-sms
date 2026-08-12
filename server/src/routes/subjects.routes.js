@@ -17,7 +17,10 @@ router.get('/', requireRole(...WRITE, 'teacher', 'registrar'), asyncH(async (req
   const where = [];
   const params = [];
   if (gradeLevel) where.push('grade_level = ?');
-  if (term) where.push('term = ?');
+  if (term) {
+    if (term === 'all') where.push('term = ?');
+    else where.push('(term = ? OR term = \'all\' OR term IS NULL)');
+  }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY grade_level, term, code LIMIT ? OFFSET ?';
   if (gradeLevel) params.push(gradeLevel);
