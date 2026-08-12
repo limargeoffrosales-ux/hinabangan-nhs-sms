@@ -116,11 +116,21 @@ Generate your own secret if you are deploying manually:
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-## 6. Seed the database (automatic)
+## 6. Seeding (automatic)
 
-Seeding is **automatic on every boot** (`SEED_ON_BOOT=1` in the Blueprint) and
-**idempotent** — it creates `superadmin` + 30 staff accounts with the passwords
-in `accounts.txt`, and never resets existing passwords or deletes data.
+On every boot (`SEED_ON_BOOT=1` in the Blueprint) the server ensures the
+foundation only: the **report types taxonomy**, **superadmin**, and the **30
+staff accounts** (`accounts.txt`). Existing passwords are never reset.
+
+**Demo data is gone.** On first deploy, a one-shot cleanup removed all demo
+rows (students, teachers, sections, subjects, grades, attendance,
+announcements, research, assessments, interventions, question bank, etc.);
+only user-entered records survive. The purge is flagged in `system_flags` so
+it never runs twice.
+
+Optional: set `DEMO_SEED=1` in Render **only** on a fresh database if you
+want a populated sandbox — it seeds demo students/grades/attendance once and
+never resets them.
 
 Default `superadmin` password: `MeridianEd2026!`.
 

@@ -36,7 +36,7 @@ dev uses Node's built-in SQLite; production uses PostgreSQL.
 ```
 cd server
 npm install
-npm run seed        # optional: demo data (users, students, grades, attendance)
+npm run seed        # optional sandbox: set DEMO_SEED=1 to also load demo data
 npm start           # http://localhost:4000
 ```
 
@@ -48,7 +48,7 @@ npm install
 npm run dev         # http://localhost:5173  (proxies /api -> :4000)
 ```
 
-Sign in with a demo account (password `MeridianEd2026!`):
+Sign in with an account (default `superadmin` / `MeridianEd2026!`):
 
 | Username | Role |
 |---|---|
