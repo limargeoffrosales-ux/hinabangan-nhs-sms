@@ -10,17 +10,20 @@ async function init() {
   if (usePg) {
     dialect = 'pg';
     const { Pool } = require('pg');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-    const params = (sql) => sql.replace(/\?/g, () => '$' + (++params.i));
+    const connUrl = new URL(process.env.DATABASE_URL);
+    const sslMode = connUrl.searchParams.get('sslmode');
+    const useSsl = sslMode === 'disable' ? false : { rejectUnauthorized: false };
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl });
+    const params = (sql) => { params.i = 0; return sql.replace(/\?/g, () => '$' + (++params.i)); };
     driver = {
       params,
       run: (sql, p) => pool.query(params(sql), p || []).then((r) => ({ changes: r.rowCount })),
       runId: async (sql, p) => (await pool.query(params(sql + ' RETURNING id'), p || [])).rows[0].id,
       get: async (sql, p) => (await pool.query(params(sql), p || [])).rows[0] || null,
       all: async (sql, p) => (await pool.query(params(sql), p || [])).rows,
+      exec: (sql) => pool.query(sql),
       close: () => pool.end(),
     };
-    driver.params.i = 0;
   } else {
     const { DatabaseSync } = require('node:sqlite');
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -47,6 +50,7 @@ async function init() {
         const st = db.prepare(sql);
         return p ? st.all(...p) : st.all();
       },
+      exec: (sql) => db.exec(sql),
       close: () => db.close(),
     };
   }
@@ -60,6 +64,9 @@ async function migrate() {
     .filter((f) => dialect !== 'pg' ? f.endsWith('.sqlite.sql') : (f.endsWith('.sql') && !f.endsWith('.sqlite.sql')))
     .filter((f) => /^\d+-/.test(f))
     .sort();
+  if (usePg) {
+    await driver.exec('CREATE TABLE IF NOT EXISTS schema_migrations (file TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
+  }
   const appliedFile = (file) => {
     if (usePg) return driver.get('SELECT 1 FROM schema_migrations WHERE file = ?', [file]);
     const { DatabaseSync } = require('node:sqlite');
@@ -74,7 +81,7 @@ async function migrate() {
   };
   const markApplied = (file) => {
     if (usePg) {
-      return driver.run(`INSERT INTO schema_migrations (file, applied_at) VALUES ('${file}', now()) ON CONFLICT (file) DO NOTHING`);
+      return driver.run('INSERT INTO schema_migrations (file, applied_at) VALUES (?, now()) ON CONFLICT (file) DO NOTHING', [file]);
     }
     const { DatabaseSync } = require('node:sqlite');
     const db = new DatabaseSync(path.join(DATA_DIR, 'meridianed.db'));
@@ -86,17 +93,10 @@ async function migrate() {
     db.close();
   };
   for (const file of files) {
-    if (appliedFile(file)) continue;
+    if (await appliedFile(file)) continue;
     const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-    if (usePg) {
-      await driver.run(sql);
-    } else {
-      const { DatabaseSync } = require('node:sqlite');
-      const db = new DatabaseSync(path.join(DATA_DIR, 'meridianed.db'));
-      db.exec(sql);
-      db.close();
-    }
-    markApplied(file);
+    await driver.exec(sql);
+    await markApplied(file);
   }
 }
 
@@ -124,4 +124,4 @@ function close() {
   return driver && driver.close();
 }
 
-module.exports = { init, q, qa, qr, qi, close, dialect, usePg };
+module.exports = { init, q, qa, qr, qi, close, usePg, get dialect() { return dialect; } };
