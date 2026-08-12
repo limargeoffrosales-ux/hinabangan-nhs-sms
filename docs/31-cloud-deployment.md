@@ -116,22 +116,20 @@ Generate your own secret if you are deploying manually:
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-## 6. Seed the database (one-time)
+## 6. Seed the database (automatic)
 
-The database starts empty. Create the super administrator and the school staff
-accounts (done automatically with passwords, see `accounts.txt` in the repo):
+Seeding is **automatic on every boot** (`SEED_ON_BOOT=1` in the Blueprint) and
+**idempotent** — it creates `superadmin` + 30 staff accounts with the passwords
+in `accounts.txt`, and never resets existing passwords or deletes data.
 
-1. In Render, open the **hinabangan-nhs** service → **Shell** (top-right).
-2. Run:
+Default `superadmin` password: `MeridianEd2026!`.
 
-```
-cd server
-npm run seed
-```
+To force a custom superadmin password at boot **without writing it into the
+repo**, set an env var on the Render service instead:
 
-3. The log shows `+ user superadmin (super_admin) / password: ...` and 30+
-   staff accounts. Seeding is **idempotent** — running it again never resets
-   passwords or deletes data.
+1. Render dashboard → **hinabangan-nhs** → **Environment**.
+2. Add `SUPERADMIN_PASSWORD` with your chosen value (8+ chars).
+3. Save & redeploy. Every boot then applies that password.
 
 Migrations run automatically on every server start, so future schema updates
 need no manual step.
@@ -140,12 +138,13 @@ need no manual step.
 
 1. Open `https://hinabangan-nhs.onrender.com` in any browser (the exact URL is
    shown in the Render dashboard top-left).
-2. Sign in as `superadmin` with the password from the seed log
-   (`MeridianEd2026!` in the local seed — verify the one printed on your deploy).
+2. Sign in as `superadmin` (password `MeridianEd2026!` or your
+   `SUPERADMIN_PASSWORD` override).
 3. Create accounts for the principal, registrar, teachers, etc. in the
    **Users** module (or hand out the seeded staff accounts from `accounts.txt`).
-4. **Immediately set a strong superadmin password** and keep `JWT_SECRET`
-   secret — anyone with it can forge sessions.
+4. **Change the superadmin password immediately**: click the key icon in the
+   top bar and use **Change password**. Anyone can also change their own
+   password there at any time.
 
 On the phone/tablet:
 
@@ -196,7 +195,7 @@ Full backup policy: [19-backup-strategy.md](19-backup-strategy.md).
 | First load takes ~1 min | Free-tier cold start — wait for wake-up; refresh once |
 | `GET /api/v1/...` fails on the APK | Login screen → Server address must be `https://<your-service>.onrender.com/api/v1` (no trailing slash) |
 | Build fails with "Node version" error | Set env var `NODE_VERSION=22` and redeploy |
-| Login says "Invalid username or password" | Seed was not run (section 6), or the account is a seeded staff account with a password from `accounts.txt` |
+| Login says "Invalid username or password" | Check `SUPERADMIN_PASSWORD` override, or sign in with the seeded staff accounts from `accounts.txt` |
 | "ECONNREFUSED" in server logs | `DATABASE_URL` missing or mistyped — check section 5 |
 
 ---
