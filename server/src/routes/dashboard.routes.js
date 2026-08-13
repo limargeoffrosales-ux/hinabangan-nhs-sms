@@ -206,7 +206,7 @@ router.get('/aral-summary', asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const term = (req.query.term || '').toLowerCase().trim();
   const params = [];
-  let where = "e.is_aral = 1 AND e.status = 'enrolled'";
+  let where = "e.is_aral = TRUE AND e.status = 'enrolled'";
   if (sy) { where += ' AND e.school_year = ?'; params.push(sy); }
   if (term) { where += ' AND e.term = ?'; params.push(term); }
   const rows = await qa(
@@ -322,7 +322,7 @@ router.get('/aral-progress', asyncH(async (req, res) => {
   const gradeLevel = req.query.grade_level || null;
   const sectionId = req.query.section_id || null;
   const area = req.query.subject_area || null;
-  const where = ["e.is_aral = 1 AND e.status = 'enrolled'"];
+  const where = ["e.is_aral = TRUE AND e.status = 'enrolled'"];
   const params = [];
   if (sy) { where.push('e.school_year = ?'); params.push(sy); }
   if (sectionId) { where.push('e.section_id = ?'); params.push(sectionId); }

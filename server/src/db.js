@@ -128,4 +128,8 @@ function nowSql() {
   return dialect === 'pg' ? 'now()' : "datetime('now')";
 }
 
-module.exports = { init, q, qa, qr, qi, close, nowSql, usePg, get dialect() { return dialect; } };
+function bool(v) {
+  return usePg ? !!v : (v ? 1 : 0);
+}
+
+module.exports = { init, q, qa, qr, qi, close, nowSql, bool, usePg, get dialect() { return dialect; } };
