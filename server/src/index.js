@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
@@ -53,6 +54,7 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors());
+  app.use(compression());
   app.use(express.json({ limit: '10mb' }));
 
   app.get('/api/v1/health', (req, res) => {
@@ -82,12 +84,22 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   app.use('/api/v1/jdvp', jdvp);
   app.use('/api/v1/conduct', conductRoutes);
 
-  app.use(express.static(WEB_DIR));
+  app.use(express.static(WEB_DIR, {
+    maxAge: '365d',
+    immutable: true,
+    index: false,
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'index.html') {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  }));
 
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     const index = path.join(WEB_DIR, 'index.html');
     if (!fs.existsSync(index)) return next();
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(index);
   });
 
