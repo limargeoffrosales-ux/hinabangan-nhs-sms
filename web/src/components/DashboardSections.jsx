@@ -389,7 +389,7 @@ export default function DashboardSections() {
               <table>
                 <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
                 <tbody>
-                  {subjectEnr?.core.length === 0 && <tr><td colSpan={2} className="sub">No core subjects assigned yet.</td></tr>}
+                  {subjectEnr?.core.length === 0 && <tr><td colSpan={2} className="sub">No core subjects with enrolled students for {sy}.</td></tr>}
                   {subjectEnr?.core.map((s) => (
                     <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
                   ))}
@@ -403,7 +403,7 @@ export default function DashboardSections() {
               <table>
                 <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
                 <tbody>
-                  {subjectEnr?.electives.length === 0 && <tr><td colSpan={2} className="sub">No elective subjects assigned yet.</td></tr>}
+                  {subjectEnr?.electives.length === 0 && <tr><td colSpan={2} className="sub">No elective subjects with enrolled students for {sy}.</td></tr>}
                   {subjectEnr?.electives.map((s) => (
                     <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
                   ))}

@@ -178,9 +178,10 @@ router.post('/teacher-status', requireRole(...WRITE), asyncH(async (req, res) =>
 // ------------------------------------------------------------
 router.get('/subject-enrollment', asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
-  const params = [...SHS_GRADES];
+  const params = [];
   let syOn = '';
   if (sy) { syOn = ' AND ca.school_year = ?'; params.push(sy); }
+  params.push(...SHS_GRADES);
   const rows = await qa(
     `SELECT sub.id, sub.code, sub.title, sub.track, sub.term, sub.units,
        COUNT(DISTINCT e.student_id) AS enrolled
@@ -190,6 +191,7 @@ router.get('/subject-enrollment', asyncH(async (req, res) => {
         AND e.status = 'enrolled' AND e.school_year = ca.school_year
      WHERE sub.grade_level IN (?, ?)
      GROUP BY sub.id, sub.code, sub.title, sub.track, sub.term, sub.units
+     HAVING COUNT(DISTINCT e.student_id) > 0
      ORDER BY sub.term, sub.title`,
     params);
   const isCore = (r) => r.term === 'all' || r.track === 'general' || String(r.code).startsWith('CORE-');
