@@ -179,17 +179,16 @@ router.post('/teacher-status', requireRole(...WRITE), asyncH(async (req, res) =>
 router.get('/subject-enrollment', asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const params = [];
-  let syOn = '';
-  if (sy) { syOn = ' AND ca.school_year = ?'; params.push(sy); }
+  let syWhere = '';
+  if (sy) { syWhere = ' AND e.school_year = ?'; params.push(sy); }
   params.push(...SHS_GRADES);
   const rows = await qa(
     `SELECT sub.id, sub.code, sub.title, sub.track, sub.term, sub.units,
        COUNT(DISTINCT e.student_id) AS enrolled
      FROM subjects sub
-     LEFT JOIN class_assignments ca ON ca.subject_id = sub.id ${syOn}
-     LEFT JOIN enrollments e ON e.section_id = ca.section_id
-        AND e.status = 'enrolled' AND e.school_year = ca.school_year
-     WHERE sub.grade_level IN (?, ?)
+     LEFT JOIN enrollment_subjects es ON es.subject_id = sub.id
+     LEFT JOIN enrollments e ON e.id = es.enrollment_id AND e.status = 'enrolled' ${syWhere}
+     WHERE sub.grade_level IN (?, ?) AND sub.is_offered = TRUE
      GROUP BY sub.id, sub.code, sub.title, sub.track, sub.term, sub.units
      HAVING COUNT(DISTINCT e.student_id) > 0
      ORDER BY sub.term, sub.title`,

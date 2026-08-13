@@ -35,7 +35,7 @@ export default function Enroll() {
 
   async function loadSubjectsFor(gradeLevel, term) {
     try {
-      const q = new URLSearchParams({ grade_level: gradeLevel, term, limit: '300' });
+      const q = new URLSearchParams({ grade_level: gradeLevel, term, offered: '1', limit: '300' });
       const res = await api(`/subjects?${q}`);
       setSubjects(res.data);
     } catch (e) {
@@ -187,10 +187,24 @@ export default function Enroll() {
                 </div>
               </div>
 
-              <label style={{ marginTop: 12, display: 'block' }}>
-                <input type="checkbox" checked={form.is_aral} onChange={(e) => set('is_aral', e.target.checked)} style={{ marginRight: 8 }} />
-                Student belongs to the <strong>Aral Program</strong>
-              </label>
+              <div
+                onClick={() => set('is_aral', !form.is_aral)}
+                role="checkbox"
+                aria-checked={form.is_aral}
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); set('is_aral', !form.is_aral); } }}
+                style={{
+                  marginTop: 12, display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px',
+                  border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer',
+                  background: form.is_aral ? 'var(--bg-soft, #f0f7f2)' : 'transparent',
+                }}
+              >
+                <input type="checkbox" checked={form.is_aral} onChange={(e) => set('is_aral', e.target.checked)} style={{ marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Enroll to Aral Program</div>
+                  <div className="hint">Reading &amp; numeracy remediation tracking — PHIL-IRI baseline, intervention sessions and progress monitoring.</div>
+                </div>
+              </div>
 
               {isShsGrade ? (
                 <>
