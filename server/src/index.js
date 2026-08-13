@@ -29,6 +29,8 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
 
 (async () => {
   await db.init();
+  const { startCleanup } = require('./cleanup');
+  startCleanup();
   if (process.env.SEED_ON_BOOT === '1') {
     const { seed } = require('./seed');
     await seed();

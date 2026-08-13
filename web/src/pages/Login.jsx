@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, Server } from 'lucide-react';
+import { Lock, Server } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
 import { getStoredApiBase, setApiBase } from '../lib/api';
@@ -74,10 +74,6 @@ export default function Login() {
             </button>
           </div>
         </form>
-        <div className="hint">
-          <strong>Demo accounts</strong> (password: <code>REDACTED</code>)<br />
-          <User size={11} style={{ verticalAlign: -1 }} /> admin · registrar · teacher · nurse · cashier · parent · student
-        </div>
       </div>
     </div>
   );
