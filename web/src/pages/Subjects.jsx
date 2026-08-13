@@ -3,15 +3,33 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
-const TERM_LABELS = { first: 'First Term', second: 'Second Term', third: 'Third Term', all: 'All Terms (Core)' };
+const TERM_LABELS = { first: 'First Term', second: 'Second Term', third: 'Third Term', all: 'All Terms' };
 const TERM_OPTIONS = [
-  { value: 'all', label: 'All Terms — Core subject (whole year)' },
+  { value: 'all', label: 'All Terms — offered in every term' },
   { value: 'first', label: 'First Term' },
   { value: 'second', label: 'Second Term' },
   { value: 'third', label: 'Third Term' },
   { value: '', label: 'Not term-based (whole-year)' },
 ];
-const EMPTY_FORM = { code: '', title: '', description: '', grade_level: 'Grade 11', track: 'academic', units: 0, term: '' };
+const CATEGORIES = [
+  { value: 'core', label: 'Core Subjects' },
+  { value: 'arts-humanities', label: 'Academic — Arts, Social Sciences & Humanities' },
+  { value: 'business-entrepreneurship', label: 'Academic — Business & Entrepreneurship' },
+  { value: 'stem', label: 'Academic — Science, Technology, Engineering & Math' },
+  { value: 'sports-health-wellness', label: 'Academic — Sports, Health & Wellness' },
+  { value: 'field-experience', label: 'Academic — Field Experience' },
+  { value: 'tvl-aesthetic', label: 'TechPro — Aesthetic, Wellness & Human Care' },
+  { value: 'tvl-agri-fishery', label: 'TechPro — Agri-Fishery & Food Innovation' },
+  { value: 'tvl-artisanry', label: 'TechPro — Artisanry & Creative Enterprise' },
+  { value: 'tvl-automotive', label: 'TechPro — Automotive & Small Engine' },
+  { value: 'tvl-construction', label: 'TechPro — Construction & Building' },
+  { value: 'tvl-creative-design', label: 'TechPro — Creative Arts & Design' },
+  { value: 'tvl-hospitality', label: 'TechPro — Hospitality & Tourism' },
+  { value: 'tvl-industrial', label: 'TechPro — Industrial Technologies' },
+  { value: 'tvl-ict', label: 'TechPro — ICT & Computer Programming' },
+  { value: 'tvl-maritime', label: 'TechPro — Maritime' },
+];
+const EMPTY_FORM = { code: '', title: '', description: '', grade_level: 'Grade 11', track: 'academic', units: 0, term: 'all', category: '' };
 
 function TermBadge({ term }) {
   if (!term) return <span className="term-badge term-quar">Not term-based</span>;
@@ -120,7 +138,7 @@ export default function Subjects() {
           <table>
             <thead>
               <tr>
-                <th>Code</th><th>Title</th><th>Grade Level</th><th>Track</th>
+                <th>Code</th><th>Title</th><th>Grade Level</th><th>Track</th><th>Category</th>
                 <th>Term Offered</th><th>Units</th><th style={{ textAlign: 'center' }}>Offered</th><th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
@@ -131,6 +149,7 @@ export default function Subjects() {
                   <td>{s.title}</td>
                   <td>{s.grade_level}</td>
                   <td className="track-chip">{s.track.toUpperCase()}</td>
+                  <td className="sub">{CATEGORIES.find((c) => c.value === s.category)?.label || '—'}</td>
                   <td><TermBadge term={s.term} /></td>
                   <td>{s.units}</td>
                   <td style={{ textAlign: 'center' }}>
@@ -180,6 +199,12 @@ export default function Subjects() {
               </div>
               <div><label>Units</label>{field('units', { type: 'number', step: '0.5', min: 0 })}</div>
             </div>
+            <label>Category (enrollment grouping)
+              <select style={{ marginTop: 6 }} value={form.category} onChange={(e) => set('category', e.target.value)}>
+                <option value="">— none —</option>
+                {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </label>
             {isSHS && (
               <label>Term offered (Senior High School) *
                 <select required style={{ marginTop: 6 }} value={form.term} onChange={(e) => set('term', e.target.value)}>

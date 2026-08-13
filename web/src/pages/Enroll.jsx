@@ -1,6 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge } from '../components/ui';
+
+const CATEGORIES = [
+  { cat: 'core', label: 'Core Subjects' },
+  { cat: 'arts-humanities', label: 'Academic — Arts, Social Sciences & Humanities' },
+  { cat: 'business-entrepreneurship', label: 'Academic — Business & Entrepreneurship' },
+  { cat: 'stem', label: 'Academic — Science, Technology, Engineering & Math' },
+  { cat: 'sports-health-wellness', label: 'Academic — Sports, Health & Wellness' },
+  { cat: 'field-experience', label: 'Academic — Field Experience' },
+  { cat: 'tvl-aesthetic', label: 'TechPro — Aesthetic, Wellness & Human Care' },
+  { cat: 'tvl-agri-fishery', label: 'TechPro — Agri-Fishery & Food Innovation' },
+  { cat: 'tvl-artisanry', label: 'TechPro — Artisanry & Creative Enterprise' },
+  { cat: 'tvl-automotive', label: 'TechPro — Automotive & Small Engine' },
+  { cat: 'tvl-construction', label: 'TechPro — Construction & Building' },
+  { cat: 'tvl-creative-design', label: 'TechPro — Creative Arts & Design' },
+  { cat: 'tvl-hospitality', label: 'TechPro — Hospitality & Tourism' },
+  { cat: 'tvl-industrial', label: 'TechPro — Industrial Technologies' },
+  { cat: 'tvl-ict', label: 'TechPro — ICT & Computer Programming' },
+  { cat: 'tvl-maritime', label: 'TechPro — Maritime' },
+];
+
+function catOf(s) {
+  if (s.category) return s.category;
+  if (s.track === 'tvl') return 'tvl-ict';
+  if (s.term === 'all' || s.track === 'general' || String(s.code).startsWith('SSHS-') || String(s.code).startsWith('CORE-')) return 'core';
+  return 'arts-humanities';
+}
 
 export default function Enroll() {
   const [students, setStudents] = useState([]);
@@ -10,6 +37,7 @@ export default function Enroll() {
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ student_id: '', section_id: '', school_year: '2026-2027', grade_level: 'Grade 11', strand: '', term: 'first', is_aral: false, status: 'enrolled', enrolled_at: '' });
   const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [search, setSearch] = useState('');
   const [history, setHistory] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -33,9 +61,9 @@ export default function Enroll() {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
-  async function loadSubjectsFor(gradeLevel, term) {
+  async function loadSubjectsFor(gradeLevel) {
     try {
-      const q = new URLSearchParams({ grade_level: gradeLevel, term, offered: '1', limit: '300' });
+      const q = new URLSearchParams({ grade_level: gradeLevel, offered: '1', limit: '500' });
       const res = await api(`/subjects?${q}`);
       setSubjects(res.data);
     } catch (e) {
@@ -55,27 +83,25 @@ export default function Enroll() {
 
   function onTermChange(v) {
     setForm((f) => ({ ...f, term: v }));
-    const gradeLevel = form.grade_level;
-    if (gradeLevel) loadSubjectsFor(gradeLevel, v);
   }
 
   useEffect(() => {
     const g = form.grade_level;
-    const t = form.term;
-    if (g && /^Grade 1[12]$/.test(g)) loadSubjectsFor(g, t);
+    if (g && /^Grade 1[12]$/.test(g)) loadSubjectsFor(g);
     else setSubjects([]);
-  }, [form.grade_level, form.term]);
+  }, [form.grade_level]);
 
   const isShsGrade = /^Grade 1[12]$/.test(form.grade_level || '');
-  const byTerm = (s) => s.term === 'all' || s.term === form.term;
+
   const group = useMemo(() => {
-    if (!isShsGrade) return { core: [], academic: [], tvl: [] };
-    return {
-      core: subjects.filter((s) => byTerm(s) && (s.track === 'general' || s.code.startsWith('SSHS-') || s.code.startsWith('CORE-'))),
-      academic: subjects.filter((s) => byTerm(s) && s.track === 'academic' && !s.code.startsWith('SSHS-') && !s.code.startsWith('CORE-')),
-      tvl: subjects.filter((s) => byTerm(s) && s.track === 'tvl'),
-    };
-  }, [subjects, form.term, isShsGrade]);
+    if (!isShsGrade) return [];
+    const q = search.trim().toLowerCase();
+    const list = subjects.filter((s) => !q || `${s.code} ${s.title}`.toLowerCase().includes(q));
+    return CATEGORIES.map(({ cat, label }) => ({ cat, label, items: list.filter((s) => catOf(s) === cat) }))
+      .filter((g) => g.items.length > 0);
+  }, [subjects, search, isShsGrade]);
+
+  const totalAvailable = useMemo(() => (isShsGrade ? subjects.length : 0), [subjects, isShsGrade]);
 
   function toggleSubject(id) {
     setSelectedSubjects((sel) => (sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]));
@@ -121,10 +147,10 @@ export default function Enroll() {
   const eligible = students.filter((s) => s.status === 'enrolled');
   const selectedCount = selectedSubjects.length;
 
-  const CheckGroup = ({ title, items }) => items.length === 0 ? null : (
+  const CheckGroup = ({ label, items }) => (
     <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
-      <legend style={{ fontWeight: 600, fontSize: 13, padding: '0 6px' }}>{title} ({items.length})</legend>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+      <legend style={{ fontWeight: 600, fontSize: 13, padding: '0 6px' }}>{label} ({items.length})</legend>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
         {items.map((s) => (
           <label key={s.id} className="check-item" style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} />
@@ -140,7 +166,7 @@ export default function Enroll() {
 
   return (
     <>
-      <PageHead title="Enrollment" sub="Assign learners to sections with subject checklist (DepEd LRN-based)" />
+      <PageHead title="Enrollment" sub="Assign learners to sections with the full SSHS subject checklist (DepEd LRN-based)" />
       <ErrorBanner error={error} />
       {loading ? <Spinner /> : (
         <div className="two-col">
@@ -210,15 +236,28 @@ export default function Enroll() {
                 <>
                   <div style={{ margin: '12px 0 4px' }}>
                     <label style={{ fontWeight: 600 }}>Enrolled subjects — tick the cores and electives for this term</label>
-                    <div className="hint">Filtered by {form.grade_level} · {form.term} term · {selectedCount} selected</div>
+                    <div className="hint">
+                      Full SSHS catalog for {form.grade_level} · available in all three terms · {selectedCount} of {totalAvailable} selected
+                    </div>
                   </div>
-                  {group.core.length + group.academic.length + group.tvl.length === 0 ? (
-                    <div className="hint">No subjects found for this grade level and term in the catalog.</div>
+                  <div style={{ position: 'relative', marginBottom: 8 }}>
+                    <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                    <input
+                      className="input"
+                      placeholder="Search subjects by code or title…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      style={{ paddingLeft: 30 }}
+                    />
+                  </div>
+                  {group.length === 0 ? (
+                    <div className="hint">No subjects found for this grade level{search ? ' matching your search' : ' in the catalog'}.</div>
                   ) : (
                     <>
-                      <CheckGroup title="Core Subjects" items={group.core} />
-                      <CheckGroup title="Academic Electives" items={group.academic} />
-                      <CheckGroup title="TechPro (TVL) Electives" items={group.tvl} />
+                      {group.map((g) => <CheckGroup key={g.cat} label={g.label} items={g.items} />)}
+                      {selectedCount > 0 && (
+                        <button type="button" className="btn btn-sm" onClick={() => setSelectedSubjects([])}>Clear selection ({selectedCount})</button>
+                      )}
                     </>
                   )}
                 </>

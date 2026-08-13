@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, ClipboardList, Target } from 'lucide-react';
+import { CalendarCheck, ClipboardList, Target, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, ErrorBanner, Modal } from '../components/ui';
@@ -37,6 +37,12 @@ export default function Aral() {
   const [roll, setRoll] = useState([]);
   const [rollLoading, setRollLoading] = useState(false);
 
+  const [allStudents, setAllStudents] = useState([]);
+  const [aralLearners, setAralLearners] = useState([]);
+  const [aralForm, setAralForm] = useState({ student_id: '', term: '' });
+  const [aralBusy, setAralBusy] = useState(false);
+  const [aralMsg, setAralMsg] = useState(null);
+
   useEffect(() => {
     let dead = false;
     (async () => {
@@ -47,13 +53,17 @@ export default function Aral() {
           + (filters.grade ? `&grade_level=${encodeURIComponent(filters.grade)}` : '')
           + (filters.section ? `&section_id=${encodeURIComponent(filters.section)}` : '')
           + (filters.area ? `&subject_area=${encodeURIComponent(filters.area)}` : '');
-        const [secs, att] = await Promise.all([
+        const [secs, att, studs, aral] = await Promise.all([
           api(`/sections?school_year=${encodeURIComponent(sy)}`),
           api(`/dashboard/aral-attendance?${qs}`),
+          api('/students?limit=500'),
+          api(`/dashboard/aral-enrolled?school_year=${encodeURIComponent(sy)}`),
         ]);
         if (dead) return;
         setSections(secs.data || []);
         setData(att);
+        setAllStudents((studs.data || []).filter((s) => s.status === 'enrolled'));
+        setAralLearners(aral.data || []);
       } catch (e) {
         if (!dead) setError(e.message);
       } finally {
@@ -122,6 +132,37 @@ export default function Aral() {
     }
   }
 
+  async function enrollAral(e) {
+    e.preventDefault();
+    setAralMsg(null);
+    setError(null);
+    setAralBusy(true);
+    try {
+      await api('/dashboard/aral-enroll', {
+        method: 'POST',
+        body: { student_id: Number(aralForm.student_id), school_year: sy, term: aralForm.term },
+      });
+      setAralMsg('Learner enrolled to the ARAL Program.');
+      setAralForm({ student_id: '', term: '' });
+      setReloadTick((t) => t + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAralBusy(false);
+    }
+  }
+
+  async function unenrollAral(enrollmentId) {
+    if (!confirm('Remove this learner from the ARAL Program?')) return;
+    setError(null);
+    try {
+      await api('/dashboard/aral-unenroll', { method: 'POST', body: { enrollment_id: enrollmentId } });
+      setReloadTick((t) => t + 1);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   if (loading && !data) return <Spinner />;
 
   const totals = data?.totals || { sessions: 0, present: 0, absent: 0, excused: 0, rate: 0 };
@@ -141,6 +182,63 @@ export default function Aral() {
         <StatChip label="Absent" value={totals.absent} color="#F2555A" />
         <StatChip label="Excused" value={totals.excused} color="#F5B942" />
         <StatChip label="Attendance rate" value={totals.rate != null ? totals.rate + '%' : '—'} color="#A78BFA" />
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <h3 style={{ margin: 0 }}><UserPlus size={16} /> Enroll Learner to ARAL Program</h3>
+          {canRecord && (
+            <form onSubmit={enrollAral} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <select className="input" style={{ minWidth: 260 }} required value={aralForm.student_id}
+                onChange={(e) => setAralForm((f) => ({ ...f, student_id: e.target.value }))}>
+                <option value="">— select enrolled learner —</option>
+                {allStudents.map((s) => (
+                  <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.lrn})</option>
+                ))}
+              </select>
+              <select className="input" style={{ width: 130 }} value={aralForm.term}
+                onChange={(e) => setAralForm((f) => ({ ...f, term: e.target.value }))}>
+                <option value="">All terms</option>
+                <option value="first">First Term</option>
+                <option value="second">Second Term</option>
+                <option value="third">Third Term</option>
+              </select>
+              <button className="btn btn-primary" disabled={aralBusy || !aralForm.student_id}>
+                {aralBusy ? 'Enrolling…' : 'Enroll to ARAL'}
+              </button>
+            </form>
+          )}
+        </div>
+        <p className="sub" style={{ margin: '8px 0 0' }}>
+          Teachers and advisers can tag any enrolled learner for reading &amp; numeracy remediation.
+          The learner keeps their regular section — ARAL attendance and progress are monitored here.
+        </p>
+        {aralMsg && <div className="notice" style={{ marginTop: 10 }}>{aralMsg}</div>}
+        <div className="table-wrap" style={{ marginTop: 12, maxHeight: 280, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Learner</th><th>LRN</th><th>Grade &amp; Section</th><th style={{ textAlign: 'center' }}>Term</th><th style={{ textAlign: 'right' }}></th></tr>
+            </thead>
+            <tbody>
+              {aralLearners.length === 0 && (
+                <tr><td colSpan={5} className="sub">No learners tagged for the ARAL Program in {sy}.</td></tr>
+              )}
+              {aralLearners.map((r) => (
+                <tr key={r.enrollment_id}>
+                  <td>{r.last_name}, {r.first_name}</td>
+                  <td style={{ fontFamily: 'monospace' }}>{r.lrn}</td>
+                  <td>{r.grade_level}{r.section_name ? ' — ' + r.section_name : ''}</td>
+                  <td style={{ textAlign: 'center' }}>{r.term ? r.term[0].toUpperCase() + r.term.slice(1) : 'All'}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {canWrite && (
+                      <button className="btn btn-sm btn-danger" onClick={() => unenrollAral(r.enrollment_id)}>Remove</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card">
