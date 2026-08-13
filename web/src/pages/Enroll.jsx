@@ -150,15 +150,44 @@ export default function Enroll() {
   const CheckGroup = ({ label, items }) => (
     <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
       <legend style={{ fontWeight: 600, fontSize: 13, padding: '0 6px' }}>{label} ({items.length})</legend>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: 6,
+          maxHeight: 260,
+          overflowY: 'auto',
+          padding: 2,
+        }}
+      >
         {items.map((s) => (
-          <label key={s.id} className="check-item" style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} />
-            <span>{s.code} — {s.title}</span>
+          <label
+            key={s.id}
+            className="check-item"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              minHeight: 44,
+              padding: '8px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              background: 'var(--surface, #fff)',
+              fontSize: 12.5,
+              lineHeight: 1.3,
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+            }}
+          >
+            <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ flexShrink: 0, margin: 0 }} />
+            <span style={{ display: 'flex', gap: 6, alignItems: 'baseline', minWidth: 0 }}>
+              <strong className="code" style={{ flexShrink: 0, fontSize: 11.5, opacity: 0.75 }}>{s.code}</strong>
+              <span style={{ overflowWrap: 'anywhere' }}>{s.title}</span>
+            </span>
           </label>
         ))}
       </div>
-      <button type="button" className="btn btn-sm" style={{ marginTop: 6 }} onClick={() => toggleGroup(items)}>
+      <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => toggleGroup(items)}>
         {items.every((s) => selectedSubjects.includes(s.id)) ? 'Clear all' : 'Select all'}
       </button>
     </fieldset>
@@ -199,7 +228,6 @@ export default function Enroll() {
                     <option value="second">Second Term</option>
                     <option value="third">Third Term</option>
                   </select>
-                  <div className="hint">SHS learners enroll once per term (3× per school year).</div>
                 </div>
                 <div>
                   <label>Strand (SHS)</label>
@@ -237,7 +265,7 @@ export default function Enroll() {
                   <div style={{ margin: '12px 0 4px' }}>
                     <label style={{ fontWeight: 600 }}>Enrolled subjects — tick the cores and electives for this term</label>
                     <div className="hint">
-                      Full SSHS catalog for {form.grade_level} · available in all three terms · {selectedCount} of {totalAvailable} selected
+                      Full SSHS catalog for Grade 11 and 12 · available in all three terms · {selectedCount} of {totalAvailable} selected
                     </div>
                   </div>
                   <div style={{ position: 'relative', marginBottom: 8 }}>
