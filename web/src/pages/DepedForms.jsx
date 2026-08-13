@@ -3,6 +3,7 @@ import { Printer, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, ErrorBanner } from '../components/ui';
 import { printElementHtml } from '../lib/export';
+import DOMPurify from 'dompurify';
 
 const FORMS = ['SF1', 'SF2', 'SF3', 'SF4', 'SF5', 'SF6', 'SF7', 'SF8', 'SF9', 'SF10', 'FORM A'];
 const FORM_NAMES = {
@@ -442,7 +443,8 @@ export default function DepedForms() {
     return { title: form, body: '' };
   }
 
-  const doc = build();
+  const built = build();
+  const doc = { ...built, body: built.body ? DOMPurify.sanitize(built.body) : built.body };
 
   return (
     <div>
