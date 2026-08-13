@@ -164,26 +164,31 @@ export default function Enroll() {
           <label
             key={s.id}
             className="check-item"
+            title={s.title}
             style={{
-              display: 'flex',
+              display: 'grid',
+              gridTemplateColumns: '16px 120px minmax(0, 1fr)',
               alignItems: 'center',
-              gap: 10,
-              minHeight: 44,
+              columnGap: 10,
+              minHeight: 46,
               padding: '8px 10px',
               border: '1px solid var(--border)',
               borderRadius: 6,
               background: 'var(--surface, #fff)',
               fontSize: 12.5,
-              lineHeight: 1.3,
+              lineHeight: 1.35,
               cursor: 'pointer',
               boxSizing: 'border-box',
             }}
           >
-            <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ flexShrink: 0, margin: 0 }} />
-            <span style={{ display: 'flex', gap: 6, alignItems: 'baseline', minWidth: 0 }}>
-              <strong className="code" style={{ flexShrink: 0, fontSize: 11.5, opacity: 0.75 }}>{s.code}</strong>
-              <span style={{ overflowWrap: 'anywhere' }}>{s.title}</span>
+            <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ width: 16, height: 16, margin: 0 }} />
+            <span
+              title={s.code}
+              style={{ fontWeight: 600, fontSize: 11, opacity: 0.72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+            >
+              {s.code}
             </span>
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{s.title}</span>
           </label>
         ))}
       </div>
