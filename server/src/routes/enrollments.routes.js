@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, bool } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 
@@ -61,7 +61,7 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
     term ? [b.student_id, b.school_year, term] : [b.student_id, b.school_year]);
   if (existing) return res.status(409).json({ error: `Student already enrolled for ${b.school_year}${term ? ` (${term} term)` : ''}` });
-  const isAral = b.is_aral ? 1 : 0;
+  const isAral = bool(b.is_aral);
   const id = await qi(
     'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [b.student_id, b.section_id, b.school_year, b.grade_level, b.strand || null, term, isAral, b.status || 'enrolled', b.enrolled_at || null]);
@@ -93,7 +93,7 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'} AND id != ?`,
     term ? [row.student_id, row.school_year, term, row.id] : [row.student_id, row.school_year, row.id]);
   if (dup) return res.status(409).json({ error: 'Another enrollment already exists for this student, school year and term' });
-  const isAral = b.is_aral !== undefined ? (b.is_aral ? 1 : 0) : row.is_aral;
+  const isAral = bool(b.is_aral !== undefined ? b.is_aral : row.is_aral);
   await qr('UPDATE enrollments SET section_id = ?, status = ?, strand = ?, term = ?, is_aral = ?, enrolled_at = ? WHERE id = ?',
     [f('section_id', row.section_id), f('status', row.status), f('strand', row.strand), term, isAral, f('enrolled_at', row.enrolled_at), row.id]);
   if (b.subject_ids !== undefined) await saveSubjects(null, row.id, b.subject_ids);
