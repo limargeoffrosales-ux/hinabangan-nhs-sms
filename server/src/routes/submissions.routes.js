@@ -372,7 +372,7 @@ router.get('/compliance', asyncH(async (req, res) => {
   const all = await qa('SELECT id, username, name, role FROM users WHERE status = ?', ['active']);
   const staff = all.filter((u) => !isAdminRole(u.role));
   const tasks = await qa(
-    `SELECT r.user_id, r.report_type_id, r.status, r.due_date, t.code, t.group_name
+    `SELECT r.user_id, r.report_type_id, r.status, r.due_date, t.code, t.name AS report_name, t.group_name
      FROM report_submissions r
      JOIN report_types t ON t.id = r.report_type_id
      WHERE r.school_year = ? AND r.assigned_by IS NOT NULL`,
@@ -381,6 +381,18 @@ router.get('/compliance', asyncH(async (req, res) => {
   const kpis = { draft: 0, submitted: 0, reviewed: 0, approved: 0, returned: 0, overdue: 0, missing: 0 };
   const byUser = {};
   const taskByUser = {};
+  const submissionRows = [];
+  const decorate = (s) => {
+    const complied = ['submitted', 'reviewed', 'approved'].includes(s.status);
+    const overdue = s.due_date && s.due_date < today && !complied && s.status !== 'returned';
+    const d = {
+      report_type_id: s.report_type_id, code: s.code, report_name: s.report_name,
+      group_name: s.group_name, status: s.status, due_date: s.due_date,
+      complied, overdue,
+    };
+    submissionRows.push(d);
+    return d;
+  };
   for (const s of tasks) {
     kpis[s.status] = (kpis[s.status] || 0) + 1;
     if (s.due_date && s.due_date < today && s.status !== 'approved' && s.status !== 'returned') kpis.overdue++;
@@ -401,6 +413,7 @@ router.get('/compliance', asyncH(async (req, res) => {
     teachers.push({
       user_id: u.id, username: u.username, name: u.name, role: u.role,
       required: assigned.length, done, percent: pct, missing,
+      submissions: assigned.map(decorate),
     });
     if (assigned.length) {
       const d = (dept[u.role] = dept[u.role] || { users: 0, total: 0 });
@@ -423,7 +436,7 @@ router.get('/compliance', asyncH(async (req, res) => {
     group: g, required: gaps[g].required, covered: gaps[g].covered,
     percent: Math.round((gaps[g].covered / gaps[g].required) * 100),
   })).sort((a, b) => a.percent - b.percent);
-  res.json({ school_year: schoolYear, overall, kpis, teachers, departments, groups, assigned_tasks: tasks.length });
+  res.json({ school_year: schoolYear, overall, kpis, teachers, departments, groups, assigned_tasks: tasks.length, submissions: submissionRows });
 }));
 
 router.get('/portfolio', asyncH(async (req, res) => {
