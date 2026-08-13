@@ -63,7 +63,7 @@ export default function Enroll() {
 
   async function loadSubjectsFor(gradeLevel) {
     try {
-      const q = new URLSearchParams({ grade_level: gradeLevel, offered: '1', limit: '500' });
+      const q = new URLSearchParams({ grade_level: gradeLevel, limit: '500' });
       const res = await api(`/subjects?${q}`);
       setSubjects(res.data);
     } catch (e) {
