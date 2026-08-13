@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { q, qa, qi, qr, init, close } = require('./db');
 const { REPORT_TYPES } = require('./report-types');
 
@@ -63,59 +64,63 @@ async function seed() {
   const users = [
     ['superadmin', 'Super Admin', 'super_admin', 'admin@school.edu.ph'],
     ['admin', 'School Administrator', 'school_admin', 'principal@school.edu.ph'],
-    ['registrar', 'Registrar Office', 'registrar', 'registrar@school.edu.ph'],
-    ['teacher', 'Ma. Teresa Santos', 'teacher', 'teacher@school.edu.ph'],
-    ['nurse', 'Clinic Nurse', 'nurse', 'nurse@school.edu.ph'],
-    ['guidance', 'Guidance Counselor', 'guidance', 'guidance@school.edu.ph'],
-    ['librarian', 'Librarian', 'librarian', 'librarian@school.edu.ph'],
-    ['cashier', 'Cashier', 'cashier', 'cashier@school.edu.ph'],
-    ['parent', 'Parent Account', 'parent', 'parent@example.com'],
-    ['student', 'Student Account', 'student', 'student@example.com'],
   ];
-  const password = 'REDACTED';
-  const hash = await bcrypt.hash(password, 10);
-  for (const [username, name, role, email] of users) {
-    const exists = await q('SELECT id FROM users WHERE username = ?', [username]);
-    if (!exists) {
-      await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
-        [username, hash, name, role, email, 'active']);
-      console.log(`+ user ${username} (${role}) / password: ${password}`);
-    }
-  }
-
-  const staffCount = 30;
-  const staffRoles = [
-    ...Array(25).fill('teacher'), 'guidance', 'nurse', 'librarian', 'cashier', 'ict',
-  ];
-  const staffNames = [
-    'Celia Abarquez', 'Dennis Abello', 'Elena Aguirre', 'Ferdinand Alcazar', 'Gina Arcega',
-    'Henry Bautista', 'Irene Bering', 'Jocelyn Bustamante', 'Kenneth Cabrera', 'Lorna Caballero',
-    'Marvin Canlas', 'Nenita Casil', 'Orlando Cruzado', 'Precious Daclan', 'Quirino Dalangin',
-    'Rosalinda Datu', 'Salvador Diputado', 'Teresita Ejara', 'Uriel Esguerra', 'Vivian Fabian',
-    'Wilfredo Galang', 'Xenia Guray', 'Yolanda Hilario', 'Zandro Ibabao', 'Aimee Jacinto',
-    'Benjie Joloro', 'Catherine Kintanar', 'Danny Laguardia', 'Editha Manalo', 'Felix Nisperos',
+  const staff = [
+    ['asantos', 'Amelia Santos', 'teacher'],
+    ['breyes', 'Bryan Reyes', 'teacher'],
+    ['cmendoza', 'Carla Mendoza', 'teacher'],
+    ['dvillanueva', 'Dennis Villanueva', 'teacher'],
+    ['egarcia', 'Elena Garcia', 'teacher'],
+    ['faquino', 'Francis Aquino', 'teacher'],
+    ['gdomingo', 'Grace Domingo', 'teacher'],
+    ['hocampo', 'Henry Ocampo', 'teacher'],
+    ['iramos', 'Ivy Ramos', 'teacher'],
+    ['jcruz', 'Jerome Cruz', 'teacher'],
+    ['kbautista', 'Katrina Bautista', 'teacher'],
+    ['ltorres', 'Leonardo Torres', 'teacher'],
+    ['mnavarro', 'Marites Navarro', 'teacher'],
+    ['nfernandez', 'Nestor Fernandez', 'teacher'],
+    ['opadilla', 'Olivia Padilla', 'teacher'],
+    ['pjavier', 'Paolo Javier', 'teacher'],
+    ['qdizon', 'Queenie Dizon', 'teacher'],
+    ['respino', 'Ramon Espino', 'teacher'],
+    ['shernandez', 'Sofia Hernandez', 'teacher'],
+    ['tlopez', 'Tomas Lopez', 'teacher'],
   ];
   const accounts = [];
-  for (let i = 0; i < staffCount; i++) {
-    const role = staffRoles[i];
-    const username = role === 'teacher' ? `teacher${String(i + 1).padStart(2, '0')}` : `${role}1`;
-    const pw = `REDACTED${role}${String(i + 1).padStart(2, '0')}`;
-    const hm = await bcrypt.hash(pw, 10);
+  for (const [username, name, role, email] of users) {
     const exists = await q('SELECT id FROM users WHERE username = ?', [username]);
-    if (!exists) {
-      await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
-        [username, hm, staffNames[i], role, `staff${i + 1}@hinabangan-nhs.edu.ph`, 'active']);
-      console.log(`+ user ${username} (${role}) / password: ${pw}`);
-    } else {
+    if (exists) {
       console.log(`= user ${username} already exists (keeping existing password)`);
+      continue;
     }
-    accounts.push(`${username} | ${pw} | ${role} | ${staffNames[i]}`);
+    const pw = crypto.randomBytes(12).toString('base64url');
+    await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [username, await bcrypt.hash(pw, 10), name, role, email || null, 'active']);
+    console.log(`+ user ${username} (${role}) / password: ${pw}`);
+    accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }
-  require('fs').writeFileSync(
-    require('path').join(__dirname, '..', '..', 'accounts.txt'),
-    'Hinabangan National High School - Staff Account Credentials (non-admin)\n' +
-    'username | password | role | name\n' + accounts.join('\n') + '\n', 'utf8');
-  console.log(`+ ${staffCount} staff accounts written to accounts.txt`);
+  for (const [username, name, role] of staff) {
+    const exists = await q('SELECT id FROM users WHERE username = ?', [username]);
+    if (exists) {
+      console.log(`= user ${username} already exists (keeping existing password)`);
+      continue;
+    }
+    const pw = crypto.randomBytes(12).toString('base64url');
+    await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [username, await bcrypt.hash(pw, 10), name, role, `${username}@hinabangan-nhs.edu.ph`, 'active']);
+    console.log(`+ user ${username} (${role}) / password: ${pw}`);
+    accounts.push(`${username} | ${pw} | ${role} | ${name}`);
+  }
+  if (accounts.length) {
+    require('fs').writeFileSync(
+      require('path').join(__dirname, '..', '..', 'accounts.txt'),
+      'Hinabangan National High School - Generated Account Credentials\n' +
+      'username | password | role | name\n' + accounts.join('\n') + '\n', 'utf8');
+    console.log(`+ ${accounts.length} new account(s) written to accounts.txt`);
+  } else {
+    console.log('= all accounts already exist — nothing new to write.');
+  }
 
   const hasStudents = await qa('SELECT COUNT(*) AS n FROM students');
   if (process.env.DEMO_SEED !== '1') {
@@ -358,7 +363,7 @@ async function seed() {
   await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
     ['Teachers: DLL submission reminder', 'Daily Lesson Logs for the current week must be submitted to the principal office every Friday before 5 PM.', 'teachers', 'normal', 1]);
 
-  console.log('Seed complete: 40 users (10 demo + 30 staff), 8 teachers, 79 subjects (MATATAG JHS + Strengthened SHS), 6 sections, 30 students, grades, attendance, assignments.');
+  console.log('Seed complete: 22 accounts (1 superadmin, 1 admin, 20 staff), 8 teachers, 79 subjects (MATATAG JHS + Strengthened SHS), 6 sections, 30 students, grades, attendance, assignments.');
   await seedAiModules();
   if (require.main === module) await close();
 }
