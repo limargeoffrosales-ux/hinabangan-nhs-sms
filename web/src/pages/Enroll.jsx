@@ -29,6 +29,61 @@ function catOf(s) {
   return 'arts-humanities';
 }
 
+// Defined at module scope (stable identity) so the checklist does not remount
+// on every checkbox click — the scroll position of the list is preserved.
+function CheckGroup({ label, items, selectedSubjects, toggleSubject, toggleGroup }) {
+  return (
+    <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+      <legend style={{ fontWeight: 600, fontSize: 13, padding: '0 6px' }}>{label} ({items.length})</legend>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: 6,
+          maxHeight: 260,
+          overflowY: 'auto',
+          padding: 2,
+        }}
+      >
+        {items.map((s) => (
+          <label
+            key={s.id}
+            className="check-item"
+            title={s.title}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '16px 120px minmax(0, 1fr)',
+              alignItems: 'center',
+              columnGap: 10,
+              minHeight: 46,
+              padding: '8px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              background: 'var(--surface, #fff)',
+              fontSize: 12.5,
+              lineHeight: 1.35,
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+            }}
+          >
+            <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ width: 16, height: 16, margin: 0 }} />
+            <span
+              title={s.code}
+              style={{ fontWeight: 600, fontSize: 11, opacity: 0.72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+            >
+              {s.code}
+            </span>
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{s.title}</span>
+          </label>
+        ))}
+      </div>
+      <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => toggleGroup(items)}>
+        {items.every((s) => selectedSubjects.includes(s.id)) ? 'Clear all' : 'Select all'}
+      </button>
+    </fieldset>
+  );
+}
+
 export default function Enroll() {
   const [students, setStudents] = useState([]);
   const [sections, setSections] = useState([]);
@@ -147,57 +202,6 @@ export default function Enroll() {
   const eligible = students.filter((s) => s.status === 'enrolled');
   const selectedCount = selectedSubjects.length;
 
-  const CheckGroup = ({ label, items }) => (
-    <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
-      <legend style={{ fontWeight: 600, fontSize: 13, padding: '0 6px' }}>{label} ({items.length})</legend>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-          gap: 6,
-          maxHeight: 260,
-          overflowY: 'auto',
-          padding: 2,
-        }}
-      >
-        {items.map((s) => (
-          <label
-            key={s.id}
-            className="check-item"
-            title={s.title}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '16px 120px minmax(0, 1fr)',
-              alignItems: 'center',
-              columnGap: 10,
-              minHeight: 46,
-              padding: '8px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              background: 'var(--surface, #fff)',
-              fontSize: 12.5,
-              lineHeight: 1.35,
-              cursor: 'pointer',
-              boxSizing: 'border-box',
-            }}
-          >
-            <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ width: 16, height: 16, margin: 0 }} />
-            <span
-              title={s.code}
-              style={{ fontWeight: 600, fontSize: 11, opacity: 0.72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
-            >
-              {s.code}
-            </span>
-            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{s.title}</span>
-          </label>
-        ))}
-      </div>
-      <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => toggleGroup(items)}>
-        {items.every((s) => selectedSubjects.includes(s.id)) ? 'Clear all' : 'Select all'}
-      </button>
-    </fieldset>
-  );
-
   return (
     <>
       <PageHead title="Enrollment" sub="Assign learners to sections with the full SSHS subject checklist (DepEd LRN-based)" />
@@ -287,7 +291,9 @@ export default function Enroll() {
                     <div className="hint">No subjects found for this grade level{search ? ' matching your search' : ' in the catalog'}.</div>
                   ) : (
                     <>
-                      {group.map((g) => <CheckGroup key={g.cat} label={g.label} items={g.items} />)}
+                      {group.map((g) => (
+                        <CheckGroup key={g.cat} label={g.label} items={g.items} selectedSubjects={selectedSubjects} toggleSubject={toggleSubject} toggleGroup={toggleGroup} />
+                      ))}
                       {selectedCount > 0 && (
                         <button type="button" className="btn btn-sm" onClick={() => setSelectedSubjects([])}>Clear selection ({selectedCount})</button>
                       )}

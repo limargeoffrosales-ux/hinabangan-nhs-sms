@@ -53,6 +53,33 @@ export default function DashboardSections() {
   const [aralForm, setAralForm] = useState({ session_date: '', subject_area: 'reading', session_no: '', tutor: '', section_id: '', remarks: '' });
   const [aralRoll, setAralRoll] = useState([]);
   const [rollLoading, setRollLoading] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  // Restore the last dashboard view (school year / term / date) from the server.
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const p = await api('/dashboard/preferences');
+        if (dead || !p) return;
+        if (p.dashboard_school_year) setSy(p.dashboard_school_year);
+        if (p.dashboard_term) setTerm(p.dashboard_term);
+        if (p.dashboard_date) setDate(p.dashboard_date);
+      } catch { /* preferences are optional */ } finally {
+        if (!dead) setPrefsLoaded(true);
+      }
+    })();
+    return () => { dead = true; };
+  }, []);
+
+  // Persist the dashboard view on the server whenever it changes.
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    api('/dashboard/preferences', {
+      method: 'PUT',
+      body: { dashboard_school_year: sy, dashboard_term: term, dashboard_date: date },
+    }).catch(() => {});
+  }, [sy, term, date, prefsLoaded]);
 
   useEffect(() => {
     let dead = false;
