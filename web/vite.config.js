@@ -11,5 +11,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          router: ['react-router-dom'],
+          icons: ['lucide-react'],
+          charts: ['recharts'],
+        },
+      },
+    },
   },
 });
