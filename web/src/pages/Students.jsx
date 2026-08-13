@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const EMPTY_FORM = {
@@ -87,7 +88,11 @@ export default function Students() {
       return (
         <select {...p}>
           <option value="">— select —</option>
-          {opts.options.map((o) => <option key={o} value={o}>{o}</option>)}
+          {opts.options.map((o) => {
+            const val = typeof o === 'object' ? o.value : o;
+            const lbl = typeof o === 'object' ? o.label : o;
+            return <option key={val} value={val}>{lbl}</option>;
+          })}
         </select>
       );
     }
@@ -148,7 +153,7 @@ export default function Students() {
               <div><label>First name *</label>{field('first_name', { required: true })}</div>
               <div><label>Middle name</label>{field('middle_name')}</div>
               <div><label>Last name *</label>{field('last_name', { required: true })}</div>
-              <div><label>Suffix</label>{field('suffix')}</div>
+              <div><label>Suffix</label>{field('suffix', { options: SUFFIXES })}</div>
             </div>
             <div className="form-row">
               <div><label>Sex *</label>{field('sex', { options: ['Male', 'Female'] })}</div>
@@ -158,7 +163,7 @@ export default function Students() {
             </div>
             <div className="form-row">
               <div><label>Grade level *</label>{field('grade_level', { options: GRADE_LEVELS })}</div>
-              <div><label>Strand / Track (SHS)</label>{field('track_strand')}</div>
+              <div><label>Strand / Track (SHS)</label>{field('track_strand', { options: SHS_TRACKS })}</div>
               <div><label>Address</label>{field('address')}</div>
               <div><label>Contact no.</label>{field('contact')}</div>
             </div>
@@ -166,7 +171,7 @@ export default function Students() {
               <div><label>Guardian name</label>{field('guardian_name')}</div>
               <div><label>Guardian contact</label>{field('guardian_contact')}</div>
               <div><label>Relationship</label>{field('guardian_relation')}</div>
-              <div><label>Status</label>{field('status', { options: ['enrolled', 'transferred', 'dropped', 'graduated'] })}</div>
+              <div><label>Status</label>{field('status', { options: STUDENT_STATUSES })}</div>
             </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>

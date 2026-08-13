@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react';
 import { api } from '../lib/api';
+import { SHS_TRACKS, SECTION_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const EMPTY_FORM = { name: '', grade_level: 'Grade 11', strand: '', adviser_teacher_id: '', room: '', capacity: 40, school_year: '2025-2026', status: 'active' };
@@ -131,12 +132,10 @@ export default function Sections() {
                 </select>
               </div>
               <div><label>Strand / Track</label>
-                <input list="strand-options" value={form.strand || ''} onChange={(e) => set('strand', e.target.value)} placeholder="e.g. Academic, TechPro, HUMSS, STEM…" />
-                <datalist id="strand-options">
-                  {['Academic', 'TechPro', 'STEM', 'HUMSS', 'ABM', 'TVL-ICT', 'TVL-HE', 'TVL-IA', 'Sports', 'Arts & Design'].map((o) => (
-                    <option key={o} value={o} />
-                  ))}
-                </datalist>
+                <select value={form.strand || ''} onChange={(e) => set('strand', e.target.value)}>
+                  <option value="">— select —</option>
+                  {SHS_TRACKS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
               </div>
               <div><label>Adviser</label>
                 <select value={form.adviser_teacher_id} onChange={(e) => set('adviser_teacher_id', e.target.value)}>
@@ -152,7 +151,7 @@ export default function Sections() {
               <div><label>Capacity</label><input type="number" min="1" max="60" value={form.capacity} onChange={(e) => set('capacity', e.target.value)} /></div>
               <div><label>Status</label>
                 <select value={form.status} onChange={(e) => set('status', e.target.value)}>
-                  <option>active</option><option>inactive</option><option>archived</option>
+                  {SECTION_STATUSES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             </div>
