@@ -2,9 +2,10 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { TEMPLATES, renderTemplate, fill, DEFAULTS } = require('../ai/templates');
+const { TEMPLATES, getTemplate, renderTemplate, fill, DEFAULTS } = require('../ai/templates');
 const { ask, SUGGESTED_QUESTIONS } = require('../ai/knowledge');
 const { improve, summarize, insights } = require('../ai/engine');
+const { fillFormat, generateTemplate, detectTitle } = require('../ai/generator');
 
 const router = express.Router();
 router.use(authenticate);
@@ -88,19 +89,85 @@ router.get('/templates', asyncH(async (req, res) => {
 
 router.post('/generate', asyncH(async (req, res) => {
   const b = req.body || {};
-  const { format_id, template_id, context, ...top } = b;
+  const { format_id, template_id, context, prompt, ...top } = b;
   const ctx = { ...DEFAULTS, prepared_by: req.user?.name || DEFAULTS.prepared_by, noted_by: req.user?.name || DEFAULTS.noted_by, ...top, ...(context || {}) };
+  const p = String(prompt || '').trim() || null;
+  let doc = null;
+  let values = {};
+  let kind = 'template';
+  let sourceId = null;
+
   if (b.format_id) {
     const fmt = await q('SELECT * FROM doc_formats WHERE id = ?', [b.format_id]);
     if (!fmt) return res.status(404).json({ error: 'Custom format not found' });
-    const doc = { id: `format_${fmt.id}`, name: fmt.name, group: 'Custom Formats', body: fill(fmt.body, ctx) };
-    await audit(req, 'AI_GENERATE_DOC', 'doc_formats', fmt.id, { name: fmt.name });
-    return res.json({ ...doc, words: doc.body.split(/\s+/).filter(Boolean).length });
+    kind = 'format';
+    sourceId = String(fmt.id);
+    const out = p
+      ? await fillFormat(fmt.body, p, ctx)
+      : { body: fill(fmt.body, ctx), values: {} };
+    doc = { id: `format_${fmt.id}`, name: p ? detectTitle(p, fmt.name) : fmt.name, group: 'Custom Formats', body: out.body };
+    values = out.values;
+    await audit(req, 'AI_GENERATE_DOC', 'doc_formats', fmt.id, { name: fmt.name, prompted: !!p });
+  } else {
+    const t = getTemplate(b.template_id);
+    if (!t) return res.status(404).json({ error: 'Template not found' });
+    sourceId = t.id;
+    const out = p
+      ? await generateTemplate(t, p, ctx)
+      : { body: t.build(ctx), values: {} };
+    doc = { id: t.id, name: p ? detectTitle(p, t.name) : t.name, group: t.group, body: out.body };
+    values = out.values;
+    await audit(req, 'AI_GENERATE_DOC', 'templates', t.id, { name: t.name, prompted: !!p });
   }
-  const doc = renderTemplate(b.template_id, ctx);
-  if (!doc) return res.status(404).json({ error: 'Template not found' });
-  await audit(req, 'AI_GENERATE_DOC', 'templates', doc.id, { name: doc.name });
-  res.json({ ...doc, words: doc.body.split(/\s+/).filter(Boolean).length });
+
+  let savedId = null;
+  try {
+    savedId = await qi('INSERT INTO doc_generations (name, kind, source_id, body, created_by) VALUES (?, ?, ?, ?, ?)',
+      [doc.name, kind, sourceId, doc.body, req.user.id]);
+  } catch (e) {
+    console.error('SAVE_DOC failed:', e.message);
+  }
+
+  res.json({
+    ...doc,
+    id: savedId || doc.id,
+    kind,
+    values,
+    prompt: p,
+    words: doc.body.split(/\s+/).filter(Boolean).length,
+  });
+}));
+
+// Saved generated documents (kept only until Friday of the week;
+// purged automatically every Saturday together with doc_formats) --
+router.get('/documents', asyncH(async (req, res) => {
+  const rows = await qa(
+    `SELECT id, name, kind, source_id, created_at FROM doc_generations
+     WHERE created_by = ? ORDER BY id DESC LIMIT 100`, [req.user.id]);
+  res.json({ data: rows, count: rows.length });
+}));
+
+router.get('/documents/:id', asyncH(async (req, res) => {
+  const row = await q('SELECT * FROM doc_generations WHERE id = ? AND created_by = ?', [req.params.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: 'Document not found' });
+  res.json(row);
+}));
+
+router.delete('/documents/:id', asyncH(async (req, res) => {
+  const row = await q('SELECT id FROM doc_generations WHERE id = ? AND created_by = ?', [req.params.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: 'Document not found' });
+  await qr('DELETE FROM doc_generations WHERE id = ?', [row.id]);
+  await audit(req, 'DELETE_GENERATED_DOC', 'doc_generations', row.id);
+  res.json({ ok: true });
+}));
+
+router.get('/cleanup', asyncH(async (req, res) => {
+  const { nextSaturday } = require('../cleanup');
+  res.json({
+    timezone: 'Asia/Manila',
+    next_purge: nextSaturday().toISOString(),
+    rule: 'Generated documents and uploaded formats are kept only until Friday of the week and are deleted automatically every Saturday.',
+  });
 }));
 
 // Custom document formats (user-uploaded layouts) -------------
@@ -206,7 +273,9 @@ router.post('/assistant', asyncH(async (req, res) => {
     };
     const tid = map[want];
     if (tid) {
-      const doc = renderTemplate(tid, { prepared_by: req.user.name, noted_by: req.user.name });
+      const tpl = getTemplate(tid);
+      const gen = await generateTemplate(tpl, message, { prepared_by: req.user.name, noted_by: req.user.name });
+      const doc = { name: tpl.name, body: gen.body };
       const intro = taglish ? `Nagawa ko na ang draft ng ${doc.name}. Buksan ang AI Documents para i-edit at i-export.\n\n` : `I drafted a ${doc.name} for you. Open the AI Documents workspace to edit and export it.\n\n`;
       reply = `${intro}Here is a preview:\n\n${doc.body.split('\n').slice(0, 12).join('\n')}\n...`;
       action = { kind: 'doc', template_id: tid, name: doc.name };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Sparkles, Download, Printer, FileText, Wand2, Scissors, Maximize2, Upload, Trash2, Layers } from 'lucide-react';
+import { Sparkles, Download, Printer, FileText, Wand2, Scissors, Maximize2, Upload, Trash2, Layers, Clock, FolderOpen } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, ErrorBanner } from '../components/ui';
@@ -30,10 +30,13 @@ export default function AiDocs() {
   const canWrite = can(user?.role, ...WRITE);
   const [catalog, setCatalog] = useState(null);
   const [formats, setFormats] = useState([]);
+  const [docs, setDocs] = useState([]);
+  const [purge, setPurge] = useState(null);
   const [tab, setTab] = useState('templates');
   const [group, setGroup] = useState(null);
   const [selected, setSelected] = useState(null);
   const [fields, setFields] = useState({});
+  const [prompt, setPrompt] = useState('');
   const [doc, setDoc] = useState(null);
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -45,6 +48,8 @@ export default function AiDocs() {
   useEffect(() => {
     api('/ai/templates').then((r) => setCatalog(r)).catch((e) => setError(e.message));
     loadFormats();
+    loadDocs();
+    api('/ai/cleanup').then(setPurge).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -55,6 +60,15 @@ export default function AiDocs() {
     try {
       const r = await api('/ai/formats');
       setFormats(r.data || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function loadDocs() {
+    try {
+      const r = await api('/ai/documents');
+      setDocs(r.data || []);
     } catch (e) {
       setError(e.message);
     }
@@ -83,18 +97,51 @@ export default function AiDocs() {
     setError('');
     try {
       const isFormat = String(selected.id).startsWith('format_');
-      const body = isFormat
-        ? { format_id: selected.id.replace('format_', ''), context: fields }
-        : { template_id: selected.id, context: fields };
+      const body = {
+        ...(isFormat
+          ? { format_id: selected.id.replace('format_', '') }
+          : { template_id: selected.id }),
+        context: fields,
+        prompt: prompt.trim() || undefined,
+      };
       const r = await api('/ai/generate', { method: 'POST', body });
       setDoc(r);
       setEditing(r.body);
-      setNote('');
+      setNote(r.prompt ? 'Auto-written from your description — review and edit freely.' : '');
+      if (r.values && Object.keys(r.values).length) {
+        setFields((f) => ({ ...f, ...r.values }));
+      }
+      setPrompt('');
+      await loadDocs();
     } catch (e) {
       setError(e.message);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function openDoc(d) {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api(`/ai/documents/${d.id}`);
+      setDoc({ id: r.id, name: r.name, kind: r.kind, body: r.body });
+      setEditing(r.body);
+      setNote('Opened from saved documents.');
+      setSelected(null);
+      setTab('saved');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteDoc(id) {
+    if (!confirm('Delete this generated document? (Saved documents are auto-deleted every Saturday anyway.)')) return;
+    await api(`/ai/documents/${id}`, { method: 'DELETE' });
+    if (doc?.id === id) setDoc(null);
+    await loadDocs();
   }
 
   async function improve(mode) {
@@ -177,7 +224,7 @@ export default function AiDocs() {
 
   return (
     <div>
-      <PageHead title="AI Document Generator" sub="One-click professional documents for teaching, assessment, and school operations — editable and export-ready.">
+      <PageHead title="AI Document Generator" sub="Describe what you need — the AI writes a complete, professional document that follows the uploaded format. Editable and export-ready.">
         <span className="badge badge-blue">✨ {catalog ? catalog.count : ''} templates · {formats.length} custom formats</span>
       </PageHead>
       <ErrorBanner error={error} />
@@ -193,6 +240,9 @@ export default function AiDocs() {
                 </button>
                 <button className={tab === 'formats' ? 'seg-btn active' : 'seg-btn'} onClick={() => setTab('formats')}>
                   <Upload size={13} /> Custom Format
+                </button>
+                <button className={tab === 'saved' ? 'seg-btn active' : 'seg-btn'} onClick={() => setTab('saved')}>
+                  <Clock size={13} /> Saved <span className="sub">({docs.length})</span>
                 </button>
               </div>
 
@@ -273,11 +323,48 @@ export default function AiDocs() {
                   )}
                 </>
               )}
+              {tab === 'saved' && (
+                <>
+                  <div className="hint" style={{ marginTop: 10 }}>
+                    <Clock size={11} style={{ verticalAlign: -1 }} /> Generated documents are saved here for the week and deleted automatically every Saturday
+                    {purge ? ` (next purge: ${new Date(purge.next_purge).toLocaleString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })})` : ''}.
+                  </div>
+                  {docs.length === 0 ? (
+                    <div className="empty" style={{ marginTop: 10 }}>No saved documents this week — generate one and it appears here until Saturday.</div>
+                  ) : (
+                    docs.map((d) => (
+                      <div key={d.id} className="template-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', textAlign: 'left', marginBottom: 6 }}>
+                        <button
+                          className="template-card"
+                          style={{ flex: 1, border: 'none', background: 'none', textAlign: 'left' }}
+                          onClick={() => openDoc(d)}
+                          title={d.name}
+                        >
+                          <div className="tpl-name"><FolderOpen size={13} style={{ verticalAlign: -2, marginRight: 4 }} />{d.name}</div>
+                          <div className="tpl-fields">{d.kind === 'format' ? 'custom format' : 'template'} · saved {new Date(d.created_at).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                        </button>
+                        <button className="icon-btn" title="Delete" onClick={() => deleteDoc(d.id)} style={{ marginLeft: 8 }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </>
+              )}
             </div>
 
             {selected && (
               <div className="card">
-                <h4>{selected.name} — context</h4>
+                <h4>{selected.name} — describe or fill in</h4>
+                <label>What do you need? <span className="hint">(the AI writes the document from this)</span></label>
+                <textarea
+                  className="doc-editor"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  rows={3}
+                  placeholder={'Describe the document, e.g.\n"Brigada Eskwela accomplishment report for the month of May, Grade 11"\n"Certificate of recognition for Juan Dela Cruz for Best in Math"\n"Daily lesson log on Quadratic Equations for General Mathematics"'}
+                />
+                <div className="hint" style={{ marginBottom: 10 }}>Leave blank to fill the fields yourself. When a description is given, the fields below are auto-filled with excellent content that follows the format.</div>
                 <div className="form-row">
                   <label>Subject {fInput('subject')}</label>
                 </div>
