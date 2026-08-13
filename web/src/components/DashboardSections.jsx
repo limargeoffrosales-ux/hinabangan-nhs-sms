@@ -382,7 +382,7 @@ export default function DashboardSections() {
       {/* 4 — Subject enrollment */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}><BookOpen size={16} /> Students Enrolled per Subject — {sy}</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="split-2">
           <div>
             <h4 style={{ margin: '0 0 8px', color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Core Subjects</h4>
             <div className="table-wrap">

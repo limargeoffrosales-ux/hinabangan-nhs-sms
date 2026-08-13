@@ -5,7 +5,13 @@ import App from './App';
 import { AuthProvider } from './lib/auth';
 import './styles.css';
 
-document.documentElement.dataset.theme = localStorage.getItem('meridianed_theme') || 'dark';
+const LEGACY_MAP = { dark: 'midnight', light: 'light' };
+const stored = localStorage.getItem('meridianed_theme') || 'midnight';
+let theme = LEGACY_MAP[stored] || stored;
+if (theme === 'auto') {
+  theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'midnight';
+}
+document.documentElement.dataset.theme = theme;
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

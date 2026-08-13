@@ -1,15 +1,34 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
-  CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, Sun, Moon, LogOut, Menu, CalendarRange,
+  CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
-  KeyRound, Briefcase,
+  KeyRound, Briefcase, Palette, Check,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { initials, Modal } from './ui';
 import { api } from '../lib/api';
 import AiAssistant from './AiAssistant';
+
+const THEMES = [
+  { id: 'midnight', name: 'Midnight', preview: 'linear-gradient(135deg, #4D96FF, #2FD6A0)' },
+  { id: 'ocean', name: 'Ocean', preview: 'linear-gradient(135deg, #22D3EE, #34D399)' },
+  { id: 'forest', name: 'Forest', preview: 'linear-gradient(135deg, #34D399, #A3E635)' },
+  { id: 'amethyst', name: 'Amethyst', preview: 'linear-gradient(135deg, #A78BFA, #34D399)' },
+  { id: 'light', name: 'Daylight', preview: 'linear-gradient(135deg, #2F7DF4, #12A97C)' },
+  { id: 'solar', name: 'Solar', preview: 'linear-gradient(135deg, #E8850C, #0FA968)' },
+  { id: 'rose', name: 'Rose', preview: 'linear-gradient(135deg, #E11D5F, #12A97C)' },
+];
+
+const LEGACY_MAP = { dark: 'midnight', light: 'light' };
+
+function resolveTheme(theme) {
+  if (theme === 'auto') {
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'midnight';
+  }
+  return LEGACY_MAP[theme] || theme;
+}
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -41,13 +60,45 @@ const AI_NAV = [
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState(() => localStorage.getItem('meridianed_theme') || 'dark');
+  const [theme, setTheme] = useState(() => {
+    const s = localStorage.getItem('meridianed_theme') || 'midnight';
+    return LEGACY_MAP[s] || s;
+  });
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
   const [pwBusy, setPwBusy] = useState(false);
   const [pwMsg, setPwMsg] = useState(null);
   const [pwErr, setPwErr] = useState(null);
+
+  useEffect(() => {
+    function apply() {
+      document.documentElement.dataset.theme = resolveTheme(theme);
+    }
+    apply();
+    let mq = null;
+    if (theme === 'auto') {
+      mq = window.matchMedia('(prefers-color-scheme: light)');
+      mq.addEventListener('change', apply);
+    }
+    return () => mq && mq.removeEventListener('change', apply);
+  }, [theme]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function onClick(e) {
+      if (!e.target.closest('.theme-wrap')) setPickerOpen(false);
+    }
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [pickerOpen]);
+
+  function pickTheme(id) {
+    setTheme(id);
+    localStorage.setItem('meridianed_theme', id);
+    setPickerOpen(false);
+  }
 
   async function onChangePassword(e) {
     e.preventDefault();
@@ -70,13 +121,6 @@ export default function Layout({ children }) {
     }
   }
 
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    localStorage.setItem('meridianed_theme', next);
-    document.documentElement.dataset.theme = next;
-  }
-
   async function onLogout() {
     await logout();
     navigate('/login');
@@ -84,7 +128,8 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar" style={menuOpen ? { display: 'block' } : undefined}>
+      <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div className="brand">
           <img className="brand-logo" src="/logo.jpg" alt="School logo" />
           <span className="brand-text">Hinabangan NHS</span>
@@ -110,13 +155,32 @@ export default function Layout({ children }) {
       </aside>
       <div className="main">
         <div className="topbar">
-          <button className="icon-btn" onClick={() => setMenuOpen(!menuOpen)} style={{ display: 'none' }}>
+          <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title="Menu">
             <Menu size={17} />
           </button>
           <h1>Hinabangan National High School</h1>
-          <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+          <div className="theme-wrap">
+            <button className="icon-btn" onClick={() => setPickerOpen((o) => !o)} title="Change theme">
+              <Palette size={16} />
+            </button>
+            {pickerOpen && (
+              <div className="theme-pop">
+                <div className="theme-pop-title">Appearance</div>
+                {THEMES.map((t) => (
+                  <button key={t.id} className={`theme-opt ${theme === t.id ? 'on' : ''}`} onClick={() => pickTheme(t.id)}>
+                    <span className="theme-swatch" style={{ background: t.preview }} />
+                    {t.name}
+                    {theme === t.id && <Check size={14} />}
+                  </button>
+                ))}
+                <button className={`theme-opt ${theme === 'auto' ? 'on' : ''}`} onClick={() => pickTheme('auto')}>
+                  <span className="theme-swatch auto" />
+                  Auto (system)
+                  {theme === 'auto' && <Check size={14} />}
+                </button>
+              </div>
+            )}
+          </div>
           <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title="Change password">
             <KeyRound size={16} />
           </button>
