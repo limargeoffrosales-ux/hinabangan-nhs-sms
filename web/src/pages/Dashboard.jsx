@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid,
 } from 'recharts';
-import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, Sparkles, AlertTriangle, FileStack, CheckCircle2, Wand2, BadgeCheck } from 'lucide-react';
+import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, Sparkles, AlertTriangle, FileStack, CheckCircle2, Wand2, BadgeCheck, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
@@ -12,26 +12,36 @@ const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942'];
 
 const RISK_CLASS = { 'High risk': 'badge-red', 'Moderate risk': 'badge-yellow', 'Low risk': 'badge-blue' };
 
+const CONDUCT_TYPE_LABEL = {
+  call_slip: 'Call Slip', bullying: 'Bullying', inappropriate_behavior: 'Inappropriate Behavior',
+  fighting: 'Fighting', vandalism: 'Vandalism', tardiness: 'Tardiness', disrespect: 'Disrespect', other: 'Other',
+};
+const CONDUCT_STATUS_BADGE = { open: 'badge-yellow', under_review: 'badge-blue', resolved: 'badge-green' };
+const CONDUCT_SEVERITY_BADGE = { minor: 'badge-blue', moderate: 'badge-yellow', major: 'badge-red' };
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [trend, setTrend] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [insights, setInsights] = useState(null);
   const [error, setError] = useState(null);
+  const [conduct, setConduct] = useState(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [s, t, a, i] = await Promise.all([
+        const [s, t, a, i, c] = await Promise.all([
           api('/dashboard/summary'),
           api('/dashboard/attendance-trend?days=7'),
           api('/announcements?limit=5'),
           api('/ai/insights'),
+          api('/conduct/summary'),
         ]);
         setData(s);
         setTrend(t.data);
         setAnnouncements(a.data);
         setInsights(i);
+        setConduct(c);
       } catch (e) {
         setError(e.message);
       }
@@ -220,6 +230,56 @@ export default function Dashboard() {
             </>
           )}
         </div>
+      </div>
+
+      <div style={{ height: 18 }} />
+
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><ShieldAlert size={16} /> Student Conduct Monitoring</h3>
+          <Link to="/discipline" className="btn btn-sm">Manage records</Link>
+        </div>
+        {!conduct ? <Spinner /> : (
+          <>
+            <div className="kpi-row">
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#FBBF24' }}>{conduct.by_status?.open ?? 0}</div><div className="kpi-mini-label">Open cases</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#4D96FF' }}>{conduct.by_status?.under_review ?? 0}</div><div className="kpi-mini-label">Under review</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#2FD6A0' }}>{conduct.by_status?.resolved ?? 0}</div><div className="kpi-mini-label">Resolved</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#A78BFA' }}>{conduct.cases_this_month ?? 0}</div><div className="kpi-mini-label">This month</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#F2555A' }}>{conduct.by_severity?.major ?? 0}</div><div className="kpi-mini-label">Major incidents</div></div>
+            </div>
+            <div className="table-wrap" style={{ marginTop: 12 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Student</th><th>Incident</th><th style={{ textAlign: 'center' }}>Severity</th>
+                    <th style={{ textAlign: 'center' }}>Date</th><th style={{ textAlign: 'center' }}>Status</th>
+                    <th style={{ textAlign: 'center' }}>Open for</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conduct.recent?.length === 0 ? (
+                    <tr><td colSpan={6} className="sub">No conduct records yet — log the first one under Student Conduct.</td></tr>
+                  ) : conduct.recent?.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{r.student_name}</div>
+                        <div className="sub" style={{ fontSize: 12 }}>{r.grade_level || ''} {r.section_name ? `· ${r.section_name}` : ''}</div>
+                      </td>
+                      <td>{CONDUCT_TYPE_LABEL[r.incident_type] || r.incident_type}</td>
+                      <td style={{ textAlign: 'center' }}><span className={`badge ${CONDUCT_SEVERITY_BADGE[r.severity] || 'badge-gray'}`}>{r.severity}</span></td>
+                      <td style={{ textAlign: 'center' }} className="sub">{r.incident_date?.slice(0, 10)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${CONDUCT_STATUS_BADGE[r.status] || 'badge-gray'}`}>{r.status.replace('_', ' ')}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }} className="sub">{r.status === 'resolved' ? '—' : `${r.days_open}d`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{ height: 18 }} />

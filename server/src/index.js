@@ -24,6 +24,7 @@ const researchRoutes = require('./routes/research.routes');
 const learnerProgressRoutes = require('./routes/learner-progress.routes');
 const interventionsRoutes = require('./routes/interventions.routes');
 const assessmentRoutes = require('./routes/assessment.routes');
+const conductRoutes = require('./routes/conduct.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
 
 (async () => {
@@ -77,6 +78,7 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   app.use('/api/v1/assessment', assessmentRoutes);
   app.use('/api/v1/immersion', immersion);
   app.use('/api/v1/jdvp', jdvp);
+  app.use('/api/v1/conduct', conductRoutes);
 
   app.use(express.static(WEB_DIR));
 

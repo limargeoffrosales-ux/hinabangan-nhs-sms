@@ -24,6 +24,7 @@ import Interventions from './pages/Interventions';
 import Assessment from './pages/Assessment';
 import DepedForms from './pages/DepedForms';
 import Immersion from './pages/Immersion';
+import Discipline from './pages/Discipline';
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -57,6 +58,7 @@ export default function App() {
       <Route path="/assessment" element={<Protected><Assessment /></Protected>} />
       <Route path="/forms" element={<Protected><DepedForms /></Protected>} />
       <Route path="/immersion" element={<Protected><Immersion /></Protected>} />
+      <Route path="/discipline" element={<Protected><Discipline /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
