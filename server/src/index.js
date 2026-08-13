@@ -42,13 +42,18 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   await purgeDemo();
   if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
     const bcrypt = require('bcryptjs');
-    const rows = await db.q('SELECT id FROM users WHERE username = ?', ['superadmin']);
+    const rows = await db.q('SELECT id, password_hash FROM users WHERE username = ?', ['superadmin']);
     if (rows && rows.length) {
-      await db.qr(
-        'UPDATE users SET password_hash = ? WHERE id = ?',
-        [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), rows[0].id],
-      );
-      console.log('SUPERADMIN_PASSWORD: superadmin password set from env');
+      const isLegacy = await bcrypt.compare('MeridianEd2026!', rows[0].password_hash);
+      if (isLegacy) {
+        await db.qr(
+          'UPDATE users SET password_hash = ? WHERE id = ?',
+          [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), rows[0].id],
+        );
+        console.log('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
+      } else {
+        console.log('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
+      }
     }
   }
   const app = express();
