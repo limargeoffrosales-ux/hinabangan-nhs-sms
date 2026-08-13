@@ -413,7 +413,7 @@ export default function DashboardSections() {
           </div>
         </div>
         <div className="sub" style={{ marginTop: 10 }}>
-          Counts reflect learners enrolled in sections that offer each subject for {sy}. Set subject offerings under Teacher Programs.
+          Counts reflect learners whose enrollment records include each subject for {sy}. Only school-offered subjects are shown — manage offerings under Subjects.
         </div>
       </div>
 

@@ -83,6 +83,11 @@ export default function Subjects() {
     load();
   }
 
+  async function toggleOffered(s) {
+    await api(`/subjects/${s.id}`, { method: 'PATCH', body: { is_offered: s.is_offered ? 0 : 1 } });
+    load();
+  }
+
   const isSHS = form.grade_level === 'Grade 11' || form.grade_level === 'Grade 12';
 
   const field = (k, opts = {}) => (
@@ -116,7 +121,7 @@ export default function Subjects() {
             <thead>
               <tr>
                 <th>Code</th><th>Title</th><th>Grade Level</th><th>Track</th>
-                <th>Term Offered</th><th>Units</th><th style={{ textAlign: 'right' }}>Actions</th>
+                <th>Term Offered</th><th>Units</th><th style={{ textAlign: 'center' }}>Offered</th><th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -128,6 +133,12 @@ export default function Subjects() {
                   <td className="track-chip">{s.track.toUpperCase()}</td>
                   <td><TermBadge term={s.term} /></td>
                   <td>{s.units}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <input type="checkbox" checked={!!s.is_offered} onChange={() => toggleOffered(s)} />
+                      <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? 'Offered' : 'Not offered'}</span>
+                    </label>
+                  </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
                     <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button>
