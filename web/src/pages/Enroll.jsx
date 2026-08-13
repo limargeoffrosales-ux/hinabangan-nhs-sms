@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { api } from '../lib/api';
+import { SHS_TRACKS, ENROLLMENT_STATUSES } from '../lib/constants';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge } from '../components/ui';
 
 const CATEGORIES = [
@@ -240,12 +241,15 @@ export default function Enroll() {
                 </div>
                 <div>
                   <label>Strand (SHS)</label>
-                  <input value={form.strand} onChange={(e) => set('strand', e.target.value)} />
+                  <select value={form.strand} onChange={(e) => set('strand', e.target.value)} disabled={!isShsGrade}>
+                    <option value="">— select —</option>
+                    {SHS_TRACKS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label>Status</label>
                   <select value={form.status} onChange={(e) => set('status', e.target.value)}>
-                    <option>enrolled</option><option>provisional</option><option>conditional</option>
+                    {ENROLLMENT_STATUSES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
               </div>

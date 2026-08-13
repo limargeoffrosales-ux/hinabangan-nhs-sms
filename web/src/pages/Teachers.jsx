@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { SUFFIXES, TEACHER_POSITIONS, TEACHER_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const EMPTY_FORM = {
@@ -133,9 +134,25 @@ export default function Teachers() {
               <div><label>Last name *</label>{field('last_name', { required: true })}</div>
             </div>
             <div className="form-row">
-              <div><label>Suffix</label>{field('suffix')}</div>
-              <div><label>Sex</label>{field('sex')}</div>
-              <div><label>Position</label>{field('position')}</div>
+              <div><label>Suffix</label>
+                <select value={form.suffix || ''} onChange={(e) => set('suffix', e.target.value)}>
+                  <option value="">— select —</option>
+                  {SUFFIXES.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div><label>Sex</label>
+                <select value={form.sex || ''} onChange={(e) => set('sex', e.target.value)}>
+                  <option value="">— select —</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                </select>
+              </div>
+              <div><label>Position</label>
+                <select value={form.position || ''} onChange={(e) => set('position', e.target.value)}>
+                  <option value="">— select —</option>
+                  {TEACHER_POSITIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
               <div><label>Assigned room <span className="muted">(used by program generator)</span></label>{field('room', { placeholder: 'e.g. Rm 203' })}</div>
             </div>
             <div className="form-row">
@@ -144,7 +161,7 @@ export default function Teachers() {
               <div><label>Contact</label>{field('contact')}</div>
               <div><label>Status</label>
                 <select value={form.status} onChange={(e) => set('status', e.target.value)}>
-                  <option>active</option><option>inactive</option><option>on-leave</option>
+                  {TEACHER_STATUSES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             </div>
