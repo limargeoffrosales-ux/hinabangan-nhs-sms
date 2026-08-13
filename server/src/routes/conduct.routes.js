@@ -1,5 +1,6 @@
 const express = require('express');
-const { q, qa, qi, qr, dialect } = require('../db');
+const db = require('../db');
+const { q, qa, qi, qr } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
@@ -63,7 +64,7 @@ router.get('/', asyncH(async (req, res) => {
 }));
 
 router.get('/summary', asyncH(async (req, res) => {
-  const monthStart = dialect === 'pg'
+  const monthStart = db.dialect === 'pg'
     ? "date_trunc('month', now())::date"
     : "date('now', 'start of month')";
   const [byStatus, byType, bySeverity, monthRows, recent] = await Promise.all([
