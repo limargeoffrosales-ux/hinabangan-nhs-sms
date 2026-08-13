@@ -23,6 +23,9 @@ async function issueRefresh(userId) {
 router.post('/login', asyncH(async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'username and password are required' });
+  if (String(username).length > 100 || String(password).length > 128) {
+    return res.status(400).json({ error: 'username or password too long' });
+  }
   const user = await q('SELECT * FROM users WHERE username = ?', [String(username).trim()]);
   if (!user || user.status !== 'active' || !(await bcrypt.compare(String(password), user.password_hash))) {
     await audit(req, 'LOGIN_FAILED', 'auth', null, { username });
@@ -69,6 +72,7 @@ router.post('/change-password', authenticate, asyncH(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword are required' });
   if (String(newPassword).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (String(newPassword).length > 128) return res.status(400).json({ error: 'Password too long' });
   const user = await q('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
   if (!(await bcrypt.compare(String(currentPassword), user.password_hash))) {
     return res.status(400).json({ error: 'Current password is incorrect' });

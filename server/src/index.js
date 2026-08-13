@@ -2,10 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
-const { PORT, WEB_DIR } = require('./config');
+const { PORT, WEB_DIR, JWT_SECRET, isAllowedOrigin } = require('./config');
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 const studentsRoutes = require('./routes/students.routes');
@@ -53,9 +54,47 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   const app = express();
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(cors());
+  app.use(cors({
+    origin(origin, cb) {
+      cb(null, isAllowedOrigin(origin));
+    },
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400,
+  }));
   app.use(compression());
   app.use(express.json({ limit: '10mb' }));
+
+  // Brute-force protection for the credential endpoints (IP-based).
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many sign-in attempts. Try again in a few minutes.' },
+  });
+  app.use('/api/v1/auth/login', authLimiter);
+  app.use('/api/v1/auth/refresh', authLimiter);
+
+  // Generous per-IP cap for the rest of the API to blunt abuse/DoS.
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 1000,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please slow down.' },
+  });
+  app.use('/api/', apiLimiter);
+
+  // The AI assistant does heavier work and writes chat logs — keep it tighter.
+  const aiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 120,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'AI assistant is busy. Please wait a moment.' },
+  });
+  app.use('/api/v1/ai/', aiLimiter);
 
   app.get('/api/v1/health', (req, res) => {
     res.json({ ok: true, service: 'meridianed', dialect: db.dialect, time: new Date().toISOString() });
@@ -113,5 +152,8 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
 
   app.listen(PORT, () => {
     console.log(`MeridianEd API listening on http://localhost:${PORT} (dialect: ${db.dialect})`);
+    if (!process.env.JWT_SECRET) {
+      console.warn('WARNING: JWT_SECRET is not set — using the development default. Set a strong JWT_SECRET in production.');
+    }
   });
 })();
