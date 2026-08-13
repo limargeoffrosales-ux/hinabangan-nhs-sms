@@ -567,4 +567,32 @@ router.get('/jdvp-summary', asyncH(async (req, res) => {
   res.json({ batches: Object.values(batches), rows });
 }));
 
+// ------------------------------------------------------------
+// Per-user dashboard view preferences — stored on the server so the
+// data view (school year / term / date) survives page refreshes.
+// ------------------------------------------------------------
+const DASHBOARD_PREFS = ['dashboard_school_year', 'dashboard_term', 'dashboard_date'];
+
+router.get('/preferences', asyncH(async (req, res) => {
+  const rows = await qa('SELECT pref_key, pref_value FROM user_preferences WHERE user_id = ?', [req.user.id]);
+  const prefs = {};
+  for (const r of rows) prefs[r.pref_key] = r.pref_value;
+  res.json(prefs);
+}));
+
+router.put('/preferences', asyncH(async (req, res) => {
+  const b = req.body || {};
+  for (const key of DASHBOARD_PREFS) {
+    if (!(key in b)) continue;
+    const v = b[key] == null ? null : String(b[key]);
+    const exists = await q('SELECT id FROM user_preferences WHERE user_id = ? AND pref_key = ?', [req.user.id, key]);
+    if (exists) {
+      await qr(`UPDATE user_preferences SET pref_value = ?, updated_at = ${db.nowSql()} WHERE id = ?`, [v, exists.id]);
+    } else {
+      await qi('INSERT INTO user_preferences (user_id, pref_key, pref_value) VALUES (?, ?, ?)', [req.user.id, key, v]);
+    }
+  }
+  res.json({ ok: true });
+}));
+
 module.exports = router;
