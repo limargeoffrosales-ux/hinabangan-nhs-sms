@@ -187,12 +187,13 @@ export default function Enroll() {
                 </div>
               </div>
 
+              <label style={{ marginTop: 12, display: 'block' }}>
+                <input type="checkbox" checked={form.is_aral} onChange={(e) => set('is_aral', e.target.checked)} style={{ marginRight: 8 }} />
+                Student belongs to the <strong>Aral Program</strong>
+              </label>
+
               {isShsGrade ? (
                 <>
-                  <label style={{ marginTop: 12 }}>
-                    <input type="checkbox" checked={form.is_aral} onChange={(e) => set('is_aral', e.target.checked)} style={{ marginRight: 8 }} />
-                    Student belongs to the <strong>Aral Program</strong>
-                  </label>
                   <div style={{ margin: '12px 0 4px' }}>
                     <label style={{ fontWeight: 600 }}>Enrolled subjects — tick the cores and electives for this term</label>
                     <div className="hint">Filtered by {form.grade_level} · {form.term} term · {selectedCount} selected</div>

@@ -17,6 +17,7 @@ import AuditLogs from './pages/AuditLogs';
 import Programs from './pages/Programs';
 import Submissions from './pages/Submissions';
 import Compliance from './pages/Compliance';
+import Aral from './pages/Aral';
 import AiDocs from './pages/AiDocs';
 import Research from './pages/Research';
 import ReadingNumeracy from './pages/ReadingNumeracy';
@@ -46,6 +47,7 @@ export default function App() {
       <Route path="/programs" element={<Protected><Programs /></Protected>} />
       <Route path="/submissions" element={<Protected><Submissions /></Protected>} />
       <Route path="/compliance" element={<Protected><Compliance /></Protected>} />
+      <Route path="/aral" element={<Protected><Aral /></Protected>} />
       <Route path="/grades" element={<Protected><Grades /></Protected>} />
       <Route path="/attendance" element={<Protected><Attendance /></Protected>} />
       <Route path="/announcements" element={<Protected><Announcements /></Protected>} />

@@ -12,6 +12,12 @@ const STATUS_BADGE = {
 };
 const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
+function complianceOf(s) {
+  if (['submitted', 'reviewed', 'approved'].includes(s.status)) return { label: 'Compiled', cls: 'badge-green' };
+  if (s.due_date && s.due_date < new Date().toISOString().slice(0, 10) && s.status !== 'returned') return { label: 'Overdue', cls: 'badge-red' };
+  return { label: 'Not complied', cls: 'badge-red' };
+}
+
 function defaultPeriod(freq) {
   const now = new Date();
   const iso = now.toISOString().slice(0, 10);
@@ -136,7 +142,7 @@ export default function Submissions() {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Report</th><th>Period</th><th>Status</th><th>Last updated</th><th>Actions</th></tr>
+                <tr><th>Report</th><th>Period</th><th>Status</th><th>Compliance</th><th>Last updated</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {shown.map((s) => (
@@ -152,6 +158,7 @@ export default function Submissions() {
                     </td>
                     <td>{s.period}</td>
                     <td><Badge status={s.status} /></td>
+                    <td><span className={`badge ${complianceOf(s).cls}`}>{complianceOf(s).label}</span></td>
                     <td className="muted">{(s.updated_at || '').slice(0, 10)}</td>
                     <td className="row-actions">
                       {(s.status === 'draft' || s.status === 'returned') && (
