@@ -429,6 +429,62 @@ router.post('/aral-sessions', requireRole(...WRITE, 'teacher', 'guidance'), asyn
 }));
 
 // ------------------------------------------------------------
+// Aral Program — learners currently tagged in ARAL
+// ------------------------------------------------------------
+router.get('/aral-enrolled', asyncH(async (req, res) => {
+  const sy = req.query.school_year || null;
+  const params = [];
+  let where = 'e.is_aral = TRUE';
+  if (sy) { where += ' AND e.school_year = ?'; params.push(sy); }
+  const rows = await qa(
+    `SELECT e.id AS enrollment_id, e.student_id, e.school_year, e.term, e.status,
+       st.first_name, st.last_name, st.lrn, st.sex,
+       s.id AS section_id, s.name AS section_name, s.grade_level
+     FROM enrollments e
+     JOIN students st ON st.id = e.student_id
+     LEFT JOIN sections s ON s.id = e.section_id
+     WHERE ${where}
+     ORDER BY s.grade_level, s.name, st.last_name, st.first_name`, params);
+  res.json({ data: rows });
+}));
+
+// ------------------------------------------------------------
+// Aral Program — enroll a learner (teacher / admin / guidance)
+// ------------------------------------------------------------
+router.post('/aral-enroll', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.student_id) return res.status(400).json({ error: 'student_id is required' });
+  const student = await q('SELECT id, first_name, last_name FROM students WHERE id = ?', [b.student_id]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  const sy = b.school_year || '2026-2027';
+  const term = String(b.term || '').toLowerCase();
+  const norm = term === '1' || term === 'first' ? 'first' : term === '2' || term === 'second' ? 'second'
+    : term === '3' || term === 'third' ? 'third' : null;
+  const rows = norm
+    ? await qa('SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND term = ? ORDER BY created_at DESC LIMIT 1', [b.student_id, sy, norm])
+    : await qa('SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? ORDER BY created_at DESC LIMIT 1', [b.student_id, sy]);
+  if (!rows.length) {
+    return res.status(409).json({ error: 'This learner has no enrollment record for the selected school year. Enroll them to a section first, then tag them for ARAL.' });
+  }
+  await qr('UPDATE enrollments SET is_aral = TRUE WHERE id = ?', [rows[0].id]);
+  await audit(req, 'ARAL_ENROLL', 'enrollments', rows[0].id, { student_id: b.student_id, school_year: sy, term: norm });
+  res.json({ ok: true, enrollment_id: rows[0].id, is_aral: true });
+}));
+
+// ------------------------------------------------------------
+// Aral Program — unenroll a learner from ARAL
+// ------------------------------------------------------------
+router.post('/aral-unenroll', requireRole(...WRITE), asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.enrollment_id) return res.status(400).json({ error: 'enrollment_id is required' });
+  const row = await q('SELECT id, student_id FROM enrollments WHERE id = ?', [b.enrollment_id]);
+  if (!row) return res.status(404).json({ error: 'Enrollment not found' });
+  await qr('UPDATE enrollments SET is_aral = FALSE WHERE id = ?', [row.id]);
+  await audit(req, 'ARAL_UNENROLL', 'enrollments', row.id, { student_id: row.student_id });
+  res.json({ ok: true, is_aral: false });
+}));
+
+// ------------------------------------------------------------
 // Student progress — computed grades per learner (SHS)
 // ------------------------------------------------------------
 router.get('/student-progress', asyncH(async (req, res) => {

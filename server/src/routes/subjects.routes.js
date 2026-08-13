@@ -39,9 +39,9 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const term = b.term == null || b.term === '' ? null : (TERMS.includes(b.term) ? b.term : null);
   const exists = await q('SELECT id FROM subjects WHERE code = ?', [b.code.trim()]);
   if (exists) return res.status(409).json({ error: 'Subject code already exists' });
-  const id = await qi('INSERT INTO subjects (code, title, description, grade_level, track, units, term, is_offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  const id = await qi('INSERT INTO subjects (code, title, description, grade_level, track, units, term, category, is_offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [b.code.trim(), b.title, b.description || null, b.grade_level, b.track || 'general', b.units || 0, term,
-      b.is_offered === undefined ? 1 : bool(b.is_offered)]);
+      b.category || null, b.is_offered === undefined ? 1 : bool(b.is_offered)]);
   await audit(req, 'CREATE_SUBJECT', 'subjects', id, { code: b.code });
   res.status(201).json({ id });
 }));
@@ -58,9 +58,10 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
     const dup = await q('SELECT id FROM subjects WHERE code = ? AND id != ?', [b.code.trim(), row.id]);
     if (dup) return res.status(409).json({ error: 'Subject code already exists' });
   }
-  await qr('UPDATE subjects SET code = ?, title = ?, description = ?, grade_level = ?, track = ?, units = ?, term = ?, is_offered = ? WHERE id = ?',
+  await qr('UPDATE subjects SET code = ?, title = ?, description = ?, grade_level = ?, track = ?, units = ?, term = ?, category = ?, is_offered = ? WHERE id = ?',
     [f('code', row.code), f('title', row.title), f('description', row.description), f('grade_level', row.grade_level),
       f('track', row.track), f('units', row.units), term,
+      b.category !== undefined ? b.category : row.category,
       b.is_offered !== undefined ? bool(b.is_offered) : row.is_offered, row.id]);
   await audit(req, 'UPDATE_SUBJECT', 'subjects', row.id);
   res.json({ ok: true });
