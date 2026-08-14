@@ -28,6 +28,7 @@ const interventionsRoutes = require('./routes/interventions.routes');
 const assessmentRoutes = require('./routes/assessment.routes');
 const conductRoutes = require('./routes/conduct.routes');
 const dataExchangeRoutes = require('./routes/data-exchange.routes');
+const gradingRoutes = require('./routes/grading.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
 
 (async () => {
@@ -115,6 +116,7 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   app.use('/api/v1/enrollments', enrollmentsRoutes);
   app.use('/api/v1/attendance', attendanceRoutes);
   app.use('/api/v1/grades', gradesRoutes);
+  app.use('/api/v1/grading', gradingRoutes);
   app.use('/api/v1/announcements', announcementsRoutes);
   app.use('/api/v1/dashboard', dashboardRoutes);
   app.use('/api/v1/audit', auditRoutes);

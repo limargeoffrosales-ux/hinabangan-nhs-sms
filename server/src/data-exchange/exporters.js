@@ -1,5 +1,6 @@
 const { q, qa } = require('../db');
 const { toCsv } = require('./csv');
+const { getDefaultScale, getScale, convertGrade, gpaFrom } = require('../grading/scales');
 
 const SCHOOL_NAME = 'Hinabangan National High School';
 
@@ -13,6 +14,7 @@ const COLUMN_LABELS = {
     'Computed Grade', 'Remarks'],
   attendance: ['LRN', 'Last Name', 'First Name', 'Present', 'Absent', 'Late', 'Days', 'Attendance Rate %'],
   transcript: ['Subject Code', 'Subject', 'Q1', 'Q2', 'Q3', 'Average', 'Remarks'],
+  transcript_international: ['Subject Code', 'Subject', 'Credits', 'Credits Earned', 'Q1', 'Q2', 'Q3', 'Final Grade', 'Letter Grade', 'Grade Points', 'Remarks'],
 };
 
 async function buildRows(entity, params) {
@@ -115,7 +117,7 @@ async function buildRows(entity, params) {
       };
     }
     case 'transcript': {
-      const { student_id, school_year } = params;
+      const { student_id, school_year, mode, scale_id } = params;
       if (!student_id || !school_year) throw new Error('transcript requires student_id and school_year');
       const student = await q(
         `SELECT s.id, s.lrn, s.global_learner_id, s.first_name, s.middle_name, s.last_name,
@@ -123,32 +125,73 @@ async function buildRows(entity, params) {
          FROM students s WHERE s.id = ?`, [student_id]);
       if (!student) throw new Error('Student not found');
       const rows = await qa(
-        `SELECT su.code, su.title,
+        `SELECT su.id AS subject_id, su.code, su.title, su.units,
                 MAX(CASE WHEN g.quarter = 1 THEN g.computed_grade END) AS q1,
                 MAX(CASE WHEN g.quarter = 2 THEN g.computed_grade END) AS q2,
                 MAX(CASE WHEN g.quarter = 3 THEN g.computed_grade END) AS q3,
-                ROUND(AVG(g.computed_grade), 2) AS avg,
-                CASE WHEN AVG(g.computed_grade) >= 75 THEN 'PASSED' ELSE 'FAILED' END AS remarks
+                ROUND(AVG(g.computed_grade), 2) AS avg
          FROM grades g JOIN subjects su ON su.id = g.subject_id
          WHERE g.student_id = ? AND g.school_year = ?
          GROUP BY su.id ORDER BY su.code`,
         [student_id, school_year]);
-      const avg = rows.length ? rows.reduce((a, r) => a + Number(r.avg), 0) / rows.length : 0;
-      const gwa = Math.round(avg * 100) / 100;
+      const studentName = `${student.last_name}, ${student.first_name} ${student.middle_name || ''}`.trim();
+      if (String(mode || '').toLowerCase() !== 'international') {
+        const avg = rows.length ? rows.reduce((a, r) => a + Number(r.avg), 0) / rows.length : 0;
+        const gwa = Math.round(avg * 100) / 100;
+        return {
+          title: 'Transcript of Records',
+          meta: {
+            school: SCHOOL_NAME,
+            student: studentName,
+            lrn: student.lrn, globalId: student.global_learner_id || '',
+            gradeLevel: student.grade_level || '', strand: student.track_strand || '',
+            schoolYear: school_year, gwa,
+          },
+          columns: COLUMN_LABELS.transcript,
+          rows: rows.map((r) => ({
+            'Subject Code': r.code, 'Subject': r.title, 'Q1': r.q1, 'Q2': r.q2, 'Q3': r.q3,
+            'Average': r.avg,
+            'Remarks': r.avg != null ? (Number(r.avg) >= 75 ? 'PASSED' : 'FAILED') : '',
+          })),
+        };
+      }
+      const scale = scale_id ? await getScale(scale_id) : await getDefaultScale();
+      if (!scale) throw new Error('Grading scale not found');
+      const passing = Number(scale.passing_grade);
+      const intlRows = rows.map((r) => {
+        const finalG = r.avg != null ? Number(r.avg) : null;
+        const conv = finalG != null ? convertGrade(finalG, scale) : null;
+        const units = Number(r.units || 0);
+        return {
+          'Subject Code': r.code,
+          'Subject': r.title,
+          'Credits': units,
+          'Credits Earned': conv && conv.passed ? units : 0,
+          'Q1': r.q1, 'Q2': r.q2, 'Q3': r.q3,
+          'Final Grade': finalG,
+          'Letter Grade': conv ? (conv.letter || '') : '',
+          'Grade Points': conv && conv.points != null ? conv.points : '',
+          'Remarks': finalG != null ? (finalG >= passing ? 'PASSED' : 'FAILED') : '',
+          points: conv && conv.points != null ? conv.points : null,
+        };
+      });
+      const gpa = gpaFrom(intlRows);
+      const creditsEarned = intlRows.reduce((a, r) => a + Number(r['Credits Earned']), 0);
+      const graded = intlRows.filter((r) => r['Final Grade'] != null);
+      const gwa = graded.length
+        ? Math.round(graded.reduce((a, r) => a + Number(r['Final Grade']), 0) / graded.length * 100) / 100
+        : 0;
       return {
-        title: 'Transcript of Records',
+        title: 'International Transcript of Records',
         meta: {
           school: SCHOOL_NAME,
-          student: `${student.last_name}, ${student.first_name} ${student.middle_name || ''}`.trim(),
+          student: studentName,
           lrn: student.lrn, globalId: student.global_learner_id || '',
           gradeLevel: student.grade_level || '', strand: student.track_strand || '',
-          schoolYear: school_year, gwa,
+          schoolYear: school_year, gwa, gpa, scale: scale.name, creditsEarned,
         },
-        columns: COLUMN_LABELS.transcript,
-        rows: rows.map((r) => ({
-          'Subject Code': r.code, 'Subject': r.title, 'Q1': r.q1, 'Q2': r.q2, 'Q3': r.q3,
-          'Average': r.avg, 'Remarks': r.remarks,
-        })),
+        columns: COLUMN_LABELS.transcript_international,
+        rows: intlRows,
       };
     }
     default:
@@ -236,9 +279,15 @@ function renderPdf(title, columns, rows, meta) {
       y += rowH;
     }
 
-    if (meta && meta.gwa !== undefined) {
+    if (meta && (meta.gwa !== undefined || meta.gpa !== undefined)) {
       y += 14;
-      doc.font('Helvetica-Bold').fontSize(11).text(`General Weighted Average (GWA): ${meta.gwa}`, 40, y);
+      doc.font('Helvetica-Bold').fontSize(11);
+      const parts = [];
+      if (meta.gpa !== undefined && meta.gpa !== null) parts.push(`GPA: ${meta.gpa}`);
+      if (meta.gwa !== undefined) parts.push(`GWA: ${meta.gwa}`);
+      if (meta.scale) parts.push(`Scale: ${meta.scale}`);
+      if (meta.creditsEarned !== undefined) parts.push(`Credits Earned: ${meta.creditsEarned}`);
+      doc.text(parts.join('   |   '), 40, y);
     }
 
     doc.end();
