@@ -13,6 +13,7 @@ const Sections = lazy(() => import('./pages/Sections'));
 const Enroll = lazy(() => import('./pages/Enroll'));
 const Grades = lazy(() => import('./pages/Grades'));
 const GradingScales = lazy(() => import('./pages/GradingScales'));
+const Rankings = lazy(() => import('./pages/Rankings'));
 const Attendance = lazy(() => import('./pages/Attendance'));
 const Announcements = lazy(() => import('./pages/Announcements'));
 const Users = lazy(() => import('./pages/Users'));
@@ -63,6 +64,7 @@ export default function App() {
       <Route path="/aral" element={<Protected><Page><Aral /></Page></Protected>} />
       <Route path="/grades" element={<Protected><Page><Grades /></Page></Protected>} />
       <Route path="/grading-scales" element={<Protected><AdminOnly><Page><GradingScales /></Page></AdminOnly></Protected>} />
+      <Route path="/rankings" element={<Protected><Page><Rankings /></Page></Protected>} />
       <Route path="/attendance" element={<Protected><Page><Attendance /></Page></Protected>} />
       <Route path="/announcements" element={<Protected><AdminOnly><Page><Announcements /></Page></AdminOnly></Protected>} />
       <Route path="/users" element={<Protected><AdminOnly><Page><Users /></Page></AdminOnly></Protected>} />

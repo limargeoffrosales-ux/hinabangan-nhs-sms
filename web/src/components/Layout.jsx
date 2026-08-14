@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
-  KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale,
+  KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale, Trophy,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -44,6 +44,7 @@ const NAV = [
   { to: '/discipline', label: 'Student Conduct', icon: ShieldAlert },
   { to: '/grades', label: 'Class Records', icon: BarChart3 },
   { to: '/grading-scales', label: 'Grading Scales', icon: Scale },
+  { to: '/rankings', label: 'Rankings', icon: Trophy },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck },
   { to: '/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/users', label: 'Users & Roles', icon: ShieldCheck },
