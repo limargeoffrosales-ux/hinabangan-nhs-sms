@@ -4,7 +4,7 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, page } = require('../utils');
 
 const router = express.Router();
-router.use(authenticate, requireRole('super_admin', 'school_admin', 'principal'));
+router.use(authenticate, requireRole('super_admin', 'school_admin'));
 
 router.get('/', asyncH(async (req, res) => {
   const { limit, offset } = page(req);

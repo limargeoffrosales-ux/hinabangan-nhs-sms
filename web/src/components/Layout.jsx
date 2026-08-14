@@ -6,7 +6,7 @@ import {
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap,
 } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
 import { api } from '../lib/api';
 import AiAssistant from './AiAssistant';
@@ -59,9 +59,12 @@ const AI_NAV = [
   { to: '/forms', label: 'DepEd Forms', icon: FileStack },
 ];
 
+const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit'];
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = can(user?.role, 'super_admin', 'school_admin');
   const [theme, setTheme] = useState(() => {
     const s = localStorage.getItem('meridianed_theme') || 'midnight';
     return LEGACY_MAP[s] || s;
@@ -143,7 +146,7 @@ export default function Layout({ children }) {
           </NavLink>
         ))}
         <div className="nav-label">Operations</div>
-        {NAV.slice(6).map((n) => (
+        {NAV.slice(6).filter((n) => isAdmin || !STAFF_HIDDEN.includes(n.to)).map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
             <n.icon size={17} /> <span>{n.label}</span>
           </NavLink>

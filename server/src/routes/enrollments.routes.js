@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr, bool } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { ensureTeacherSeesSection, ensureTeacherSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -57,6 +58,10 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
   if (!section) return res.status(404).json({ error: 'Section not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesSection(req.user, section.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const existing = await q(
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
     term ? [b.student_id, b.school_year, term] : [b.student_id, b.school_year]);
@@ -72,6 +77,10 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
 }));
 
 router.get('/student/:studentId', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, req.params.studentId);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const rows = await qa(
     'SELECT e.*, s.name AS section_name, s.school_year FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id WHERE e.student_id = ? ORDER BY e.school_year DESC',
     [req.params.studentId]);
@@ -84,6 +93,12 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM enrollments WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Enrollment not found' });
   const b = req.body || {};
+  if (req.role === 'teacher') {
+    const secChk = await ensureTeacherSeesSection(req.user, b.section_id !== undefined ? b.section_id : row.section_id);
+    if (!secChk.ok) return res.status(403).json({ error: secChk.reason });
+    const stuChk = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!stuChk.ok) return res.status(403).json({ error: stuChk.reason });
+  }
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   const term = b.term !== undefined ? normTerm(b.term) : row.term;
   if (isShs(row.grade_level) && term && !TERMS.includes(term)) {
@@ -102,8 +117,14 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
 }));
 
 router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
-  const row = await q('SELECT id FROM enrollments WHERE id = ?', [req.params.id]);
+  const row = await q('SELECT * FROM enrollments WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Enrollment not found' });
+  if (req.role === 'teacher') {
+    const secChk = await ensureTeacherSeesSection(req.user, row.section_id);
+    if (!secChk.ok) return res.status(403).json({ error: secChk.reason });
+    const stuChk = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!stuChk.ok) return res.status(403).json({ error: stuChk.reason });
+  }
   await qr('DELETE FROM enrollments WHERE id = ?', [row.id]);
   await audit(req, 'DELETE_ENROLLMENT', 'enrollments', row.id);
   res.json({ ok: true });

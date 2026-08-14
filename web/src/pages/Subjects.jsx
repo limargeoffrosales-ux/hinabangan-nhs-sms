@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth, can } from '../lib/auth';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const TERM_LABELS = { first: 'First Term', second: 'Second Term', third: 'Third Term', all: 'All Terms' };
@@ -38,6 +39,8 @@ function TermBadge({ term }) {
 }
 
 export default function Subjects() {
+  const { user } = useAuth();
+  const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -115,7 +118,7 @@ export default function Subjects() {
   return (
     <>
       <PageHead title="Subjects" sub="Curriculum subjects — MATATAG (JHS) and Strengthened SHS Curriculum with term offerings">
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Subject</button>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Subject</button>}
       </PageHead>
       <div className="card filters-row" style={{ marginBottom: 12, padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
         <select className="input" style={{ maxWidth: 180 }} value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
@@ -153,14 +156,18 @@ export default function Subjects() {
                   <td><TermBadge term={s.term} /></td>
                   <td>{s.units}</td>
                   <td style={{ textAlign: 'center' }}>
-                    <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <input type="checkbox" checked={!!s.is_offered} onChange={() => toggleOffered(s)} />
+                    {canWrite ? (
+                      <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <input type="checkbox" checked={!!s.is_offered} onChange={() => toggleOffered(s)} />
+                        <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? 'Offered' : 'Not offered'}</span>
+                      </label>
+                    ) : (
                       <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? 'Offered' : 'Not offered'}</span>
-                    </label>
+                    )}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
-                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button>
+                    {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
+                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button></>}
                   </td>
                 </tr>
               ))}

@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './lib/auth';
+import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 
@@ -36,6 +36,12 @@ function Protected({ children }) {
   return <Layout>{children}</Layout>;
 }
 
+function AdminOnly({ children }) {
+  const { user } = useAuth();
+  if (!can(user?.role, 'super_admin', 'school_admin')) return <Navigate to="/" replace />;
+  return children;
+}
+
 function Page({ children }) {
   return <Suspense fallback={<Spinner />}>{children}</Suspense>;
 }
@@ -50,15 +56,15 @@ export default function App() {
       <Route path="/subjects" element={<Protected><Page><Subjects /></Page></Protected>} />
       <Route path="/sections" element={<Protected><Page><Sections /></Page></Protected>} />
       <Route path="/enroll" element={<Protected><Page><Enroll /></Page></Protected>} />
-      <Route path="/programs" element={<Protected><Page><Programs /></Page></Protected>} />
+      <Route path="/programs" element={<Protected><AdminOnly><Page><Programs /></Page></AdminOnly></Protected>} />
       <Route path="/submissions" element={<Protected><Page><Submissions /></Page></Protected>} />
-      <Route path="/compliance" element={<Protected><Page><Compliance /></Page></Protected>} />
+      <Route path="/compliance" element={<Protected><AdminOnly><Page><Compliance /></Page></AdminOnly></Protected>} />
       <Route path="/aral" element={<Protected><Page><Aral /></Page></Protected>} />
       <Route path="/grades" element={<Protected><Page><Grades /></Page></Protected>} />
       <Route path="/attendance" element={<Protected><Page><Attendance /></Page></Protected>} />
-      <Route path="/announcements" element={<Protected><Page><Announcements /></Page></Protected>} />
-      <Route path="/users" element={<Protected><Page><Users /></Page></Protected>} />
-      <Route path="/audit" element={<Protected><Page><AuditLogs /></Page></Protected>} />
+      <Route path="/announcements" element={<Protected><AdminOnly><Page><Announcements /></Page></AdminOnly></Protected>} />
+      <Route path="/users" element={<Protected><AdminOnly><Page><Users /></Page></AdminOnly></Protected>} />
+      <Route path="/audit" element={<Protected><AdminOnly><Page><AuditLogs /></Page></AdminOnly></Protected>} />
       <Route path="/ai-docs" element={<Protected><Page><AiDocs /></Page></Protected>} />
       <Route path="/research" element={<Protected><Page><Research /></Page></Protected>} />
       <Route path="/reading-numeracy" element={<Protected><Page><ReadingNumeracy /></Page></Protected>} />

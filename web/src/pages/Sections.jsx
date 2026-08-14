@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth, can } from '../lib/auth';
 import { SHS_TRACKS, SECTION_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const EMPTY_FORM = { name: '', grade_level: 'Grade 11', strand: '', adviser_teacher_id: '', room: '', capacity: 40, school_year: '2025-2026', status: 'active' };
 
 export default function Sections() {
+  const { user } = useAuth();
+  const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
   const [rows, setRows] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +79,7 @@ export default function Sections() {
   return (
     <>
       <PageHead title="Sections" sub="Class sections with advisers, rooms, and capacity">
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Section</button>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Section</button>}
       </PageHead>
       <ErrorBanner error={error} />
       {loading ? <Spinner /> : rows.length === 0 ? <Empty text="No sections yet." /> : (
@@ -102,8 +105,8 @@ export default function Sections() {
                   <td><Badge status={s.status} /></td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn-sm" title="View roster" onClick={() => showRoster(s)}><UsersIcon size={13} /></button>{' '}
-                    <button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
-                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button>
+                    {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
+                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button></>}
                   </td>
                 </tr>
               ))}
