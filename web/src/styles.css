@@ -1161,3 +1161,14 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
 }
 
 @keyframes pop-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.stat-card { flex: 1; min-width: 110px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.search-box { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; color: var(--text-dim); }
+.search-box input { border: 0; outline: none; background: transparent; width: 100%; padding: 9px 0; color: var(--text); }
+tr.row-active td { background: rgba(var(--rgb-accent), 0.08); }
+.portal-nav { display: flex; gap: 2px; flex-wrap: wrap; margin-left: 8px; }
+.portal-nav .nav-link { padding: 8px 12px; border-radius: 9px; color: var(--text-dim); text-decoration: none; display: flex; align-items: center; gap: 7px; font-size: 13.5px; }
+.portal-nav .nav-link.active { background: rgba(var(--rgb-accent), 0.14); color: var(--accent); }
+.portal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.portal-hero { margin-bottom: 16px; }
+.portal-hero h2 { margin: 0 0 4px; }

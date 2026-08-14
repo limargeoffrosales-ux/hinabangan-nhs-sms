@@ -12,7 +12,7 @@ const {
   studentSummary,
   DESIGNATIONS,
 } = require('../grading/analytics');
-const { ensureTeacherSeesStudent, ensureTeacherSeesSection, teacherScope } = require('../scope');
+const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent, teacherScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -156,11 +156,9 @@ router.get('/students/:studentId', requireRole(...READ, 'teacher', 'student', 'p
   if (req.role === 'teacher') {
     const chk = await ensureTeacherSeesStudent(req.user, student.id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
-  }
-  if (req.role === 'student' || req.role === 'parent') {
-    if (Number(req.user.sub) !== Number(student.id) && req.role === 'student') {
-      return res.status(403).json({ error: 'Students may only view their own records' });
-    }
+  } else if (req.role === 'student' || req.role === 'parent') {
+    const chk = await ensurePortalSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const settings = await getHonorSettings();
   const summary = await studentSummary(student.id, school_year);

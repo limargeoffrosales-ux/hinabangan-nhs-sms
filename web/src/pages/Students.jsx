@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Link2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
@@ -25,6 +25,84 @@ export default function Students() {
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [accountsRow, setAccountsRow] = useState(null);
+  const [accountsData, setAccountsData] = useState(null);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [linkQuery, setLinkQuery] = useState('');
+  const [linkResults, setLinkResults] = useState([]);
+
+  async function loadAccounts(id) {
+    setAccountsLoading(true);
+    try {
+      const res = await api(`/students/${id}/accounts`);
+      setAccountsData(res);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setAccountsLoading(false);
+    }
+  }
+
+  async function openAccounts(s) {
+    setAccountsRow(s);
+    setAccountsData(null);
+    setLinkQuery('');
+    setLinkResults([]);
+    await loadAccounts(s.id);
+  }
+
+  async function searchAccounts() {
+    const q = linkQuery.trim();
+    if (!q) return;
+    try {
+      const res = await api(`/users?q=${encodeURIComponent(q)}&limit=8`);
+      setLinkResults(res.data);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function linkStudentAccount(userId) {
+    try {
+      await api(`/students/${accountsRow.id}/account`, { method: 'PUT', body: { user_id: userId } });
+      setLinkQuery('');
+      setLinkResults([]);
+      await loadAccounts(accountsRow.id);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function unlinkStudentAccount() {
+    if (!confirm('Unlink this portal account from the student?')) return;
+    try {
+      await api(`/students/${accountsRow.id}/account`, { method: 'PUT', body: { user_id: null } });
+      await loadAccounts(accountsRow.id);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function linkParent(userId) {
+    try {
+      await api(`/students/${accountsRow.id}/parents`, { method: 'POST', body: { user_id: userId, relation: 'Parent' } });
+      setLinkQuery('');
+      setLinkResults([]);
+      await loadAccounts(accountsRow.id);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function unlinkParent(userId) {
+    if (!confirm('Remove this parent link?')) return;
+    try {
+      await api(`/students/${accountsRow.id}/parents/${userId}`, { method: 'DELETE' });
+      await loadAccounts(accountsRow.id);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -135,6 +213,7 @@ export default function Students() {
                   <td><Badge status={s.status} /></td>
                   {canWrite && (
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-sm" title="Portal accounts" onClick={() => openAccounts(s)}><Link2 size={13} /></button>{' '}
                       <button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
                       <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button>
                     </td>
@@ -183,6 +262,52 @@ export default function Students() {
               <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save student'}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {accountsRow && (
+        <Modal
+          title={`Portal accounts — ${accountsRow.last_name}, ${accountsRow.first_name}`}
+          sub="Link a student or parent login so they can access the portal."
+          onClose={() => setAccountsRow(null)}
+          wide
+        >
+          {accountsLoading ? <Spinner /> : accountsData && (
+            <>
+              <h4 style={{ margin: 0, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-dim)' }}>Student login</h4>
+              {accountsData.student_account ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div><strong>{accountsData.student_account.username}</strong> <span className="sub">— {accountsData.student_account.name || ''} · {accountsData.student_account.status}</span></div>
+                  <button className="btn btn-sm btn-danger" onClick={unlinkStudentAccount}>Unlink</button>
+                </div>
+              ) : (
+                <div className="sub" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>No student portal login linked yet.</div>
+              )}
+
+              <div className="form-row" style={{ marginTop: 12 }}>
+                <div style={{ flex: 2 }}><label>Link by username</label><input placeholder="Search portal accounts…" value={linkQuery} onChange={(e) => setLinkQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchAccounts()} /></div>
+                <div><button className="btn" onClick={searchAccounts}>Search</button></div>
+              </div>
+              {linkResults.map((u) => (
+                <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ minWidth: 0 }}><strong>{u.username}</strong> <span className="sub">— {u.name || ''} · {u.role} · {u.status}</span></div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button className="btn btn-sm" disabled={u.role !== 'student'} onClick={() => linkStudentAccount(u.id)}>Set as student</button>
+                    <button className="btn btn-sm" disabled={u.role !== 'parent'} onClick={() => linkParent(u.id)}>Link as parent</button>
+                  </div>
+                </div>
+              ))}
+
+              <h4 style={{ margin: '16px 0 4px', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-dim)' }}>Linked parents</h4>
+              {accountsData.parents.length === 0 && <div className="sub" style={{ padding: '8px 0' }}>No linked parents. Parents can see grades, attendance and schedule of this student.</div>}
+              {accountsData.parents.map((p) => (
+                <div key={p.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div><strong>{p.name || p.username}</strong> <span className="sub">— {p.username} · {p.relation} · {p.status}</span></div>
+                  <button className="btn btn-sm btn-danger" onClick={() => unlinkParent(p.user_id)}>Unlink</button>
+                </div>
+              ))}
+            </>
+          )}
         </Modal>
       )}
     </>

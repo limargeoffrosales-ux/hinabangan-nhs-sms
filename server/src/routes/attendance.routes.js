@@ -2,10 +2,21 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher', 'security'];
+
+function round2(n) { return Math.round(n * 100) / 100; }
+
+function summarizeAttendance(rows) {
+  const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+  for (const r of rows) counts[r.status] = (counts[r.status] || 0) + 1;
+  const total = rows.length;
+  const rate = total ? round2(((counts.present + counts.late) / total) * 100) : null;
+  return { counts, total, rate };
+}
 
 router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { section_id, date } = req.query;
@@ -60,6 +71,36 @@ router.post('/:studentId/check', requireRole(...WRITE), asyncH(async (req, res) 
   }
   await audit(req, 'ATTENDANCE_CHECK', 'attendance', req.params.studentId, { date, status });
   res.json({ ok: true, date, status });
+}));
+
+// GET /student/:studentId — scoped attendance record for one student (staff, student, parent).
+// Filters: ?month=YYYY-MM, ?year=YYYY, ?summary=1 (returns status counts + rate).
+router.get('/student/:studentId', requireRole(...WRITE, 'registrar', 'student', 'parent'), asyncH(async (req, res) => {
+  const student = await q('SELECT id, first_name, last_name, lrn FROM students WHERE id = ?', [req.params.studentId]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  } else if (req.role === 'student' || req.role === 'parent') {
+    const chk = await ensurePortalSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
+  const { month, year, summary } = req.query;
+  let sql = `SELECT a.date, a.status, a.time_in, a.time_out, a.remarks FROM attendance a WHERE a.student_id = ?`;
+  const params = [student.id];
+  if (month && /^\d{4}-\d{2}$/.test(String(month))) {
+    sql += ' AND substr(CAST(a.date AS TEXT), 1, 7) = ?';
+    params.push(String(month));
+  }
+  if (year && /^\d{4}$/.test(String(year))) {
+    sql += ' AND substr(CAST(a.date AS TEXT), 1, 4) = ?';
+    params.push(String(year));
+  }
+  sql += ' ORDER BY a.date DESC';
+  const rows = await qa(sql, params);
+  const out = { student, data: rows };
+  if (summary === '1') out.summary = summarizeAttendance(rows);
+  res.json(out);
 }));
 
 module.exports = router;

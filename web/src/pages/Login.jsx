@@ -31,8 +31,9 @@ export default function Login() {
     setBusy(true);
     setError(null);
     try {
-      await login(username, password);
-      navigate('/', { replace: true });
+      const u = await login(username, password);
+      const isPortal = u.role === 'student' || u.role === 'parent';
+      navigate(isPortal ? '/portal' : '/', { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

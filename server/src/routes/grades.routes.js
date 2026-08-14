@@ -4,7 +4,7 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { GRADE_WEIGHTS } = require('../config');
 const { getDefaultScale, getScale, getScaleForSubject, convertGrade, gpaFrom } = require('../grading/scales');
-const { teacherScope, ensureTeacherSeesStudent } = require('../scope');
+const { teacherScope, ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -137,6 +137,9 @@ router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'studen
   if (req.role === 'teacher') {
     const chk = await ensureTeacherSeesStudent(req.user, student.id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  } else if (req.role === 'student' || req.role === 'parent') {
+    const chk = await ensurePortalSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const rows = await qa(
     `SELECT g.subject_id, su.code, su.title, g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
@@ -160,6 +163,9 @@ router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'studen
 router.get('/years/:studentId', requireRole(...WRITE, 'registrar', 'student', 'parent'), asyncH(async (req, res) => {
   if (req.role === 'teacher') {
     const chk = await ensureTeacherSeesStudent(req.user, req.params.studentId);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  } else if (req.role === 'student' || req.role === 'parent') {
+    const chk = await ensurePortalSeesStudent(req.user, req.params.studentId);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const rows = await qa(
