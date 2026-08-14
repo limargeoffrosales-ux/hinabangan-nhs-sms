@@ -318,7 +318,7 @@ const LEVEL_ORDER = {
 };
 const ARAL_EXIT = { reading: ['Independent'], numeracy: ['Independent'] };
 
-router.get('/aral-progress', asyncH(async (req, res) => {
+router.get('/aral-progress', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const gradeLevel = req.query.grade_level || null;
   const sectionId = req.query.section_id || null;
@@ -487,7 +487,7 @@ router.post('/aral-unenroll', requireRole(...WRITE), asyncH(async (req, res) => 
 // ------------------------------------------------------------
 // Student progress — computed grades per learner (SHS)
 // ------------------------------------------------------------
-router.get('/student-progress', asyncH(async (req, res) => {
+router.get('/student-progress', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const term = (req.query.term || '').toLowerCase().trim();
   const params = [];

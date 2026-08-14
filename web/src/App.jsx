@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
+import PortalLayout from './components/PortalLayout';
 import { Spinner } from './components/ui';
 
 const Login = lazy(() => import('./pages/Login'));
@@ -14,6 +15,11 @@ const Enroll = lazy(() => import('./pages/Enroll'));
 const Grades = lazy(() => import('./pages/Grades'));
 const GradingScales = lazy(() => import('./pages/GradingScales'));
 const Rankings = lazy(() => import('./pages/Rankings'));
+const Portal = lazy(() => import('./pages/Portal'));
+const PortalGrades = lazy(() => import('./pages/PortalGrades'));
+const PortalAttendance = lazy(() => import('./pages/PortalAttendance'));
+const PortalSchedule = lazy(() => import('./pages/PortalSchedule'));
+const PortalAnnouncements = lazy(() => import('./pages/PortalAnnouncements'));
 const Attendance = lazy(() => import('./pages/Attendance'));
 const Announcements = lazy(() => import('./pages/Announcements'));
 const Users = lazy(() => import('./pages/Users'));
@@ -35,7 +41,16 @@ function Protected({ children }) {
   const { user, ready } = useAuth();
   if (!ready) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'student' || user.role === 'parent') return <Navigate to="/portal" replace />;
   return <Layout>{children}</Layout>;
+}
+
+function PortalProtected({ children }) {
+  const { user, ready } = useAuth();
+  if (!ready) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'student' && user.role !== 'parent') return <Navigate to="/" replace />;
+  return <PortalLayout>{children}</PortalLayout>;
 }
 
 function AdminOnly({ children }) {
@@ -65,6 +80,11 @@ export default function App() {
       <Route path="/grades" element={<Protected><Page><Grades /></Page></Protected>} />
       <Route path="/grading-scales" element={<Protected><AdminOnly><Page><GradingScales /></Page></AdminOnly></Protected>} />
       <Route path="/rankings" element={<Protected><Page><Rankings /></Page></Protected>} />
+      <Route path="/portal" element={<PortalProtected><Page><Portal /></Page></PortalProtected>} />
+      <Route path="/portal/grades" element={<PortalProtected><Page><PortalGrades /></Page></PortalProtected>} />
+      <Route path="/portal/attendance" element={<PortalProtected><Page><PortalAttendance /></Page></PortalProtected>} />
+      <Route path="/portal/schedule" element={<PortalProtected><Page><PortalSchedule /></Page></PortalProtected>} />
+      <Route path="/portal/announcements" element={<PortalProtected><Page><PortalAnnouncements /></Page></PortalProtected>} />
       <Route path="/attendance" element={<Protected><Page><Attendance /></Page></Protected>} />
       <Route path="/announcements" element={<Protected><AdminOnly><Page><Announcements /></Page></AdminOnly></Protected>} />
       <Route path="/users" element={<Protected><AdminOnly><Page><Users /></Page></AdminOnly></Protected>} />

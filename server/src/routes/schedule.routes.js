@@ -3,10 +3,12 @@ const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { generateSchedule, findConflicts, DAYS } = require('../schedule');
+const { ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin'];
+const PORTAL_READ = ['super_admin', 'school_admin', 'registrar', 'student', 'parent'];
 const DURATIONS = [60, 90, 120];
 
 router.get('/days', (req, res) => res.json({ days: DAYS, durations: DURATIONS }));
@@ -103,6 +105,37 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY e.section_id, e.day, e.start_time';
   res.json({ data: await qa(sql, params), days: DAYS });
+}));
+
+// GET /student/:studentId — scoped class schedule for one student (staff, student, parent).
+router.get('/student/:studentId', requireRole(...PORTAL_READ), asyncH(async (req, res) => {
+  const { school_year } = req.query;
+  if (!school_year) return res.status(400).json({ error: 'school_year is required' });
+  const student = await q('SELECT id FROM students WHERE id = ?', [req.params.studentId]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  } else if (req.role === 'student' || req.role === 'parent') {
+    const chk = await ensurePortalSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
+  const sections = await qa(
+    'SELECT DISTINCT section_id FROM enrollments WHERE student_id = ? AND school_year = ?',
+    [student.id, school_year]);
+  if (!sections.length) return res.json({ data: [], days: DAYS, school_year });
+  const place = sections.map(() => '?').join(',');
+  const rows = await qa(
+    `SELECT e.*, sec.name AS section_name, sec.grade_level, s.code AS subject_code, s.title AS subject_title,
+            t.first_name || ' ' || t.last_name AS teacher_name
+     FROM schedule_entries e
+     JOIN sections sec ON sec.id = e.section_id
+     JOIN subjects s ON s.id = e.subject_id
+     LEFT JOIN teachers t ON t.id = e.teacher_id
+     WHERE e.school_year = ? AND e.section_id IN (${place})
+     ORDER BY e.day, e.start_time`,
+    [school_year, ...sections.map((s) => s.section_id)]);
+  res.json({ data: rows, days: DAYS, school_year });
 }));
 
 router.get('/conflicts', requireRole(...WRITE), asyncH(async (req, res) => {

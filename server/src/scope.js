@@ -70,6 +70,30 @@ async function ensureTeacherSeesSection(user, sectionId) {
   return { ok: true, scope };
 }
 
+// Student IDs visible to a portal user. Students see themselves (via students.user_id);
+// parents see their linked children (via parent_students). Staff roles return null
+// (unrestricted) so existing staff endpoints keep working.
+async function linkedStudentIds(user) {
+  if (!user) return null;
+  if (user.role === 'student') {
+    const st = await q('SELECT id FROM students WHERE user_id = ?', [user.id]);
+    return st ? [Number(st.id)] : [];
+  }
+  if (user.role === 'parent') {
+    const rows = await qa('SELECT student_id FROM parent_students WHERE parent_user_id = ?', [user.id]);
+    return rows.map((r) => Number(r.student_id));
+  }
+  return null;
+}
+
+// Scoping for student/parent portal roles: only allow access to their own / linked records.
+async function ensurePortalSeesStudent(user, studentId) {
+  const ids = await linkedStudentIds(user);
+  if (ids === null) return { ok: true, ids };
+  if (ids.includes(Number(studentId))) return { ok: true, ids };
+  return { ok: false, reason: "You do not have access to this student's records" };
+}
+
 module.exports = {
   teacherForUser,
   teacherScope,
@@ -77,4 +101,6 @@ module.exports = {
   sectionInScope,
   ensureTeacherSeesStudent,
   ensureTeacherSeesSection,
+  linkedStudentIds,
+  ensurePortalSeesStudent,
 };

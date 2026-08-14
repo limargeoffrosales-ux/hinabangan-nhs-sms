@@ -94,4 +94,68 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// --- Portal account linking -------------------------------------------------
+
+const ACCOUNT_ROLES = ['super_admin', 'school_admin'];
+
+router.get('/:id/accounts', requireRole(...WRITE), asyncH(async (req, res) => {
+  const row = await q('SELECT id, lrn, user_id FROM students WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Student not found' });
+  const studentAccount = row.user_id
+    ? await q('SELECT id, username, name, role, status FROM users WHERE id = ?', [row.user_id])
+    : null;
+  const parents = await qa(
+    `SELECT ps.student_id, ps.relation, u.id AS user_id, u.username, u.name, u.status
+     FROM parent_students ps JOIN users u ON u.id = ps.parent_user_id
+     WHERE ps.student_id = ? ORDER BY u.name`,
+    [row.id]);
+  res.json({ student_account: studentAccount, parents });
+}));
+
+// PUT /:id/account { user_id } — link (or unlink with null) a student-role login.
+router.put('/:id/account', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+  const row = await q('SELECT id, lrn FROM students WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Student not found' });
+  const raw = req.body && req.body.user_id;
+  const userId = raw === undefined || raw === null || raw === '' ? null : Number(raw);
+  if (userId) {
+    const u = await q('SELECT id, role, status FROM users WHERE id = ?', [userId]);
+    if (!u) return res.status(400).json({ error: 'User not found' });
+    if (u.role !== 'student') return res.status(400).json({ error: 'Only student-role accounts can be the student portal login' });
+    if (u.status !== 'active') return res.status(400).json({ error: 'The account is not active' });
+    const taken = await q('SELECT id FROM students WHERE user_id = ? AND id != ?', [userId, row.id]);
+    if (taken) return res.status(400).json({ error: 'That account is already linked to another student' });
+  }
+  await qr('UPDATE students SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [userId, row.id]);
+  await audit(req, 'STUDENT_ACCOUNT_LINK', 'students', row.id, { user_id: userId });
+  res.json({ ok: true, user_id: userId });
+}));
+
+// POST /:id/parents { user_id, relation } — link a parent-role login to this student.
+router.post('/:id/parents', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+  const row = await q('SELECT id FROM students WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Student not found' });
+  const userId = Number(req.body && req.body.user_id);
+  if (!userId) return res.status(400).json({ error: 'user_id is required' });
+  const relation = String((req.body && req.body.relation) || 'Parent').trim().slice(0, 60) || 'Parent';
+  const u = await q('SELECT id, role, status FROM users WHERE id = ?', [userId]);
+  if (!u) return res.status(400).json({ error: 'User not found' });
+  if (u.role !== 'parent') return res.status(400).json({ error: 'Only parent-role accounts can be linked as guardians' });
+  if (u.status !== 'active') return res.status(400).json({ error: 'The account is not active' });
+  const exists = await q('SELECT id FROM parent_students WHERE parent_user_id = ? AND student_id = ?', [userId, row.id]);
+  if (exists) return res.status(400).json({ error: 'This parent is already linked to the student' });
+  const id = await qi('INSERT INTO parent_students (parent_user_id, student_id, relation) VALUES (?, ?, ?)', [userId, row.id, relation]);
+  await audit(req, 'STUDENT_PARENT_LINK', 'students', row.id, { parent_user_id: userId, relation });
+  res.status(201).json({ id, relation });
+}));
+
+// DELETE /:id/parents/:parentUserId — remove a parent link.
+router.delete('/:id/parents/:parentUserId', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+  const row = await q('SELECT id FROM students WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Student not found' });
+  await qr('DELETE FROM parent_students WHERE parent_user_id = ? AND student_id = ?', [Number(req.params.parentUserId), row.id]);
+  await audit(req, 'STUDENT_PARENT_UNLINK', 'students', row.id, { parent_user_id: Number(req.params.parentUserId) });
+  res.json({ ok: true });
+}));
+
 module.exports = router;
