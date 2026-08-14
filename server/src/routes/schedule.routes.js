@@ -6,12 +6,12 @@ const { generateSchedule, findConflicts, DAYS } = require('../schedule');
 
 const router = express.Router();
 router.use(authenticate);
-const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const WRITE = ['super_admin', 'school_admin'];
 const DURATIONS = [60, 90, 120];
 
 router.get('/days', (req, res) => res.json({ days: DAYS, durations: DURATIONS }));
 
-router.get('/assignments', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+router.get('/assignments', requireRole(...WRITE), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || null;
   let sql =
     `SELECT ca.*, s.code AS subject_code, s.title AS subject_title, s.units,
@@ -82,7 +82,7 @@ router.post('/generate', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json(result);
 }));
 
-router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || null;
   const teacherId = req.query.teacher_id || null;
   const sectionId = req.query.section_id || null;
@@ -105,7 +105,7 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   res.json({ data: await qa(sql, params), days: DAYS });
 }));
 
-router.get('/conflicts', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+router.get('/conflicts', requireRole(...WRITE), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || null;
   let sql =
     `SELECT e.*, sec.name AS section_name, s.code AS subject_code,

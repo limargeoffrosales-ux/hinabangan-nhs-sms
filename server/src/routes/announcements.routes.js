@@ -14,8 +14,7 @@ router.get('/', asyncH(async (req, res) => {
   res.json({ data: rows, limit, offset });
 }));
 
-router.post('/', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'),
-  asyncH(async (req, res) => {
+router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
     const b = req.body || {};
     if (!b.title || !b.body) return res.status(400).json({ error: 'title and body are required' });
     const id = await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
@@ -24,8 +23,7 @@ router.post('/', requireRole('super_admin', 'school_admin', 'principal', 'assist
     res.status(201).json({ id });
   }));
 
-router.patch('/:id', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'),
-  asyncH(async (req, res) => {
+router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
     const row = await q('SELECT * FROM announcements WHERE id = ?', [req.params.id]);
     if (!row) return res.status(404).json({ error: 'Announcement not found' });
     if (row.author_id !== req.user.id && !['super_admin', 'school_admin'].includes(req.role)) {
@@ -39,8 +37,7 @@ router.patch('/:id', requireRole('super_admin', 'school_admin', 'principal', 'as
     res.json({ ok: true });
   }));
 
-router.delete('/:id', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal'),
-  asyncH(async (req, res) => {
+router.delete('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
     const row = await q('SELECT id FROM announcements WHERE id = ?', [req.params.id]);
     if (!row) return res.status(404).json({ error: 'Announcement not found' });
     await qr('DELETE FROM announcements WHERE id = ?', [row.id]);

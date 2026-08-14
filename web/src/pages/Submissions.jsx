@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
 
-const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const ADMIN = ['super_admin', 'school_admin'];
 const FREQS = ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'periodic'];
 const STATUS_BADGE = {
   draft: 'badge-gray', submitted: 'badge-blue', reviewed: 'badge-yellow',

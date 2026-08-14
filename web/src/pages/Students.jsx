@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
@@ -14,6 +15,8 @@ const EMPTY_FORM = {
 const GRADE_LEVELS = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'College'];
 
 export default function Students() {
+  const { user } = useAuth();
+  const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -102,7 +105,7 @@ export default function Students() {
   return (
     <>
       <PageHead title="Student Information System" sub="Complete learner profiles with LRN, guardians, and enrollment status">
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Student</button>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Student</button>}
       </PageHead>
       <ErrorBanner error={error} />
       <div className="search-row">
@@ -117,7 +120,7 @@ export default function Students() {
             <thead>
               <tr>
                 <th>LRN</th><th>Name</th><th>Sex</th><th>Grade Level</th><th>Strand / Track</th>
-                <th>Guardian</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th>
+                <th>Guardian</th><th>Status</th>{canWrite && <th style={{ textAlign: 'right' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -130,10 +133,12 @@ export default function Students() {
                   <td>{s.track_strand || '—'}</td>
                   <td>{s.guardian_name || '—'}</td>
                   <td><Badge status={s.status} /></td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
-                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button>
-                  </td>
+                  {canWrite && (
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
+                      <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

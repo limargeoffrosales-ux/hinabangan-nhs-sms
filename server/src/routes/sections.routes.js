@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
+const { teacherScope, sectionInScope, ensureTeacherSeesSection } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -12,13 +13,26 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || null;
   let sql = 'SELECT s.*, t.first_name || \' \' || t.last_name AS adviser_name FROM sections s LEFT JOIN teachers t ON t.id = s.adviser_teacher_id';
   const params = [];
-  if (schoolYear) { sql += ' WHERE s.school_year = ?'; params.push(schoolYear); }
+  const where = [];
+  if (schoolYear) { where.push('s.school_year = ?'); params.push(schoolYear); }
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const f = sectionInScope(scope, 's');
+    if (!f.sql) return res.json({ data: [], limit, offset });
+    where.push(f.sql);
+    params.push(...f.params);
+  }
+  if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY s.school_year DESC, s.grade_level, s.name LIMIT ? OFFSET ?';
   params.push(limit, offset);
   res.json({ data: await qa(sql, params), limit, offset });
 }));
 
 router.get('/:id/students', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesSection(req.user, req.params.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const rows = await qa(
     `SELECT st.id, st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.sex, st.grade_level
      FROM enrollments e JOIN students st ON st.id = e.student_id

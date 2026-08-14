@@ -338,7 +338,7 @@ router.get('/teachers', asyncH(async (req, res) => {
 
 // Admin-initiated task assignment — creates a submission task for each
 // selected teacher. Compliance is computed only from these assigned tasks.
-router.post('/assign', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
+router.post('/assign', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.report_type_id || !b.period) return res.status(400).json({ error: 'report_type_id and period are required' });
   const type = await q('SELECT * FROM report_types WHERE id = ?', [b.report_type_id]);
@@ -367,7 +367,7 @@ router.post('/assign', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
   res.status(201).json({ created, skipped, count: created.length });
 }));
 
-router.get('/compliance', asyncH(async (req, res) => {
+router.get('/compliance', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || '2026-2027';
   const all = await qa('SELECT id, username, name, role FROM users WHERE status = ?', ['active']);
   const staff = all.filter((u) => !isAdminRole(u.role));

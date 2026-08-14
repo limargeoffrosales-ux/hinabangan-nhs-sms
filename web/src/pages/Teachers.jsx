@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, TEACHER_POSITIONS, TEACHER_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const EMPTY_FORM = {
   employee_no: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: '',
-  position: '', prc_no: '', email: '', contact: '', room: '', status: 'active',
+  position: '', prc_no: '', email: '', contact: '', room: '', status: 'active', user_id: '',
 };
 
 export default function Teachers() {
+  const { user } = useAuth();
+  const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'hr');
+  const canLink = can(user?.role, 'super_admin', 'school_admin');
   const [rows, setRows] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
@@ -37,6 +42,13 @@ export default function Teachers() {
     return () => clearTimeout(t);
   }, [query]);
 
+  useEffect(() => {
+    if (!canLink) return;
+    api('/users?limit=500')
+      .then((r) => setUsers(r.data || []))
+      .catch(() => setUsers([]));
+  }, [canLink]);
+
   function openCreate() {
     setForm(EMPTY_FORM);
     setEditing(null);
@@ -44,7 +56,7 @@ export default function Teachers() {
   }
 
   function openEdit(t) {
-    setForm({ ...EMPTY_FORM, ...t });
+    setForm({ ...EMPTY_FORM, ...t, user_id: t.user_id ? String(t.user_id) : '' });
     setEditing(t.id);
     setShowModal(true);
   }
@@ -79,7 +91,7 @@ export default function Teachers() {
   return (
     <>
       <PageHead title="Teachers" sub="Faculty directory with positions and PRC records">
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Teacher</button>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Teacher</button>}
       </PageHead>
       <ErrorBanner error={error} />
       <div className="search-row">
@@ -94,7 +106,9 @@ export default function Teachers() {
             <thead>
               <tr>
                 <th>Employee No.</th><th>Name</th><th>Position</th><th>Assigned Room</th><th>PRC No.</th>
-                <th>Email</th><th>Contact</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th>
+                <th>Email</th><th>Contact</th><th>Status</th>
+                {canLink && <th>Login Account</th>}
+                {canWrite && <th style={{ textAlign: 'right' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -108,10 +122,13 @@ export default function Teachers() {
                   <td>{t.email || '—'}</td>
                   <td>{t.contact || '—'}</td>
                   <td><Badge status={t.status} /></td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-sm" onClick={() => openEdit(t)}><Pencil size={13} /></button>{' '}
-                    <button className="btn btn-sm btn-danger" onClick={() => remove(t)}><Trash2 size={13} /></button>
-                  </td>
+                  {canLink && <td>{t.user_id ? <span className="muted">@{t.username || 'linked'}</span> : '—'}</td>}
+                  {canWrite && (
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-sm" onClick={() => openEdit(t)}><Pencil size={13} /></button>{' '}
+                      <button className="btn btn-sm btn-danger" onClick={() => remove(t)}><Trash2 size={13} /></button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -165,6 +182,19 @@ export default function Teachers() {
                 </select>
               </div>
             </div>
+            {canLink && (
+              <div className="form-row">
+                <div style={{ flex: 1 }}>
+                  <label>Login account <span className="muted">(grants scoped access to their advisory / assigned classes)</span></label>
+                  <select value={form.user_id} onChange={(e) => set('user_id', e.target.value)}>
+                    <option value="">— none —</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
               <button className="btn btn-primary">Save teacher</button>

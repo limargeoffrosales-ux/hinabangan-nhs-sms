@@ -3,6 +3,7 @@ const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { GRADE_WEIGHTS } = require('../config');
+const { teacherScope, ensureTeacherSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -23,6 +24,18 @@ router.get('/class', requireRole(...WRITE, 'registrar'), asyncH(async (req, res)
     return res.status(400).json({ error: 'section_id, subject_id, school_year, term are required' });
   }
   if (!/[1-3]/.test(period)) return res.status(400).json({ error: 'term must be 1, 2 or 3' });
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    if (!scope) return res.status(403).json({ error: 'No teacher profile is linked to this account' });
+    const sectionId = Number(section_id);
+    const subjectId = Number(subject_id);
+    if (!scope.sections.includes(sectionId)) {
+      return res.status(403).json({ error: 'You can only access grades for your advisory or assigned sections' });
+    }
+    if (!scope.advisory.includes(sectionId) && !scope.hasClass(sectionId, subjectId)) {
+      return res.status(403).json({ error: 'You can only view grades for your assigned subjects' });
+    }
+  }
   const students = await qa(
     `SELECT st.id, st.lrn, st.first_name, st.last_name,
        g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
@@ -40,6 +53,12 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
     return res.status(400).json({ error: 'section_id, subject_id, school_year, term, rows are required' });
   }
   if (Number(period) < 1 || Number(period) > 3) return res.status(400).json({ error: 'term must be 1-3' });
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    if (!scope || !scope.hasClass(Number(b.section_id), Number(b.subject_id))) {
+      return res.status(403).json({ error: 'You can only save grades for your assigned class' });
+    }
+  }
   let n = 0;
   for (const r of b.rows) {
     if (!r.student_id) continue;
@@ -72,6 +91,10 @@ router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'studen
   if (!/[1-3]/.test(period)) return res.status(400).json({ error: 'term must be 1, 2 or 3' });
   const student = await q('SELECT * FROM students WHERE id = ?', [req.params.studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const rows = await qa(
     `SELECT su.code, su.title, g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
      FROM grades g JOIN subjects su ON su.id = g.subject_id
@@ -85,6 +108,10 @@ router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'studen
 }));
 
 router.get('/years/:studentId', requireRole(...WRITE, 'registrar', 'student', 'parent'), asyncH(async (req, res) => {
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, req.params.studentId);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const rows = await qa(
     `SELECT school_year, COUNT(DISTINCT quarter) AS terms, COUNT(DISTINCT subject_id) AS subjects
      FROM grades

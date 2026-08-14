@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
+const { teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -25,6 +26,13 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const params = [q2, q2];
   let sql = 'SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status FROM students WHERE (last_name LIKE ? OR first_name LIKE ? OR lrn LIKE ?)';
   params.push(q2);
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const f = studentInScope(scope, 'students');
+    if (!f.sql) return res.json({ data: [], limit, offset });
+    sql += ' AND ' + f.sql;
+    params.push(...f.params);
+  }
   if (gradeLevel) {
     sql += ' AND grade_level = ?';
     params.push(gradeLevel);
@@ -37,6 +45,10 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
 router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM students WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, row.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   row.enrollments = await qa('SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id WHERE e.student_id = ? ORDER BY e.school_year DESC', [row.id]);
   res.json(row);
 }));
