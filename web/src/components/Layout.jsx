@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
-  KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap,
+  KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -43,6 +43,7 @@ const NAV = [
   { to: '/aral', label: 'ARAL Program', icon: GraduationCap },
   { to: '/discipline', label: 'Student Conduct', icon: ShieldAlert },
   { to: '/grades', label: 'Class Records', icon: BarChart3 },
+  { to: '/grading-scales', label: 'Grading Scales', icon: Scale },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck },
   { to: '/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/users', label: 'Users & Roles', icon: ShieldCheck },
@@ -59,7 +60,7 @@ const AI_NAV = [
   { to: '/forms', label: 'DepEd Forms', icon: FileStack },
 ];
 
-const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit'];
+const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales'];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();

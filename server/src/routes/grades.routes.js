@@ -3,18 +3,51 @@ const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { GRADE_WEIGHTS } = require('../config');
+const { getDefaultScale, getScale, getScaleForSubject, convertGrade, gpaFrom } = require('../grading/scales');
 const { teacherScope, ensureTeacherSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
 
-function compute(w, p, qe) {
+function compute(w, p, qe, weights) {
   if (w == null || p == null || qe == null) return null;
-  const total = Number(w) * GRADE_WEIGHTS.written_work / 100 +
-    Number(p) * GRADE_WEIGHTS.performance_task / 100 +
-    Number(qe) * GRADE_WEIGHTS.quarterly_exam / 100;
+  const wt = weights || GRADE_WEIGHTS;
+  const total = Number(w) * wt.written_work / 100 +
+    Number(p) * wt.performance_task / 100 +
+    Number(qe) * wt.quarterly_exam / 100;
   return Math.round(total * 10) / 10;
+}
+
+const scaleMeta = (s) => (s ? { id: s.id, code: s.code, name: s.name, scale_type: s.scale_type, passing_grade: s.passing_grade, weights: s.weights } : null);
+
+async function convertRows(rows, defaultScale) {
+  const subjectIds = [...new Set(rows.map((r) => r.subject_id).filter(Boolean))];
+  const scaleFor = {};
+  if (subjectIds.length) {
+    const subs = await qa(`SELECT id, scale_id FROM subjects WHERE id IN (${subjectIds.map(() => '?').join(',')})`, subjectIds);
+    const scaleIds = [...new Set(subs.map((s) => s.scale_id).filter(Boolean))];
+    const loaded = {};
+    for (const sid of scaleIds) {
+      const sc = await getScale(sid);
+      if (sc) loaded[sid] = sc;
+    }
+    for (const s of subs) {
+      scaleFor[s.id] = s.scale_id && loaded[s.scale_id] && loaded[s.scale_id].active ? loaded[s.scale_id] : defaultScale;
+    }
+  }
+  return rows.map((r) => {
+    const scale = r.subject_id ? (scaleFor[r.subject_id] || defaultScale) : defaultScale;
+    const conv = r.computed_grade != null ? convertGrade(r.computed_grade, scale) : null;
+    return {
+      ...r,
+      letter: conv && conv.letter,
+      points: conv && conv.points,
+      proficiency: conv && conv.proficiency,
+      passed: conv ? conv.passed : null,
+      scale: scale.code,
+    };
+  });
 }
 
 router.get('/class', requireRole(...WRITE, 'registrar'), asyncH(async (req, res) => {
@@ -36,6 +69,7 @@ router.get('/class', requireRole(...WRITE, 'registrar'), asyncH(async (req, res)
       return res.status(403).json({ error: 'You can only view grades for your assigned subjects' });
     }
   }
+  const scale = await getScaleForSubject(subject_id);
   const students = await qa(
     `SELECT st.id, st.lrn, st.first_name, st.last_name,
        g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
@@ -43,7 +77,14 @@ router.get('/class', requireRole(...WRITE, 'registrar'), asyncH(async (req, res)
      LEFT JOIN grades g ON g.student_id = st.id AND g.subject_id = ? AND g.school_year = ? AND g.quarter = ?
      WHERE e.section_id = ? AND e.status = 'enrolled' ORDER BY st.last_name, st.first_name`,
     [subject_id, school_year, period, section_id]);
-  res.json({ data: students, weights: GRADE_WEIGHTS, term: period });
+  const converted = students.map((r) => {
+    const conv = r.computed_grade != null ? convertGrade(r.computed_grade, scale) : null;
+    return {
+      ...r, subject_id: Number(subject_id),
+      letter: conv && conv.letter, points: conv && conv.points, proficiency: conv && conv.proficiency,
+    };
+  });
+  res.json({ data: converted, weights: scale.weights, scale: scaleMeta(scale), term: period });
 }));
 
 router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
@@ -59,6 +100,8 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
       return res.status(403).json({ error: 'You can only save grades for your assigned class' });
     }
   }
+  const scale = await getScaleForSubject(b.subject_id);
+  const passing = Number(scale.passing_grade);
   let n = 0;
   for (const r of b.rows) {
     if (!r.student_id) continue;
@@ -66,8 +109,8 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
     const p = r.performance_task != null && r.performance_task !== '' ? Number(r.performance_task) : null;
     const qe = r.quarterly_exam != null && r.quarterly_exam !== '' ? Number(r.quarterly_exam) : null;
     if ([w, p, qe].some((v) => v != null && (v < 0 || v > 100))) continue;
-    const grade = compute(w, p, qe);
-    const remarks = grade != null ? (grade >= 75 ? 'PASSED' : 'FAILED') : null;
+    const grade = compute(w, p, qe, scale.weights);
+    const remarks = grade != null ? (grade >= passing ? 'PASSED' : 'FAILED') : null;
     const existing = await q(
       'SELECT id FROM grades WHERE student_id = ? AND subject_id = ? AND school_year = ? AND quarter = ?',
       [r.student_id, b.subject_id, b.school_year, period]);
@@ -80,8 +123,8 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
     }
     n++;
   }
-  await audit(req, 'GRADES_SAVE', 'grades', null, { section_id: b.section_id, subject_id: b.subject_id, term: period, rows: n });
-  res.json({ ok: true, saved: n });
+  await audit(req, 'GRADES_SAVE', 'grades', null, { section_id: b.section_id, subject_id: b.subject_id, term: period, rows: n, scale: scale.code });
+  res.json({ ok: true, saved: n, scale: scaleMeta(scale) });
 }));
 
 router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'student', 'parent'), asyncH(async (req, res) => {
@@ -96,15 +139,22 @@ router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'studen
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const rows = await qa(
-    `SELECT su.code, su.title, g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
+    `SELECT g.subject_id, su.code, su.title, g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
      FROM grades g JOIN subjects su ON su.id = g.subject_id
      WHERE g.student_id = ? AND g.school_year = ? AND g.quarter = ? ORDER BY su.code`,
     [req.params.studentId, school_year, period]);
-  const withGrades = rows.filter((r) => r.computed_grade != null);
+  const scale = await getDefaultScale();
+  const converted = await convertRows(rows, scale);
+  const withGrades = converted.filter((r) => r.computed_grade != null);
   const average = withGrades.length
     ? Math.round(withGrades.reduce((a, r) => a + Number(r.computed_grade), 0) / withGrades.length * 100) / 100
     : null;
-  res.json({ student, school_year, term: Number(period), quarter: Number(period), subjects: rows, general_average: average });
+  const gpa = gpaFrom(withGrades);
+  res.json({
+    student, school_year, term: Number(period), quarter: Number(period),
+    subjects: converted, general_average: average, gpa,
+    scale: scaleMeta(scale),
+  });
 }));
 
 router.get('/years/:studentId', requireRole(...WRITE, 'registrar', 'student', 'parent'), asyncH(async (req, res) => {

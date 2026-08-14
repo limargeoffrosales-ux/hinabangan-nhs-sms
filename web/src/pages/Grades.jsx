@@ -14,6 +14,7 @@ export default function Grades() {
   const [term, setTerm] = useState(1);
   const [rows, setRows] = useState(null);
   const [weights, setWeights] = useState(null);
+  const [scale, setScale] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -39,6 +40,7 @@ export default function Grades() {
       const res = await api(`/grades/class?section_id=${sectionId}&subject_id=${subjectId}&school_year=${encodeURIComponent(schoolYear)}&term=${term}`);
       setRows(res.data);
       setWeights(res.weights);
+      setScale(res.scale);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -126,6 +128,7 @@ export default function Grades() {
             <strong>{section?.name} · {subject?.title}</strong>
             <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>
               Weights: Written Work {weights.written_work}% · Performance Tasks {weights.performance_task}% · Term {weights.quarterly_exam}%
+              {scale && <> · Scale: <strong>{scale.name}</strong></>}
             </span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" onClick={save} disabled={saving}><Save size={14} /> {saving ? 'Saving…' : 'Save grades'}</button>
@@ -157,7 +160,9 @@ export default function Grades() {
                     <input className="grade-input" type="number" min="0" max="100" value={r.quarterly_exam ?? ''} onChange={(e) => update(r.id, 'quarterly_exam', e.target.value)} />
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    {r.computed_grade != null ? <strong>{r.computed_grade}</strong> : '—'}
+                    {r.computed_grade != null
+                      ? <><strong>{r.computed_grade}</strong>{r.letter && <span style={{ color: 'var(--text-dim)', fontSize: 12, marginLeft: 4 }}>{r.letter}</span>}</>
+                      : '—'}
                   </td>
                   <td>{r.remarks ? <Badge status={r.remarks} /> : '—'}</td>
                   <td>
@@ -181,7 +186,7 @@ export default function Grades() {
         >
           <table>
             <thead>
-              <tr><th>Subject</th><th style={{ textAlign: 'center' }}>WW</th><th style={{ textAlign: 'center' }}>PT</th><th style={{ textAlign: 'center' }}>QA</th><th style={{ textAlign: 'center' }}>Grade</th><th>Remarks</th></tr>
+              <tr><th>Subject</th><th style={{ textAlign: 'center' }}>WW</th><th style={{ textAlign: 'center' }}>PT</th><th style={{ textAlign: 'center' }}>QA</th><th style={{ textAlign: 'center' }}>Grade</th><th style={{ textAlign: 'center' }}>Letter</th><th>Remarks</th></tr>
             </thead>
             <tbody>
               {report.subjects.map((s, i) => (
@@ -191,16 +196,17 @@ export default function Grades() {
                   <td style={{ textAlign: 'center' }}>{s.performance_task ?? '—'}</td>
                   <td style={{ textAlign: 'center' }}>{s.quarterly_exam ?? '—'}</td>
                   <td style={{ textAlign: 'center' }}>{s.computed_grade ?? '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{s.letter || '—'}</td>
                   <td>{s.remarks ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {report.general_average != null && (
-            <div style={{ marginTop: 14, fontSize: 15 }}>
-              General Average: <strong>{report.general_average}</strong>
-            </div>
-          )}
+          <div style={{ marginTop: 14, fontSize: 15, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            {report.general_average != null && <span>General Average: <strong>{report.general_average}</strong></span>}
+            {report.gpa != null && <span>GPA: <strong>{report.gpa}</strong></span>}
+            {report.scale && <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>Scale: {report.scale.name}</span>}
+          </div>
         </Modal>
       )}
     </>

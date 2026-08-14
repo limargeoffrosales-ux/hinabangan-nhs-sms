@@ -17,7 +17,7 @@ const ENTITIES = [
   { name: 'sections', label: 'Sections' },
   { name: 'gradebook', label: 'Gradebook (requires section_id, subject_id, school_year, term)' },
   { name: 'attendance', label: 'Attendance summary (requires section_id, school_year)' },
-  { name: 'transcript', label: 'Transcript of records (requires student_id, school_year)' },
+  { name: 'transcript', label: 'Transcript of records (requires student_id, school_year; add mode=international&scale_id= for the international format)' },
 ];
 
 // List of OneRoster files + supported export entities.
