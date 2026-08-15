@@ -142,16 +142,19 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
     index: false,
     setHeaders(res, filePath) {
       if (path.basename(filePath) === 'index.html') {
-        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Cache-Control', 'no-store');
       }
     },
   }));
 
+  // SPA fallback for deep links, but never mask missing static assets with HTML
+  // (stale clients fetching an old asset hash must get a clean 404, not the SPA).
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
+    if (req.path.startsWith('/assets/')) return res.status(404).json({ error: 'Asset not found. Refresh the page (Ctrl+F5) to load the latest version.' });
     const index = path.join(WEB_DIR, 'index.html');
     if (!fs.existsSync(index)) return next();
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-store');
     res.sendFile(index);
   });
 
