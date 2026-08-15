@@ -109,6 +109,15 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
     res.json({ ok: true, service: 'meridianed', dialect: db.dialect, time: new Date().toISOString() });
   });
 
+  // A person pasting an API URL into a browser should land on the app, not raw JSON.
+  // API clients (app, curl, Postman) send Accept: */* or application/json, so they are unaffected.
+  app.use('/api/', (req, res, next) => {
+    if (req.method === 'GET' && (req.headers.accept || '').includes('text/html')) {
+      return res.redirect(302, '/');
+    }
+    next();
+  });
+
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/users', usersRoutes);
   app.use('/api/v1/students', studentsRoutes);
