@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
+const { notifyEvent } = require('../notify');
 
 const router = express.Router();
 router.use(authenticate);
@@ -20,6 +21,10 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
     const id = await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
       [b.title, b.body, b.audience || 'all', b.priority || 'normal', req.user.id]);
     await audit(req, 'CREATE_ANNOUNCEMENT', 'announcements', id, { title: b.title });
+    notifyEvent('announcement_posted', {
+      audience: b.audience || 'all',
+      data: { title: b.title, body: b.body, priority: b.priority || 'normal' },
+    }).catch(() => {});
     res.status(201).json({ id });
   }));
 

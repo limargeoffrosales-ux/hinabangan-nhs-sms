@@ -5,6 +5,7 @@ const { asyncH, audit } = require('../utils');
 const { GRADE_WEIGHTS } = require('../config');
 const { getDefaultScale, getScale, getScaleForSubject, convertGrade, gpaFrom } = require('../grading/scales');
 const { teacherScope, ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
+const { notifyEvent } = require('../notify');
 
 const router = express.Router();
 router.use(authenticate);
@@ -124,6 +125,15 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
     n++;
   }
   await audit(req, 'GRADES_SAVE', 'grades', null, { section_id: b.section_id, subject_id: b.subject_id, term: period, rows: n, scale: scale.code });
+  notifyEvent('grade_posted', {
+    section_id: b.section_id,
+    school_year: b.school_year,
+    data: {
+      term: period, school_year: b.school_year,
+      subject: (await q('SELECT title FROM subjects WHERE id = ?', [b.subject_id]))?.title || String(b.subject_id),
+      section: (await q('SELECT name FROM sections WHERE id = ?', [b.section_id]))?.name || '',
+    },
+  }).catch(() => {});
   res.json({ ok: true, saved: n, scale: scaleMeta(scale) });
 }));
 

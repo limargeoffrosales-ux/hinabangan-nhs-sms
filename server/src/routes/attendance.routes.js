@@ -3,12 +3,26 @@ const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
+const { notifyEvent } = require('../notify');
 
 const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher', 'security'];
 
 function round2(n) { return Math.round(n * 100) / 100; }
+
+function fireAttendanceAlerts(records, date) {
+  const seen = new Set();
+  for (const r of records) {
+    if (!['absent', 'excused'].includes(r.status)) continue;
+    if (!r.student_id || seen.has(Number(r.student_id))) continue;
+    seen.add(Number(r.student_id));
+    notifyEvent('attendance_alert', {
+      student_id: Number(r.student_id),
+      data: { status: r.status, date, remarks: r.remarks || '' },
+    }).catch(() => {});
+  }
+}
 
 function summarizeAttendance(rows) {
   const counts = { present: 0, absent: 0, late: 0, excused: 0 };
@@ -52,6 +66,7 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
     n++;
   }
   await audit(req, 'ATTENDANCE_BULK', 'attendance', b.section_id, { date: b.date, records: n });
+  fireAttendanceAlerts(b.records, b.date);
   res.json({ ok: true, recorded: n });
 }));
 
@@ -70,6 +85,7 @@ router.post('/:studentId/check', requireRole(...WRITE), asyncH(async (req, res) 
       [req.params.studentId, b.section_id || null, date, status, b.remarks || null, req.user.id]);
   }
   await audit(req, 'ATTENDANCE_CHECK', 'attendance', req.params.studentId, { date, status });
+  fireAttendanceAlerts([{ student_id: req.params.studentId, status, remarks: b.remarks }], date);
   res.json({ ok: true, date, status });
 }));
 
