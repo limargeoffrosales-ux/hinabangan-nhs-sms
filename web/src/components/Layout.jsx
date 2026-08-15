@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
-  KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale, Trophy,
+  KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale, Trophy, NotebookPen,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -43,6 +43,7 @@ const NAV = [
   { to: '/aral', label: 'ARAL Program', icon: GraduationCap },
   { to: '/discipline', label: 'Student Conduct', icon: ShieldAlert },
   { to: '/grades', label: 'Class Records', icon: BarChart3 },
+  { to: '/assignments', label: 'Assignments', icon: NotebookPen },
   { to: '/grading-scales', label: 'Grading Scales', icon: Scale },
   { to: '/rankings', label: 'Rankings', icon: Trophy },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck },

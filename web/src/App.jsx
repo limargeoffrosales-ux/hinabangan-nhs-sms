@@ -19,9 +19,11 @@ const Portal = lazy(() => import('./pages/Portal'));
 const PortalGrades = lazy(() => import('./pages/PortalGrades'));
 const PortalAttendance = lazy(() => import('./pages/PortalAttendance'));
 const PortalSchedule = lazy(() => import('./pages/PortalSchedule'));
+const PortalAssignments = lazy(() => import('./pages/PortalAssignments'));
 const PortalAnnouncements = lazy(() => import('./pages/PortalAnnouncements'));
 const Attendance = lazy(() => import('./pages/Attendance'));
 const Announcements = lazy(() => import('./pages/Announcements'));
+const Assignments = lazy(() => import('./pages/Assignments'));
 const Users = lazy(() => import('./pages/Users'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
 const Programs = lazy(() => import('./pages/Programs'));
@@ -84,8 +86,10 @@ export default function App() {
       <Route path="/portal/grades" element={<PortalProtected><Page><PortalGrades /></Page></PortalProtected>} />
       <Route path="/portal/attendance" element={<PortalProtected><Page><PortalAttendance /></Page></PortalProtected>} />
       <Route path="/portal/schedule" element={<PortalProtected><Page><PortalSchedule /></Page></PortalProtected>} />
+      <Route path="/portal/assignments" element={<PortalProtected><Page><PortalAssignments /></Page></PortalProtected>} />
       <Route path="/portal/announcements" element={<PortalProtected><Page><PortalAnnouncements /></Page></PortalProtected>} />
       <Route path="/attendance" element={<Protected><Page><Attendance /></Page></Protected>} />
+      <Route path="/assignments" element={<Protected><Page><Assignments /></Page></Protected>} />
       <Route path="/announcements" element={<Protected><AdminOnly><Page><Announcements /></Page></AdminOnly></Protected>} />
       <Route path="/users" element={<Protected><AdminOnly><Page><Users /></Page></AdminOnly></Protected>} />
       <Route path="/audit" element={<Protected><AdminOnly><Page><AuditLogs /></Page></AdminOnly></Protected>} />

@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound } from 'lucide-react';
+import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound, NotebookPen } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Modal, initials } from './ui';
 import { api } from '../lib/api';
@@ -10,6 +10,7 @@ const PORTAL_NAV = [
   { to: '/portal/grades', label: 'Grades', icon: GraduationCap },
   { to: '/portal/attendance', label: 'Attendance', icon: CalendarCheck },
   { to: '/portal/schedule', label: 'Schedule', icon: CalendarRange },
+  { to: '/portal/assignments', label: 'Assignments', icon: NotebookPen },
   { to: '/portal/announcements', label: 'Announcements', icon: Megaphone },
 ];
 
