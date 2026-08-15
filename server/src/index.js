@@ -32,10 +32,14 @@ const dataExchangeRoutes = require('./routes/data-exchange.routes');
 const gradingRoutes = require('./routes/grading.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const portalRoutes = require('./routes/portal.routes');
+const notificationsRoutes = require('./routes/notifications.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
 
 (async () => {
   await db.init();
+  const { ensureDefaults, startNotifySweep } = require('./notify');
+  await ensureDefaults();
+  startNotifySweep();
   const { startCleanup } = require('./cleanup');
   startCleanup();
   if (process.env.SEED_ON_BOOT === '1') {
@@ -146,6 +150,7 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   app.use('/api/v1/jdvp', jdvp);
   app.use('/api/v1/conduct', conductRoutes);
   app.use('/api/v1/exchange', dataExchangeRoutes);
+  app.use('/api/v1/notifications', notificationsRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',

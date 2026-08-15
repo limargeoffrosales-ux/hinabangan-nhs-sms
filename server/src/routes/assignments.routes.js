@@ -3,6 +3,7 @@ const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { teacherForUser, ensurePortalSeesStudent } = require('../scope');
+const { notifyEvent } = require('../notify');
 
 const router = express.Router();
 router.use(authenticate);
@@ -32,8 +33,10 @@ async function loadClassAssignment(id) {
 // Teacher may manage an assignment only when they are the class teacher; admins may manage any.
 async function canManageAssignment(user, assignmentId) {
   const a = await q(
-    `SELECT a.*, ca.teacher_id AS class_teacher_id, ca.section_id, ca.subject_id
+    `SELECT a.*, ca.teacher_id AS class_teacher_id, ca.section_id, ca.subject_id,
+            sub.title AS subject_title, sub.code AS subject_code
      FROM assignments a JOIN class_assignments ca ON ca.id = a.class_assignment_id
+     LEFT JOIN subjects sub ON sub.id = ca.subject_id
      WHERE a.id = ?`, [assignmentId]);
   if (!a) return { ok: false, status: 404, reason: 'Assignment not found' };
   if (ADMIN(user)) return { ok: true, a };
@@ -129,6 +132,15 @@ router.post('/', requireRole(...STAFF), asyncH(async (req, res) => {
     [ca.id, ca.teacher_id, ca.school_year, title, b.description || null, kind, round2(totalPoints),
       b.due_date || null, b.allow_late === false ? 0 : 1, rubric]);
   await audit(req, 'ASSIGNMENT_CREATE', 'assignment', id, { title, kind, class_assignment_id: ca.id });
+  notifyEvent('assignment_created', {
+    section_id: ca.section_id,
+    school_year: ca.school_year,
+    data: {
+      title, kind, points: round2(totalPoints),
+      due_date: b.due_date ? new Date(b.due_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) : 'No due date',
+      subject: ca.subject_title || ca.subject_code, section: ca.section_name,
+    },
+  }).catch(() => {});
   res.json({ ok: true, id });
 }));
 
@@ -285,6 +297,15 @@ router.put('/:id/submissions/:studentId', requireRole(...STAFF), asyncH(async (r
             WHERE id = ?`,
     [score, b.feedback || null, rubricScores, req.user.id, sub.id]);
   await audit(req, 'ASSIGNMENT_GRADE', 'assignment', a.id, { student_id: studentId, score });
+  notifyEvent('assignment_graded', {
+    student_id: studentId,
+    data: {
+      title: a.title,
+      subject: a.subject_title || a.subject_code,
+      score: score != null ? score : '—',
+      total: a.total_points,
+    },
+  }).catch(() => {});
   res.json({ ok: true });
 }));
 

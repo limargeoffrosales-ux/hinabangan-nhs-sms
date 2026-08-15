@@ -38,6 +38,7 @@ const Assessment = lazy(() => import('./pages/Assessment'));
 const DepedForms = lazy(() => import('./pages/DepedForms'));
 const Immersion = lazy(() => import('./pages/Immersion'));
 const Discipline = lazy(() => import('./pages/Discipline'));
+const Notifications = lazy(() => import('./pages/Notifications'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -101,6 +102,7 @@ export default function App() {
       <Route path="/forms" element={<Protected><Page><DepedForms /></Page></Protected>} />
       <Route path="/immersion" element={<Protected><Page><Immersion /></Page></Protected>} />
       <Route path="/discipline" element={<Protected><Page><Discipline /></Page></Protected>} />
+      <Route path="/notifications" element={<Protected><AdminOnly><Page><Notifications /></Page></AdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
