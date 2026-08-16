@@ -7,16 +7,27 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - name: Query Render deployments
+      - name: Query Render
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           if [ -z "$RENDER_API_KEY" ]; then echo "NO RENDER_API_KEY SECRET"; exit 0; fi
-          echo "=== services ==="
           curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services?limit=100" > /tmp/svc.json
-          python3 -c "import json; d=json.load(open('/tmp/svc.json')); print([(s['service']['name'], s['service']['id']) for s in d])"
           SID=$(python3 -c "import json; d=json.load(open('/tmp/svc.json')); print([s['service']['id'] for s in d if s['service']['name']=='hinabangan-nhs'][0])")
           echo "SERVICE_ID=$SID"
+          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID/deploys?limit=10" > /tmp/dep.json
           echo "=== deploys ==="
-          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID/deploys?limit=6" > /tmp/dep.json
-          python3 -c "import json; d=json.load(open('/tmp/dep.json')); [print(x['deploy']['id'][:12],'|',x['deploy']['status'],'|',x['deploy'].get('commit') or '','|',x['deploy'].get('createdAt','')) for x in d]"
+          python3 -c "import json; d=json.load(open('/tmp/dep.json')); [print(x['deploy']['id'][:12],'|',x['deploy']['status'],'|',x['deploy'].get('commit',{}).get('message','')[:50],'|',x['deploy'].get('startedAt',''),'|',x['deploy'].get('finishedAt','')) for x in d]"
+          DID=$(python3 -c "import json; d=json.load(open('/tmp/dep.json')); print([x['deploy']['id'] for x in d if x['deploy']['status']=='update_failed'][0])")
+          echo "=== failed deploy detail: $DID ==="
+          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID/deploys/$DID" | python3 -m json.tool
+          echo "=== deploy logs ==="
+          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID/logs?limit=400" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    for line in d:
+        print(line.get('timestamp',''), line.get('message', line if isinstance(line,str) else ''))
+except Exception as e:
+    print('log parse error:', e)
+" | tail -n 120
