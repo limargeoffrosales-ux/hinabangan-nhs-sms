@@ -11,18 +11,15 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
-          set -e
           H="Authorization: Bearer $RENDER_API_KEY"
           curl -fsS -H "$H" "https://api.render.com/v1/services?limit=100" > /tmp/svc.json
           SID=$(jq -r '.[].service | select(.name=="hinabangan-nhs") | .id' /tmp/svc.json)
           echo "SERVICE_ID=$SID"
-          echo "=== instances ==="
-          curl -fsS -H "$H" "https://api.render.com/v1/services/$SID/instances" | jq -r '.[] | "\(.id) \(.state)"'
-          INST=$(curl -fsS -H "$H" "https://api.render.com/v1/services/$SID/instances" | jq -r '.[0].id')
-          echo "INSTANCE=$INST"
-          echo "=== build logs (resource=serviceId) ==="
-          curl -s -w "\nHTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?resource=$SID&limit=100&type=build" | head -c 2500
+          echo "=== logs resource=$SID ==="
+          curl -s -w "\nHTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?resource=$SID&limit=100&type=build" | head -c 4000
           echo ""
-          echo "=== build logs (resource=instance) ==="
-          curl -s -o /tmp/bl.json -w "HTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?resource=$INST&limit=100&type=build"
-          jq -r '.logs[]? | "\(.timestamp) | \(.message)"' /tmp/bl.json | tail -n 80
+          echo "=== logs with ownerId + resource ==="
+          OID=$(jq -r '.[].service | select(.name=="hinabangan-nhs") | .ownerId' /tmp/svc.json)
+          curl -s -o /tmp/bl.json -w "HTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?ownerId=$OID&resource=$SID&limit=100&type=build"
+          head -c 800 /tmp/bl.json
+          echo ""
