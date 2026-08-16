@@ -23,11 +23,11 @@ jobs:
           curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID/deploys/$DID" | python3 -m json.tool
           echo "=== deploy logs ==="
           curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID/logs?limit=400" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    for line in d:
-        print(line.get('timestamp',''), line.get('message', line if isinstance(line,str) else ''))
-except Exception as e:
-    print('log parse error:', e)
-" | tail -n 120
+          import sys, json
+          try:
+              d = json.load(sys.stdin)
+              for line in d:
+                  print(line.get('timestamp',''), line.get('message', line if isinstance(line,str) else ''))
+          except Exception as e:
+              print('log parse error:', e)
+          " | tail -n 120
