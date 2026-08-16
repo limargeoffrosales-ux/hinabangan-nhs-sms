@@ -7,21 +7,16 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - name: Query Render build logs
+      - name: Probe Render logs API
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           if [ -z "$RENDER_API_KEY" ]; then echo "NO RENDER_API_KEY SECRET"; exit 0; fi
-          echo "=== latest build logs ==="
-          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/logs?limit=100&type=build" > /tmp/logs.json
-          python3 -c "
-          import json
-          d = json.load(open('/tmp/logs.json'))
-          items = d.get('logs', d if isinstance(d, list) else [])
-          for line in items:
-              if isinstance(line, dict):
-                  print(str(line.get('timestamp',''))[:19], '|', str(line.get('message', line)))
-              else:
-                  print(line)
-          " | tail -n 100
+          for Q in "limit=50" "limit=50&type=build" "type=build" "limit=1"; do
+            echo "=== /v1/logs?$Q ==="
+            curl -s -o /tmp/out.json -w "HTTP %{http_code}\n" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/logs?$Q"
+            head -c 800 /tmp/out.json
+            echo ""
+          done
