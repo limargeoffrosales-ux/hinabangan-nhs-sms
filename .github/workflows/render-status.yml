@@ -25,7 +25,7 @@ jobs:
           "
           echo "=== build logs ==="
           curl -s -o /tmp/logs.json -w "HTTP %{http_code}\n" -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/logs?serviceId=$SID&limit=100&type=build"
+            "https://api.render.com/v1/logs?resource=$SID&limit=100&type=build"
           python3 -c "
           import json
           try:
