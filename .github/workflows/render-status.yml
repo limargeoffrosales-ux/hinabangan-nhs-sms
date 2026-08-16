@@ -7,36 +7,22 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect Render service config + logs
+      - name: Fetch Render build logs
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
-          if [ -z "$RENDER_API_KEY" ]; then echo "NO RENDER_API_KEY SECRET"; exit 0; fi
-          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services?limit=100" > /tmp/svc.json
-          SID=$(python3 -c "import json; d=json.load(open('/tmp/svc.json')); print([x['service']['id'] for x in d if x['service']['name']=='hinabangan-nhs'][0])")
+          set -e
+          H="Authorization: Bearer $RENDER_API_KEY"
+          curl -fsS -H "$H" "https://api.render.com/v1/services?limit=100" > /tmp/svc.json
+          SID=$(jq -r '.[].service | select(.name=="hinabangan-nhs") | .id' /tmp/svc.json)
           echo "SERVICE_ID=$SID"
-          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID" > /tmp/sd.json
-          python3 -c "
-          import json
-          s = json.load(open('/tmp/sd.json'))
-          print('envSpecificDetails:', json.dumps(s['serviceDetails'].get('envSpecificDetails'))[:800])
-          print('buildPlan:', json.dumps(s['serviceDetails'].get('buildPlan'))[:200])
-          print('cache:', json.dumps(s['serviceDetails'].get('cache'))[:200])
-          "
-          echo "=== build logs ==="
-          curl -s -o /tmp/logs.json -w "HTTP %{http_code}\n" -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/logs?resource=$SID&limit=100&type=build"
-          python3 -c "
-          import json
-          try:
-              d = json.load(open('/tmp/logs.json'))
-              items = d.get('logs', d if isinstance(d, list) else [])
-              for line in items:
-                  if isinstance(line, dict):
-                      print(str(line.get('timestamp',''))[:19], '|', str(line.get('message', line))[:400])
-                  else:
-                      print(str(line)[:400])
-          except Exception as e:
-              print('parse error:', e)
-              print(open('/tmp/logs.json').read()[:800])
-          " | tail -n 100
+          echo "=== instances ==="
+          curl -fsS -H "$H" "https://api.render.com/v1/services/$SID/instances" | jq -r '.[] | "\(.id) \(.state)"'
+          INST=$(curl -fsS -H "$H" "https://api.render.com/v1/services/$SID/instances" | jq -r '.[0].id')
+          echo "INSTANCE=$INST"
+          echo "=== build logs (resource=serviceId) ==="
+          curl -s -w "\nHTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?resource=$SID&limit=100&type=build" | head -c 2500
+          echo ""
+          echo "=== build logs (resource=instance) ==="
+          curl -s -o /tmp/bl.json -w "HTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?resource=$INST&limit=100&type=build"
+          jq -r '.logs[]? | "\(.timestamp) | \(.message)"' /tmp/bl.json | tail -n 80
