@@ -12,16 +12,11 @@ jobs:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           if [ -z "$RENDER_API_KEY" ]; then echo "NO RENDER_API_KEY SECRET"; exit 0; fi
-          SID=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/services?limit=100&name=hinabangan-nhs" \
-            | python3 -c "import sys,json; d=json.load(sys.stdin); print([s['service']['id'] for s in d if s['service']['name']=='hinabangan-nhs'][0])")
+          echo "=== services ==="
+          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services?limit=100" > /tmp/svc.json
+          python3 -c "import json; d=json.load(open('/tmp/svc.json')); print([(s['service']['name'], s['service']['id']) for s in d])"
+          SID=$(python3 -c "import json; d=json.load(open('/tmp/svc.json')); print([s['service']['id'] for s in d if s['service']['name']=='hinabangan-nhs'][0])")
           echo "SERVICE_ID=$SID"
-          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/services/$SID/deploys?limit=6" \
-            | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-for x in d:
-    dep = x['deploy']
-    print(dep['id'][:12], '|', dep['status'], '|', dep.get('commit', {}).get('message','')[:60] if isinstance(dep.get('commit'), dict) else '', '|', dep.get('createdAt',''))
-"
+          echo "=== deploys ==="
+          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID/deploys?limit=6" > /tmp/dep.json
+          python3 -c "import json; d=json.load(open('/tmp/dep.json')); [print(x['deploy']['id'][:12],'|',x['deploy']['status'],'|',x['deploy'].get('commit') or '','|',x['deploy'].get('createdAt','')) for x in d]"
