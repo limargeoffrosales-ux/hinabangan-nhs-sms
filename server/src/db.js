@@ -18,7 +18,7 @@ async function init() {
     driver = {
       params,
       run: (sql, p) => pool.query(params(sql), p || []).then((r) => ({ changes: r.rowCount })),
-      runId: async (sql, p) => (await pool.query(params(sql + ' RETURNING id'), p || [])).rows[0].id,
+      runId: async (sql, p) => (await pool.query(params(sql + ' RETURNING *'), p || [])).rows[0]?.id,
       get: async (sql, p) => (await pool.query(params(sql), p || [])).rows[0] || null,
       all: async (sql, p) => (await pool.query(params(sql), p || [])).rows,
       exec: (sql) => pool.query(sql),
