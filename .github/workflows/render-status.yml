@@ -7,19 +7,15 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Render build logs
+      - name: Fetch Render logs
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           H="Authorization: Bearer $RENDER_API_KEY"
           curl -fsS -H "$H" "https://api.render.com/v1/services?limit=100" > /tmp/svc.json
           SID=$(jq -r '.[].service | select(.name=="hinabangan-nhs") | .id' /tmp/svc.json)
-          echo "SERVICE_ID=$SID"
-          echo "=== logs resource=$SID ==="
-          curl -s -w "\nHTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?resource=$SID&limit=100&type=build" | head -c 4000
-          echo ""
-          echo "=== logs with ownerId + resource ==="
           OID=$(jq -r '.[].service | select(.name=="hinabangan-nhs") | .ownerId' /tmp/svc.json)
-          curl -s -o /tmp/bl.json -w "HTTP %{http_code}\n" -H "$H" "https://api.render.com/v1/logs?ownerId=$OID&resource=$SID&limit=100&type=build"
-          head -c 800 /tmp/bl.json
-          echo ""
+          echo "SERVICE_ID=$SID OWNER=$OID"
+          curl -s -o /tmp/all.json -w "HTTP %{http_code}\n" -H "$H" \
+            "https://api.render.com/v1/logs?ownerId=$OID&resource=$SID&limit=100"
+          jq -r '.logs[]? | "\(.timestamp) [\(.labels[]? | select(.name=="type") | .value)] | \(.message)"' /tmp/all.json | tail -n 110
