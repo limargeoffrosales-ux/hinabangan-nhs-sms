@@ -7,16 +7,31 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Render logs API
+      - name: Fetch Render build logs
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           if [ -z "$RENDER_API_KEY" ]; then echo "NO RENDER_API_KEY SECRET"; exit 0; fi
-          for Q in "limit=50" "limit=50&type=build" "type=build" "limit=1"; do
-            echo "=== /v1/logs?$Q ==="
-            curl -s -o /tmp/out.json -w "HTTP %{http_code}\n" \
-              -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/logs?$Q"
-            head -c 800 /tmp/out.json
-            echo ""
-          done
+          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services?limit=100" > /tmp/svc.json
+          python3 -c "import json; d=json.load(open('/tmp/svc.json')); s=[x['service'] for x in d if x['service']['name']=='hinabangan-nhs'][0]; print('service keys:', sorted(s.keys()))"
+          SID=$(python3 -c "import json; d=json.load(open('/tmp/svc.json')); print([x['service']['id'] for x in d if x['service']['name']=='hinabangan-nhs'][0])")
+          curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$SID" > /tmp/sd.json
+          python3 -c "import json; s=json.load(open('/tmp/sd.json')); print('ownerId=', s.get('ownerId'), 'workspaceId=', s.get('workspaceId'))"
+          OID=$(python3 -c "import json; s=json.load(open('/tmp/sd.json')); print(s.get('ownerId') or s.get('workspaceId'))")
+          echo "OWNER=$OID"
+          curl -s -o /tmp/logs.json -w "logs HTTP %{http_code}\n" -H "Authorization: Bearer $RENDER_API_KEY" \
+            "https://api.render.com/v1/logs?ownerId=$OID&limit=100&type=build"
+          python3 -c "
+          import json
+          try:
+              d = json.load(open('/tmp/logs.json'))
+              items = d.get('logs', d if isinstance(d, list) else [])
+              for line in items:
+                  if isinstance(line, dict):
+                      print(str(line.get('timestamp',''))[:19], '|', str(line.get('message', line))[:300])
+                  else:
+                      print(str(line)[:300])
+          except Exception as e:
+              print('parse error:', e)
+              print(open('/tmp/logs.json').read()[:600])
+          " | tail -n 100
