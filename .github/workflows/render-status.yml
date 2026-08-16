@@ -19,11 +19,24 @@ jobs:
           python3 -c "
           import json
           s = json.load(open('/tmp/sd.json'))
-          print('serviceDetails keys:', sorted(s['serviceDetails'].keys()))
-          for k in ('buildCommand','startCommand','healthCheckPath','envVars','preDeployCommand','runtime','plan','numInstances'):
-              if k in s['serviceDetails']:
-                  print(k, '=', json.dumps(s['serviceDetails'][k])[:400])
+          print('envSpecificDetails:', json.dumps(s['serviceDetails'].get('envSpecificDetails'))[:800])
+          print('buildPlan:', json.dumps(s['serviceDetails'].get('buildPlan'))[:200])
+          print('cache:', json.dumps(s['serviceDetails'].get('cache'))[:200])
           "
-          echo "=== logs 400 body ==="
-          curl -s -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/logs?ownerId=tea-d9tr6fnqj5pc738acfp0&limit=10&type=build" | head -c 1200
+          echo "=== build logs ==="
+          curl -s -o /tmp/logs.json -w "HTTP %{http_code}\n" -H "Authorization: Bearer $RENDER_API_KEY" \
+            "https://api.render.com/v1/logs?serviceId=$SID&limit=100&type=build"
+          python3 -c "
+          import json
+          try:
+              d = json.load(open('/tmp/logs.json'))
+              items = d.get('logs', d if isinstance(d, list) else [])
+              for line in items:
+                  if isinstance(line, dict):
+                      print(str(line.get('timestamp',''))[:19], '|', str(line.get('message', line))[:400])
+                  else:
+                      print(str(line)[:400])
+          except Exception as e:
+              print('parse error:', e)
+              print(open('/tmp/logs.json').read()[:800])
+          " | tail -n 100
