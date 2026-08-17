@@ -314,8 +314,8 @@ export default function AiDocs() {
                           <div className="tpl-fields">{detectFields(f.body).slice(0, 6).join(', ') || 'no fields'}</div>
                         </button>
                         {canWrite && (
-                          <button className="icon-btn" title="Delete" onClick={() => deleteFormat(f.id)} style={{ marginLeft: 8 }}>
-                            <Trash2 size={14} />
+                          <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => deleteFormat(f.id)} style={{ marginLeft: 8 }}>
+                            <Trash2 size={14} aria-hidden="true" />
                           </button>
                         )}
                       </div>
@@ -343,8 +343,8 @@ export default function AiDocs() {
                           <div className="tpl-name"><FolderOpen size={13} style={{ verticalAlign: -2, marginRight: 4 }} />{d.name}</div>
                           <div className="tpl-fields">{d.kind === 'format' ? 'custom format' : 'template'} · saved {new Date(d.created_at).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
                         </button>
-                        <button className="icon-btn" title="Delete" onClick={() => deleteDoc(d.id)} style={{ marginLeft: 8 }}>
-                          <Trash2 size={14} />
+                        <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => deleteDoc(d.id)} style={{ marginLeft: 8 }}>
+                          <Trash2 size={14} aria-hidden="true" />
                         </button>
                       </div>
                     ))

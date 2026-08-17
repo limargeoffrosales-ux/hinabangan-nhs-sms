@@ -123,9 +123,9 @@ export default function Users() {
                   <td style={{ fontSize: 13 }}>{u.created_at?.slice(0, 10)}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn-sm" onClick={() => setResetPw(u)} title="Reset password"><KeyRound size={13} /></button>{' '}
-                    <button className="btn btn-sm" onClick={() => openEdit(u)}><Pencil size={13} /></button>{' '}
+                    <button className="btn btn-sm" onClick={() => openEdit(u)} aria-label="Edit user"><Pencil size={13} aria-hidden="true" /></button>{' '}
                     {user.id !== u.id && (
-                      <button className="btn btn-sm btn-danger" onClick={() => remove(u)}><Trash2 size={13} /></button>
+                       <button className="btn btn-sm btn-danger" onClick={() => remove(u)} aria-label="Delete user"><Trash2 size={13} aria-hidden="true" /></button>
                     )}
                   </td>
                 </tr>

@@ -216,8 +216,8 @@ export default function Students() {
                   {canWrite && (
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <button className="btn btn-sm" title={t('students.portalAccounts')} onClick={() => openAccounts(s)}><Link2 size={13} /></button>{' '}
-                      <button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button>
+                       <button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit student"><Pencil size={13} aria-hidden="true" /></button>{' '}
+                       <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete student"><Trash2 size={13} aria-hidden="true" /></button>
                     </td>
                   )}
                 </tr>

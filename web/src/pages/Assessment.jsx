@@ -184,7 +184,7 @@ export default function Assessment() {
                     <td>{q.answer}</td>
                     <td>{'●'.repeat(q.difficulty)}</td>
                     <td>{q.used_count}</td>
-                    <td><button className="btn btn-sm btn-danger" onClick={() => delQuestion(q.id)}><Trash2 size={12} /></button></td>
+                    <td><button className="btn btn-sm btn-danger" onClick={() => delQuestion(q.id)} aria-label="Delete question"><Trash2 size={12} aria-hidden="true" /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -234,7 +234,7 @@ export default function Assessment() {
                     <div className="sub">{r.task} · {r.subject_title || 'General'}</div>
                     <div className="mini-stats"><Star size={11} /> {(r.criteria || []).map((c) => `${c.name} (${c.weight})`).join(' · ')}</div>
                   </div>
-                  <button className="btn btn-sm btn-danger" onClick={() => delRubric(r.id)}><Trash2 size={12} /></button>
+                  <button className="btn btn-sm btn-danger" onClick={() => delRubric(r.id)} aria-label="Delete rubric"><Trash2 size={12} aria-hidden="true" /></button>
                 </div>
               ))}
             </div>
@@ -274,7 +274,7 @@ export default function Assessment() {
                 </div>
                 <div className="card-actions" style={{ gap: 6 }}>
                   <button className="btn btn-sm" onClick={() => exportTos(t)}>Export</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => delTos(t.id)}><Trash2 size={12} /></button>
+                  <button className="btn btn-sm btn-danger" onClick={() => delTos(t.id)} aria-label="Delete ToS"><Trash2 size={12} aria-hidden="true" /></button>
                 </div>
               </div>
             ))}

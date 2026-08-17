@@ -261,9 +261,9 @@ export default function Discipline() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button className="icon-btn" title="Open case" onClick={() => openDetail(r)}><Eye size={15} /></button>
+                      <button className="icon-btn" title="Open case" aria-label="Open case" onClick={() => openDetail(r)}><Eye size={15} aria-hidden="true" /></button>
                       {canDelete && (
-                        <button className="icon-btn" title="Delete" onClick={() => removeRecord(r)}><Trash2 size={15} /></button>
+                        <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => removeRecord(r)}><Trash2 size={15} aria-hidden="true" /></button>
                       )}
                     </div>
                   </td>

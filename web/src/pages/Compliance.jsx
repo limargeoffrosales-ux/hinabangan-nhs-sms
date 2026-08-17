@@ -73,12 +73,12 @@ export default function Compliance() {
   }
 
   const kpis = [
-    { label: 'Overall compliance', value: data.overall + '%', icon: Gauge, color: '#4D96FF' },
-    { label: 'Approved', value: data.kpis.approved, icon: CheckCircle2, color: '#34C77B' },
-    { label: 'Pending review', value: data.kpis.submitted + data.kpis.reviewed, icon: Clock4, color: '#F5B942' },
-    { label: 'Returned for revision', value: data.kpis.returned, icon: Undo, color: '#F5B942' },
-    { label: 'Overdue', value: data.kpis.overdue, icon: Clock4, color: '#F2555A' },
-    { label: 'Incomplete tasks', value: data.kpis.missing, icon: FileWarning, color: '#F2555A' },
+    { label: 'Overall compliance', value: data.overall + '%', icon: Gauge, color: 'var(--accent)' },
+    { label: 'Approved', value: data.kpis.approved, icon: CheckCircle2, color: 'var(--success)' },
+    { label: 'Pending review', value: data.kpis.submitted + data.kpis.reviewed, icon: Clock4, color: 'var(--warn)' },
+    { label: 'Returned for revision', value: data.kpis.returned, icon: Undo, color: 'var(--warn)' },
+    { label: 'Overdue', value: data.kpis.overdue, icon: Clock4, color: 'var(--danger)' },
+    { label: 'Incomplete tasks', value: data.kpis.missing, icon: FileWarning, color: 'var(--danger)' },
   ];
 
   return (

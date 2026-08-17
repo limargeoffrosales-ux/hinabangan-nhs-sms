@@ -107,8 +107,8 @@ export default function Sections() {
                   <td><Badge status={s.status} /></td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn-sm" title={t('sections.viewRoster')} onClick={() => showRoster(s)}><UsersIcon size={13} /></button>{' '}
-                    {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
-                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button></>}
+                    {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit section"><Pencil size={13} aria-hidden="true" /></button>{' '}
+                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete section"><Trash2 size={13} aria-hidden="true" /></button></>}
                   </td>
                 </tr>
               ))}

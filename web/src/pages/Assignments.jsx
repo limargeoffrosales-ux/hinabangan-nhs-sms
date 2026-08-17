@@ -257,8 +257,8 @@ export default function Assignments() {
                   <td>
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                       <button className="btn btn-sm btn-primary" onClick={() => openGrading(a)}><ClipboardCheck size={13} /> Grade</button>
-                      <button className="icon-btn" onClick={() => openEdit(a)} title="Edit"><Pencil size={14} /></button>
-                      <button className="icon-btn" onClick={() => removeAssignment(a)} title="Delete"><Trash2 size={14} /></button>
+                      <button className="icon-btn" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"><Pencil size={14} aria-hidden="true" /></button>
+                      <button className="icon-btn" onClick={() => removeAssignment(a)} title="Delete" aria-label="Delete"><Trash2 size={14} aria-hidden="true" /></button>
                     </div>
                   </td>
                 </tr>

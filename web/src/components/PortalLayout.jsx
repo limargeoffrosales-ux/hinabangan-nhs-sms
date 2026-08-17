@@ -96,18 +96,18 @@ export default function PortalLayout({ children }) {
         {pwOpen && (
           <Modal title={t('pw.change')} sub={`${t('pw.subtitle')}, ${user?.name || ''}`} onClose={() => setPwOpen(false)}>
             <form onSubmit={onChangePassword}>
-              <label>{t('pw.current')}</label>
-              <input className="input" type="password" autoComplete="current-password" value={pw.current}
+              <label htmlFor="pw-current">{t('pw.current')}</label>
+              <input id="pw-current" className="input" type="password" autoComplete="current-password" value={pw.current}
                 onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
-              <label>{t('pw.new')}</label>
-              <input className="input" type="password" autoComplete="new-password" value={pw.next}
+              <label htmlFor="pw-next">{t('pw.new')}</label>
+              <input id="pw-next" className="input" type="password" autoComplete="new-password" value={pw.next}
                 onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
-              <label>{t('pw.confirm')}</label>
-              <input className="input" type="password" autoComplete="new-password" value={pw.confirm}
+              <label htmlFor="pw-confirm">{t('pw.confirm')}</label>
+              <input id="pw-confirm" className="input" type="password" autoComplete="new-password" value={pw.confirm}
                 onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
               <div className="sub" style={{ marginTop: 8 }}>{t('pw.minimum')}</div>
-              {pwErr && <div className="err-banner">{pwErr}</div>}
-              {pwMsg && <div className="notice ok" style={{ marginTop: 10 }}>{pwMsg}</div>}
+              {pwErr && <div className="err-banner" role="alert">{pwErr}</div>}
+              {pwMsg && <div className="notice ok" role="status" aria-live="polite" style={{ marginTop: 10 }}>{pwMsg}</div>}
               <div className="modal-actions">
                 <button type="button" className="btn" onClick={() => setPwOpen(false)}>{t('pw.cancel')}</button>
                 <button className="btn btn-primary" disabled={pwBusy}>{pwBusy ? t('pw.updating') : t('pw.update')}</button>
