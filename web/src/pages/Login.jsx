@@ -1,10 +1,31 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Lock, Server } from 'lucide-react';
+import i18n from '../i18n';
+import {
+  Lock, Eye, EyeOff, ChevronDown, ChevronUp,
+  QrCode, BarChart3, Calendar, GraduationCap, ClipboardList, FileText,
+  CheckCircle2, Shield, Globe, ExternalLink, Mail, Phone, Info,
+} from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
 import { getStoredApiBase, setApiBase } from '../lib/api';
+
+const FEATURES = [
+  { icon: QrCode, key: 'featAttendance' },
+  { icon: ClipboardList, key: 'featGrades' },
+  { icon: Calendar, key: 'featScheduling' },
+  { icon: BarChart3, key: 'featAnalytics' },
+  { icon: GraduationCap, key: 'featCurriculum' },
+  { icon: FileText, key: 'featForms' },
+];
+
+const ROLE_OPTIONS = [
+  { value: 'admin', key: 'roleAdmin' },
+  { value: 'teacher', key: 'roleTeacher' },
+  { value: 'student', key: 'roleStudent' },
+  { value: 'parent', key: 'roleParent' },
+];
 
 export default function Login() {
   const { login } = useAuth();
@@ -12,8 +33,18 @@ export default function Login() {
   const { t } = useTranslation();
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [serverOpen, setServerOpen] = useState(false);
   const [serverBase, setServerBase] = useState(getStoredApiBase());
+  const [role, setRole] = useState('admin');
+  const [remember, setRemember] = useState(false);
+  const [showRequest, setShowRequest] = useState(false);
   const formRef = useRef(null);
+
+  const currentLang = i18n.language?.startsWith('fil') ? 'fil' : 'en';
+  function toggleLang() {
+    i18n.changeLanguage(currentLang === 'en' ? 'fil' : 'en');
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -39,40 +70,192 @@ export default function Login() {
   }
 
   return (
-    <div className="login-wrap">
-      <div className="login-card card">
-        <div className="brand">
-          <img className="brand-logo" src="/logo.jpg" alt="School logo" />
-          <span className="brand-text">{t('brand')}</span>
-        </div>
-        <div className="login-hero">
-          <h1>{t('schoolName')}</h1>
-          <p>{t('schoolAddress')} · {t('schoolTagline')}</p>
-        </div>
-        <ErrorBanner error={error} />
-        <form onSubmit={onSubmit} ref={formRef}>
-          <label>{t('login.username')}</label>
-          <div className="form-row">
-            <input name="username" placeholder={t('login.usernamePlaceholder')} autoFocus autoComplete="username" />
-          </div>
-          <label>{t('login.password')}</label>
-          <input type="password" name="password" placeholder="••••••••••••" autoComplete="current-password" />
-          <label>
-            <Server size={11} style={{ verticalAlign: -1 }} /> {t('login.serverAddress')} <span className="muted">{t('login.serverHint')}</span>
-          </label>
-          <input
-            value={serverBase}
-            onChange={(e) => setServerBase(e.target.value)}
-            placeholder="http://192.168.1.100:4000/api/v1"
-            autoComplete="off"
-          />
-          <div style={{ marginTop: 20 }}>
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }} disabled={busy}>
-              <Lock size={15} /> {busy ? t('login.signingIn') : t('login.title')}
-            </button>
-          </div>
-        </form>
+    <div className="login-page">
+      <div className="login-bg-orb login-bg-orb--1" />
+      <div className="login-bg-orb login-bg-orb--2" />
+      <div className="login-bg-orb login-bg-orb--3" />
+
+      <div className="login-topbar">
+        <button className="login-lang-btn" onClick={toggleLang} aria-label="Toggle language">
+          <Globe size={14} />
+          {currentLang === 'en' ? 'Filipino' : 'English'}
+        </button>
       </div>
+
+      <header className="login-branding">
+        <img className="login-branding-logo" src="/logo.jpg" alt="School logo" />
+        <h1 className="login-branding-name">{t('schoolName')}</h1>
+      </header>
+
+      <div className="login-main">
+        <div className="login-features-col">
+          {FEATURES.map(({ icon: Icon, key }) => (
+            <div className="login-feature-card" key={key}>
+              <div className="login-feature-icon"><Icon size={22} /></div>
+              <h3>{t(`login.${key}`)}</h3>
+              <p>{t(`login.${key}Desc`)}</p>
+            </div>
+          ))}
+          <div className="login-quote">
+            <p>&ldquo;The Glory of God is Man Fully Alive.&rdquo;</p>
+            <span>&mdash; Fr. Aloysius Schwartz</span>
+          </div>
+        </div>
+
+        <div className="login-form-col">
+          <div className="login-form-card card">
+            <div className="login-form-header">
+              <h2>{t('login.signInto')} <span className="login-form-brand">{t('brand')}</span></h2>
+              <ErrorBanner error={error} />
+            </div>
+            <form onSubmit={onSubmit} ref={formRef} className="login-form">
+              <label htmlFor="login-role">{t('login.roleLabel')}</label>
+              <div className="login-role-selector">
+                {ROLE_OPTIONS.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    className={`login-role-btn ${role === r.value ? 'active' : ''}`}
+                    onClick={() => setRole(r.value)}
+                  >
+                    {t(`login.${r.key}`)}
+                  </button>
+                ))}
+              </div>
+
+              <label htmlFor="login-username">{t('login.username')}</label>
+              <input
+                id="login-username"
+                name="username"
+                placeholder={t('login.usernamePlaceholder')}
+                autoFocus
+                autoComplete="username"
+              />
+
+              <label htmlFor="login-password">{t('login.password')}</label>
+              <div className="login-pw-wrap">
+                <input
+                  id="login-password"
+                  type={showPw ? 'text' : 'password'}
+                  name="password"
+                  placeholder="••••••••••••"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="login-pw-toggle"
+                  onClick={() => setShowPw(!showPw)}
+                  aria-label={showPw ? t('login.hidePw') : t('login.showPw')}
+                  tabIndex={-1}
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              <label className="login-remember">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                <span>{t('login.rememberMe')}</span>
+              </label>
+
+              <button type="submit" className="btn btn-primary login-submit" disabled={busy}>
+                {busy ? <span className="login-spinner" /> : <Lock size={15} />}
+                {busy ? t('login.signingIn') : t('login.title')}
+              </button>
+
+              <div className="login-form-links">
+                <a href="#" className="login-forgot" onClick={(e) => e.preventDefault()}>
+                  {t('login.forgotPw')}
+                </a>
+                <span className="login-form-divider">·</span>
+                <button type="button" className="login-request-btn" onClick={() => setShowRequest(!showRequest)}>
+                  {t('login.requestAccount')}
+                </button>
+              </div>
+
+              {showRequest && (
+                <div className="login-request-box">
+                  <Info size={14} />
+                  <span>{t('login.requestAccountDesc')}</span>
+                </div>
+              )}
+            </form>
+
+            <div className="login-form-security">
+              <Shield size={12} />
+              <span>{t('login.secureLogin')}</span>
+            </div>
+
+            <button
+              type="button"
+              className="login-server-toggle"
+              onClick={() => setServerOpen(!serverOpen)}
+            >
+              {t('login.serverAddress')} <span className="muted">{t('login.serverHint')}</span>
+              {serverOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {serverOpen && (
+              <div className="login-server-wrap">
+                <input
+                  value={serverBase}
+                  onChange={(e) => setServerBase(e.target.value)}
+                  placeholder="https://hinabangan-nhs.onrender.com/api/v1"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <section className="login-everything-section">
+        <div className="login-everything-header">
+          <span className="login-everything-badge">ALL ACCESS</span>
+          <h2>{t('login.everythingTitle')}</h2>
+        </div>
+        <div className="login-everything-grid">
+          {Array.from({ length: 20 }, (_, i) => (
+            <div className="login-everything-item" key={i}>
+              <CheckCircle2 size={16} className="login-everything-check" />
+              <span>{t(`login.ef${i + 1}`)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="login-footer">
+        <div className="login-footer-inner">
+          <div className="login-footer-row">
+            <div className="login-footer-contact">
+              <Phone size={12} />
+              <span>{t('login.footerContact')}</span>
+            </div>
+            <div className="login-footer-contact">
+              <Mail size={12} />
+              <span>{t('login.footerEmail')}</span>
+            </div>
+          </div>
+          <div className="login-footer-row">
+            <a href="https://www.facebook.com/ugop.hinabangan" target="_blank" rel="noopener noreferrer" className="login-footer-social-link">
+              <ExternalLink size={11} /> UGO Hinabangan
+            </a>
+            <span className="login-footer-sep">·</span>
+            <a href="https://www.facebook.com/almamater.hinabangan" target="_blank" rel="noopener noreferrer" className="login-footer-social-link">
+              <ExternalLink size={11} /> Alma Mater
+            </a>
+          </div>
+          <div className="login-footer-bottom">
+            <span>{t('login.footerAddress')}</span>
+            <span className="login-footer-sep">·</span>
+            <span>&copy; {new Date().getFullYear()} {t('login.copyright')}</span>
+            <span className="login-footer-sep">·</span>
+            <span>{t('login.footerVersion')}</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
