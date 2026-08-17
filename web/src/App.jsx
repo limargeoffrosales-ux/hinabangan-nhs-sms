@@ -46,6 +46,7 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 const MFASetup = lazy(() => import('./pages/MFASetup'));
 const SecurityIncidents = lazy(() => import('./pages/SecurityIncidents'));
 const DataImportExport = lazy(() => import('./pages/DataImportExport'));
+const Analytics = lazy(() => import('./pages/Analytics'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -116,6 +117,7 @@ export default function App() {
       <Route path="/mfa" element={<Protected><Page><MFASetup /></Page></Protected>} />
       <Route path="/security-incidents" element={<Protected><AdminOnly><Page><SecurityIncidents /></Page></AdminOnly></Protected>} />
       <Route path="/import-export" element={<Protected><AdminOnly><Page><DataImportExport /></Page></AdminOnly></Protected>} />
+      <Route path="/analytics" element={<Protected><AdminOnly><Page><Analytics /></Page></AdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
