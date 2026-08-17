@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 export default function Announcements() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,7 @@ export default function Announcements() {
   }
 
   async function remove(a) {
-    if (!confirm(`Delete announcement "${a.title}"?`)) return;
+    if (!confirm(t('announcements.deleteConfirm', { title: a.title }))) return;
     await api(`/announcements/${a.id}`, { method: 'DELETE' });
     load();
   }
@@ -69,11 +71,11 @@ export default function Announcements() {
 
   return (
     <>
-      <PageHead title="Announcements" sub="Broadcast messages to learners, parents, teachers, or the whole school">
-        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Announcement</button>}
+      <PageHead title={t('announcements.title')} sub={t('announcements.subtitle')}>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('announcements.newAnnouncement')}</button>}
       </PageHead>
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text="No announcements yet." /> : (
+      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('announcements.noData')} /> : (
         <div className="grid" style={{ gap: 14 }}>
           {rows.map((a) => (
             <div className="card" key={a.id}>
@@ -100,37 +102,37 @@ export default function Announcements() {
 
       {showModal && (
         <Modal
-          title={editing ? 'Edit Announcement' : 'New Announcement'}
-          sub="Choose the audience carefully — announcements reach everyone in the selected group"
+          title={editing ? t('announcements.editAnnouncement') : t('announcements.newAnnouncement')}
+          sub={t('announcements.audienceInfo')}
           onClose={() => setShowModal(false)}
         >
           <form onSubmit={save}>
-            <label>Title *</label>
+            <label>{t('common.title')} *</label>
             <input required value={form.title} onChange={(e) => set('title', e.target.value)} />
-            <label>Message *</label>
+            <label>{t('announcements.message')} *</label>
             <textarea required rows={5} value={form.body} onChange={(e) => set('body', e.target.value)} />
             <div className="form-row">
               <div>
-                <label>Audience</label>
+                <label>{t('announcements.audienceLabel')}</label>
                 <select value={form.audience} onChange={(e) => set('audience', e.target.value)}>
-                  <option value="all">Everyone</option>
-                  <option value="teachers">Teachers & Staff</option>
-                  <option value="students">Students</option>
-                  <option value="parents">Parents</option>
+                  <option value="all">{t('announcements.everyone')}</option>
+                  <option value="teachers">{t('announcements.teachersStaff')}</option>
+                  <option value="students">{t('announcements.students')}</option>
+                  <option value="parents">{t('announcements.parents')}</option>
                 </select>
               </div>
               <div>
-                <label>Priority</label>
+                <label>{t('announcements.priorityLabel')}</label>
                 <select value={form.priority} onChange={(e) => set('priority', e.target.value)}>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
+                  <option value="normal">{t('announcements.normal')}</option>
+                  <option value="high">{t('announcements.high')}</option>
+                  <option value="urgent">{t('announcements.urgent')}</option>
                 </select>
               </div>
             </div>
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary">Publish</button>
+              <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
+              <button className="btn btn-primary">{t('announcements.publish')}</button>
             </div>
           </form>
         </Modal>

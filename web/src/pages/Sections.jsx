@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
@@ -8,6 +9,7 @@ import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../componen
 const EMPTY_FORM = { name: '', grade_level: 'Grade 11', strand: '', adviser_teacher_id: '', room: '', capacity: 40, school_year: '2025-2026', status: 'active' };
 
 export default function Sections() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
   const [rows, setRows] = useState([]);
@@ -22,9 +24,9 @@ export default function Sections() {
   async function load() {
     setLoading(true);
     try {
-      const [s, t] = await Promise.all([api('/sections?limit=200'), api('/teachers?limit=200')]);
+      const [s, tp] = await Promise.all([api('/sections?limit=200'), api('/teachers?limit=200')]);
       setRows(s.data);
-      setTeachers(t.data);
+      setTeachers(tp.data);
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -66,7 +68,7 @@ export default function Sections() {
   }
 
   async function remove(s) {
-    if (!confirm(`Delete section ${s.name} (${s.school_year})?`)) return;
+    if (!confirm(t('sections.deleteConfirm', { name: s.name, year: s.school_year }))) return;
     await api(`/sections/${s.id}`, { method: 'DELETE' });
     load();
   }
@@ -78,18 +80,18 @@ export default function Sections() {
 
   return (
     <>
-      <PageHead title="Sections" sub="Class sections with advisers, rooms, and capacity">
-        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Section</button>}
+      <PageHead title={t('sections.title')} sub={t('sections.subtitle')}>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('sections.newSection')}</button>}
       </PageHead>
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text="No sections yet." /> : (
+      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('sections.noData')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Section</th><th>School Year</th><th>Grade</th><th>Strand</th>
-                <th>Adviser</th><th>Room</th><th>Capacity</th><th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th>{t('sections.sectionName')}</th><th>{t('sections.schoolYear')}</th><th>{t('sections.gradeLevel')}</th><th>{t('sections.strand')}</th>
+                <th>{t('sections.adviser')}</th><th>{t('sections.room')}</th><th>{t('sections.capacity')}</th><th>{t('sections.status')}</th>
+                <th style={{ textAlign: 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -104,7 +106,7 @@ export default function Sections() {
                   <td>{s.capacity}</td>
                   <td><Badge status={s.status} /></td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-sm" title="View roster" onClick={() => showRoster(s)}><UsersIcon size={13} /></button>{' '}
+                    <button className="btn btn-sm" title={t('sections.viewRoster')} onClick={() => showRoster(s)}><UsersIcon size={13} /></button>{' '}
                     {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
                     <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button></>}
                   </td>
@@ -117,32 +119,32 @@ export default function Sections() {
 
       {showModal && (
         <Modal
-          title={editing ? 'Edit Section' : 'New Section'}
-          sub="Sections group learners for attendance, class records, and report cards"
+          title={editing ? t('sections.editSection') : t('sections.newSection')}
+          sub={t('sections.sectionInfo')}
           onClose={() => setShowModal(false)}
         >
           <form onSubmit={save}>
             <div className="form-row">
-              <div><label>Name *</label><input required value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="HUMSS 11-A" /></div>
-              <div><label>School year *</label><input required value={form.school_year} onChange={(e) => set('school_year', e.target.value)} placeholder="2025-2026" /></div>
+              <div><label>{t('sections.name')} *</label><input required value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="HUMSS 11-A" /></div>
+              <div><label>{t('sections.schoolYear')} *</label><input required value={form.school_year} onChange={(e) => set('school_year', e.target.value)} placeholder="2025-2026" /></div>
             </div>
             <div className="form-row">
-              <div><label>Grade level *</label>
+              <div><label>{t('sections.gradeLevel')} *</label>
                 <select value={form.grade_level} onChange={(e) => set('grade_level', e.target.value)}>
                   {['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'College'].map((g) => (
                     <option key={g}>{g}</option>
                   ))}
                 </select>
               </div>
-              <div><label>Strand / Track</label>
+              <div><label>{t('sections.strand')}</label>
                 <select value={form.strand || ''} onChange={(e) => set('strand', e.target.value)}>
-                  <option value="">— select —</option>
+                  <option value="">{t('common.select')}</option>
                   {SHS_TRACKS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div><label>Adviser</label>
+              <div><label>{t('sections.adviser')}</label>
                 <select value={form.adviser_teacher_id} onChange={(e) => set('adviser_teacher_id', e.target.value)}>
-                  <option value="">— none —</option>
+                  <option value="">{t('common.none')}</option>
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>{t.last_name}, {t.first_name}</option>
                   ))}
@@ -150,17 +152,17 @@ export default function Sections() {
               </div>
             </div>
             <div className="form-row">
-              <div><label>Room</label><input value={form.room} onChange={(e) => set('room', e.target.value)} /></div>
-              <div><label>Capacity</label><input type="number" min="1" max="60" value={form.capacity} onChange={(e) => set('capacity', e.target.value)} /></div>
-              <div><label>Status</label>
+              <div><label>{t('sections.room')}</label><input value={form.room} onChange={(e) => set('room', e.target.value)} /></div>
+              <div><label>{t('sections.capacity')}</label><input type="number" min="1" max="60" value={form.capacity} onChange={(e) => set('capacity', e.target.value)} /></div>
+              <div><label>{t('sections.status')}</label>
                 <select value={form.status} onChange={(e) => set('status', e.target.value)}>
                   {SECTION_STATUSES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             </div>
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary">Save section</button>
+              <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
+              <button className="btn btn-primary">{t('sections.saveSection')}</button>
             </div>
           </form>
         </Modal>
@@ -169,11 +171,11 @@ export default function Sections() {
       {roster && (
         <Modal
           title={`Roster — ${roster.section.name}`}
-          sub={`${roster.section.school_year} · ${roster.section.grade_level} · ${roster.students.length} enrolled learners`}
+          sub={`${roster.section.school_year} · ${roster.section.grade_level} · ${roster.students.length} ${t('sections.enrolledLearners')}`}
           onClose={() => setRoster(null)}
           wide
         >
-          {roster.students.length === 0 ? <Empty text="No enrolled students in this section." /> : (
+          {roster.students.length === 0 ? <Empty text={t('sections.noEnrolled')} /> : (
             <table>
               <thead>
                 <tr><th>LRN</th><th>Name</th><th>Sex</th></tr>

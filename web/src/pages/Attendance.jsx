@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Save, CheckCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
@@ -6,6 +7,7 @@ import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 const STATUSES = ['present', 'late', 'absent', 'excused'];
 
 export default function Attendance() {
+  const { t } = useTranslation();
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -83,23 +85,23 @@ export default function Attendance() {
 
   return (
     <>
-      <PageHead title="Attendance" sub="Daily learner attendance per section (QR / NFC / manual — MVP uses manual entry)" />
+      <PageHead title={t('attendance.title')} sub={t('attendance.subtitle')} />
       <ErrorBanner error={error} />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ alignItems: 'end' }}>
           <div>
-            <label>Section</label>
+            <label>{t('attendance.section')}</label>
             <select value={sectionId} onChange={(e) => { setSectionId(e.target.value); setRoster([]); }}>
-              <option value="">— select —</option>
+              <option value="">{t('common.select')}</option>
               {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
-            <label>Date</label>
+            <label>{t('attendance.date')}</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <button className="btn btn-primary" onClick={load} disabled={!sectionId}>Load roster</button>
+          <button className="btn btn-primary" onClick={load} disabled={!sectionId}>{t('attendance.loadRoster')}</button>
         </div>
       </div>
 
@@ -109,21 +111,21 @@ export default function Attendance() {
         <>
           <div className="card" style={{ marginBottom: 16, padding: '12px 18px' }}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 600 }}>Bulk actions:</span>
-              <button className="btn btn-sm" onClick={() => markAll('present')}><CheckCheck size={13} /> All present</button>
-              <button className="btn btn-sm" onClick={() => markAll('late')}>All late</button>
-              <button className="btn btn-sm" onClick={() => markAll('absent')}>All absent</button>
+              <span style={{ fontWeight: 600 }}>{t('attendance.bulkActions')}</span>
+              <button className="btn btn-sm" onClick={() => markAll('present')}><CheckCheck size={13} /> {t('attendance.allPresent')}</button>
+              <button className="btn btn-sm" onClick={() => markAll('late')}>{t('attendance.allLate')}</button>
+              <button className="btn btn-sm" onClick={() => markAll('absent')}>{t('attendance.allAbsent')}</button>
               <span style={{ marginLeft: 'auto', color: 'var(--text-dim)', fontSize: 13 }}>
                 {Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
               </span>
-              <button className="btn btn-primary btn-sm" onClick={save}><Save size={13} /> Save attendance</button>
+              <button className="btn btn-primary btn-sm" onClick={save}><Save size={13} /> {t('attendance.saveAttendance')}</button>
             </div>
           </div>
           <div className="card table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>LRN</th><th>Learner</th><th>Sex</th><th style={{ textAlign: 'center' }}>Status</th><th>Remarks</th>
+                  <th>{t('attendance.lrn')}</th><th>{t('attendance.learner')}</th><th>{t('attendance.sex')}</th><th style={{ textAlign: 'center' }}>{t('attendance.status')}</th><th>{t('attendance.remarks')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -147,7 +149,7 @@ export default function Attendance() {
                         ))}
                       </div>
                     </td>
-                    <td><input value={r.remarks || ''} onChange={(e) => setRoster((rs) => rs.map((x) => (x.id === r.id ? { ...x, remarks: e.target.value } : x)))} placeholder="e.g. with excuse letter" /></td>
+                    <td><input value={r.remarks || ''} onChange={(e) => setRoster((rs) => rs.map((x) => (x.id === r.id ? { ...x, remarks: e.target.value } : x)))} placeholder={t('attendance.remarksPlaceholder')} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -156,7 +158,7 @@ export default function Attendance() {
         </>
       )}
 
-      {!loading && sectionId && roster.length === 0 && <Empty text="No learners in this section, or attendance for this date is unloaded. Click Load roster." />}
+      {!loading && sectionId && roster.length === 0 && <Empty text={t('attendance.noData')} />}
     </>
   );
 }
