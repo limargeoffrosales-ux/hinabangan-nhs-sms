@@ -2,19 +2,29 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Trash2, RefreshCw } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 
-const SEVERITY_BADGE = {
+const SEVERITY_CLS = {
   low: 'badge-blue',
   medium: 'badge-yellow',
   high: 'badge-red',
   critical: 'badge-red',
 };
 
+function stringifyDetails(d) {
+  if (!d) return '—';
+  try {
+    const obj = typeof d === 'string' ? JSON.parse(d) : d;
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return typeof d === 'string' ? d : String(d);
+  }
+}
+
 export default function SecurityIncidents() {
   const { t } = useTranslation();
   const [incidents, setIncidents] = useState([]);
-  const [stats, setStats] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('unresolved');
@@ -30,7 +40,6 @@ export default function SecurityIncidents() {
       if (typeFilter) params.set('type', typeFilter);
       const res = await api(`/security-incidents?${params.toString()}`);
       setIncidents(res.data || []);
-      setStats(res.stats || []);
       const uniqueTypes = [...new Set((res.data || []).map((i) => i.incident_type))];
       setTypes(uniqueTypes);
     } catch (e) {
@@ -40,14 +49,14 @@ export default function SecurityIncidents() {
     }
   }
 
-  async function loadStats() {
+  async function loadSummary() {
     try {
       const res = await api('/security-incidents/stats');
-      setStats(res);
+      setSummary(res);
     } catch {}
   }
 
-  useEffect(() => { load(); }, [filter, typeFilter]);
+  useEffect(() => { load(); loadSummary(); }, [filter, typeFilter]);
 
   async function resolve(id) {
     if (!confirm(t('si.resolveConfirm'))) return;
@@ -55,7 +64,7 @@ export default function SecurityIncidents() {
     try {
       await api(`/security-incidents/${id}/resolve`, { method: 'PATCH' });
       load();
-      loadStats();
+      loadSummary();
     } catch (e) {
       setError(e.message);
     }
@@ -68,7 +77,7 @@ export default function SecurityIncidents() {
       const res = await api('/security-incidents/purge-old', { method: 'DELETE' });
       alert(`Purged ${res.deleted} incidents older than ${res.retentionDays} days`);
       load();
-      loadStats();
+      loadSummary();
     } catch (e) {
       setError(e.message);
     }
@@ -87,15 +96,15 @@ export default function SecurityIncidents() {
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
         <div className="card" style={{ padding: 16, textAlign: 'center' }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--red, #ef4444)' }}>{stats?.unresolved ?? '—'}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--red, #ef4444)' }}>{summary?.unresolved ?? '—'}</div>
           <div className="sub" style={{ marginTop: 2 }}>{t('si.unresolved')}</div>
         </div>
         <div className="card" style={{ padding: 16, textAlign: 'center' }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--amber, #f59e0b)' }}>{stats?.today ?? '—'}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--amber, #f59e0b)' }}>{summary?.today ?? '—'}</div>
           <div className="sub" style={{ marginTop: 2 }}>{t('si.today')}</div>
         </div>
         <div className="card" style={{ padding: 16, textAlign: 'center' }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--red, #ef4444)' }}>{stats?.highSeverity ?? '—'}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--red, #ef4444)' }}>{summary?.highSeverity ?? '—'}</div>
           <div className="sub" style={{ marginTop: 2 }}>{t('si.high')}</div>
         </div>
       </div>
@@ -136,11 +145,11 @@ export default function SecurityIncidents() {
               {incidents.map((inc) => (
                 <tr key={inc.id} style={{ opacity: inc.resolved ? 0.5 : 1 }}>
                   <td><code style={{ fontSize: 12 }}>{inc.incident_type}</code></td>
-                  <td><Badge className={SEVERITY_BADGE[inc.severity] || 'badge-default'}>{inc.severity}</Badge></td>
+                  <td><span className={`badge ${SEVERITY_CLS[inc.severity] || 'badge-gray'}`}>{(inc.severity || '—').toUpperCase()}</span></td>
                   <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{inc.source_ip || '—'}</td>
                   <td>{inc.username || '—'}</td>
                   <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {inc.details ? (() => { try { return JSON.stringify(JSON.parse(inc.details)); } catch { return inc.details; } })() : '—'}
+                    {stringifyDetails(inc.details)}
                   </td>
                   <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatTime(inc.created_at)}</td>
                   <td>
@@ -149,7 +158,7 @@ export default function SecurityIncidents() {
                         <CheckCircle2 size={14} />
                       </button>
                     ) : (
-                      <Badge className="badge-green"><CheckCircle2 size={12} /> {t('si.resolved')}</Badge>
+                      <span className="badge badge-green"><CheckCircle2 size={12} /> {t('si.resolved')}</span>
                     )}
                   </td>
                 </tr>
