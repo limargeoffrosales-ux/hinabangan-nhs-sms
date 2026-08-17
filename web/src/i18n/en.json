@@ -27,6 +27,7 @@
   "nav.attendance": "Attendance",
   "nav.announcements": "Announcements",
   "nav.notifications": "Notifications",
+  "nav.consent": "Consent Forms",
   "nav.users": "Users & Roles",
   "nav.auditLogs": "Audit Logs",
   "nav.immersion": "Immersion & JDVP",
@@ -43,6 +44,7 @@
   "portal.schedule": "Schedule",
   "portal.assignments": "Assignments",
   "portal.announcements": "Announcements",
+  "portal.consent": "Consent Forms",
 
   "topbar.menu": "Menu",
   "topbar.changeTheme": "Change theme",
@@ -141,6 +143,11 @@
   "notifications.title": "Notifications",
   "notifications.settings": "Notification Settings",
   "notifications.templates": "Message Templates",
+
+  "consent.title": "Consent Forms",
+  "consent.subtitle": "Manage data privacy consent forms and digital agreements",
+  "consent.portal_title": "Consent Forms",
+  "consent.portal_subtitle": "Review and sign consent forms for your child",
 
   "lang.en": "English",
   "lang.fil": "Filipino"

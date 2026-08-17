@@ -27,6 +27,7 @@
   "nav.attendance": "Pagdalo",
   "nav.announcements": "Mga Anunsyo",
   "nav.notifications": "Mga Abiso",
+  "nav.consent": "Mga Pahintulot",
   "nav.users": "Mga Gumagamit at Papel",
   "nav.auditLogs": "Mga Tala ng Audit",
   "nav.immersion": "Immersion at JDVP",
@@ -43,6 +44,7 @@
   "portal.schedule": "Iskedyul",
   "portal.assignments": "Mga Takdang-Aralin",
   "portal.announcements": "Mga Anunsyo",
+  "portal.consent": "Mga Pahintulot",
 
   "topbar.menu": "Menu",
   "topbar.changeTheme": "Palitan ang tema",
@@ -141,6 +143,11 @@
   "notifications.title": "Mga Abiso",
   "notifications.settings": "Mga Setting ng Abiso",
   "notifications.templates": "Mga Template ng Mensahe",
+
+  "consent.title": "Mga Pahintulot",
+  "consent.subtitle": "Pamahalaan ang mga pahintulot sa privacy ng datos at digital na kasunduan",
+  "consent.portal_title": "Mga Pahintulot",
+  "consent.portal_subtitle": "Suriin at pirmahan ang mga pahintulot para sa inyong anak",
 
   "lang.en": "English",
   "lang.fil": "Filipino"
