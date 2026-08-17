@@ -69,12 +69,12 @@ router.get('/erasure-requests', requireRole(...ADMIN_ROLES), asyncH(async (req, 
   const rows = await qa(
     `SELECT er.*, s.first_name, s.last_name, s.lrn,
             u.name AS requested_by_name
-     FROM student_erasure_requests er
+     FROM data_erasure_requests er
      LEFT JOIN students s ON s.id = er.student_id
      LEFT JOIN users u ON u.id = er.requested_by
      ORDER BY er.created_at DESC LIMIT ? OFFSET ?`,
     [limit, offset]);
-  const total = (await qa('SELECT COUNT(*) AS n FROM student_erasure_requests'))[0].n;
+  const total = (await qa('SELECT COUNT(*) AS n FROM data_erasure_requests'))[0].n;
   res.json({ data: rows, total, limit, offset });
 }));
 
@@ -85,13 +85,13 @@ router.post('/erasure-request', requireRole(...ADMIN_ROLES), asyncH(async (req, 
   const student = await q('SELECT id, lrn, first_name, last_name FROM students WHERE id = ?', [student_id]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
   const existing = await q(
-    "SELECT id FROM student_erasure_requests WHERE student_id = ? AND status = 'pending'",
+    "SELECT id FROM data_erasure_requests WHERE student_id = ? AND status = 'pending'",
     [student_id]);
   if (existing) return res.status(409).json({ error: 'An erasure request is already pending for this student' });
   const id = await qi(
-    'INSERT INTO student_erasure_requests (student_id, requested_by, reason, status) VALUES (?, ?, ?, ?)',
+    'INSERT INTO data_erasure_requests (student_id, requested_by, reason, status) VALUES (?, ?, ?, ?)',
     [student_id, req.user.id, reason || null, 'pending']);
-  await audit(req, 'ERASURE_REQUEST_CREATE', 'student_erasure_requests', id, {
+  await audit(req, 'ERASURE_REQUEST_CREATE', 'data_erasure_requests', id, {
     student_id, lrn: student.lrn, name: `${student.last_name}, ${student.first_name}`,
   });
   res.status(201).json({ id, status: 'pending' });
@@ -99,13 +99,13 @@ router.post('/erasure-request', requireRole(...ADMIN_ROLES), asyncH(async (req, 
 
 // POST /privacy/erasure/:id/approve — approve and process erasure (super_admin only)
 router.post('/erasure/:id/approve', requireRole('super_admin'), asyncH(async (req, res) => {
-  const request = await q('SELECT * FROM student_erasure_requests WHERE id = ?', [req.params.id]);
+  const request = await q('SELECT * FROM data_erasure_requests WHERE id = ?', [req.params.id]);
   if (!request) return res.status(404).json({ error: 'Erasure request not found' });
   if (request.status !== 'pending') return res.status(400).json({ error: `Request is already ${request.status}` });
 
   const student = await q('SELECT * FROM students WHERE id = ?', [request.student_id]);
   if (!student) {
-    await qr('UPDATE student_erasure_requests SET status = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?',
+    await qr('UPDATE data_erasure_requests SET status = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?',
       ['processed', request.id]);
     return res.json({ ok: true, note: 'Student record already removed' });
   }
@@ -138,7 +138,7 @@ router.post('/erasure/:id/approve', requireRole('super_admin'), asyncH(async (re
   });
 
   await qr(
-    'UPDATE student_erasure_requests SET status = ?, processed_by = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE data_erasure_requests SET status = ?, processed_by = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?',
     ['processed', req.user.id, request.id]);
 
   res.json({ ok: true, status: 'processed' });
