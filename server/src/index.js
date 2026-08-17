@@ -33,6 +33,7 @@ const gradingRoutes = require('./routes/grading.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const portalRoutes = require('./routes/portal.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
+const consentRoutes = require('./routes/consent.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
 
 (async () => {
@@ -151,6 +152,7 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   app.use('/api/v1/conduct', conductRoutes);
   app.use('/api/v1/exchange', dataExchangeRoutes);
   app.use('/api/v1/notifications', notificationsRoutes);
+  app.use('/api/v1/consent', consentRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',

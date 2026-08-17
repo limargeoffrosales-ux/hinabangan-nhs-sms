@@ -6,7 +6,7 @@ import {
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale, Trophy, NotebookPen, Bell,
-  Globe,
+  Globe, Shield,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -51,6 +51,7 @@ const NAV = [
   { to: '/attendance', labelKey: 'nav.attendance', icon: CalendarCheck },
   { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
   { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
+  { to: '/consent', labelKey: 'nav.consent', icon: Shield },
   { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
   { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
   { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
@@ -65,7 +66,7 @@ const AI_NAV = [
   { to: '/forms', labelKey: 'nav.depedForms', icon: FileStack },
 ];
 
-const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications'];
+const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent'];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
