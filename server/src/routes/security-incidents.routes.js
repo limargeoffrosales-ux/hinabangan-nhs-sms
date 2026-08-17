@@ -55,8 +55,8 @@ router.delete('/purge-old', requireRole('super_admin'), asyncH(async (req, res) 
   const days = Number(setting?.value || 365);
   const cutoff = new Date(Date.now() - days * 86400000).toISOString();
   const result = await qr('DELETE FROM security_incidents WHERE created_at < ?', [cutoff]);
-  await audit(req, 'INCIDENT_PURGE', 'security_incidents', null, { days, deleted: result.rowCount });
-  res.json({ ok: true, deleted: result.rowCount, retentionDays: days });
+  await audit(req, 'INCIDENT_PURGE', 'security_incidents', null, { days, deleted: result.changes });
+  res.json({ ok: true, deleted: result.changes, retentionDays: days });
 }));
 
 module.exports = router;
