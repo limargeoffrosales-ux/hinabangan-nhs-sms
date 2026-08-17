@@ -7,6 +7,41 @@ const { signAccess, authenticate, hashToken } = require('../auth');
 const { JWT_SECRET, REFRESH_TTL_DAYS } = require('../config');
 const { asyncH, audit } = require('../utils');
 
+async function getLockoutSettings() {
+  const rows = await qa("SELECT key, value FROM app_settings WHERE key IN ('lockout_max_attempts','lockout_duration_minutes')", []);
+  const s = {};
+  for (const r of rows) s[r.key] = r.value;
+  return { maxAttempts: Number(s.lockout_max_attempts || 5), lockMinutes: Number(s.lockout_duration_minutes || 15) };
+}
+
+async function recordFailedLogin(username, userId, ip) {
+  const { maxAttempts, lockMinutes } = await getLockoutSettings();
+  if (userId) {
+    const user = await q('SELECT failed_attempts FROM users WHERE id = ?', [userId]);
+    const attempts = (user?.failed_attempts || 0) + 1;
+    if (attempts >= maxAttempts) {
+      const until = new Date(Date.now() + lockMinutes * 60000).toISOString();
+      await qr('UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?', [attempts, until, userId]);
+      await logSecurityIncident('ACCOUNT_LOCKOUT', 'high', ip, username, userId, { attempts, lockMinutes, lockedUntil: until });
+    } else {
+      await qr('UPDATE users SET failed_attempts = ? WHERE id = ?', [attempts, userId]);
+    }
+  }
+}
+
+async function clearFailedLogins(userId) {
+  if (userId) await qr('UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?', [userId]);
+}
+
+async function logSecurityIncident(type, severity, ip, username, userId, details) {
+  try {
+    await qi(
+      'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
+      [type, severity, ip, username, userId || null, details ? JSON.stringify(details) : null]
+    );
+  } catch {}
+}
+
 const router = express.Router();
 
 function genRefresh() {
@@ -28,10 +63,20 @@ router.post('/login', asyncH(async (req, res) => {
     return res.status(400).json({ error: 'username or password too long' });
   }
   const user = await q('SELECT * FROM users WHERE username = ?', [String(username).trim()]);
+
+  // Account lockout check
+  if (user && user.locked_until && new Date(user.locked_until) > new Date()) {
+    const remaining = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
+    await logSecurityIncident('LOGIN_BLOCKED_LOCKED', 'high', req.ip, user.username, user.id, { remainingMinutes: remaining });
+    return res.status(423).json({ error: `Account locked. Try again in ${remaining} minute(s).` });
+  }
+
   if (!user || user.status !== 'active' || !(await bcrypt.compare(String(password), user.password_hash))) {
     await audit(req, 'LOGIN_FAILED', 'auth', null, { username });
+    await recordFailedLogin(String(username).trim(), user?.id || null, req.ip);
     return res.status(401).json({ error: 'Invalid username or password' });
   }
+  await clearFailedLogins(user.id);
 
   // Check if MFA is enabled
   if (user.mfa_enabled && user.mfa_secret) {
