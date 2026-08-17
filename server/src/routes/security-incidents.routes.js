@@ -1,9 +1,10 @@
 const express = require('express');
 const { q, qa, qi, qr } = require('../db');
-const { requireRole } = require('../auth');
+const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const router = express.Router();
+router.use(authenticate);
 const ADMIN_ROLES = ['super_admin', 'school_admin'];
 
 // GET /security-incidents — list all incidents (admin)
