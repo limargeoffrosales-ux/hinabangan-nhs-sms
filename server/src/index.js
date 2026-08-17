@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
@@ -38,6 +39,7 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
 const privacyRoutes = require('./routes/privacy.routes');
 const mfaRoutes = require('./routes/mfa.routes');
 const privacyAuditRoutes = require('./routes/privacy-audit.routes');
+const securityIncidentsRoutes = require('./routes/security-incidents.routes');
 
 (async () => {
   await db.init();
@@ -82,6 +84,14 @@ const privacyAuditRoutes = require('./routes/privacy-audit.routes');
   }));
   app.use(compression());
   app.use(express.json({ limit: '10mb' }));
+
+  // Request ID tracking — every response gets a unique X-Request-ID
+  app.use((req, res, next) => {
+    const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+    req.requestId = requestId;
+    res.setHeader('X-Request-ID', requestId);
+    next();
+  });
 
   // Brute-force protection for the credential endpoints (IP-based).
   const authLimiter = rateLimit({
@@ -159,6 +169,7 @@ const privacyAuditRoutes = require('./routes/privacy-audit.routes');
   app.use('/api/v1/privacy', privacyRoutes);
   app.use('/api/v1/mfa', mfaRoutes);
   app.use('/api/v1/privacy-audit', privacyAuditRoutes);
+  app.use('/api/v1/security-incidents', securityIncidentsRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',
