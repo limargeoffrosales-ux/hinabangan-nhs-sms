@@ -49,6 +49,8 @@ const DataImportExport = lazy(() => import('./pages/DataImportExport'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const Curriculum = lazy(() => import('./pages/Curriculum'));
 const Rooms = lazy(() => import('./pages/Rooms'));
+const Lessons = lazy(() => import('./pages/Lessons'));
+const CompetencyTracker = lazy(() => import('./pages/CompetencyTracker'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -122,6 +124,8 @@ export default function App() {
       <Route path="/analytics" element={<Protected><AdminOnly><Page><Analytics /></Page></AdminOnly></Protected>} />
       <Route path="/curriculum" element={<Protected><AdminOnly><Page><Curriculum /></Page></AdminOnly></Protected>} />
       <Route path="/rooms" element={<Protected><AdminOnly><Page><Rooms /></Page></AdminOnly></Protected>} />
+      <Route path="/lessons" element={<Protected><Page><Lessons /></Page></Protected>} />
+      <Route path="/competency-tracker" element={<Protected><Page><CompetencyTracker /></Page></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

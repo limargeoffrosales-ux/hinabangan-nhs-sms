@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, FileText } from 'lucide-react';
+import { Save, FileText, Target } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const TERMS = [1, 2, 3];
+const LEVEL_COLORS = { Advanced: '#2FD6A0', Proficient: '#4D96FF', 'Approaching Proficiency': '#F5B942', Developing: '#FB7185', Beginning: '#F2555A' };
 
 export default function Grades() {
   const { t } = useTranslation();
@@ -21,6 +22,10 @@ export default function Grades() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [report, setReport] = useState(null);
+  const [compMode, setCompMode] = useState(false);
+  const [competencies, setCompetencies] = useState([]);
+  const [compScores, setCompScores] = useState({});
+  const [compSaving, setCompSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -43,11 +48,43 @@ export default function Grades() {
       setRows(res.data);
       setWeights(res.weights);
       setScale(res.scale);
+      if (compMode) loadCompetencies();
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadCompetencies() {
+    if (!subjectId) return;
+    try {
+      const r = await api(`/competency-tracker/competencies?subject_id=${subjectId}&quarter=${term}`);
+      setCompetencies(r.data || []);
+      const sc = await api(`/competency-tracker/scores?section_id=${sectionId}&subject_id=${subjectId}&school_year=${encodeURIComponent(schoolYear)}&quarter=${term}`);
+      const map = {};
+      for (const s of (sc.data || [])) map[`${s.student_id}-${s.competency_id}`] = s;
+      setCompScores(map);
+    } catch { setCompetencies([]); setCompScores({}); }
+  }
+
+  async function saveCompScores() {
+    setCompSaving(true);
+    try {
+      const scoreArr = [];
+      for (const st of (rows || [])) {
+        for (const c of competencies) {
+          const key = `${st.id}-${c.id}`;
+          const val = compScores[key]?.score;
+          if (val != null && val !== '') scoreArr.push({ student_id: st.id, competency_id: c.id, score: Number(val) });
+        }
+      }
+      await api('/competency-tracker/scores/batch', {
+        method: 'POST', body: { scores: scoreArr, school_year: schoolYear, quarter: term, subject_id: subjectId, section_id: sectionId },
+      });
+      alert(`Saved ${scoreArr.length} competency scores.`);
+      loadCompetencies();
+    } catch (e) { setError(e.message); } finally { setCompSaving(false); }
   }
 
   function update(studentId, key, value) {
@@ -133,7 +170,12 @@ export default function Grades() {
               {scale && <> · {t('grades.scaleLabel')} <strong>{scale.name}</strong></>}
             </span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary" onClick={save} disabled={saving}><Save size={14} /> {saving ? t('common.saving') : t('grades.saveGrades')}</button>
+              <button className={`btn ${compMode ? 'btn-primary' : ''}`} onClick={() => { setCompMode(!compMode); if (!compMode) loadCompetencies(); }} type="button">
+                <Target size={14} /> {compMode ? 'Grade Mode' : 'Competency Mode'}
+              </button>
+              <button className="btn btn-primary" onClick={compMode ? saveCompScores : save} disabled={saving || compSaving}>
+                <Save size={14} /> {compSaving ? 'Saving…' : saving ? t('common.saving') : t('grades.saveGrades')}
+              </button>
             </div>
           </div>
           <table>
@@ -174,6 +216,41 @@ export default function Grades() {
               ))}
             </tbody>
           </table>
+
+          {compMode && competencies.length > 0 && (
+            <div style={{ marginTop: 20, borderTop: '2px solid var(--border)', paddingTop: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14 }}><Target size={14} /> Competency Scores</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th>Learner</th>
+                      {competencies.map((c) => <th key={c.id} style={{ textAlign: 'center', minWidth: 70 }}>{c.code}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id}>
+                        <td style={{ whiteSpace: 'nowrap' }}>{r.last_name}, {r.first_name}</td>
+                        {competencies.map((c) => {
+                          const key = `${r.id}-${c.id}`;
+                          const val = compScores[key]?.score ?? '';
+                          return (
+                            <td key={c.id} style={{ textAlign: 'center' }}>
+                              <input className="grade-input" type="number" min="0" max="100" value={val}
+                                onChange={(e) => setCompScores((prev) => ({ ...prev, [key]: { ...prev[key], score: e.target.value ? Number(e.target.value) : null, student_id: r.id, competency_id: c.id } }))}
+                                style={{ width: 60 }} />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="sub" style={{ marginTop: 6 }}>Enter 0-100 scores per competency. Levels are auto-assigned: Beginning (&lt;75), Developing (75-79), Approaching (80-84), Proficient (85-89), Advanced (90+).</div>
+            </div>
+          )}
         </div>
       )}
 
