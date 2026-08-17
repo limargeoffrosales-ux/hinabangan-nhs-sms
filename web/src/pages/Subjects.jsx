@@ -168,8 +168,8 @@ export default function Subjects() {
                     )}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>{' '}
-                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)}><Trash2 size={13} /></button></>}
+                    {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit subject"><Pencil size={13} aria-hidden="true" /></button>{' '}
+                    <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete subject"><Trash2 size={13} aria-hidden="true" /></button></>}
                   </td>
                 </tr>
               ))}

@@ -241,7 +241,7 @@ export default function Notifications() {
                   <td style={{ fontSize: 12.5 }}>{t.subject || '—'}</td>
                   <td style={{ fontSize: 12, color: 'var(--text-dim)', maxWidth: 340, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.body}>{t.body}</td>
                   <td>
-                    <button className="btn btn-sm" onClick={() => setEditing({ ...t })}><Pencil size={13} /></button>
+                    <button className="btn btn-sm" onClick={() => setEditing({ ...t })} aria-label="Edit template"><Pencil size={13} aria-hidden="true" /></button>
                   </td>
                 </tr>
               ))}

@@ -127,8 +127,8 @@ export default function Teachers() {
                   {canLink && <td>{row.user_id ? <span className="muted">@{row.username || 'linked'}</span> : '—'}</td>}
                   {canWrite && (
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn btn-sm" onClick={() => openEdit(row)}><Pencil size={13} /></button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => remove(row)}><Trash2 size={13} /></button>
+                       <button className="btn btn-sm" onClick={() => openEdit(row)} aria-label="Edit teacher"><Pencil size={13} aria-hidden="true" /></button>{' '}
+                       <button className="btn btn-sm btn-danger" onClick={() => remove(row)} aria-label="Delete teacher"><Trash2 size={13} aria-hidden="true" /></button>
                     </td>
                   )}
                 </tr>

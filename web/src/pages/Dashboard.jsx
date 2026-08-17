@@ -55,10 +55,10 @@ export default function Dashboard() {
   if (!data) return <Spinner />;
 
   const kpis = [
-    { label: t('dashboard.enrolledStudents'), value: data.students, icon: Users, color: '#4D96FF' },
-    { label: t('dashboard.activeTeachers'), value: data.teachers, icon: UserCog, color: '#2FD6A0' },
-    { label: t('dashboard.sections'), value: data.sections, icon: Layers, color: '#2DD4BF' },
-    { label: t('dashboard.attendanceToday'), value: `${data.attendance_rate}%`, icon: CalendarCheck, color: '#34C77B' },
+    { label: t('dashboard.enrolledStudents'), value: data.students, icon: Users, color: 'var(--accent)' },
+    { label: t('dashboard.activeTeachers'), value: data.teachers, icon: UserCog, color: 'var(--accent-2)' },
+    { label: t('dashboard.sections'), value: data.sections, icon: Layers, color: 'var(--accent-3)' },
+    { label: t('dashboard.attendanceToday'), value: `${data.attendance_rate}%`, icon: CalendarCheck, color: 'var(--success)' },
   ];
 
   const gradeData = Object.entries(data.by_grade_level || {}).map(([g, v]) => ({
@@ -245,11 +245,11 @@ export default function Dashboard() {
         {!conduct ? <Spinner /> : (
           <>
             <div className="kpi-row">
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#FBBF24' }}>{conduct.by_status?.open ?? 0}</div><div className="kpi-mini-label">{t('dashboard.openCases')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#4D96FF' }}>{conduct.by_status?.under_review ?? 0}</div><div className="kpi-mini-label">{t('dashboard.underReview')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#2FD6A0' }}>{conduct.by_status?.resolved ?? 0}</div><div className="kpi-mini-label">{t('dashboard.resolved')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#A78BFA' }}>{conduct.cases_this_month ?? 0}</div><div className="kpi-mini-label">{t('dashboard.thisMonth')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#F2555A' }}>{conduct.by_severity?.major ?? 0}</div><div className="kpi-mini-label">{t('dashboard.majorIncidents')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--warn)' }}>{conduct.by_status?.open ?? 0}</div><div className="kpi-mini-label">{t('dashboard.openCases')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--accent)' }}>{conduct.by_status?.under_review ?? 0}</div><div className="kpi-mini-label">{t('dashboard.underReview')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--accent-2)' }}>{conduct.by_status?.resolved ?? 0}</div><div className="kpi-mini-label">{t('dashboard.resolved')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--purple)' }}>{conduct.cases_this_month ?? 0}</div><div className="kpi-mini-label">{t('dashboard.thisMonth')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--danger)' }}>{conduct.by_severity?.major ?? 0}</div><div className="kpi-mini-label">{t('dashboard.majorIncidents')}</div></div>
             </div>
             <div className="table-wrap" style={{ marginTop: 12 }}>
               <table>

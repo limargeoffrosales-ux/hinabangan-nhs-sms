@@ -89,8 +89,8 @@ export default function Announcements() {
                 </span>
                 {canDelete && (
                   <span style={{ display: 'flex', gap: 6 }}>
-                    {canWrite && <button className="btn btn-sm" onClick={() => openEdit(a)}><Pencil size={13} /></button>}
-                    <button className="btn btn-sm btn-danger" onClick={() => remove(a)}><Trash2 size={13} /></button>
+                    {canWrite && <button className="btn btn-sm" onClick={() => openEdit(a)} aria-label="Edit announcement"><Pencil size={13} aria-hidden="true" /></button>}
+                    <button className="btn btn-sm btn-danger" onClick={() => remove(a)} aria-label="Delete announcement"><Trash2 size={13} aria-hidden="true" /></button>
                   </span>
                 )}
               </div>

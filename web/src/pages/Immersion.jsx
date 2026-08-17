@@ -148,8 +148,8 @@ export default function Immersion() {
                   <td className="sub">{r.remarks || '—'}</td>
                   {canWrite && (
                     <td className="row-actions">
-                      <button className="icon-btn" title="Edit" onClick={() => openEdit(r)}><Pencil size={14} /></button>
-                      <button className="icon-btn" title="Delete" onClick={() => remove(r.id)}><Trash2 size={14} /></button>
+                      <button className="icon-btn" title="Edit" aria-label="Edit" onClick={() => openEdit(r)}><Pencil size={14} aria-hidden="true" /></button>
+                      <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => remove(r.id)}><Trash2 size={14} aria-hidden="true" /></button>
                     </td>
                   )}
                 </tr>

@@ -154,10 +154,11 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-shell">
+      <a href="#main-content" className="skip-link">Skip to content</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
         <div className="brand">
-          <img className="brand-logo" src="/logo.jpg" alt="School logo" />
+          <img className="brand-logo" src="/logo.jpg" alt="" />
           <span className="brand-text">{t('brand')}</span>
         </div>
         <div className="nav-label">{t('nav.main')}</div>
@@ -179,15 +180,15 @@ export default function Layout({ children }) {
           </NavLink>
         ))}
       </aside>
-      <div className="main">
-        <div className="topbar">
-          <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')}>
-            <Menu size={17} />
+      <div className="main" id="main-content" role="main">
+        <div className="topbar" role="banner">
+          <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
+            <Menu size={17} aria-hidden="true" />
           </button>
           <h1>{t('schoolName')}</h1>
           <div className="lang-wrap" style={{ position: 'relative' }}>
-            <button className="icon-btn" onClick={() => { setLangOpen((o) => !o); setPickerOpen(false); }} title="Language">
-              <Globe size={16} />
+            <button className="icon-btn" onClick={() => { setLangOpen((o) => !o); setPickerOpen(false); }} title="Language" aria-label="Language">
+              <Globe size={16} aria-hidden="true" />
             </button>
             {langOpen && (
               <div className="theme-pop">
@@ -204,8 +205,8 @@ export default function Layout({ children }) {
             )}
           </div>
           <div className="theme-wrap">
-            <button className="icon-btn" onClick={() => setPickerOpen((o) => !o)} title={t('topbar.changeTheme')}>
-              <Palette size={16} />
+            <button className="icon-btn" onClick={() => setPickerOpen((o) => !o)} title={t('topbar.changeTheme')} aria-label={t('topbar.changeTheme')}>
+              <Palette size={16} aria-hidden="true" />
             </button>
             {pickerOpen && (
               <div className="theme-pop">
@@ -225,29 +226,29 @@ export default function Layout({ children }) {
               </div>
             )}
           </div>
-          <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title={t('topbar.changePassword')}>
-            <KeyRound size={16} />
+          <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title={t('topbar.changePassword')} aria-label={t('topbar.changePassword')}>
+            <KeyRound size={16} aria-hidden="true" />
           </button>
           <div className="avatar" title={user?.name}>{initials(user?.name)}</div>
-          <button className="icon-btn" onClick={onLogout} title={t('topbar.signOut')}>
-            <LogOut size={16} />
+          <button className="icon-btn" onClick={onLogout} title={t('topbar.signOut')} aria-label={t('topbar.signOut')}>
+            <LogOut size={16} aria-hidden="true" />
           </button>
         </div>
         {pwOpen && (
           <Modal title={t('pw.change')} sub={`${t('pw.subtitle')}, ${user?.name || ''}`} onClose={() => setPwOpen(false)}>
             <form onSubmit={onChangePassword}>
-              <label>{t('pw.current')}</label>
-              <input className="input" type="password" autoComplete="current-password" value={pw.current}
+              <label htmlFor="pw-current">{t('pw.current')}</label>
+              <input id="pw-current" className="input" type="password" autoComplete="current-password" value={pw.current}
                 onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
-              <label>{t('pw.new')}</label>
-              <input className="input" type="password" autoComplete="new-password" value={pw.next}
+              <label htmlFor="pw-next">{t('pw.new')}</label>
+              <input id="pw-next" className="input" type="password" autoComplete="new-password" value={pw.next}
                 onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
-              <label>{t('pw.confirm')}</label>
-              <input className="input" type="password" autoComplete="new-password" value={pw.confirm}
+              <label htmlFor="pw-confirm">{t('pw.confirm')}</label>
+              <input id="pw-confirm" className="input" type="password" autoComplete="new-password" value={pw.confirm}
                 onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
               <div className="sub" style={{ marginTop: 8 }}>{t('pw.minimum')}</div>
-              {pwErr && <div className="err-banner">{pwErr}</div>}
-              {pwMsg && <div className="notice" style={{ marginTop: 10 }}>{pwMsg}</div>}
+              {pwErr && <div className="err-banner" role="alert">{pwErr}</div>}
+              {pwMsg && <div className="notice" role="status" aria-live="polite" style={{ marginTop: 10 }}>{pwMsg}</div>}
               <div className="modal-actions">
                 <button type="button" className="btn" onClick={() => setPwOpen(false)}>{t('pw.cancel')}</button>
                 <button className="btn btn-primary" disabled={pwBusy}>{pwBusy ? t('pw.updating') : t('pw.update')}</button>

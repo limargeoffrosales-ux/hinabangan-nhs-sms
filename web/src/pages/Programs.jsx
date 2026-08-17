@@ -192,8 +192,8 @@ export default function Programs() {
                   <td>{a.meetings_per_week}×/wk</td>
                   {canWrite && (
                     <td className="row-actions">
-                      <button className="icon-btn" title="Edit" onClick={() => setModal({ mode: 'edit', a })}><Pencil size={14} /></button>
-                      <button className="icon-btn" title="Delete" onClick={() => deleteAssignment(a.id)}><Trash2 size={14} /></button>
+                      <button className="icon-btn" title="Edit" aria-label="Edit" onClick={() => setModal({ mode: 'edit', a })}><Pencil size={14} aria-hidden="true" /></button>
+                      <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => deleteAssignment(a.id)}><Trash2 size={14} aria-hidden="true" /></button>
                     </td>
                   )}
                 </tr>
