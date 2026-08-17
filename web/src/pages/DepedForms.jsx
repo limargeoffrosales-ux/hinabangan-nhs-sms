@@ -186,6 +186,7 @@ export default function DepedForms() {
   function build() {
     const sec = sections.find((s) => String(s.id) === String(sectionId));
     const sectionLine = sec ? `${sec.grade_level} - ${sec.name} (Strand: ${sec.strand || 'N/A'})` : '';
+    const trackLine = sec?.strand ? `Track: ${sec.strand.includes('TechPro') ? 'TVL' : 'Academic'} · Strand: ${sec.strand}` : '';
 
     if (form === 'SF1') {
       const rows = roster.map((st, i) =>
@@ -268,7 +269,7 @@ export default function DepedForms() {
         title: 'SF5 – Report on Promotion',
         body: h(
           depedHeader(sectionLine),
-          `<div class="center" style="margin:8px 0"><b>REPORT ON PROMOTION AND LEVEL OF PROFICIENCY (SF5)</b><br/>School Year ${SY}</div>`,
+          `<div class="center" style="margin:8px 0"><b>REPORT ON PROMOTION AND LEVEL OF PROFICIENCY (SF5)</b><br/>School Year ${SY}${trackLine ? `<br/>${trackLine}` : ''}</div>`,
           cards
             ? `<table><thead><tr><th>No.</th><th>LRN</th><th>Name of Learner</th><th>Sex</th><th>General Average</th><th>Level of Proficiency</th><th>Promotion Status</th></tr></thead><tbody>${rows}</tbody></table>`
             : `<p>Click "Generate from grades" first.</p>`),
@@ -394,7 +395,7 @@ export default function DepedForms() {
         title: form === 'SF9' ? 'SF9 – Learner Progress Report Card' : 'SF10 – Learner Permanent Record',
         body: h(
           depedHeader(sectionLine),
-          `<div class="center" style="margin:8px 0"><b>${form === 'SF9' ? 'LEARNER PROGRESS REPORT CARD (SF9)' : 'LEARNER PERMANENT RECORD (SF10)'}</b><br/>School Year ${SY} · Three-Term System</div>`,
+          `<div class="center" style="margin:8px 0"><b>${form === 'SF9' ? 'LEARNER PROGRESS REPORT CARD (SF9)' : 'LEARNER PERMANENT RECORD (SF10)'}</b><br/>School Year ${SY} · Three-Term System${trackLine ? `<br/>${trackLine}` : ''}</div>`,
           cards ? rows : `<p>Click "Generate from grades" first.</p>`),
       };
     }
@@ -464,7 +465,7 @@ export default function DepedForms() {
           </label>
           <label>Section
             <select value={sectionId} onChange={(e) => { setSectionId(e.target.value); setCards(null); setPreview(false); }}>
-              {sections.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.grade_level})</option>)}
+              {sections.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.grade_level}){s.strand ? ` — ${s.strand}` : ''}</option>)}
             </select>
           </label>
           {['SF2', 'SF4'].includes(form) && (

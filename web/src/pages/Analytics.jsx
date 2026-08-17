@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts';
-import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, GitBranch } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge, Modal } from '../components/ui';
 
@@ -30,6 +30,7 @@ export default function Analytics() {
   const [attendance, setAttendance] = useState(null);
   const [retention, setRetention] = useState(null);
   const [passRate, setPassRate] = useState(null);
+  const [strandComp, setStrandComp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('overview');
@@ -54,16 +55,18 @@ export default function Analytics() {
         const params = new URLSearchParams({ school_year: sy });
         if (quarter) params.set('quarter', quarter);
         const qs = params.toString();
-        const [g, a, r, p] = await Promise.all([
+        const [g, a, r, p, sc] = await Promise.all([
           api(`/analytics/kpi/grade-distribution?${qs}`),
           api(`/analytics/kpi/attendance-kpi?${qs}`),
           api(`/analytics/kpi/enrollment-retention?school_year=${sy}`),
           api(`/analytics/kpi/pass-rate?${qs}`),
+          api(`/department/strand-comparison?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')).catch(() => ({ data: [] })),
         ]);
         setGrades(g);
         setAttendance(a);
         setRetention(r);
         setPassRate(p);
+        setStrandComp(sc);
       } catch (e) { setError(e.message); }
       setLoading(false);
     })();
@@ -122,6 +125,7 @@ export default function Analytics() {
               ['attendance', t('analytics.tabAttendance')],
               ['retention', t('analytics.tabRetention')],
               ['atRisk', t('analytics.tabAtRisk')],
+              ['strand', t('analytics.tabStrand')],
             ].map(([id, label]) => (
               <button key={id} className={`tab ${tab === id ? 'active' : ''}`}
                 onClick={() => setTab(id)} role="tab" aria-selected={tab === id}>{label}</button>
@@ -340,6 +344,72 @@ export default function Analytics() {
                       </table>
                     </div>
                   </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Strand Comparison Tab ─────────────────── */}
+          {tab === 'strand' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <div className="card">
+                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandComparison')}</h3>
+                {strandComp?.data?.length ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={strandComp.data}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="strand" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} angle={-15} textAnchor="end" height={60} />
+                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
+                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Legend />
+                      <Bar dataKey="mean_grade" name={t('analytics.meanGrade')} fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="pass_rate" name={t('analytics.passRate')} fill="var(--accent-2)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <Empty text={t('analytics.noData')} />}
+              </div>
+              <div className="card">
+                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandBreakdown')}</h3>
+                {strandComp?.data?.length ? (
+                  <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+                    <table className="table">
+                      <thead><tr>
+                        <th>{t('analytics.strand')}</th>
+                        <th>{t('analytics.totalGrades')}</th>
+                        <th>{t('analytics.meanGrade')}</th>
+                        <th>{t('analytics.passing')}</th>
+                        <th>{t('analytics.failing')}</th>
+                        <th>{t('analytics.passRate')}</th>
+                      </tr></thead>
+                      <tbody>
+                        {strandComp.data.map((s, i) => (
+                          <tr key={i}>
+                            <td style={{ fontSize: 13 }}>{s.strand}</td>
+                            <td style={{ fontSize: 13 }}>{s.total_grades}</td>
+                            <td style={{ fontSize: 13 }}><strong>{s.mean_grade}</strong></td>
+                            <td style={{ fontSize: 13 }}>{s.passing}</td>
+                            <td style={{ fontSize: 13 }}>{s.failing}</td>
+                            <td style={{ fontSize: 13 }}><Badge status={s.pass_rate >= 75 ? 'ENROLLED' : 'FAILED'} /> {s.pass_rate}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : <Empty text={t('analytics.noData')} />}
+
+                {strandComp?.data?.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandPie')}</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={strandComp.data.map((s) => ({ name: s.strand, value: Number(s.total_grades) }))} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
+                          {strandComp.data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </div>
             </div>

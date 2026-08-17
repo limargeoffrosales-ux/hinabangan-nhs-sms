@@ -47,6 +47,8 @@ const MFASetup = lazy(() => import('./pages/MFASetup'));
 const SecurityIncidents = lazy(() => import('./pages/SecurityIncidents'));
 const DataImportExport = lazy(() => import('./pages/DataImportExport'));
 const Analytics = lazy(() => import('./pages/Analytics'));
+const Curriculum = lazy(() => import('./pages/Curriculum'));
+const Rooms = lazy(() => import('./pages/Rooms'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -118,6 +120,8 @@ export default function App() {
       <Route path="/security-incidents" element={<Protected><AdminOnly><Page><SecurityIncidents /></Page></AdminOnly></Protected>} />
       <Route path="/import-export" element={<Protected><AdminOnly><Page><DataImportExport /></Page></AdminOnly></Protected>} />
       <Route path="/analytics" element={<Protected><AdminOnly><Page><Analytics /></Page></AdminOnly></Protected>} />
+      <Route path="/curriculum" element={<Protected><AdminOnly><Page><Curriculum /></Page></AdminOnly></Protected>} />
+      <Route path="/rooms" element={<Protected><AdminOnly><Page><Rooms /></Page></AdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

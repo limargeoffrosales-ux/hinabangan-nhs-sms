@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts';
-import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target } from 'lucide-react';
+import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target, GitBranch, Clock } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { Empty, Spinner, Modal } from './ui';
@@ -11,6 +11,7 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 const STATUS_COLORS = { present: 'badge-green', absent: 'badge-red', late: 'badge-yellow', on_leave: 'badge-blue' };
 const TEACHER_STATUSES = ['present', 'absent', 'on_leave'];
+const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
 
 function StatChip({ label, value, color }) {
   return (
@@ -44,6 +45,8 @@ export default function DashboardSections() {
   const [progress, setProgress] = useState(null);
   const [aralAtt, setAralAtt] = useState(null);
   const [aralProg, setAralProg] = useState(null);
+  const [strandDist, setStrandDist] = useState(null);
+  const [teacherWorkload, setTeacherWorkload] = useState(null);
   const [marking, setMarking] = useState({});
   const [sections, setSections] = useState([]);
   const [aralFilter, setAralFilter] = useState({ grade: '', section: '', area: '' });
@@ -87,7 +90,7 @@ export default function DashboardSections() {
       setLoading(true);
       setError(null);
       try {
-        const [en, at, ts, se, im, jv, ar, pr] = await Promise.all([
+        const [en, at, ts, se, im, jv, ar, pr, sd, tw] = await Promise.all([
           api(`/dashboard/enrollment?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
           api(`/dashboard/attendance-groups?date=${encodeURIComponent(date)}`),
           api(`/dashboard/teacher-status?date=${encodeURIComponent(date)}`),
@@ -96,11 +99,14 @@ export default function DashboardSections() {
           api('/dashboard/jdvp-summary'),
           api(`/dashboard/aral-summary?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
           api(`/dashboard/student-progress?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
+          api(`/department/strand-distribution?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
+          api(`/department/teacher-workload?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
         ]);
         if (dead) return;
         setEnrollment(en); setAttGroups(at); setTeacherStatus(ts);
         setSubjectEnr(se); setImmersion(im); setJdvp(jv);
         setAral(ar); setProgress(pr);
+        setStrandDist(sd); setTeacherWorkload(tw);
       } catch (e) {
         if (!dead) setError(e.message);
       } finally {
@@ -498,7 +504,77 @@ export default function DashboardSections() {
         </div>
       </div>
 
-      {/* 7 — Aral Program */}
+      {/* 7 — Strand Distribution */}
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><GitBranch size={16} /> Enrollment by Strand — {sy}</h3>
+          <div className="kpi-row">
+            {strandDist?.data?.slice(0, 4).map((s, i) => (
+              <StatChip key={i} label={s.strand?.length > 20 ? s.strand.slice(0, 18) + '...' : s.strand} value={s.students} color={PIE_COLORS[i % PIE_COLORS.length]} />
+            ))}
+          </div>
+        </div>
+        {strandDist?.data?.length > 0 ? (
+          <div style={{ height: 180, margin: '14px 0' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={strandDist.data}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
+                <XAxis dataKey="strand" tick={{ fill: 'var(--text-dim)', fontSize: 10 }} angle={-15} textAnchor="end" height={60} />
+                <YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <Bar dataKey="students" name="Students" radius={[4, 4, 0, 0]}>
+                  {strandDist.data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : <div className="sub">No strand distribution data available for {sy}.</div>}
+        <div className="table-wrap" style={{ marginTop: 8 }}>
+          <table>
+            <thead><tr><th>Strand</th><th style={{ textAlign: 'center' }}>Students</th><th style={{ textAlign: 'center' }}>Sections</th></tr></thead>
+            <tbody>
+              {strandDist?.data?.length === 0 && <tr><td colSpan={3} className="sub">No strand data for {sy}.</td></tr>}
+              {strandDist?.data?.map((r, i) => (
+                <tr key={i}><td>{r.strand}</td><td style={{ textAlign: 'center' }}>{r.students}</td><td style={{ textAlign: 'center' }}>{r.sections}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 8 — Teacher Workload */}
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><Clock size={16} /> Teacher Workload — {sy}</h3>
+          <div className="kpi-row">
+            <StatChip label="Teachers" value={teacherWorkload?.data?.length ?? 0} color="#4D96FF" />
+            <StatChip label="Avg hrs/wk" value={teacherWorkload?.data?.length ? Math.round(teacherWorkload.data.reduce((a, t) => a + (Number(t.total_minutes_per_week) || 0), 0) / teacherWorkload.data.length / 60 * 10) / 10 : '—'} color="#2FD6A0" />
+          </div>
+        </div>
+        <div className="table-wrap" style={{ marginTop: 12, maxHeight: 320, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Teacher</th><th>Position</th><th style={{ textAlign: 'center' }}>Sections</th><th style={{ textAlign: 'center' }}>Subjects</th><th style={{ textAlign: 'center' }}>Hours/Week</th></tr>
+            </thead>
+            <tbody>
+              {(!teacherWorkload || teacherWorkload.data.length === 0) && (
+                <tr><td colSpan={5} className="sub">No teacher workload data for {sy}.</td></tr>
+              )}
+              {teacherWorkload?.data.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.name}</td>
+                  <td className="sub">{t.position || '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{t.sections}</td>
+                  <td style={{ textAlign: 'center' }}>{t.subjects}</td>
+                  <td style={{ textAlign: 'center' }}>{t.total_minutes_per_week ? (Math.round(Number(t.total_minutes_per_week) / 60 * 10) / 10) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 9 — Aral Program */}
       <div className="card">
         <div className="dashboard-block-head">
           <h3 style={{ margin: 0 }}><GraduationCap size={16} /> Aral Program Enrollment — {sy}{term ? ` (${term[0].toUpperCase() + term.slice(1)} Term)` : ''}</h3>
@@ -539,7 +615,7 @@ export default function DashboardSections() {
         </div>
       </div>
 
-      {/* 8 — Student progress */}
+      {/* 10 — Student progress */}
       <div className="card">
         <div className="dashboard-block-head">
           <h3 style={{ margin: 0 }}><TrendingUp size={16} /> Student Progress — {sy}{term ? ` (${term[0].toUpperCase() + term.slice(1)} Term)` : ''}</h3>
@@ -580,7 +656,7 @@ export default function DashboardSections() {
         {progress && progress.data.length > 100 && <div className="sub" style={{ marginTop: 6 }}>Showing first 100 of {progress.data.length} learners.</div>}
       </div>
 
-      {/* 9 — Aral program attendance (remediation sessions) */}
+      {/* 11 — Aral program attendance (remediation sessions) */}
       <div className="card">
         <div className="dashboard-block-head">
           <h3 style={{ margin: 0 }}><CalendarCheck size={16} /> Aral Program Remediation — {sy}</h3>

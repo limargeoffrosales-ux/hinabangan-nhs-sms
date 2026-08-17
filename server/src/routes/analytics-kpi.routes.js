@@ -343,4 +343,40 @@ router.get('/school-years', requireRole(...READ), asyncH(async (req, res) => {
   res.json({ data: rows.map((r) => r.school_year) });
 }));
 
+// ── Strand Grade Comparison ────────────────────────────────────────
+// Grade distribution comparison across strands per quarter.
+router.get('/strand-grade-comparison', requireRole(...READ), asyncH(async (req, res) => {
+  const { school_year } = req.query;
+  if (!school_year) return res.status(400).json({ error: 'school_year is required' });
+
+  const rows = await qa(`
+    SELECT COALESCE(sec.strand, 'Unassigned') AS strand, g.quarter,
+           COUNT(*) AS n, ROUND(AVG(g.computed_grade), 2) AS mean,
+           COUNT(*) FILTER (WHERE g.computed_grade >= 75) AS passing,
+           COUNT(*) FILTER (WHERE g.computed_grade < 75) AS failing
+    FROM grades g
+    JOIN sections sec ON sec.id = g.section_id
+    WHERE g.school_year = ? AND g.computed_grade IS NOT NULL
+    GROUP BY sec.strand, g.quarter
+    ORDER BY sec.strand, g.quarter
+  `, [school_year]);
+
+  res.json({ data: rows });
+}));
+
+// ── Enrollment Trend by Strand ─────────────────────────────────────
+// Enrollment trend over years for each strand.
+router.get('/enrollment-trend-by-strand', requireRole(...READ), asyncH(async (req, res) => {
+  const rows = await qa(`
+    SELECT e.school_year, sec.strand, COUNT(DISTINCT e.student_id) AS students
+    FROM enrollments e
+    JOIN sections sec ON sec.id = e.section_id
+    WHERE e.status = 'enrolled'
+    GROUP BY e.school_year, sec.strand
+    ORDER BY e.school_year DESC, sec.strand
+  `);
+
+  res.json({ data: rows });
+}));
+
 module.exports = router;
