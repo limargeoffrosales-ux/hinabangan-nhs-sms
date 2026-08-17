@@ -44,6 +44,8 @@ const securityIncidentsRoutes = require('./routes/security-incidents.routes');
 const curriculumRoutes = require('./routes/curriculum.routes');
 const roomsRoutes = require('./routes/rooms.routes');
 const departmentRoutes = require('./routes/department.routes');
+const lessonsRoutes = require('./routes/lessons.routes');
+const competencyTrackerRoutes = require('./routes/competency-tracker.routes');
 
 (async () => {
   await db.init();
@@ -178,6 +180,8 @@ const departmentRoutes = require('./routes/department.routes');
   app.use('/api/v1/curriculum', curriculumRoutes);
   app.use('/api/v1/rooms', roomsRoutes);
   app.use('/api/v1/department', departmentRoutes);
+  app.use('/api/v1/lessons', lessonsRoutes);
+  app.use('/api/v1/competency-tracker', competencyTrackerRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',

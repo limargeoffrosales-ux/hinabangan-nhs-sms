@@ -44,6 +44,7 @@ const emptyForm = {
   description: '',
   allow_late: true,
   rubricText: '',
+  competency_id: '',
 };
 
 export default function Assignments() {
@@ -63,6 +64,7 @@ export default function Assignments() {
   const [active, setActive] = useState(null);
   const [roster, setRoster] = useState(null);
   const [gradeBusy, setGradeBusy] = useState(false);
+  const [competencies, setCompetencies] = useState([]);
 
   async function loadClasses() {
     setLoading(true);
@@ -95,10 +97,21 @@ export default function Assignments() {
   useEffect(() => { loadClasses(); }, [schoolYear]);
   useEffect(() => { loadAssignments(); }, [classId]);
 
+  async function loadCompetenciesForClass() {
+    if (!classId) { setCompetencies([]); return; }
+    const cls = classes.find((c) => String(c.class_assignment_id) === String(classId));
+    if (!cls) return;
+    try {
+      const r = await api(`/competency-tracker/competencies?subject_id=${cls.subject_id}`);
+      setCompetencies(r.data || []);
+    } catch { setCompetencies([]); }
+  }
+
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
     setFormOpen(true);
+    loadCompetenciesForClass();
   }
 
   function openEdit(a) {
@@ -111,8 +124,10 @@ export default function Assignments() {
       description: a.description || '',
       allow_late: !!a.allow_late,
       rubricText: rubricToText(a.rubric),
+      competency_id: a.competency_id || '',
     });
     setFormOpen(true);
+    loadCompetenciesForClass();
   }
 
   async function saveAssignment(e) {
@@ -126,6 +141,7 @@ export default function Assignments() {
       description: form.description,
       allow_late: form.allow_late,
       rubric,
+      competency_id: form.competency_id || null,
     };
     setSaving(true);
     setError(null);
@@ -240,7 +256,7 @@ export default function Assignments() {
         <div className="card table-wrap">
           <table>
             <thead>
-              <tr><th>Assignment</th><th>Kind</th><th>Due date</th><th>Points</th><th>Submitted</th><th>Graded</th><th style={{ width: 130 }}></th></tr>
+              <tr><th>Assignment</th><th>Kind</th><th>Competency</th><th>Due date</th><th>Points</th><th>Submitted</th><th>Graded</th><th style={{ width: 130 }}></th></tr>
             </thead>
             <tbody>
               {assignments.map((a) => (
@@ -250,6 +266,7 @@ export default function Assignments() {
                     {a.description && <div className="sub" style={{ maxWidth: 420 }}>{a.description}</div>}
                   </td>
                   <td><span className={`badge ${KIND_COLOR[a.kind] || 'badge-blue'}`}>{a.kind.replace('_', ' ')}</span></td>
+                  <td>{a.competency_code ? <span className="badge badge-purple" title={a.competency_title}>{a.competency_code}</span> : <span className="sub">—</span>}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{a.due_date ? String(a.due_date).slice(0, 10) : 'No due date'}</td>
                   <td>{Number(a.total_points)}</td>
                   <td>{a.submitted_count} / {a.student_count}</td>
@@ -290,6 +307,14 @@ export default function Assignments() {
             <textarea className="input" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Explain what students need to do…" />
             <label>Rubric <span className="muted">(optional — one criterion per line: “Criterion: points”)</span></label>
             <textarea className="input" rows={3} value={form.rubricText} onChange={(e) => setForm({ ...form, rubricText: e.target.value })} placeholder={'Content: 12\nClarity: 8'} />
+            {competencies.length > 0 && (
+              <label>Linked Competency <span className="muted">(optional)</span>
+                <select className="input" value={form.competency_id} onChange={(e) => setForm({ ...form, competency_id: e.target.value })}>
+                  <option value="">None</option>
+                  {competencies.map((c) => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}
+                </select>
+              </label>
+            )}
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
               <input type="checkbox" checked={form.allow_late} onChange={(e) => setForm({ ...form, allow_late: e.target.checked })} />
               Allow late submissions

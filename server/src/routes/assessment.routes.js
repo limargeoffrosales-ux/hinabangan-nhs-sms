@@ -27,11 +27,11 @@ router.post('/questions', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.question) return res.status(400).json({ error: 'question is required' });
   const id = await qi(
-    `INSERT INTO question_bank (user_id, subject_id, grade_level, competency, qtype, question, options, answer, difficulty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO question_bank (user_id, subject_id, grade_level, competency, qtype, question, options, answer, difficulty, competency_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [req.user.id, b.subject_id || null, b.grade_level || null, b.competency || null,
       b.qtype || 'mcq', b.question, b.options ? JSON.stringify(b.options) : null,
-      b.answer || null, Number(b.difficulty) || 2]);
+      b.answer || null, Number(b.difficulty) || 2, b.competency_id || null]);
   await audit(req, 'ADD_QUESTION', 'question_bank', id, { qtype: b.qtype });
   res.status(201).json({ id });
 }));

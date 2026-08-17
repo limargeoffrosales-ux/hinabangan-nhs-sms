@@ -87,6 +87,7 @@ router.get('/', requireRole(...STAFF), asyncH(async (req, res) => {
     params.push(t.id);
   }
   const sql = `SELECT a.*, s.name AS section_name, sub.code AS subject_code, sub.title AS subject_title,
+                      c.code AS competency_code, c.title AS competency_title,
                       (SELECT COUNT(*) FROM enrollments e
                         WHERE e.section_id = ca.section_id AND e.school_year = a.school_year AND e.status = 'enrolled') AS student_count,
                       (SELECT COUNT(*) FROM assignment_submissions asub WHERE asub.assignment_id = a.id) AS submitted_count,
@@ -95,6 +96,7 @@ router.get('/', requireRole(...STAFF), asyncH(async (req, res) => {
                JOIN class_assignments ca ON ca.id = a.class_assignment_id
                JOIN sections s ON s.id = ca.section_id
                JOIN subjects sub ON sub.id = ca.subject_id
+               LEFT JOIN competencies c ON c.id = a.competency_id
                ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
                ORDER BY a.due_date IS NULL, a.due_date DESC, a.created_at DESC`;
   const rows = await qa(sql, params);
@@ -127,10 +129,10 @@ router.post('/', requireRole(...STAFF), asyncH(async (req, res) => {
     rubric = JSON.stringify(b.rubric);
   }
   const id = await qi(
-    `INSERT INTO assignments (class_assignment_id, teacher_id, school_year, title, description, kind, total_points, due_date, allow_late, rubric)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO assignments (class_assignment_id, teacher_id, school_year, title, description, kind, total_points, due_date, allow_late, rubric, competency_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [ca.id, ca.teacher_id, ca.school_year, title, b.description || null, kind, round2(totalPoints),
-      b.due_date || null, bool(b.allow_late !== false), rubric]);
+      b.due_date || null, bool(b.allow_late !== false), rubric, b.competency_id || null]);
   await audit(req, 'ASSIGNMENT_CREATE', 'assignment', id, { title, kind, class_assignment_id: ca.id });
   notifyEvent('assignment_created', {
     section_id: ca.section_id,
