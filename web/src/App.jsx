@@ -4,6 +4,7 @@ import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
 import PortalLayout from './components/PortalLayout';
 import { Spinner } from './components/ui';
+import './i18n';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));

@@ -1,18 +1,15 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Lock, Server } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
 import { getStoredApiBase, setApiBase } from '../lib/api';
 
-const SCHOOL = {
-  name: 'Hinabangan National High School',
-  address: 'Hinabangan, Samar',
-};
-
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [serverBase, setServerBase] = useState(getStoredApiBase());
@@ -25,7 +22,7 @@ export default function Login() {
     const username = String(form.get('username') || '').trim();
     const password = String(form.get('password') || '');
     if (!username || !password) {
-      setError('Please enter your username and password.');
+      setError(t('login.error'));
       return;
     }
     setBusy(true);
@@ -46,22 +43,22 @@ export default function Login() {
       <div className="login-card card">
         <div className="brand">
           <img className="brand-logo" src="/logo.jpg" alt="School logo" />
-          <span className="brand-text">Hinabangan NHS</span>
+          <span className="brand-text">{t('brand')}</span>
         </div>
         <div className="login-hero">
-          <h1>{SCHOOL.name}</h1>
-          <p>{SCHOOL.address} · School Management System</p>
+          <h1>{t('schoolName')}</h1>
+          <p>{t('schoolAddress')} · {t('schoolTagline')}</p>
         </div>
         <ErrorBanner error={error} />
         <form onSubmit={onSubmit} ref={formRef}>
-          <label>Username</label>
+          <label>{t('login.username')}</label>
           <div className="form-row">
-            <input name="username" placeholder="e.g. admin" autoFocus autoComplete="username" />
+            <input name="username" placeholder={t('login.usernamePlaceholder')} autoFocus autoComplete="username" />
           </div>
-          <label>Password</label>
+          <label>{t('login.password')}</label>
           <input type="password" name="password" placeholder="••••••••••••" autoComplete="current-password" />
           <label>
-            <Server size={11} style={{ verticalAlign: -1 }} /> Server address <span className="muted">(for Android app)</span>
+            <Server size={11} style={{ verticalAlign: -1 }} /> {t('login.serverAddress')} <span className="muted">{t('login.serverHint')}</span>
           </label>
           <input
             value={serverBase}
@@ -71,7 +68,7 @@ export default function Login() {
           />
           <div style={{ marginTop: 20 }}>
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }} disabled={busy}>
-              <Lock size={15} /> {busy ? 'Signing in…' : 'Sign in'}
+              <Lock size={15} /> {busy ? t('login.signingIn') : t('login.title')}
             </button>
           </div>
         </form>
