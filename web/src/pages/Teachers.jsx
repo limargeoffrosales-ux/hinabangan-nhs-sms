@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
@@ -11,6 +12,7 @@ const EMPTY_FORM = {
 };
 
 export default function Teachers() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'hr');
   const canLink = can(user?.role, 'super_admin', 'school_admin');
@@ -38,8 +40,8 @@ export default function Teachers() {
   }
 
   useEffect(() => {
-    const t = setTimeout(load, 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(load, 250);
+    return () => clearTimeout(timer);
   }, [query]);
 
   useEffect(() => {
@@ -55,9 +57,9 @@ export default function Teachers() {
     setShowModal(true);
   }
 
-  function openEdit(t) {
-    setForm({ ...EMPTY_FORM, ...t, user_id: t.user_id ? String(t.user_id) : '' });
-    setEditing(t.id);
+  function openEdit(teacher) {
+    setForm({ ...EMPTY_FORM, ...teacher, user_id: teacher.user_id ? String(teacher.user_id) : '' });
+    setEditing(teacher.id);
     setShowModal(true);
   }
 
@@ -78,9 +80,9 @@ export default function Teachers() {
     }
   }
 
-  async function remove(t) {
-    if (!confirm(`Remove ${t.first_name} ${t.last_name} from the teachers directory?`)) return;
-    await api(`/teachers/${t.id}`, { method: 'DELETE' });
+  async function remove(teacher) {
+    if (!confirm(t('teachers.removeConfirm'))) return;
+    await api(`/teachers/${teacher.id}`, { method: 'DELETE' });
     load();
   }
 
@@ -90,43 +92,43 @@ export default function Teachers() {
 
   return (
     <>
-      <PageHead title="Teachers" sub="Faculty directory with positions and PRC records">
-        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Teacher</button>}
+      <PageHead title={t('teachers.title')} sub={t('teachers.subtitle')}>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('teachers.newTeacher')}</button>}
       </PageHead>
       <ErrorBanner error={error} />
       <div className="search-row">
         <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-dim)' }} />
-          <input style={{ paddingLeft: 32 }} placeholder="Search teachers…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input style={{ paddingLeft: 32 }} placeholder={t('teachers.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
       </div>
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text="No teachers found." /> : (
+      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('teachers.noData')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Employee No.</th><th>Name</th><th>Position</th><th>Assigned Room</th><th>PRC No.</th>
-                <th>Email</th><th>Contact</th><th>Status</th>
-                {canLink && <th>Login Account</th>}
-                {canWrite && <th style={{ textAlign: 'right' }}>Actions</th>}
+                <th>{t('teachers.employeeNo')}</th><th>{t('teachers.name')}</th><th>{t('teachers.position')}</th><th>{t('teachers.room')}</th><th>{t('teachers.prcNo')}</th>
+                <th>{t('teachers.email')}</th><th>{t('teachers.contact')}</th><th>{t('teachers.status')}</th>
+                {canLink && <th>{t('teachers.loginAccount')}</th>}
+                {canWrite && <th style={{ textAlign: 'right' }}>{t('common.actions')}</th>}
               </tr>
             </thead>
             <tbody>
-              {rows.map((t) => (
-                <tr key={t.id}>
-                  <td style={{ fontFamily: 'monospace' }}>{t.employee_no || '—'}</td>
-                  <td><strong>{t.last_name}, {t.first_name} {t.middle_name || ''}</strong></td>
-                  <td>{t.position || '—'}</td>
-                  <td>{t.room || '—'}</td>
-                  <td>{t.prc_no || '—'}</td>
-                  <td>{t.email || '—'}</td>
-                  <td>{t.contact || '—'}</td>
-                  <td><Badge status={t.status} /></td>
-                  {canLink && <td>{t.user_id ? <span className="muted">@{t.username || 'linked'}</span> : '—'}</td>}
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td style={{ fontFamily: 'monospace' }}>{row.employee_no || '—'}</td>
+                  <td><strong>{row.last_name}, {row.first_name} {row.middle_name || ''}</strong></td>
+                  <td>{row.position || '—'}</td>
+                  <td>{row.room || '—'}</td>
+                  <td>{row.prc_no || '—'}</td>
+                  <td>{row.email || '—'}</td>
+                  <td>{row.contact || '—'}</td>
+                  <td><Badge status={row.status} /></td>
+                  {canLink && <td>{row.user_id ? <span className="muted">@{row.username || 'linked'}</span> : '—'}</td>}
                   {canWrite && (
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn btn-sm" onClick={() => openEdit(t)}><Pencil size={13} /></button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => remove(t)}><Trash2 size={13} /></button>
+                      <button className="btn btn-sm" onClick={() => openEdit(row)}><Pencil size={13} /></button>{' '}
+                      <button className="btn btn-sm btn-danger" onClick={() => remove(row)}><Trash2 size={13} /></button>
                     </td>
                   )}
                 </tr>
@@ -138,45 +140,45 @@ export default function Teachers() {
 
       {showModal && (
         <Modal
-          title={editing ? 'Edit Teacher' : 'New Teacher'}
-          sub="Profile information used across class records, sections, and reporting"
+          title={editing ? t('teachers.editTeacher') : t('teachers.newTeacher')}
+          sub={t('teachers.profileInfo')}
           onClose={() => setShowModal(false)}
           wide
         >
           <form onSubmit={save}>
             <div className="form-row">
-              <div><label>Employee no.</label>{field('employee_no')}</div>
-              <div><label>First name *</label>{field('first_name', { required: true })}</div>
-              <div><label>Middle name</label>{field('middle_name')}</div>
-              <div><label>Last name *</label>{field('last_name', { required: true })}</div>
+              <div><label>{t('teachers.employeeNoLabel')}</label>{field('employee_no')}</div>
+              <div><label>{t('teachers.firstName')} *</label>{field('first_name', { required: true })}</div>
+              <div><label>{t('teachers.middleName')}</label>{field('middle_name')}</div>
+              <div><label>{t('teachers.lastName')} *</label>{field('last_name', { required: true })}</div>
             </div>
             <div className="form-row">
-              <div><label>Suffix</label>
+              <div><label>{t('teachers.suffix')}</label>
                 <select value={form.suffix || ''} onChange={(e) => set('suffix', e.target.value)}>
-                  <option value="">— select —</option>
+                  <option value="">{t('common.select')}</option>
                   {SUFFIXES.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div><label>Sex</label>
+              <div><label>{t('teachers.sex')}</label>
                 <select value={form.sex || ''} onChange={(e) => set('sex', e.target.value)}>
-                  <option value="">— select —</option>
+                  <option value="">{t('common.select')}</option>
                   <option>Male</option>
                   <option>Female</option>
                 </select>
               </div>
-              <div><label>Position</label>
+              <div><label>{t('teachers.positionLabel')}</label>
                 <select value={form.position || ''} onChange={(e) => set('position', e.target.value)}>
-                  <option value="">— select —</option>
+                  <option value="">{t('common.select')}</option>
                   {TEACHER_POSITIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div><label>Assigned room <span className="muted">(used by program generator)</span></label>{field('room', { placeholder: 'e.g. Rm 203' })}</div>
+              <div><label>{t('teachers.assignedRoom')} <span className="muted">{t('teachers.usedByProgram')}</span></label>{field('room', { placeholder: 'e.g. Rm 203' })}</div>
             </div>
             <div className="form-row">
-              <div><label>PRC no.</label>{field('prc_no')}</div>
-              <div><label>Email</label>{field('email', { type: 'email' })}</div>
-              <div><label>Contact</label>{field('contact')}</div>
-              <div><label>Status</label>
+              <div><label>{t('teachers.prcNoLabel')}</label>{field('prc_no')}</div>
+              <div><label>{t('teachers.email')}</label>{field('email', { type: 'email' })}</div>
+              <div><label>{t('teachers.contactLabel')}</label>{field('contact')}</div>
+              <div><label>{t('teachers.status')}</label>
                 <select value={form.status} onChange={(e) => set('status', e.target.value)}>
                   {TEACHER_STATUSES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -185,9 +187,9 @@ export default function Teachers() {
             {canLink && (
               <div className="form-row">
                 <div style={{ flex: 1 }}>
-                  <label>Login account <span className="muted">(grants scoped access to their advisory / assigned classes)</span></label>
+                  <label>{t('teachers.loginAccountLabel')} <span className="muted">{t('teachers.loginAccountHint')}</span></label>
                   <select value={form.user_id} onChange={(e) => set('user_id', e.target.value)}>
-                    <option value="">— none —</option>
+                    <option value="">{t('common.none')}</option>
                     {users.map((u) => (
                       <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>
                     ))}
@@ -196,8 +198,8 @@ export default function Teachers() {
               </div>
             )}
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary">Save teacher</button>
+              <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
+              <button className="btn btn-primary">{t('teachers.saveTeacher')}</button>
             </div>
           </form>
         </Modal>

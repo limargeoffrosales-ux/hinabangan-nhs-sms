@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
@@ -39,6 +40,7 @@ function TermBadge({ term }) {
 }
 
 export default function Subjects() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal');
   const [rows, setRows] = useState([]);
@@ -99,7 +101,7 @@ export default function Subjects() {
   }
 
   async function remove(s) {
-    if (!confirm(`Delete subject ${s.code}?`)) return;
+    if (!confirm(t('subjects.deleteConfirm', { code: s.code }))) return;
     await api(`/subjects/${s.id}`, { method: 'DELETE' });
     load();
   }
@@ -117,32 +119,32 @@ export default function Subjects() {
 
   return (
     <>
-      <PageHead title="Subjects" sub="Curriculum subjects — MATATAG (JHS) and Strengthened SHS Curriculum with term offerings">
-        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New Subject</button>}
+      <PageHead title={t('subjects.title')} sub={t('subjects.subtitle')}>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('subjects.newSubject')}</button>}
       </PageHead>
       <div className="card filters-row" style={{ marginBottom: 12, padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
         <select className="input" style={{ maxWidth: 180 }} value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
-          <option value="">All grade levels</option>
+          <option value="">{t('subjects.allGradeLevels')}</option>
           {['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].map((g) => (
             <option key={g}>{g}</option>
           ))}
         </select>
         <select className="input" style={{ maxWidth: 200 }} value={termFilter} onChange={(e) => setTermFilter(e.target.value)}>
-          <option value="">All terms</option>
+          <option value="">{t('subjects.allTerms')}</option>
           {TERM_OPTIONS.filter((t) => t.value).map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
-        <button className="btn btn-sm" onClick={load}>Refresh</button>
+        <button className="btn btn-sm" onClick={load}>{t('common.refresh')}</button>
       </div>
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text="No subjects match the filters." /> : (
+      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('subjects.noData')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Code</th><th>Title</th><th>Grade Level</th><th>Track</th><th>Category</th>
-                <th>Term Offered</th><th>Units</th><th style={{ textAlign: 'center' }}>Offered</th><th style={{ textAlign: 'right' }}>Actions</th>
+                <th>{t('subjects.code')}</th><th>{t('subjects.subjectTitle')}</th><th>{t('subjects.gradeLevel')}</th><th>{t('subjects.track')}</th><th>{t('subjects.category')}</th>
+                <th>{t('subjects.termOffered')}</th><th>{t('subjects.units')}</th><th style={{ textAlign: 'center' }}>{t('subjects.offered')}</th><th style={{ textAlign: 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -159,10 +161,10 @@ export default function Subjects() {
                     {canWrite ? (
                       <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <input type="checkbox" checked={!!s.is_offered} onChange={() => toggleOffered(s)} />
-                        <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? 'Offered' : 'Not offered'}</span>
+                        <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? t('subjects.offered') : t('subjects.notOffered')}</span>
                       </label>
                     ) : (
-                      <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? 'Offered' : 'Not offered'}</span>
+                      <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? t('subjects.offered') : t('subjects.notOffered')}</span>
                     )}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -178,24 +180,24 @@ export default function Subjects() {
 
       {showModal && (
         <Modal
-          title={editing ? 'Edit Subject' : 'New Subject'}
-          sub="Subjects appear in class records and report cards; SHS subjects are assigned to a term offering"
+          title={editing ? t('subjects.editSubject') : t('subjects.newSubject')}
+          sub={t('subjects.subjectInfo')}
           onClose={() => setShowModal(false)}
         >
           <form onSubmit={save}>
             <div className="form-row">
-              <div><label>Code *</label>{field('code', { required: true, placeholder: 'SSHS-GENMATH' })}</div>
-              <div><label>Title *</label>{field('title', { required: true })}</div>
+              <div><label>{t('subjects.code')} *</label>{field('code', { required: true, placeholder: 'SSHS-GENMATH' })}</div>
+              <div><label>{t('subjects.subjectTitle')} *</label>{field('title', { required: true })}</div>
             </div>
             <div className="form-row">
-              <div><label>Grade level *</label>
+              <div><label>{t('subjects.gradeLevel')} *</label>
                 <select value={form.grade_level} onChange={(e) => set('grade_level', e.target.value)}>
                   {['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'College'].map((g) => (
                     <option key={g}>{g}</option>
                   ))}
                 </select>
               </div>
-              <div><label>Track</label>
+              <div><label>{t('subjects.track')}</label>
                 <select value={form.track} onChange={(e) => set('track', e.target.value)}>
                   <option value="general">General (JHS)</option>
                   <option value="academic">Academic — SSHS Core / Elective</option>
@@ -204,27 +206,27 @@ export default function Subjects() {
                   <option value="arts">Arts & Design elective</option>
                 </select>
               </div>
-              <div><label>Units</label>{field('units', { type: 'number', step: '0.5', min: 0 })}</div>
+              <div><label>{t('subjects.units')}</label>{field('units', { type: 'number', step: '0.5', min: 0 })}</div>
             </div>
-            <label>Category (enrollment grouping)
+            <label>{t('subjects.category')}
               <select style={{ marginTop: 6 }} value={form.category} onChange={(e) => set('category', e.target.value)}>
-                <option value="">— none —</option>
+                <option value="">{t('common.none')}</option>
                 {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </label>
             {isSHS && (
-              <label>Term offered (Senior High School) *
+              <label>{t('subjects.termOffered')} *
                 <select required style={{ marginTop: 6 }} value={form.term} onChange={(e) => set('term', e.target.value)}>
                   <option value="">Select term…</option>
                   {TERM_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </label>
             )}
-            <label>Description</label>
+            <label>{t('subjects.description')}</label>
             <textarea rows={3} value={form.description || ''} onChange={(e) => set('description', e.target.value)} />
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary">Save subject</button>
+              <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
+              <button className="btn btn-primary">{t('subjects.saveSubject')}</button>
             </div>
           </form>
         </Modal>

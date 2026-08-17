@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Save, FileText } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
@@ -6,6 +7,7 @@ import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../componen
 const TERMS = [1, 2, 3];
 
 export default function Grades() {
+  const { t } = useTranslation();
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [schoolYear, setSchoolYear] = useState('2026-2027');
@@ -83,40 +85,40 @@ export default function Grades() {
   return (
     <>
       <PageHead
-        title="Class Records"
-        sub="Enter written work, performance tasks, and term assessments — grades are computed automatically (DepEd weights, 3-term calendar)"
+        title={t('grades.title')}
+        sub={t('grades.subtitle')}
       />
       <ErrorBanner error={error} />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ alignItems: 'end' }}>
           <div>
-            <label>Section</label>
+            <label>{t('grades.section')}</label>
             <select value={sectionId} onChange={(e) => { setSectionId(e.target.value); setRows(null); }}>
-              <option value="">— select —</option>
+              <option value="">{t('common.select')}</option>
               {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
-            <label>Subject</label>
+            <label>{t('grades.subject')}</label>
             <select value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setRows(null); }}>
-              <option value="">— select —</option>
+              <option value="">{t('common.select')}</option>
               {subjects.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.title}</option>)}
             </select>
           </div>
           <div>
-            <label>School year</label>
+            <label>{t('grades.schoolYear')}</label>
             <input value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} />
           </div>
           <div>
-            <label>Term</label>
+            <label>{t('grades.term')}</label>
             <div className="seg">
-              {TERMS.map((t) => (
-                <button key={t} className={term === t ? 'on' : ''} onClick={() => { setTerm(t); setRows(null); }} type="button">{t}</button>
+              {TERMS.map((termVal) => (
+                <button key={termVal} className={term === termVal ? 'on' : ''} onClick={() => { setTerm(termVal); setRows(null); }} type="button">{termVal}</button>
               ))}
             </div>
           </div>
-          <button className="btn btn-primary" onClick={loadClass} disabled={!sectionId || !subjectId}>Load class</button>
+          <button className="btn btn-primary" onClick={loadClass} disabled={!sectionId || !subjectId}>{t('grades.loadClass')}</button>
         </div>
       </div>
 
@@ -127,22 +129,22 @@ export default function Grades() {
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
             <strong>{section?.name} · {subject?.title}</strong>
             <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>
-              Weights: Written Work {weights.written_work}% · Performance Tasks {weights.performance_task}% · Term {weights.quarterly_exam}%
-              {scale && <> · Scale: <strong>{scale.name}</strong></>}
+              {t('grades.weights')} Written Work {weights.written_work}% · Performance Tasks {weights.performance_task}% · Term {weights.quarterly_exam}%
+              {scale && <> · {t('grades.scaleLabel')} <strong>{scale.name}</strong></>}
             </span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary" onClick={save} disabled={saving}><Save size={14} /> {saving ? 'Saving…' : 'Save grades'}</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}><Save size={14} /> {saving ? t('common.saving') : t('grades.saveGrades')}</button>
             </div>
           </div>
           <table>
             <thead>
               <tr>
-                <th>LRN</th><th>Learner</th>
-                <th style={{ textAlign: 'center' }}>Written Work ({weights.written_work}%)</th>
-                <th style={{ textAlign: 'center' }}>Performance Task ({weights.performance_task}%)</th>
-                <th style={{ textAlign: 'center' }}>Term Exam ({weights.quarterly_exam}%)</th>
-                <th style={{ textAlign: 'center' }}>Final Grade</th>
-                <th>Remarks</th><th></th>
+                <th>{t('grades.lrn')}</th><th>{t('grades.learner')}</th>
+                <th style={{ textAlign: 'center' }}>{t('grades.writtenWork')} ({weights.written_work}%)</th>
+                <th style={{ textAlign: 'center' }}>{t('grades.performanceTask')} ({weights.performance_task}%)</th>
+                <th style={{ textAlign: 'center' }}>{t('grades.termExam')} ({weights.quarterly_exam}%)</th>
+                <th style={{ textAlign: 'center' }}>{t('grades.finalGrade')}</th>
+                <th>{t('grades.remarks')}</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -166,7 +168,7 @@ export default function Grades() {
                   </td>
                   <td>{r.remarks ? <Badge status={r.remarks} /> : '—'}</td>
                   <td>
-                    <button className="btn btn-sm" title="Report card" onClick={() => viewReportCard(r.id)}><FileText size={13} /></button>
+                    <button className="btn btn-sm" title={t('grades.reportCard')} onClick={() => viewReportCard(r.id)}><FileText size={13} /></button>
                   </td>
                 </tr>
               ))}
@@ -175,11 +177,11 @@ export default function Grades() {
         </div>
       )}
 
-      {rows && rows.length === 0 && <Empty text="No enrolled students in this section." />}
+      {rows && rows.length === 0 && <Empty text={t('grades.noEnrolled')} />}
 
       {report && (
         <Modal
-          title={`Report Card — ${report.student.last_name}, ${report.student.first_name}`}
+          title={`${t('grades.reportCard')} — ${report.student.last_name}, ${report.student.first_name}`}
           sub={`LRN ${report.student.lrn} · ${report.school_year} · Term ${report.term || report.quarter}`}
           onClose={() => setReport(null)}
           wide
@@ -203,9 +205,9 @@ export default function Grades() {
             </tbody>
           </table>
           <div style={{ marginTop: 14, fontSize: 15, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-            {report.general_average != null && <span>General Average: <strong>{report.general_average}</strong></span>}
-            {report.gpa != null && <span>GPA: <strong>{report.gpa}</strong></span>}
-            {report.scale && <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>Scale: {report.scale.name}</span>}
+            {report.general_average != null && <span>{t('grades.generalAverage')} <strong>{report.general_average}</strong></span>}
+            {report.gpa != null && <span>{t('grades.gpa')} <strong>{report.gpa}</strong></span>}
+            {report.scale && <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>{t('grades.scaleLabel')} {report.scale.name}</span>}
           </div>
         </Modal>
       )}

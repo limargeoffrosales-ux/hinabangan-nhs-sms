@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid,
 } from 'recharts';
@@ -10,16 +11,11 @@ import DashboardSections from '../components/DashboardSections';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942'];
 
-const RISK_CLASS = { 'High risk': 'badge-red', 'Moderate risk': 'badge-yellow', 'Low risk': 'badge-blue' };
-
-const CONDUCT_TYPE_LABEL = {
-  call_slip: 'Call Slip', bullying: 'Bullying', inappropriate_behavior: 'Inappropriate Behavior',
-  fighting: 'Fighting', vandalism: 'Vandalism', tardiness: 'Tardiness', disrespect: 'Disrespect', other: 'Other',
-};
 const CONDUCT_STATUS_BADGE = { open: 'badge-yellow', under_review: 'badge-blue', resolved: 'badge-green' };
 const CONDUCT_SEVERITY_BADGE = { minor: 'badge-blue', moderate: 'badge-yellow', major: 'badge-red' };
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [trend, setTrend] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
@@ -27,10 +23,17 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [conduct, setConduct] = useState(null);
 
+  const RISK_CLASS = { [t('dashboard.highRisk')]: 'badge-red', [t('dashboard.moderateRisk')]: 'badge-yellow', [t('dashboard.lowRisk')]: 'badge-blue' };
+
+  const CONDUCT_TYPE_LABEL = {
+    call_slip: t('conduct.callSlip'), bullying: t('conduct.bullying'), inappropriate_behavior: t('conduct.inappropriateBehavior'),
+    fighting: t('conduct.fighting'), vandalism: t('conduct.vandalism'), tardiness: t('conduct.tardiness'), disrespect: t('conduct.disrespect'), other: t('conduct.other'),
+  };
+
   useEffect(() => {
     (async () => {
       try {
-        const [s, t, a, i, c] = await Promise.all([
+        const [s, trendRes, a, i, c] = await Promise.all([
           api('/dashboard/summary'),
           api('/dashboard/attendance-trend?days=7'),
           api('/announcements?limit=5'),
@@ -38,7 +41,7 @@ export default function Dashboard() {
           api('/conduct/summary'),
         ]);
         setData(s);
-        setTrend(t.data);
+        setTrend(trendRes.data);
         setAnnouncements(a.data);
         setInsights(i);
         setConduct(c);
@@ -48,14 +51,14 @@ export default function Dashboard() {
     })();
   }, []);
 
-  if (error) return <PageHead title="Dashboard"><div className="err-banner">{error}</div></PageHead>;
+  if (error) return <PageHead title={t('dashboard.title')}><div className="err-banner">{error}</div></PageHead>;
   if (!data) return <Spinner />;
 
   const kpis = [
-    { label: 'Enrolled Students', value: data.students, icon: Users, color: '#4D96FF' },
-    { label: 'Active Teachers', value: data.teachers, icon: UserCog, color: '#2FD6A0' },
-    { label: 'Sections', value: data.sections, icon: Layers, color: '#2DD4BF' },
-    { label: 'Attendance Today', value: `${data.attendance_rate}%`, icon: CalendarCheck, color: '#34C77B' },
+    { label: t('dashboard.enrolledStudents'), value: data.students, icon: Users, color: '#4D96FF' },
+    { label: t('dashboard.activeTeachers'), value: data.teachers, icon: UserCog, color: '#2FD6A0' },
+    { label: t('dashboard.sections'), value: data.sections, icon: Layers, color: '#2DD4BF' },
+    { label: t('dashboard.attendanceToday'), value: `${data.attendance_rate}%`, icon: CalendarCheck, color: '#34C77B' },
   ];
 
   const gradeData = Object.entries(data.by_grade_level || {}).map(([g, v]) => ({
@@ -79,19 +82,19 @@ export default function Dashboard() {
   const recsSection = insights?.sections?.find((s) => s.id === 'recommendations');
 
   const quick = [
-    { to: '/ai-docs', label: 'Generate a document', icon: Sparkles },
-    { to: '/reading-numeracy', label: 'Encoded reading results', icon: BookOpen },
-    { to: '/interventions', label: 'Review at-risk learners', icon: AlertTriangle },
-    { to: '/assessment', label: 'Build exam / TOS', icon: Wand2 },
-    { to: '/enroll', label: 'Enroll a student', icon: Users },
-    { to: '/grades', label: 'Enter class grades', icon: Activity },
-    { to: '/attendance', label: 'Record attendance', icon: CalendarCheck },
-    { to: '/forms', label: 'Print SF forms', icon: FileStack },
+    { to: '/ai-docs', label: t('dashboard.generateDoc', 'Generate a document'), icon: Sparkles },
+    { to: '/reading-numeracy', label: t('dashboard.encodedReading', 'Encoded reading results'), icon: BookOpen },
+    { to: '/interventions', label: t('dashboard.reviewRisk', 'Review at-risk learners'), icon: AlertTriangle },
+    { to: '/assessment', label: t('dashboard.buildExam', 'Build exam / TOS'), icon: Wand2 },
+    { to: '/enroll', label: t('dashboard.enrollStudent', 'Enroll a student'), icon: Users },
+    { to: '/grades', label: t('dashboard.enterGrades', 'Enter class grades'), icon: Activity },
+    { to: '/attendance', label: t('dashboard.recordAttendance', 'Record attendance'), icon: CalendarCheck },
+    { to: '/forms', label: t('dashboard.printForms', 'Print SF forms'), icon: FileStack },
   ];
 
   return (
     <>
-      <PageHead title="Dashboard" sub={`School Year snapshot — data as of ${data.date}`} />
+      <PageHead title={t('dashboard.title')} sub={`${t('dashboard.schoolYearSnapshot')} ${data.date}`} />
       <div className="grid grid-4">
         {kpis.map((k) => (
           <div className="card kpi" key={k.label}>
@@ -109,27 +112,27 @@ export default function Dashboard() {
       <div style={{ height: 18 }} />
 
       <div className="ai-strip">
-        <div className="ai-strip-head"><Sparkles size={15} /> AI Insights & Intelligence</div>
+        <div className="ai-strip-head"><Sparkles size={15} /> {t('dashboard.aiInsights')}</div>
         <div className="grid grid-4">
           <div className="card kpi ai-kpi">
             <div className="kpi-num danger">{riskSection?.data?.filter((r) => r.risk === 'High risk').length ?? '—'}</div>
-            <div className="kpi-lbl">High-risk learners</div>
+            <div className="kpi-lbl">{t('dashboard.highRiskLearners')}</div>
           </div>
           <div className="card kpi ai-kpi">
             <div className="kpi-num accent">{readingSection?.data?.find((d) => d.name === 'frustration')?.value ?? 0}</div>
-            <div className="kpi-lbl">Reading: Frustration level</div>
+            <div className="kpi-lbl">{t('dashboard.readingFrustration')}</div>
           </div>
           <div className="card kpi ai-kpi">
             <div className="kpi-num" style={{ color: complianceSection?.data?.percent >= 80 ? 'var(--success)' : 'var(--warn)' }}>
               {complianceSection?.data?.percent ?? 0}%
             </div>
-            <div className="kpi-lbl">Staff compliance meter</div>
+            <div className="kpi-lbl">{t('dashboard.staffCompliance')}</div>
           </div>
           <div className="card kpi ai-kpi">
             <div className="kpi-num">
               {(approvalsSection?.data?.pending_reviews?.length ?? 0) + (approvalsSection?.data?.pending_approvals?.length ?? 0)}
             </div>
-            <div className="kpi-lbl">Awaiting approval</div>
+            <div className="kpi-lbl">{t('dashboard.awaitingApproval')}</div>
           </div>
         </div>
       </div>
@@ -137,7 +140,7 @@ export default function Dashboard() {
       <div style={{ height: 18 }} />
       <div className="grid grid-3">
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Students by Grade Level</h3>
+          <h3 style={{ marginTop: 0 }}>{t('dashboard.studentsByGrade')}</h3>
           <ResponsiveContainer width="100%" height={230}>
             <BarChart data={gradeData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
@@ -150,7 +153,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Attendance Trend (7 days)</h3>
+          <h3 style={{ marginTop: 0 }}>{t('dashboard.attendanceTrend')}</h3>
           <ResponsiveContainer width="100%" height={230}>
             <LineChart data={trendChart}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
@@ -164,7 +167,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Gender Distribution</h3>
+          <h3 style={{ marginTop: 0 }}>{t('dashboard.genderDistribution')}</h3>
           <ResponsiveContainer width="100%" height={230}>
             <PieChart>
               <Pie data={sexData} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3}>
@@ -189,9 +192,9 @@ export default function Dashboard() {
       <div className="two-col">
         <div className="card">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <AlertTriangle size={16} /> Learner Risk Prediction
+            <AlertTriangle size={16} /> {t('dashboard.riskPrediction')}
           </h3>
-          {!insights ? <Spinner /> : !riskSection?.data?.length ? <Empty text="No learners flagged." /> : (
+          {!insights ? <Spinner /> : !riskSection?.data?.length ? <Empty text={t('dashboard.noLearnersFlagged')} /> : (
             <div className="risk-list">
               {riskSection.data.map((r) => (
                 <div className="risk-row" key={r.student_id}>
@@ -208,25 +211,25 @@ export default function Dashboard() {
 
         <div className="card">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <BadgeCheck size={16} /> Approval Center
+            <BadgeCheck size={16} /> {t('dashboard.approvalCenter')}
           </h3>
           {!insights ? <Spinner /> : !approvalsSection?.data?.pending_reviews?.length && !approvalsSection?.data?.pending_approvals?.length ? (
-            <Empty text="Approval queue is clear." />
+            <Empty text={t('dashboard.approvalClear')} />
           ) : (
             <>
               {approvalsSection.data.pending_reviews.map((p) => (
                 <div className="risk-row" key={`rv-${p.id}`}>
                   <div><div className="risk-name">{p.report_name}</div><div className="sub">{p.user_name} · {p.period}</div></div>
-                  <span className="badge badge-yellow">Review</span>
+                  <span className="badge badge-yellow">{t('dashboard.review')}</span>
                 </div>
               ))}
               {approvalsSection.data.pending_approvals.map((p) => (
                 <div className="risk-row" key={`ap-${p.id}`}>
                   <div><div className="risk-name">{p.report_name}</div><div className="sub">{p.user_name} · {p.period}</div></div>
-                  <span className="badge badge-blue">Approve</span>
+                  <span className="badge badge-blue">{t('dashboard.approve')}</span>
                 </div>
               ))}
-              <Link className="btn btn-sm" style={{ marginTop: 10 }} to="/submissions">Open submissions</Link>
+              <Link className="btn btn-sm" style={{ marginTop: 10 }} to="/submissions">{t('dashboard.openSubmissions')}</Link>
             </>
           )}
         </div>
@@ -236,30 +239,30 @@ export default function Dashboard() {
 
       <div className="card">
         <div className="dashboard-block-head">
-          <h3 style={{ margin: 0 }}><ShieldAlert size={16} /> Student Conduct Monitoring</h3>
-          <Link to="/discipline" className="btn btn-sm">Manage records</Link>
+          <h3 style={{ margin: 0 }}><ShieldAlert size={16} /> {t('dashboard.conductMonitoring')}</h3>
+          <Link to="/discipline" className="btn btn-sm">{t('dashboard.manageRecords')}</Link>
         </div>
         {!conduct ? <Spinner /> : (
           <>
             <div className="kpi-row">
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#FBBF24' }}>{conduct.by_status?.open ?? 0}</div><div className="kpi-mini-label">Open cases</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#4D96FF' }}>{conduct.by_status?.under_review ?? 0}</div><div className="kpi-mini-label">Under review</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#2FD6A0' }}>{conduct.by_status?.resolved ?? 0}</div><div className="kpi-mini-label">Resolved</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#A78BFA' }}>{conduct.cases_this_month ?? 0}</div><div className="kpi-mini-label">This month</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#F2555A' }}>{conduct.by_severity?.major ?? 0}</div><div className="kpi-mini-label">Major incidents</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#FBBF24' }}>{conduct.by_status?.open ?? 0}</div><div className="kpi-mini-label">{t('dashboard.openCases')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#4D96FF' }}>{conduct.by_status?.under_review ?? 0}</div><div className="kpi-mini-label">{t('dashboard.underReview')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#2FD6A0' }}>{conduct.by_status?.resolved ?? 0}</div><div className="kpi-mini-label">{t('dashboard.resolved')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#A78BFA' }}>{conduct.cases_this_month ?? 0}</div><div className="kpi-mini-label">{t('dashboard.thisMonth')}</div></div>
+              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: '#F2555A' }}>{conduct.by_severity?.major ?? 0}</div><div className="kpi-mini-label">{t('dashboard.majorIncidents')}</div></div>
             </div>
             <div className="table-wrap" style={{ marginTop: 12 }}>
               <table>
                 <thead>
                   <tr>
-                    <th>Student</th><th>Incident</th><th style={{ textAlign: 'center' }}>Severity</th>
-                    <th style={{ textAlign: 'center' }}>Date</th><th style={{ textAlign: 'center' }}>Status</th>
-                    <th style={{ textAlign: 'center' }}>Open for</th>
+                    <th>{t('dashboard.student')}</th><th>{t('dashboard.incident')}</th><th style={{ textAlign: 'center' }}>{t('dashboard.severity')}</th>
+                    <th style={{ textAlign: 'center' }}>{t('common.date')}</th><th style={{ textAlign: 'center' }}>{t('common.status')}</th>
+                    <th style={{ textAlign: 'center' }}>{t('dashboard.openFor')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {conduct.recent?.length === 0 ? (
-                    <tr><td colSpan={6} className="sub">No conduct records yet — log the first one under Student Conduct.</td></tr>
+                    <tr><td colSpan={6} className="sub">{t('dashboard.noConductRecords')}</td></tr>
                   ) : conduct.recent?.map((r) => (
                     <tr key={r.id}>
                       <td>
@@ -287,9 +290,9 @@ export default function Dashboard() {
       <div className="grid grid-3">
         <div className="card">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Megaphone size={16} /> Announcements
+            <Megaphone size={16} /> {t('nav.announcements')}
           </h3>
-          {announcements.length === 0 ? <Empty text="No announcements yet." /> : (
+          {announcements.length === 0 ? <Empty text={t('dashboard.noAnnouncements')} /> : (
             announcements.map((a) => (
               <div key={a.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -305,7 +308,7 @@ export default function Dashboard() {
 
         <div className="card">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={16} /> AI Recommendations
+            <Sparkles size={16} /> {t('dashboard.aiRecommendations')}
           </h3>
           {!insights ? <Spinner /> : recsSection?.data?.map((r, i) => (
             <div className="rec-item" key={i}><span className="rec-dot">{i + 1}</span>{r}</div>
@@ -314,15 +317,15 @@ export default function Dashboard() {
 
         <div className="card">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Activity size={16} /> Quick Actions
+            <Activity size={16} /> {t('dashboard.quickActions')}
           </h3>
           <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
             {quick.map((q) => (
               <Link className="btn btn-sm quick-link" to={q.to} key={q.to}><q.icon size={13} /> {q.label}</Link>
             ))}
           </div>
-          <h3 style={{ marginTop: 22 }}>Subjects Offered</h3>
-          <div style={{ fontSize: 14 }}>{data.subjects} active subjects in the curriculum</div>
+          <h3 style={{ marginTop: 22 }}>{t('dashboard.subjectsOffered')}</h3>
+          <div style={{ fontSize: 14 }}>{data.subjects} {t('dashboard.activeSubjects')}</div>
         </div>
       </div>
     </>
