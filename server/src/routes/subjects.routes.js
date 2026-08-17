@@ -41,7 +41,7 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (exists) return res.status(409).json({ error: 'Subject code already exists' });
   const id = await qi('INSERT INTO subjects (code, title, description, grade_level, track, units, term, category, is_offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [b.code.trim(), b.title, b.description || null, b.grade_level, b.track || 'general', b.units || 0, term,
-      b.category || null, b.is_offered === undefined ? 1 : bool(b.is_offered)]);
+      b.category || null, b.is_offered === undefined ? bool(true) : bool(b.is_offered)]);
   await audit(req, 'CREATE_SUBJECT', 'subjects', id, { code: b.code });
   res.status(201).json({ id });
 }));
