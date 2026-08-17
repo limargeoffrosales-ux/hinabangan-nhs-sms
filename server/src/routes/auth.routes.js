@@ -17,7 +17,8 @@ async function getLockoutSettings() {
 async function recordFailedLogin(username, userId, ip) {
   const { maxAttempts, lockMinutes } = await getLockoutSettings();
   if (userId) {
-    const user = await q('SELECT failed_attempts FROM users WHERE id = ?', [userId]);
+    const user = await q('SELECT failed_attempts, role FROM users WHERE id = ?', [userId]);
+    if (user && user.role === 'super_admin') return;
     const attempts = (user?.failed_attempts || 0) + 1;
     if (attempts >= maxAttempts) {
       const until = new Date(Date.now() + lockMinutes * 60000).toISOString();
