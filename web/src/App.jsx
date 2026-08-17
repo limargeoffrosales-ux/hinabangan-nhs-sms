@@ -42,6 +42,8 @@ const Discipline = lazy(() => import('./pages/Discipline'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const ConsentForms = lazy(() => import('./pages/ConsentForms'));
 const PortalConsent = lazy(() => import('./pages/PortalConsent'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const MFASetup = lazy(() => import('./pages/MFASetup'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -108,6 +110,8 @@ export default function App() {
       <Route path="/notifications" element={<Protected><AdminOnly><Page><Notifications /></Page></AdminOnly></Protected>} />
       <Route path="/consent" element={<Protected><AdminOnly><Page><ConsentForms /></Page></AdminOnly></Protected>} />
       <Route path="/portal/consent" element={<PortalProtected><Page><PortalConsent /></Page></PortalProtected>} />
+      <Route path="/privacy" element={<Protected><AdminOnly><Page><Privacy /></Page></AdminOnly></Protected>} />
+      <Route path="/mfa" element={<Protected><Page><MFASetup /></Page></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

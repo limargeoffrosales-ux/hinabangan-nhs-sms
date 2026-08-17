@@ -52,6 +52,7 @@ const NAV = [
   { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
   { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
   { to: '/consent', labelKey: 'nav.consent', icon: Shield },
+  { to: '/privacy', labelKey: 'nav.privacy', icon: ShieldCheck },
   { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
   { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
   { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
@@ -66,7 +67,7 @@ const AI_NAV = [
   { to: '/forms', labelKey: 'nav.depedForms', icon: FileStack },
 ];
 
-const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent'];
+const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent', '/privacy'];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
