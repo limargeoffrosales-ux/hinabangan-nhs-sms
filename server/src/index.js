@@ -35,6 +35,9 @@ const portalRoutes = require('./routes/portal.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
 const consentRoutes = require('./routes/consent.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
+const privacyRoutes = require('./routes/privacy.routes');
+const mfaRoutes = require('./routes/mfa.routes');
+const privacyAuditRoutes = require('./routes/privacy-audit.routes');
 
 (async () => {
   await db.init();
@@ -153,6 +156,9 @@ const { immersion, jdvp } = require('./routes/immersion.routes');
   app.use('/api/v1/exchange', dataExchangeRoutes);
   app.use('/api/v1/notifications', notificationsRoutes);
   app.use('/api/v1/consent', consentRoutes);
+  app.use('/api/v1/privacy', privacyRoutes);
+  app.use('/api/v1/mfa', mfaRoutes);
+  app.use('/api/v1/privacy-audit', privacyAuditRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',

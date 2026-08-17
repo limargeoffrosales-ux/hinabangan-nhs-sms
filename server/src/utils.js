@@ -21,4 +21,29 @@ function page(req) {
   return { limit, offset };
 }
 
-module.exports = { audit, asyncH, page };
+// PII masking — mask sensitive fields for non-privileged views
+function maskPII(row, fields = ['lrn', 'contact', 'guardian_contact', 'guardian_name', 'address', 'birth_place']) {
+  if (!row) return row;
+  const masked = { ...row };
+  for (const f of fields) {
+    if (masked[f]) {
+      const v = String(masked[f]);
+      if (v.length <= 4) masked[f] = '****';
+      else masked[f] = v.slice(0, 2) + '*'.repeat(v.length - 4) + v.slice(-2);
+    }
+  }
+  return masked;
+}
+
+// Log read access to student records
+async function logAccess(req, studentId, action = 'STUDENT_VIEW') {
+  try {
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '';
+    await qi(
+      `INSERT INTO data_access_logs (user_id, username, student_id, action, ip) VALUES (?, ?, ?, ?, ?)`,
+      [req.user.id, req.user.username, studentId, action, ip]
+    );
+  } catch {}
+}
+
+module.exports = { audit, asyncH, page, maskPII, logAccess };

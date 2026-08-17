@@ -1,9 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const { q, qa, qi, qr } = require('../db');
 const { signAccess, authenticate, hashToken } = require('../auth');
-const { REFRESH_TTL_DAYS } = require('../config');
+const { JWT_SECRET, REFRESH_TTL_DAYS } = require('../config');
 const { asyncH, audit } = require('../utils');
 
 const router = express.Router();
@@ -31,6 +32,18 @@ router.post('/login', asyncH(async (req, res) => {
     await audit(req, 'LOGIN_FAILED', 'auth', null, { username });
     return res.status(401).json({ error: 'Invalid username or password' });
   }
+
+  // Check if MFA is enabled
+  if (user.mfa_enabled && user.mfa_secret) {
+    const tempToken = jwt.sign(
+      { sub: String(user.id), mfa_pending: true },
+      JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    await audit(req, 'LOGIN_MFA_PENDING', 'auth', user.id, { username: user.username });
+    return res.json({ requiresMfa: true, tempToken });
+  }
+
   const accessToken = signAccess(user);
   const refreshToken = await issueRefresh(user.id);
   await audit(req, 'LOGIN', 'auth', user.id, { username: user.username, role: user.role });
@@ -71,13 +84,42 @@ router.get('/me', authenticate, asyncH(async (req, res) => {
 router.post('/change-password', authenticate, asyncH(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword are required' });
-  if (String(newPassword).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   if (String(newPassword).length > 128) return res.status(400).json({ error: 'Password too long' });
   const user = await q('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
   if (!(await bcrypt.compare(String(currentPassword), user.password_hash))) {
     return res.status(400).json({ error: 'Current password is incorrect' });
   }
-  await qr('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(String(newPassword), 10), req.user.id]);
+
+  // Password policy validation from app_settings
+  const policyRows = await qa(
+    "SELECT key, value FROM app_settings WHERE key IN ('password_min_length', 'password_require_uppercase', 'password_require_lowercase', 'password_require_digit', 'password_require_special')",
+    []);
+  const policy = {};
+  for (const r of policyRows) policy[r.key] = r.value;
+
+  const minLength = Number(policy.password_min_length || 12);
+  const requireUppercase = policy.password_require_uppercase !== '0';
+  const requireLowercase = policy.password_require_lowercase !== '0';
+  const requireDigit = policy.password_require_digit !== '0';
+  const requireSpecial = policy.password_require_special !== '0';
+
+  if (String(newPassword).length < minLength) {
+    return res.status(400).json({ error: `Password must be at least ${minLength} characters` });
+  }
+  if (requireUppercase && !/[A-Z]/.test(String(newPassword))) {
+    return res.status(400).json({ error: 'Password must contain at least one uppercase letter' });
+  }
+  if (requireLowercase && !/[a-z]/.test(String(newPassword))) {
+    return res.status(400).json({ error: 'Password must contain at least one lowercase letter' });
+  }
+  if (requireDigit && !/[0-9]/.test(String(newPassword))) {
+    return res.status(400).json({ error: 'Password must contain at least one digit' });
+  }
+  if (requireSpecial && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(String(newPassword))) {
+    return res.status(400).json({ error: 'Password must contain at least one special character' });
+  }
+
+  await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [await bcrypt.hash(String(newPassword), 10), req.user.id]);
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
   await audit(req, 'CHANGE_PASSWORD', 'auth', req.user.id);
   res.json({ ok: true });
