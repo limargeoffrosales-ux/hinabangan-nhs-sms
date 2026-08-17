@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr, nowSql } = require('../db');
+const { q, qa, qi, qr, nowSql, bool } = require('../db');
 const { authenticate, requireRole, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { teacherForUser, ensurePortalSeesStudent } = require('../scope');
@@ -130,7 +130,7 @@ router.post('/', requireRole(...STAFF), asyncH(async (req, res) => {
     `INSERT INTO assignments (class_assignment_id, teacher_id, school_year, title, description, kind, total_points, due_date, allow_late, rubric)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [ca.id, ca.teacher_id, ca.school_year, title, b.description || null, kind, round2(totalPoints),
-      b.due_date || null, b.allow_late === false ? 0 : 1, rubric]);
+      b.due_date || null, bool(b.allow_late !== false), rubric]);
   await audit(req, 'ASSIGNMENT_CREATE', 'assignment', id, { title, kind, class_assignment_id: ca.id });
   notifyEvent('assignment_created', {
     section_id: ca.section_id,
@@ -233,7 +233,7 @@ router.patch('/:id', requireRole(...STAFF), asyncH(async (req, res) => {
     sets.push('total_points = ?'); params.push(round2(n));
   }
   if (b.due_date !== undefined) { sets.push('due_date = ?'); params.push(b.due_date || null); }
-  if (b.allow_late !== undefined) { sets.push('allow_late = ?'); params.push(b.allow_late === false ? 0 : 1); }
+  if (b.allow_late !== undefined) { sets.push('allow_late = ?'); params.push(bool(b.allow_late !== false)); }
   if (b.rubric !== undefined) {
     if (b.rubric === null) { sets.push('rubric = NULL'); }
     else if (Array.isArray(b.rubric)) { sets.push('rubric = ?'); params.push(JSON.stringify(b.rubric)); }

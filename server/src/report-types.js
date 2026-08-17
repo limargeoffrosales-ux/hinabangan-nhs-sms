@@ -5,7 +5,7 @@ const PART3 = require('./report-types-3');
 function parse(raw) {
   return raw.trim().split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
     const [group, frequency, code, name, isDeped, autoGen, required] = line.split('|');
-    return { group, frequency, code, name, isDeped: Number(isDeped), autoGen: Number(autoGen), required: Number(required) };
+    return { group, frequency, code, name, isDeped: !!Number(isDeped), autoGen: !!Number(autoGen), required: !!Number(required) };
   });
 }
 

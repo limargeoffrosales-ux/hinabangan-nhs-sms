@@ -1,4 +1,4 @@
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, bool } = require('../db');
 
 const SCALE_TYPES = ['numeric', 'letter', 'gpa', 'ib', 'cambridge', 'custom'];
 const DEFAULT_WEIGHTS = { written_work: 25, performance_task: 45, quarterly_exam: 30 };
@@ -38,8 +38,8 @@ async function getScaleByCode(code) {
 }
 
 async function getDefaultScale() {
-  let row = await q('SELECT * FROM grading_scales WHERE is_default = 1 AND active = 1 ORDER BY id LIMIT 1');
-  if (!row) row = await q('SELECT * FROM grading_scales WHERE active = 1 ORDER BY id LIMIT 1');
+  let row = await q('SELECT * FROM grading_scales WHERE is_default = TRUE AND active = TRUE ORDER BY id LIMIT 1');
+  if (!row) row = await q('SELECT * FROM grading_scales WHERE active = TRUE ORDER BY id LIMIT 1');
   return parseScale(row);
 }
 
@@ -98,10 +98,10 @@ async function createScale(data) {
   const id = await qi(
     `INSERT INTO grading_scales (name, code, scale_type, description, passing_grade, weights, bands,
        credits_pass_only, is_system, is_default, active, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 1, CURRENT_TIMESTAMP)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, FALSE, FALSE, TRUE, CURRENT_TIMESTAMP)`,
     [d.name, d.code, d.scale_type, String(data.description || '').trim(),
       d.passing_grade, JSON.stringify(d.weights), JSON.stringify(d.bands),
-      data.credits_pass_only !== undefined ? (data.credits_pass_only ? 1 : 0) : 1]);
+      bool(data.credits_pass_only !== undefined ? data.credits_pass_only : true)]);
   return getScale(id);
 }
 
@@ -122,7 +122,7 @@ async function updateScale(id, data) {
     const clash = await q('SELECT id FROM grading_scales WHERE code = ? AND id <> ?', [d.code, id]);
     if (clash) throw Object.assign(new Error(`A scale with code '${d.code}' already exists`), { status: 409 });
   }
-  const creditsPass = data.credits_pass_only !== undefined ? (data.credits_pass_only ? 1 : 0) : (scale.credits_pass_only ? 1 : 0);
+  const creditsPass = bool(data.credits_pass_only !== undefined ? data.credits_pass_only : scale.credits_pass_only);
   await qr(
     `UPDATE grading_scales
      SET name = ?, code = ?, scale_type = ?, description = ?, passing_grade = ?,
@@ -142,7 +142,7 @@ async function deleteScale(id) {
     throw Object.assign(new Error('This scale is assigned to subjects and cannot be deleted'), { status: 409 });
   }
   if (scale.is_default) {
-    const fallback = await q('SELECT id FROM grading_scales WHERE id <> ? AND active = 1 ORDER BY id LIMIT 1', [id]);
+    const fallback = await q('SELECT id FROM grading_scales WHERE id <> ? AND active = TRUE ORDER BY id LIMIT 1', [id]);
     if (fallback) await setDefault(fallback.id);
   }
   await qr('DELETE FROM grading_scales WHERE id = ?', [id]);
@@ -152,8 +152,8 @@ async function deleteScale(id) {
 async function setDefault(codeOrId, byCode) {
   const target = byCode ? await getScaleByCode(codeOrId) : await getScale(codeOrId);
   if (!target) throw Object.assign(new Error('Scale not found'), { status: 404 });
-  await qr('UPDATE grading_scales SET is_default = 0');
-  await qr('UPDATE grading_scales SET is_default = 1 WHERE id = ?', [target.id]);
+  await qr('UPDATE grading_scales SET is_default = FALSE');
+  await qr('UPDATE grading_scales SET is_default = TRUE WHERE id = ?', [target.id]);
   return getScale(target.id);
 }
 
