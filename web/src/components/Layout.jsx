@@ -6,7 +6,7 @@ import {
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale, Trophy, NotebookPen, Bell,
-  Globe, Shield, FileSpreadsheet, TrendingUp,
+  Globe, Shield, FileSpreadsheet, TrendingUp, DoorOpen,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -59,6 +59,8 @@ const NAV = [
   { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
   { to: '/import-export', labelKey: 'nav.importExport', icon: FileSpreadsheet },
   { to: '/analytics', labelKey: 'nav.analytics', icon: TrendingUp },
+  { to: '/curriculum', labelKey: 'nav.curriculum', icon: BookOpenCheck },
+  { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },
 ];
 
 const AI_NAV = [
@@ -70,7 +72,7 @@ const AI_NAV = [
   { to: '/forms', labelKey: 'nav.depedForms', icon: FileStack },
 ];
 
-const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent', '/privacy', '/security-incidents', '/import-export', '/analytics'];
+const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent', '/privacy', '/security-incidents', '/import-export', '/analytics', '/curriculum', '/rooms'];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();

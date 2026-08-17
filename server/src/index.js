@@ -41,6 +41,9 @@ const privacyRoutes = require('./routes/privacy.routes');
 const mfaRoutes = require('./routes/mfa.routes');
 const privacyAuditRoutes = require('./routes/privacy-audit.routes');
 const securityIncidentsRoutes = require('./routes/security-incidents.routes');
+const curriculumRoutes = require('./routes/curriculum.routes');
+const roomsRoutes = require('./routes/rooms.routes');
+const departmentRoutes = require('./routes/department.routes');
 
 (async () => {
   await db.init();
@@ -172,6 +175,9 @@ const securityIncidentsRoutes = require('./routes/security-incidents.routes');
   app.use('/api/v1/mfa', mfaRoutes);
   app.use('/api/v1/privacy-audit', privacyAuditRoutes);
   app.use('/api/v1/security-incidents', securityIncidentsRoutes);
+  app.use('/api/v1/curriculum', curriculumRoutes);
+  app.use('/api/v1/rooms', roomsRoutes);
+  app.use('/api/v1/department', departmentRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',
