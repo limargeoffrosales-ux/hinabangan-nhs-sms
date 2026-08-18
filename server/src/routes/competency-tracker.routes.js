@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { linkedStudentIds } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -166,10 +167,16 @@ router.get('/class-overview', requireRole(...WRITE), asyncH(async (req, res) => 
 }));
 
 /* ── Student competency summary ─────────────────────── */
-router.get('/student-summary', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/student-summary', requireRole(...WRITE, 'student', 'parent'), asyncH(async (req, res) => {
   const { student_id, school_year } = req.query;
   if (!student_id || !school_year) {
     return res.status(400).json({ error: 'student_id and school_year are required' });
+  }
+  if (req.role === 'student' || req.role === 'parent') {
+    const ids = await linkedStudentIds(req.user);
+    if (!ids.includes(Number(student_id))) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
   }
   const rows = await qa(
     `SELECT scs.*, c.code AS competency_code, c.title AS competency_title, c.competency_type,
