@@ -67,36 +67,28 @@ async function migrate() {
   if (usePg) {
     await driver.exec('CREATE TABLE IF NOT EXISTS schema_migrations (file TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
   }
-  const appliedFile = (file) => {
-    if (usePg) return driver.get('SELECT 1 FROM schema_migrations WHERE file = ?', [file]);
-    const { DatabaseSync } = require('node:sqlite');
-    const db = new DatabaseSync(path.join(DATA_DIR, 'meridianed.db'));
-    db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
-      file TEXT PRIMARY KEY,
-      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`);
-    const row = db.prepare('SELECT 1 FROM schema_migrations WHERE file = ?').get(file);
-    db.close();
-    return row;
-  };
-  const markApplied = (file) => {
-    if (usePg) {
-      return driver.run('INSERT INTO schema_migrations (file, applied_at) VALUES (?, now()) ON CONFLICT (file) DO NOTHING', [file]);
+  if (usePg) {
+    const applied = await driver.all('SELECT file FROM schema_migrations');
+    const appliedSet = new Set(applied.map((r) => r.file));
+    for (const file of files) {
+      if (appliedSet.has(file)) continue;
+      const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+      await driver.exec(sql);
+      await driver.run('INSERT INTO schema_migrations (file, applied_at) VALUES (?, now()) ON CONFLICT (file) DO NOTHING', [file]);
     }
+  } else {
     const { DatabaseSync } = require('node:sqlite');
-    const db = new DatabaseSync(path.join(DATA_DIR, 'meridianed.db'));
-    db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
-      file TEXT PRIMARY KEY,
-      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`);
-    db.prepare('INSERT OR IGNORE INTO schema_migrations (file) VALUES (?)').run(file);
-    db.close();
-  };
-  for (const file of files) {
-    if (await appliedFile(file)) continue;
-    const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-    await driver.exec(sql);
-    await markApplied(file);
+    const mdb = new DatabaseSync(path.join(DATA_DIR, 'meridianed.db'));
+    mdb.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (file TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+    const appliedRows = mdb.prepare('SELECT file FROM schema_migrations').all();
+    const appliedSet = new Set(appliedRows.map((r) => r.file));
+    for (const file of files) {
+      if (appliedSet.has(file)) continue;
+      const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+      driver.exec(sql);
+      mdb.prepare('INSERT OR IGNORE INTO schema_migrations (file) VALUES (?)').run(file);
+    }
+    mdb.close();
   }
 }
 

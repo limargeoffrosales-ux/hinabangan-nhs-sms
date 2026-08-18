@@ -82,20 +82,22 @@ function render(template, data) {
 }
 
 async function ensureDefaults() {
-  for (const [key, value] of [
-    ['notify_email_enabled', NOTIFY_EMAIL_ENABLED ? '1' : '0'],
-    ['notify_sms_enabled', NOTIFY_SMS_ENABLED ? '1' : '0'],
-  ]) {
-    const existing = await q('SELECT value FROM app_settings WHERE key = ?', [key]);
-    if (!existing) await qi('INSERT INTO app_settings (key, value) VALUES (?, ?)', [key, value]);
-  }
+  await qr(
+    `INSERT INTO app_settings (key, value) VALUES (?, ?), (?, ?)
+     ON CONFLICT (key) DO NOTHING`,
+    ['notify_email_enabled', NOTIFY_EMAIL_ENABLED ? '1' : '0',
+     'notify_sms_enabled', NOTIFY_SMS_ENABLED ? '1' : '0']);
+  const rows = [];
   for (const [event, chans] of Object.entries(DEFAULT_TEMPLATES)) {
     for (const [channel, tpl] of Object.entries(chans)) {
-      await qr(
-        `INSERT INTO notification_templates (event, channel, subject, body) VALUES (?, ?, ?, ?)
-         ON CONFLICT (event, channel) DO NOTHING`,
-        [event, channel, tpl.subject || null, tpl.body]);
+      rows.push([event, channel, tpl.subject || null, tpl.body]);
     }
+  }
+  for (const [event, channel, subject, body] of rows) {
+    await qr(
+      `INSERT INTO notification_templates (event, channel, subject, body) VALUES (?, ?, ?, ?)
+       ON CONFLICT (event, channel) DO NOTHING`,
+      [event, channel, subject, body]);
   }
 }
 
