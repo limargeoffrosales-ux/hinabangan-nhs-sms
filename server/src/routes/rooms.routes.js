@@ -14,7 +14,7 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const where = [];
   const params = [];
   if (req.query.room_type) { where.push('room_type = ?'); params.push(req.query.room_type); }
-  if (req.query.active === '1') { where.push('active = 1'); }
+  if (req.query.active === '1') { where.push('active = TRUE'); }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY building, floor, code';
   res.json({ data: await qa(sql, params) });
@@ -82,7 +82,7 @@ router.get('/availability', requireRole(...WRITE), asyncH(async (req, res) => {
     : [day, school_year, end_time, start_time];
   const unavailable = await qa(conflictSql, conflictParams);
   const unavailableIds = unavailable.map((r) => r.id);
-  let sql = 'SELECT * FROM rooms WHERE active = 1';
+  let sql = 'SELECT * FROM rooms WHERE active = TRUE';
   const params = [];
   if (unavailableIds.length) {
     sql += ` AND id NOT IN (${unavailableIds.map(() => '?').join(',')})`;
