@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid,
 } from 'recharts';
-import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, Sparkles, AlertTriangle, FileStack, CheckCircle2, Wand2, BadgeCheck, ShieldAlert } from 'lucide-react';
+import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, Sparkles, AlertTriangle, CheckCircle2, Wand2, BadgeCheck, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
@@ -89,7 +89,6 @@ export default function Dashboard() {
     { to: '/enroll', label: t('dashboard.enrollStudent', 'Enroll a student'), icon: Users },
     { to: '/grades', label: t('dashboard.enterGrades', 'Enter class grades'), icon: Activity },
     { to: '/attendance', label: t('dashboard.recordAttendance', 'Record attendance'), icon: CalendarCheck },
-    { to: '/forms', label: t('dashboard.printForms', 'Print SF forms'), icon: FileStack },
   ];
 
   return (

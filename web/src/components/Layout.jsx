@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
-  FileText, Gauge, Sparkles, FileStack, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
+  FileText, Gauge, Sparkles, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale, Trophy, NotebookPen, Bell,
   Globe, Shield, FileSpreadsheet, TrendingUp, DoorOpen, Target,
 } from 'lucide-react';
@@ -63,6 +63,7 @@ const NAV = [
   { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },
   { to: '/lessons', labelKey: 'nav.lessons', icon: BookOpen },
   { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
+  { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
 ];
 
 const AI_NAV = [
@@ -71,10 +72,9 @@ const AI_NAV = [
   { to: '/reading-numeracy', labelKey: 'nav.readingNumeracy', icon: BookOpenCheck },
   { to: '/interventions', labelKey: 'nav.interventions', icon: LifeBuoy },
   { to: '/assessment', labelKey: 'nav.assessment', icon: ClipboardPenLine },
-  { to: '/forms', labelKey: 'nav.depedForms', icon: FileStack },
 ];
 
-const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent', '/privacy', '/security-incidents', '/import-export', '/analytics', '/curriculum', '/rooms'];
+const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent', '/privacy', '/security-incidents', '/import-export', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();

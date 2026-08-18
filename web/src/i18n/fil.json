@@ -45,7 +45,6 @@
   "nav.readingNumeracy": "Pagbasa at Numeracy",
   "nav.interventions": "Mga Intervensyon",
   "nav.assessment": "Pagtatasa",
-  "nav.depedForms": "Mga Form ng DepEd",
 
   "portal.home": "Home",
   "portal.grades": "Mga Grado",
@@ -723,5 +722,31 @@
   "compTracker.noMatrix": "Walang estudyante o kompetensya na ipapakita.",
 
   "lang.en": "English",
-  "lang.fil": "Filipino"
+  "lang.fil": "Filipino",
+
+  "nav.depedForms": "Mga DepEd School Forms",
+
+  "depedForms.title": "Mga DepEd School Forms (SF1–SF10)",
+  "depedForms.sub": "Opisyal na format ng DepEd forms — tingnan, i-download bilang PDF, o i-download bilang blangkong template.",
+  "depedForms.downloadPdf": "I-download bilang PDF",
+  "depedForms.downloadBlank": "I-download ang Blangkong Form",
+  "depedForms.sf1": "SF1 – School Register",
+  "depedForms.sf2": "SF2 – Araw-araw na Presensya",
+  "depedForms.sf3": "SF3 – Mga Librong Inilabas at Binalik",
+  "depedForms.sf4": "SF4 – Buwanang Galaw ng Mag-aaral",
+  "depedForms.sf5": "SF5 – Ulat sa Promosyon",
+  "depedForms.sf6": "SF6 – Buod ng Ulat sa Promosyon",
+  "depedForms.sf7": "SF7 – Listahan ng Kawani",
+  "depedForms.sf8": "SF8 – Kalusugan at Nutrisyon",
+  "depedForms.sf9": "SF9 – Report Card",
+  "depedForms.sf10": "SF10 – Permanent Record",
+  "depedForms.selectSection": "Pumili ng Section",
+  "depedForms.selectStudent": "Pumili ng Estudyante",
+  "depedForms.selectTerm": "Pumili ng Term",
+  "depedForms.noData": "Walang data — i-download ang blangkong form.",
+  "depedForms.preparedBy": "Inihanda ni",
+  "depedForms.notedBy": "Bumagsak / Aprubado ni",
+  "depedForms.adviser": "Class Adviser",
+  "depedForms.schoolHead": "Principal",
+  "depedForms.printHint": "I-save bilang PDF mula sa print dialog."
 }

@@ -6,7 +6,7 @@ function textToHtml(text) {
   return String(text || '').split('\n').map((line) => escapeHtml(line)).join('<br/>');
 }
 
-function downloadBlob(content, filename, type) {
+export function downloadBlob(content, filename, type) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -55,18 +55,33 @@ export function printHtml(title, bodyText) {
   setTimeout(() => w.print(), 300);
 }
 
-export function printElementHtml(title, html) {
+function formCss(orientation, paper) {
+  const orient = orientation === 'landscape' ? 'landscape' : 'portrait';
+  const size = paper === 'legal' ? 'legal' : paper === 'a4' ? 'a4' : 'letter';
+  return `@page { size: ${size} ${orient}; margin: 0.5in; }
+    body { font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.3; color: #000; }
+    table { border-collapse: collapse; width: 100%; margin: 6pt 0; }
+    td, th { border: 1px solid #000; padding: 3pt; font-size: 9pt; vertical-align: top; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    .center { text-align: center; }
+    .c { text-align: center; }
+    .b { font-weight: bold; }
+    .small { font-size: 8.5pt; }
+    .h1 { font-size: 13pt; font-weight: bold; }
+    .sig { width: 100%; border: none; }
+    .sig td { border: none; text-align: center; font-size: 10pt; padding: 10pt 4pt 0; }
+    .no-border td, .no-border th { border: none; }
+    .pagebreak { page-break-before: always; }`;
+}
+
+export function printElementHtml(title, html, opts = {}) {
   const w = window.open('', '_blank', 'width=1000,height=1000');
   if (!w) return alert('Please allow pop-ups to print.');
-  w.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title>
-    <style>
-      body { font-family: 'Times New Roman', serif; font-size: 12pt; margin: 0.4in; color: #000; }
-      table { border-collapse: collapse; width: 100%; }
-      td, th { border: 1px solid #000; padding: 4pt; font-size: 10pt; }
-      .center { text-align: center; }
-      h3 { margin: 0.2em 0; }
-    </style></head><body>${html}</body></html>`);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+    <style>${formCss(opts.orientation, opts.paper)}</style></head><body>${html}</body></html>`);
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 300);
 }
+

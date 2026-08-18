@@ -45,7 +45,7 @@
   "nav.readingNumeracy": "Reading & Numeracy",
   "nav.interventions": "Interventions",
   "nav.assessment": "Assessment",
-  "nav.depedForms": "DepEd Forms",
+  "nav.depedForms": "DepEd School Forms",
 
   "portal.home": "Home",
   "portal.grades": "Grades",
@@ -726,5 +726,29 @@
   "compTracker.noMatrix": "No students or competencies to display.",
 
   "lang.en": "English",
-  "lang.fil": "Filipino"
+  "lang.fil": "Filipino",
+
+  "depedForms.title": "DepEd School Forms (SF1–SF10)",
+  "depedForms.sub": "Official DepEd form layouts — view, download PDF, or download blank templates.",
+  "depedForms.downloadPdf": "Download PDF",
+  "depedForms.downloadBlank": "Download Blank Form",
+  "depedForms.sf1": "SF1 – School Register",
+  "depedForms.sf2": "SF2 – Daily Attendance",
+  "depedForms.sf3": "SF3 – Books Issued & Returned",
+  "depedForms.sf4": "SF4 – Monthly Learner Movement",
+  "depedForms.sf5": "SF5 – Report on Promotion",
+  "depedForms.sf6": "SF6 – Summarized Promotion",
+  "depedForms.sf7": "SF7 – Personnel Assignment",
+  "depedForms.sf8": "SF8 – Health & Nutrition",
+  "depedForms.sf9": "SF9 – Report Card",
+  "depedForms.sf10": "SF10 – Permanent Record",
+  "depedForms.selectSection": "Select Section",
+  "depedForms.selectStudent": "Select Student",
+  "depedForms.selectTerm": "Select Term",
+  "depedForms.noData": "No data available — download blank form instead.",
+  "depedForms.preparedBy": "Prepared by",
+  "depedForms.notedBy": "Noted by / Approved by",
+  "depedForms.adviser": "Class Adviser",
+  "depedForms.schoolHead": "School Head",
+  "depedForms.printHint": "Save as PDF from the print dialog."
 }
