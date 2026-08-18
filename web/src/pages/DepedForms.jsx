@@ -23,7 +23,6 @@ function esc(s) {
 }
 
 function formHeaderHtml(info, formCode, formTitle) {
-  const displayCode = formCode.toUpperCase().replace('SF', 'SF ');
   return `
 <div style="text-align:center;margin-bottom:8pt;">
   <div style="font-size:10pt;font-weight:bold;">REPUBLIC OF THE PHILIPPINES</div>
@@ -59,10 +58,11 @@ function printForm(code, title, html, orient) {
   printElementHtml(`${code.toUpperCase()} - ${title}`, html, { orientation: orient, paper: 'legal' });
 }
 
-function downloadBlankForm(code, title, html, orient) {
+function downloadBlankForm(code, title, html, orient, info) {
   const css = `@page{size:legal ${orient};margin:0.5in}body{font-family:'Times New Roman',serif;font-size:11pt;line-height:1.3;color:#000}table{border-collapse:collapse;width:100%;margin:6pt 0}td,th{border:1px solid #000;padding:3pt;font-size:9pt;vertical-align:top}.center{text-align:center}.c{text-align:center}.b{font-weight:bold}.small{font-size:8.5pt}.h1{font-size:13pt;font-weight:bold}.sig{width:100%;border:none}.sig td{border:none;text-align:center;font-size:10pt;padding:10pt 4pt 0}.no-border td,.no-border th{border:none}`;
   const full = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(code.toUpperCase())} - ${esc(title)}</title><style>${css}</style></head><body>${html}</body></html>`;
-  downloadBlob(`\ufeff${full}`, `HNHS-${code.toUpperCase()}-${title.replace(/[^a-zA-Z0-9]/g, '-')}-blank.html`, 'text/html;charset=utf-8');
+  const prefix = (info?.school_name || 'HNHS').replace(/[^A-Z]/gi, '').substring(0, 8).toUpperCase();
+  downloadBlob(`\ufeff${full}`, `${prefix}-${code.toUpperCase()}-${title.replace(/[^a-zA-Z0-9]/g, '-')}-blank.html`, 'text/html;charset=utf-8');
 }
 
 export default function DepedForms() {
@@ -122,7 +122,7 @@ export default function DepedForms() {
       setLoading(true);
       api(`/deped-forms/summary-of-grades?section_id=${sectionId}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     }
-  }, [tab, sectionId, studentId, month, year, term]);
+  }, [tab, sectionId, studentId, month, year, term, info.school_year]);
 
   const form = FORMS.find(f => f.code === tab);
   const ctx = { sectionId, studentId, month, year, term, sections, students };
@@ -199,7 +199,7 @@ export default function DepedForms() {
           <button className="btn" onClick={() => form && printForm(form.code, form.title, html, form.orient)}>
             <Printer size={14} /> Download PDF
           </button>
-          <button className="btn" onClick={() => form && downloadBlankForm(form.code, form.title, blankHtml, form.orient)}>
+          <button className="btn" onClick={() => form && downloadBlankForm(form.code, form.title, blankHtml, form.orient, info)}>
             <Download size={14} /> Download Blank Form
           </button>
         </div>
@@ -380,7 +380,7 @@ ${students.length ? students.map(st => {
     <td class="c">${totalAbsent || ''}</td>
     <td></td>
   </tr>`;
-}).join('') : blankRows(30, daysInMonth + 3)}
+}).join('') : blankRows(30, daysInMonth + 4)}
 </tbody></table></div>
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
 }
@@ -404,17 +404,17 @@ ${formHeaderHtml(info, 'sf2', 'School Form 2 (SF2) — Daily Attendance Report o
   <th style="width:18pt">Absent</th>
   <th style="width:30pt">Remarks</th>
 </tr></thead>
-<tbody>${blankRows(30, 34)}</tbody></table></div>
+<tbody>${blankRows(30, 35)}</tbody></table></div>
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
 }
 
 /* ── SF3: Books Issued & Returned ─────────────────────────── */
 
-function renderSF3() {
+function renderSF3(data, info) {
   return `
-${formHeaderHtml(null, 'sf3', 'School Form 3 (SF3) — Books Issued and Returned')}
+${formHeaderHtml(info, 'sf3', 'School Form 3 (SF3) — Books Issued and Returned')}
 <table style="font-size:8pt;margin-bottom:6pt;">
-  <tr><td style="border:none;width:50%"><strong>School Name:</strong> Hinabangan National High School</td>
+  <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info?.school_name || 'Hinabangan National High School')}</td>
       <td style="border:none;width:50%"><strong>School Year:</strong> ____-____</td></tr>
   <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
 </table>
@@ -431,15 +431,15 @@ ${formHeaderHtml(null, 'sf3', 'School Form 3 (SF3) — Books Issued and Returned
 ${signatureBlockHtml('', 'Class Adviser / Teacher', '', 'School Head')}`;
 }
 
-function renderSF3Blank() { return renderSF3(); }
+function renderSF3Blank(info) { return renderSF3(null, info); }
 
 /* ── SF4: Monthly Learner Movement ─────────────────────────── */
 
-function renderSF4() {
+function renderSF4(data, info) {
   return `
-${formHeaderHtml(null, 'sf4', "School Form 4 (SF4) — Monthly Learner's Movement and Attendance")}
+${formHeaderHtml(info, 'sf4', "School Form 4 (SF4) — Monthly Learner's Movement and Attendance")}
 <table style="font-size:8pt;margin-bottom:6pt;">
-  <tr><td style="border:none;width:50%"><strong>School Name:</strong> Hinabangan National High School</td>
+  <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info?.school_name || 'Hinabangan National High School')}</td>
       <td style="border:none;width:50%"><strong>School Year:</strong> ____-____</td></tr>
   <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
   <tr><td style="border:none"><strong>Curriculum:</strong> K to 12 BEC / MATATAG</td><td style="border:none"><strong>Month:</strong> ________________</td></tr>
@@ -466,7 +466,7 @@ ${formHeaderHtml(null, 'sf4', "School Form 4 (SF4) — Monthly Learner's Movemen
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
 }
 
-function renderSF4Blank() { return renderSF4(); }
+function renderSF4Blank(info) { return renderSF4(null, info); }
 
 /* ── SF5: Report on Promotion ─────────────────────────────── */
 
@@ -597,11 +597,11 @@ function renderSF7Blank(info) { return renderSF7(null, info); }
 
 /* ── SF8: Health & Nutrition ─────────────────────────────── */
 
-function renderSF8() {
+function renderSF8(data, info) {
   return `
-${formHeaderHtml(null, 'sf8', "School Form 8 (SF8) — Learner's Basic Health and Nutrition Report")}
+${formHeaderHtml(info, 'sf8', "School Form 8 (SF8) — Learner's Basic Health and Nutrition Report")}
 <table style="font-size:8pt;margin-bottom:6pt;">
-  <tr><td style="border:none;width:50%"><strong>School Name:</strong> Hinabangan National High School</td>
+  <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info?.school_name || 'Hinabangan National High School')}</td>
       <td style="border:none;width:50%"><strong>School Year:</strong> ____-____</td></tr>
   <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
 </table>
@@ -620,7 +620,7 @@ ${formHeaderHtml(null, 'sf8', "School Form 8 (SF8) — Learner's Basic Health an
 ${signatureBlockHtml('', 'Class Adviser / School Nurse', '', 'School Head')}`;
 }
 
-function renderSF8Blank() { return renderSF8(); }
+function renderSF8Blank(info) { return renderSF8(null, info); }
 
 /* ── SF9: Report Card ─────────────────────────────────────── */
 
