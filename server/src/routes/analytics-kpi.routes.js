@@ -45,8 +45,8 @@ router.get('/grade-distribution', requireRole(...READ), asyncH(async (req, res) 
   const totals = await qa(`
     SELECT
       COUNT(*) AS total,
-      fc('g.computed_grade >= 75') AS passing,
-      fc('g.computed_grade < 75') AS failing,
+      ${fc('g.computed_grade >= 75')} AS passing,
+      ${fc('g.computed_grade < 75')} AS failing,
       ROUND(AVG(g.computed_grade), 2) AS mean
     FROM grades g
     JOIN students s ON s.id = g.student_id
@@ -70,11 +70,11 @@ router.get('/attendance-kpi', requireRole(...READ), asyncH(async (req, res) => {
   const monthly = await qa(`
     SELECT
       ${monthExpr} AS month,
-      fc('a.status = 'present'') AS present,
-      fc('a.status = 'late'') AS late,
-      fc('a.status = 'absent'') AS absent,
+      ${fc("a.status = 'present'")} AS present,
+      ${fc("a.status = 'late'")} AS late,
+      ${fc("a.status = 'absent'")} AS absent,
       COUNT(*) AS total,
-      ROUND(fc('a.status IN ('present', 'late'')) * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
+      ROUND(${fc("a.status IN ('present', 'late')")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
     FROM attendance a
     WHERE a.date >= ? AND a.date <= ?
     GROUP BY ${monthExpr}
@@ -88,11 +88,11 @@ router.get('/attendance-kpi', requireRole(...READ), asyncH(async (req, res) => {
   const daily = await qa(`
     SELECT
       a.date,
-      fc('a.status = 'present'') AS present,
-      fc('a.status = 'late'') AS late,
-      fc('a.status = 'absent'') AS absent,
+      ${fc("a.status = 'present'")} AS present,
+      ${fc("a.status = 'late'")} AS late,
+      ${fc("a.status = 'absent'")} AS absent,
       COUNT(*) AS total,
-      ROUND(fc('a.status IN ('present', 'late'')) * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
+      ROUND(${fc("a.status IN ('present', 'late')")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
     FROM attendance a
     WHERE a.date >= ${dailyCutoff}
     GROUP BY a.date ORDER BY a.date
@@ -102,9 +102,9 @@ router.get('/attendance-kpi', requireRole(...READ), asyncH(async (req, res) => {
   const byGrade = await qa(`
     SELECT
       st.grade_level,
-      fc('a.status IN ('present', 'late'')) AS present_count,
+      ${fc("a.status IN ('present', 'late')")} AS present_count,
       COUNT(*) AS total,
-      ROUND(fc('a.status IN ('present', 'late'')) * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
+      ROUND(${fc("a.status IN ('present', 'late')")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
     FROM attendance a
     JOIN students st ON st.id = a.student_id
     WHERE a.date >= ? AND a.date <= ?
@@ -115,9 +115,9 @@ router.get('/attendance-kpi', requireRole(...READ), asyncH(async (req, res) => {
   const overall = await qa(`
     SELECT
       COUNT(*) AS total_records,
-      fc('a.status IN ('present', 'late'')) AS present_late,
-      fc('a.status = 'absent'') AS absent_count,
-      ROUND(fc('a.status IN ('present', 'late'')) * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS overall_rate
+      ${fc("a.status IN ('present', 'late')")} AS present_late,
+      ${fc("a.status = 'absent'")} AS absent_count,
+      ROUND(${fc("a.status IN ('present', 'late')")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS overall_rate
     FROM attendance a
     WHERE a.date >= ? AND a.date <= ?
   `, [startDate, endDate]);
@@ -147,9 +147,9 @@ router.get('/enrollment-retention', requireRole(...READ), asyncH(async (req, res
   const byGrade = await qa(`
     SELECT
       e.grade_level,
-      fc('e.status = 'enrolled'') AS enrolled,
+      ${fc("e.status = 'enrolled'")} AS enrolled,
       COUNT(*) AS total,
-      ROUND(fc('e.status = 'enrolled'') * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS retention_rate
+      ROUND(${fc("e.status = 'enrolled'")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS retention_rate
     FROM enrollments e
     WHERE e.school_year = ?
     GROUP BY e.grade_level ORDER BY e.grade_level
@@ -159,8 +159,8 @@ router.get('/enrollment-retention', requireRole(...READ), asyncH(async (req, res
   const yoy = await qa(`
     SELECT school_year,
       COUNT(*) AS total,
-      fc('status = 'enrolled'') AS enrolled,
-      ROUND(fc('status = 'enrolled'') * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS retention_rate
+      ${fc("status = 'enrolled'")} AS enrolled,
+      ROUND(${fc("status = 'enrolled'")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS retention_rate
     FROM enrollments
     GROUP BY school_year ORDER BY school_year DESC LIMIT 5
   `);
@@ -226,7 +226,7 @@ router.get('/pass-rate', requireRole(...READ), asyncH(async (req, res) => {
       sec.name AS section_name,
       sec.grade_level,
       COUNT(DISTINCT g.student_id) AS total,
-      fcDistinct('g.student_id', 'g.computed_grade >= 75') AS passing,
+      ${fcDistinct('g.student_id', 'g.computed_grade >= 75')} AS passing,
       ROUND(AVG(g.computed_grade), 2) AS avg_grade
     FROM grades g
     JOIN sections sec ON sec.id = g.section_id
@@ -306,9 +306,9 @@ router.get('/report/csv', requireRole(...READ), asyncH(async (req, res) => {
   lines.push('Total Records,Present/Late,Absent,Attendance Rate %');
   const att = await qa(`
     SELECT COUNT(*) AS total,
-      fc('a.status IN ('present', 'late'')) AS present_late,
-      fc('a.status = 'absent'') AS absent_count,
-      ROUND(fc('a.status IN ('present', 'late'')) * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
+      ${fc("a.status IN ('present', 'late')")} AS present_late,
+      ${fc("a.status = 'absent'")} AS absent_count,
+      ROUND(${fc("a.status IN ('present', 'late')")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
     FROM attendance a WHERE a.date >= ? AND a.date <= ?
   `, [syStart, syEnd > new Date().toISOString().slice(0, 10) ? new Date().toISOString().slice(0, 10) : syEnd]);
   if (att[0]) lines.push(`${att[0].total},${att[0].present_late},${att[0].absent_count},${att[0].rate}`);
@@ -316,7 +316,7 @@ router.get('/report/csv', requireRole(...READ), asyncH(async (req, res) => {
   lines.push('');
   lines.push('ENROLLMENT RETENTION');
   const enr = await qa(`
-    SELECT COUNT(*) AS total, fc('status = 'enrolled'') AS enrolled
+    SELECT COUNT(*) AS total, ${fc("status = 'enrolled'")} AS enrolled
     FROM enrollments WHERE school_year = ?
   `, [school_year]);
   if (enr[0]) {
@@ -347,8 +347,8 @@ router.get('/strand-grade-comparison', requireRole(...READ), asyncH(async (req, 
   const rows = await qa(`
     SELECT COALESCE(sec.strand, 'Unassigned') AS strand, g.quarter,
            COUNT(*) AS n, ROUND(AVG(g.computed_grade), 2) AS mean,
-           fc('g.computed_grade >= 75') AS passing,
-           fc('g.computed_grade < 75') AS failing
+           ${fc('g.computed_grade >= 75')} AS passing,
+           ${fc('g.computed_grade < 75')} AS failing
     FROM grades g
     JOIN sections sec ON sec.id = g.section_id
     WHERE g.school_year = ? AND g.computed_grade IS NOT NULL

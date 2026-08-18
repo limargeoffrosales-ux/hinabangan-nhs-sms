@@ -41,19 +41,19 @@ router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY s.last_name, s.first_name`,
     [section_id]
   );
-  const m = month || (new Date().getMonth() + 1);
-  const y = year || new Date().getFullYear();
+  const m = Number(month || (new Date().getMonth() + 1));
+  const y = Number(year || new Date().getFullYear());
   const attendance = await qa(
     dialect === 'pg'
       ? `SELECT a.student_id, a.date, a.status
          FROM attendance a
-         WHERE a.section_id = ? AND EXTRACT(MONTH FROM a.date::timestamp) = ?
-           AND EXTRACT(YEAR FROM a.date::timestamp) = ?`
+         WHERE a.section_id = $1::bigint AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int
+           AND EXTRACT(YEAR FROM a.date::timestamp) = $3::int`
       : `SELECT a.student_id, a.date, a.status
          FROM attendance a
          WHERE a.section_id = ? AND CAST(strftime('%m', a.date) AS INTEGER) = ?
            AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
-    [section_id, Number(m), Number(y)]
+    [Number(section_id), m, y]
   );
   res.json({ students, attendance, month: Number(m), year: Number(y) });
 }));
