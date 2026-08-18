@@ -1,5 +1,6 @@
 const express = require('express');
-const { q, qa, qi, qr, dialect } = require('../db');
+const db = require('../db');
+const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { linkedStudentIds } = require('../scope');
@@ -8,7 +9,7 @@ const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
 
-function safeNotDistinctPg(col) { return dialect === 'pg' ? `${col} IS NOT DISTINCT FROM ?` : `(${col} = ? OR (${col} IS NULL AND ? IS NULL))`; }
+function safeNotDistinctPg(col) { return db.dialect === 'pg' ? `${col} IS NOT DISTINCT FROM ?` : `(${col} = ? OR (${col} IS NULL AND ? IS NULL))`; }
 
 /* ── Get competencies for a subject ─────────────────── */
 router.get('/competencies', requireRole(...WRITE), asyncH(async (req, res) => {
@@ -60,11 +61,11 @@ router.post('/scores', requireRole(...WRITE), asyncH(async (req, res) => {
   const existing = await q(
     `SELECT id FROM student_competency_scores
      WHERE student_id = ? AND competency_id = ? AND ${safeNotDistinctPg('subject_id')} AND school_year = ? AND ${safeNotDistinctPg('quarter')}`,
-    [b.student_id, b.competency_id, subId, ...(dialect !== 'pg' ? [subId] : []), b.school_year, qrtr, ...(dialect !== 'pg' ? [qrtr] : [])]
+    [b.student_id, b.competency_id, subId, ...(db.dialect !== 'pg' ? [subId] : []), b.school_year, qrtr, ...(db.dialect !== 'pg' ? [qrtr] : [])]
   );
   if (existing) {
     await qr(
-      `UPDATE student_competency_scores SET score=?, level=?, evidence=?, assessed_by=?, assessed_at=NOW(), updated_at=NOW()
+      `UPDATE student_competency_scores SET score=?, level=?, evidence=?, assessed_by=?, assessed_at=${nowSql()}, updated_at=${nowSql()}
        WHERE id=?`,
       [b.score || null, level, b.evidence || null, req.user.teacher_id || null, existing.id]
     );
@@ -72,7 +73,7 @@ router.post('/scores', requireRole(...WRITE), asyncH(async (req, res) => {
   } else {
     const id = await qi(
       `INSERT INTO student_competency_scores (student_id, competency_id, subject_id, section_id, school_year, quarter, score, level, evidence, assessed_by, assessed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${nowSql()})`,
       [b.student_id, b.competency_id, b.subject_id || null, b.section_id || null,
         b.school_year, b.quarter || null, b.score || null, level, b.evidence || null, req.user.teacher_id || null]
     );
@@ -96,15 +97,15 @@ router.post('/scores/batch', requireRole(...WRITE), asyncH(async (req, res) => {
     const existing = await q(
       `SELECT id FROM student_competency_scores
        WHERE student_id = ? AND competency_id = ? AND ${safeNotDistinctPg('subject_id')} AND school_year = ? AND ${safeNotDistinctPg('quarter')}`,
-      [s.student_id, s.competency_id, subId, ...(dialect !== 'pg' ? [subId] : []), school_year, qrtr, ...(dialect !== 'pg' ? [qrtr] : [])]
+      [s.student_id, s.competency_id, subId, ...(db.dialect !== 'pg' ? [subId] : []), school_year, qrtr, ...(db.dialect !== 'pg' ? [qrtr] : [])]
     );
     if (existing) {
-      await qr('UPDATE student_competency_scores SET score=?, level=?, assessed_by=?, assessed_at=NOW(), updated_at=NOW() WHERE id=?',
+      await qr(`UPDATE student_competency_scores SET score=?, level=?, assessed_by=?, assessed_at=${nowSql()}, updated_at=${nowSql()} WHERE id=?`,
         [s.score || null, level, req.user.teacher_id || null, existing.id]);
     } else {
       await qi(
         `INSERT INTO student_competency_scores (student_id, competency_id, subject_id, section_id, school_year, quarter, score, level, assessed_by, assessed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${nowSql()})`,
         [s.student_id, s.competency_id, subject_id || null, section_id || null,
           school_year, quarter || null, s.score || null, level, req.user.teacher_id || null]
       );

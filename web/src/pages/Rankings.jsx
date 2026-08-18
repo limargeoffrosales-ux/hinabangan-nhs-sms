@@ -3,6 +3,7 @@ import { RefreshCw, Settings2, Search, UserSearch } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { fmt } from '../lib/utils';
 
 const DESIGNATION_LABELS = {
   with_highest_honors: 'With Highest Honors',
@@ -25,10 +26,6 @@ const TABS = [
 function designationBadge(d) {
   if (!d) return null;
   return <span className={`badge ${DESIGNATION_CLASSES[d] || 'badge-gray'}`}>{DESIGNATION_LABELS[d] || d}</span>;
-}
-
-function fmt(n) {
-  return n == null ? '—' : Number(n);
 }
 
 export default function Rankings() {

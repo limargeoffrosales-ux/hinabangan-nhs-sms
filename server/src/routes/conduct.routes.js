@@ -41,7 +41,7 @@ function decorate(rows) {
   });
 }
 
-router.get('/', asyncH(async (req, res) => {
+router.get('/', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const where = [];
   const params = [];
@@ -109,7 +109,7 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   res.status(201).json({ id });
 }));
 
-router.get('/:id', asyncH(async (req, res) => {
+router.get('/:id', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const row = await q(`${LIST_SELECT} WHERE cr.id = ?`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Record not found' });
   row.actions = await qa(

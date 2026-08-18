@@ -23,7 +23,8 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [conduct, setConduct] = useState(null);
 
-  const RISK_CLASS = { [t('dashboard.highRisk')]: 'badge-red', [t('dashboard.moderateRisk')]: 'badge-yellow', [t('dashboard.lowRisk')]: 'badge-blue' };
+  const RISK_CLASS_MAP = { 'high risk': 'badge-red', 'moderate risk': 'badge-yellow', 'low risk': 'badge-blue' };
+  const getRiskBadge = (risk) => RISK_CLASS_MAP[String(risk).toLowerCase()] || 'badge-gray';
 
   const CONDUCT_TYPE_LABEL = {
     call_slip: t('conduct.callSlip'), bullying: t('conduct.bullying'), inappropriate_behavior: t('conduct.inappropriateBehavior'),
@@ -201,7 +202,7 @@ export default function Dashboard() {
                     <Link className="risk-name" to={`/students?q=${encodeURIComponent(r.name.split(' ')[0])}`}>{r.name}</Link>
                     <div className="sub">{r.section || r.grade_level} · avg {r.avg_grade} · attendance {r.attendance_rate}%{r.reading_level ? ` · ${r.reading_level}` : ''}</div>
                   </div>
-                  <span className={`badge ${RISK_CLASS[r.risk]}`}>{r.risk}</span>
+                  <span className={`badge ${getRiskBadge(r.risk)}`}>{r.risk}</span>
                 </div>
               ))}
             </div>

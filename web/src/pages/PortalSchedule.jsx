@@ -30,7 +30,7 @@ export default function PortalSchedule() {
 
   useEffect(() => {
     if (students.length && studentId) load();
-  }, [studentId]);
+  }, [studentId, sy]);
 
   if (meLoading) return <Spinner />;
   if (!students.length) {

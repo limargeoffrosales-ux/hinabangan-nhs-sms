@@ -1,5 +1,6 @@
 const express = require('express');
-const { q, qa, dialect } = require('../db');
+const db = require('../db');
+const { q, qa } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 
@@ -44,7 +45,7 @@ router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const m = Number(month || (new Date().getMonth() + 1));
   const y = Number(year || new Date().getFullYear());
   const attendance = await qa(
-    dialect === 'pg'
+    db.dialect === 'pg'
       ? `SELECT a.student_id, a.date, a.status
          FROM attendance a
          WHERE a.section_id = $1::bigint AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int

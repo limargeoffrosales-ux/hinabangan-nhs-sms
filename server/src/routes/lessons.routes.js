@@ -1,7 +1,8 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const db = require('../db');
+const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, safeJsonParse } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
@@ -43,7 +44,7 @@ router.get('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
      LEFT JOIN teachers t ON t.id = l.teacher_id
      WHERE l.id = ?`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Lesson not found' });
-  const competencies = row.competency_ids ? JSON.parse(row.competency_ids) : [];
+  const competencies = row.competency_ids ? safeJsonParse(row.competency_ids, []) : [];
   if (competencies.length) {
     const comps = await qa('SELECT id, code, title FROM competencies WHERE id IN (' + competencies.map(() => '?').join(',') + ')', competencies);
     row.competency_list = comps;
@@ -86,7 +87,7 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   await qr(
     `UPDATE lessons SET subject_id=?, section_id=?, school_year=?, quarter=?, title=?,
       objectives=?, content_outline=?, teaching_strategy=?, materials=?, assessment_plan=?,
-      competency_ids=?, duration_minutes=?, scheduled_date=?, status=?, notes=?, updated_at=NOW()
+      competency_ids=?, duration_minutes=?, scheduled_date=?, status=?, notes=?, updated_at=${nowSql()}
      WHERE id=?`,
     [f('subject_id', row.subject_id), f('section_id', row.section_id), f('school_year', row.school_year),
       f('quarter', row.quarter), f('title', row.title), f('objectives', row.objectives),

@@ -23,7 +23,7 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ data: rows });
 }));
 
-router.get('/:id', asyncH(async (req, res) => {
+router.get('/:id', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM research_projects WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Project not found' });
   row.versions = await qa('SELECT * FROM research_versions WHERE project_id = ? ORDER BY version_no DESC', [row.id]);

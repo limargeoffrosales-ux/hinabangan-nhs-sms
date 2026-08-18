@@ -50,14 +50,13 @@ export default function Submissions() {
   async function load() {
     setError(null);
     try {
-      const [t, r, q] = await Promise.all([
+      const [t, submissions] = await Promise.all([
         api('/submissions/types'),
-        api('/submissions'),
         api('/submissions'),
       ]);
       setTypes(t.data);
-      const mine = (r.data || []).filter((s) => String(s.user_id) === String(user.id));
-      const actionable = (q.data || []).filter((s) => s.my_review || s.my_approve);
+      const mine = (submissions.data || []).filter((s) => String(s.user_id) === String(user.id));
+      const actionable = (submissions.data || []).filter((s) => s.my_review || s.my_approve);
       setRows(mine);
       setQueue(actionable);
     } catch (e) {

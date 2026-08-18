@@ -53,7 +53,7 @@ export default function PortalAssignments() {
 
   useEffect(() => {
     if (students.length && studentId) load();
-  }, [studentId]);
+  }, [studentId, sy]);
 
   async function submit(a) {
     const d = drafts[a.id] || {};

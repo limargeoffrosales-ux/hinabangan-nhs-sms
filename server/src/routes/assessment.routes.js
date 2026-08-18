@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, safeJsonParse } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
@@ -20,7 +20,7 @@ router.get('/questions', asyncH(async (req, res) => {
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY qb.id DESC LIMIT 300';
   const rows = await qa(sql, params);
-  res.json({ data: rows.map((r) => ({ ...r, options: r.options ? JSON.parse(r.options) : null })) });
+  res.json({ data: rows.map((r) => ({ ...r, options: safeJsonParse(r.options) })) });
 }));
 
 router.post('/questions', requireRole(...WRITE), asyncH(async (req, res) => {
@@ -61,7 +61,7 @@ router.delete('/questions/:id', requireRole(...WRITE), asyncH(async (req, res) =
   res.json({ ok: true });
 }));
 
-router.post('/questions/use/:id', asyncH(async (req, res) => {
+router.post('/questions/use/:id', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   await qr('UPDATE question_bank SET used_count = used_count + 1 WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
 }));
@@ -71,7 +71,7 @@ router.get('/rubrics', asyncH(async (req, res) => {
     `SELECT rb.*, s.title AS subject_title, u.name AS user_name FROM rubrics rb
      LEFT JOIN subjects s ON s.id = rb.subject_id JOIN users u ON u.id = rb.user_id
      ORDER BY rb.id DESC`);
-  res.json({ data: rows.map((r) => ({ ...r, criteria: r.criteria ? JSON.parse(r.criteria) : null })) });
+  res.json({ data: rows.map((r) => ({ ...r, criteria: safeJsonParse(r.criteria) })) });
 }));
 
 router.post('/rubrics', requireRole(...WRITE), asyncH(async (req, res) => {
@@ -100,7 +100,7 @@ router.get('/tos', asyncH(async (req, res) => {
     `SELECT t.*, s.title AS subject_title, u.name AS user_name FROM tos_records t
      LEFT JOIN subjects s ON s.id = t.subject_id JOIN users u ON u.id = t.user_id
      ORDER BY t.id DESC`);
-  res.json({ data: rows.map((r) => ({ ...r, data: r.data ? JSON.parse(r.data) : null })) });
+  res.json({ data: rows.map((r) => ({ ...r, data: safeJsonParse(r.data) })) });
 }));
 
 router.post('/tos', requireRole(...WRITE), asyncH(async (req, res) => {
@@ -129,7 +129,7 @@ router.get('/analyses', asyncH(async (req, res) => {
      LEFT JOIN subjects s ON s.id = a.subject_id JOIN users u ON u.id = a.user_id
      ORDER BY a.id DESC`);
   res.json({ data: rows.map((r) => ({
-    ...r, data: r.data ? JSON.parse(r.data) : null, computed: r.computed ? JSON.parse(r.computed) : null,
+    ...r, data: safeJsonParse(r.data), computed: safeJsonParse(r.computed),
   })) });
 }));
 
@@ -157,7 +157,7 @@ router.delete('/analyses/:id', requireRole(...WRITE), asyncH(async (req, res) =>
   res.json({ ok: true });
 }));
 
-router.post('/item-analysis', asyncH(async (req, res) => {
+router.post('/item-analysis', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const b = req.body || {};
   const items = b.items || [];
   const learners = Number(b.learners) || 1;
@@ -198,7 +198,7 @@ router.post('/item-analysis', asyncH(async (req, res) => {
   });
 }));
 
-router.post('/ai/questions', asyncH(async (req, res) => {
+router.post('/ai/questions', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const b = req.body || {};
   const count = Math.min(Number(b.count) || 5, 15);
   const topic = String(b.topics || b.topic || 'key concepts of the lesson').trim();

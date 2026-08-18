@@ -47,4 +47,8 @@ async function logAccess(req, studentId, action = 'STUDENT_VIEW') {
   } catch {}
 }
 
-module.exports = { audit, asyncH, page, maskPII, logAccess };
+function safeJsonParse(str, fallback = null) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+module.exports = { audit, asyncH, page, maskPII, logAccess, safeJsonParse };
