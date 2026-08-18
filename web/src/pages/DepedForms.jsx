@@ -601,7 +601,7 @@ ${teachers.length ? teachers.map((t, idx) => {
     <td>${esc(t.position || '')}</td>
     <td class="small">${asgn.map(a => esc(a.subject_name)).join(', ')}</td>
     <td>${esc(t.advisory_class || '')}</td>
-    <td class="small">${asgn.map(a => esc(a.schedule || '')).join('<br/>')}</td>
+    <td class="small">${asgn.map(a => `${esc(a.room || '')}${a.meetings_per_week ? ' (' + a.meetings_per_week + 'x/wk)' : ''}`).join('<br/>')}</td>
     <td class="c">${asgn.reduce((sum, a) => sum + Number(a.minutes_per_day || 0), 0) || ''}</td>
     <td></td>
   </tr>`;

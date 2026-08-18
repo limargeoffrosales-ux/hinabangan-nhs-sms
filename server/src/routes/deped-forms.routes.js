@@ -20,13 +20,14 @@ router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, school_year } = req.query;
   if (!section_id) return res.json({ students: [], section: null });
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const syCond = school_year ? 'AND e.school_year = $2::text' : '';
   const students = await qa(
     `SELECT s.*, e.strand, e.enrolled_at
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
-     WHERE e.section_id = ? AND (e.school_year = ? OR ? IS NULL)
+     WHERE e.section_id = $1::bigint ${syCond}
      ORDER BY s.last_name, s.first_name`,
-    [section_id, school_year || null, school_year || null]
+    [section_id, ...(school_year ? [school_year] : [])]
   );
   res.json({ students, section });
 }));
@@ -79,20 +80,22 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY sub.title`,
     [section_id]
   );
+  const termCond = term ? 'AND g.term = $2::text' : '';
   const grades = await qa(
     `SELECT g.student_id, g.subject_id, g.term, g.computed_grade, g.remarks
      FROM grades g
-     WHERE g.section_id = ? AND (g.term = ? OR ? IS NULL)`,
-    [section_id, term || null, term || null]
+     WHERE g.section_id = $1::bigint ${termCond}`,
+    [section_id, ...(term ? [term] : [])]
   );
   res.json({ students, subjects, grades, section });
 }));
 
 router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { school_year } = req.query;
+  const syCond = school_year ? 'AND s.school_year = $1::text' : '';
   const sections = await qa(
-    `SELECT id, name, grade_level FROM sections WHERE (school_year = ? OR ? IS NULL) ORDER BY grade_level, name`,
-    [school_year || null, school_year || null]
+    `SELECT id, name, grade_level FROM sections s WHERE 1=1 ${syCond} ORDER BY grade_level, name`,
+    school_year ? [school_year] : []
   );
   const result = [];
   for (const sec of sections) {
@@ -138,7 +141,7 @@ router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   );
   const assignments = await qa(
     `SELECT ca.teacher_id, sub.title as subject_name, sec.name as section_name, sec.grade_level,
-            ca.schedule, ca.duration_minutes as minutes_per_day
+            ca.room, ca.meetings_per_week, ca.duration_minutes as minutes_per_day
      FROM class_assignments ca
      JOIN subjects sub ON sub.id = ca.subject_id
      JOIN sections sec ON sec.id = ca.section_id
@@ -186,13 +189,14 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        ORDER BY e.enrolled_at DESC LIMIT 1`,
       [student_id]
     );
+    const termCond = term ? 'AND g.term = $2::text' : '';
     const grades = await qa(
       `SELECT g.*, sub.title as subject_name
        FROM grades g
        JOIN subjects sub ON sub.id = g.subject_id
-       WHERE g.student_id = ? AND (g.term = ? OR ? IS NULL)
+       WHERE g.student_id = $1::bigint ${termCond}
        ORDER BY sub.title`,
-      [student_id, term || null, term || null]
+      [student_id, ...(term ? [term] : [])]
     );
     const attendance = await qa(
       `SELECT
