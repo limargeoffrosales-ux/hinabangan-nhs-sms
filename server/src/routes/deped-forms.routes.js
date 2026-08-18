@@ -224,4 +224,37 @@ router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   res.json({ learner: { student, enrollments, grades: allGrades, attendance: allAttendance } });
 }));
 
+router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { section_id } = req.query;
+  if (!section_id) return res.json({ learners: [], subjects: [], grades: [], section: null });
+  const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const learners = await qa(
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     WHERE e.section_id = ?
+     ORDER BY s.last_name, s.first_name`,
+    [section_id]
+  );
+  const subjects = await qa(
+    `SELECT DISTINCT sub.id, sub.name
+     FROM subjects sub
+     JOIN class_assignments ca ON ca.subject_id = sub.id
+     WHERE ca.section_id = ?
+     ORDER BY sub.name`,
+    [section_id]
+  );
+  const learnerIds = learners.map(lr => lr.id);
+  let grades = [];
+  if (learnerIds.length) {
+    grades = await qa(
+      `SELECT g.student_id, g.subject_id, g.term, g.computed_grade
+       FROM grades g
+       WHERE g.section_id = ?`,
+      [section_id]
+    );
+  }
+  res.json({ learners, subjects, grades, section });
+}));
+
 module.exports = router;
