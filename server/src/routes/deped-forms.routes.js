@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa } = require('../db');
+const { q, qa, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 
@@ -44,10 +44,15 @@ router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const m = month || (new Date().getMonth() + 1);
   const y = year || new Date().getFullYear();
   const attendance = await qa(
-    `SELECT a.student_id, a.date, a.status
-     FROM attendance a
-     WHERE a.section_id = ? AND EXTRACT(MONTH FROM a.date::timestamp) = ?
-       AND EXTRACT(YEAR FROM a.date::timestamp) = ?`,
+    dialect === 'pg'
+      ? `SELECT a.student_id, a.date, a.status
+         FROM attendance a
+         WHERE a.section_id = ? AND EXTRACT(MONTH FROM a.date::timestamp) = ?
+           AND EXTRACT(YEAR FROM a.date::timestamp) = ?`
+      : `SELECT a.student_id, a.date, a.status
+         FROM attendance a
+         WHERE a.section_id = ? AND CAST(strftime('%m', a.date) AS INTEGER) = ?
+           AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
     [section_id, Number(m), Number(y)]
   );
   res.json({ students, attendance, month: Number(m), year: Number(y) });
@@ -66,11 +71,11 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
     [section_id]
   );
   const subjects = await qa(
-    `SELECT DISTINCT sub.id, sub.name
+    `SELECT DISTINCT sub.id, sub.title
      FROM subjects sub
      JOIN class_assignments ca ON ca.subject_id = sub.id
      WHERE ca.section_id = ?
-     ORDER BY sub.name`,
+     ORDER BY sub.title`,
     [section_id]
   );
   const grades = await qa(
@@ -124,12 +129,12 @@ router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) => {
      ORDER BY u.name`
   );
   const assignments = await qa(
-    `SELECT ca.teacher_id, sub.name as subject_name, sec.name as section_name, sec.grade_level,
+    `SELECT ca.teacher_id, sub.title as subject_name, sec.name as section_name, sec.grade_level,
             ca.schedule, ca.minutes_per_day
      FROM class_assignments ca
      JOIN subjects sub ON sub.id = ca.subject_id
      JOIN sections sec ON sec.id = ca.section_id
-     ORDER BY ca.teacher_id, sub.name`
+     ORDER BY ca.teacher_id, sub.title`
   );
   const byTeacher = {};
   for (const a of assignments) {
@@ -154,11 +159,11 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       [student_id]
     );
     const grades = await qa(
-      `SELECT g.*, sub.name as subject_name
+      `SELECT g.*, sub.title as subject_name
        FROM grades g
        JOIN subjects sub ON sub.id = g.subject_id
        WHERE g.student_id = ? AND (g.term = ? OR ? IS NULL)
-       ORDER BY sub.name`,
+       ORDER BY sub.title`,
       [student_id, term || null, term || null]
     );
     const attendance = await qa(
@@ -198,12 +203,12 @@ router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
     [student_id]
   );
   const allGrades = await qa(
-    `SELECT g.*, sub.name as subject_name, sec.name as section_name, sec.grade_level
+    `SELECT g.*, sub.title as subject_name, sec.name as section_name, sec.grade_level
      FROM grades g
      JOIN subjects sub ON sub.id = g.subject_id
      JOIN sections sec ON sec.id = g.section_id
      WHERE g.student_id = ?
-     ORDER BY g.term, sub.name`,
+     ORDER BY g.term, sub.title`,
     [student_id]
   );
   const allAttendance = await qa(
@@ -237,11 +242,11 @@ router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, 
     [section_id]
   );
   const subjects = await qa(
-    `SELECT DISTINCT sub.id, sub.name
+    `SELECT DISTINCT sub.id, sub.title
      FROM subjects sub
      JOIN class_assignments ca ON ca.subject_id = sub.id
      WHERE ca.section_id = ?
-     ORDER BY sub.name`,
+     ORDER BY sub.title`,
     [section_id]
   );
   const learnerIds = learners.map(lr => lr.id);

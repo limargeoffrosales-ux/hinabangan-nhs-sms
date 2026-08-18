@@ -3,10 +3,11 @@ const path = require('path');
 const PORT = Number(process.env.PORT || 4000);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const WEB_DIR = process.env.WEB_DIR || path.join(__dirname, '..', '..', 'web', 'dist');
-const JWT_SECRET = process.env.JWT_SECRET || 'meridianed-dev-secret-change-me';
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('JWT_SECRET must be set in production'); })() : 'meridianed-dev-secret-change-me');
 const ACCESS_TTL = process.env.ACCESS_TTL || '15m';
 const REFRESH_TTL_DAYS = Number(process.env.REFRESH_TTL_DAYS || 14);
-const GRADE_WEIGHTS = JSON.parse(process.env.GRADE_WEIGHTS || '{"written_work":25,"performance_task":45,"quarterly_exam":30}');
+let GRADE_WEIGHTS;
+try { GRADE_WEIGHTS = JSON.parse(process.env.GRADE_WEIGHTS || '{"written_work":25,"performance_task":45,"quarterly_exam":30}'); } catch { GRADE_WEIGHTS = { written_work: 25, performance_task: 45, quarterly_exam: 30 }; }
 
 // --- Email (SMTP) transport ---------------------------------------------------
 const SMTP_HOST = process.env.SMTP_HOST || '';
@@ -35,7 +36,6 @@ const NOTIFY_SMS_ENABLED = process.env.NOTIFY_SMS_ENABLED === '1';
 // requests (the web portal served by this same process) are always allowed.
 const ALLOWED_ORIGINS = [
   'https://hinabangan-nhs.onrender.com',
-  'https://hinabangan-nhs.onrender.com/',
   'capacitor://localhost',
   'https://localhost',
   /^https?:\/\/localhost(:\d+)?$/,

@@ -77,7 +77,8 @@ function readingLevelFor(level) {
 const RISK_LABELS = ['High risk', 'Moderate risk', 'Low risk'];
 
 async function insights(req) {
-  const sy = '2025-2026';
+  const syRow = await q("SELECT value FROM app_settings WHERE key = 'school_year'");
+  const sy = syRow?.value || '2025-2026';
   const out = { generated_at: new Date().toISOString(), sections: [] };
 
   const gradeRows = await qa(

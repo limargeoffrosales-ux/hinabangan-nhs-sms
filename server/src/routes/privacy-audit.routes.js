@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qr } = require('../db');
+const { q, qa, qr, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
@@ -74,11 +74,17 @@ router.get('/access-logs/stats', requireRole(...ADMIN_ROLES), asyncH(async (req,
      LIMIT 10`);
 
   const recentActivity = await qa(
-    `SELECT dal.action, COUNT(*) AS count
-     FROM data_access_logs dal
-     WHERE dal.created_at >= datetime('now', '-7 days')
-     GROUP BY dal.action
-     ORDER BY count DESC`);
+    dialect === 'pg'
+      ? `SELECT dal.action, COUNT(*) AS count
+         FROM data_access_logs dal
+         WHERE dal.created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
+         GROUP BY dal.action
+         ORDER BY count DESC`
+      : `SELECT dal.action, COUNT(*) AS count
+         FROM data_access_logs dal
+         WHERE dal.created_at >= datetime('now', '-7 days')
+         GROUP BY dal.action
+         ORDER BY count DESC`);
 
   const totalLogs = (await qa('SELECT COUNT(*) AS n FROM data_access_logs'))[0].n;
 

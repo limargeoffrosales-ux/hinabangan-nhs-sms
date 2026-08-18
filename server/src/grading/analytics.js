@@ -104,7 +104,7 @@ function summarizeSubjects(subjects) {
     if (s.points == null) continue;
     const units = s.units || 0;
     wDen += units;
-    const points = s.passed === false && s.scaleCreditsPassOnly ? 0 : s.points;
+    const points = s.passed === false && s.scale_credits_pass_only ? 0 : s.points;
     wNum += points * units;
   }
   const weightedGpa = wDen ? round2(wNum / wDen) : null;

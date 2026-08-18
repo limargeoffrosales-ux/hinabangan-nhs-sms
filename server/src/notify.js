@@ -134,7 +134,7 @@ async function resolveSectionRecipients(sectionId, schoolYear) {
   const seenPhones = new Set();
 
   const studentRows = await qa(
-    `SELECT st.id, u.id AS user_id, u.email, u.phone, u.name, st.first_name, st.last_name
+    `SELECT st.id, u.id AS user_id, u.email, u.phone, u.name, st.first_name, st.last_name, st.guardian_contact, st.guardian_name
      FROM enrollments e
      JOIN students st ON st.id = e.student_id
      LEFT JOIN users u ON u.id = st.user_id
@@ -234,7 +234,8 @@ async function resolveAnnouncementRecipients(audience) {
   const out = { emails: [], phones: [] };
   const seen = new Set();
   const roles = { all: [], students: ['student', 'parent'], parents: ['parent'], staff: [] };
-  let sql = 'SELECT id, email, phone, name, role FROM users WHERE status = \'active\' AND email IS NOT NULL AND email <> \'\'';
+  let sql = `SELECT id, email, phone, name, role FROM users WHERE status = 'active'
+             AND ((email IS NOT NULL AND email <> '') OR (phone IS NOT NULL AND phone <> ''))`;
   const params = [];
   if (audience === 'staff') { sql += ' AND role NOT IN (?, ?)'; params.push('student', 'parent'); }
   else if (audience === 'students') { sql += ' AND role IN (?, ?)'; params.push('student', 'parent'); }

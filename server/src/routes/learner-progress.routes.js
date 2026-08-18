@@ -13,7 +13,7 @@ const LEVEL_ORDER = { Independent: 1, Instructional: 2, Frustration: 3, 'Non-Rea
 const NUM_LEVELS = ['Independent', 'Developing', 'Frustration', 'Non-Numerate'];
 const FLUENCY = ['Fluent', 'Fairly Fluent', 'Slow', 'Non-Fluent'];
 
-router.get('/', asyncH(async (req, res) => {
+router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { kind, student_id } = req.query;
   let sql = `SELECT l.*, s.first_name, s.last_name, s.grade_level, sec.name AS section_name
              FROM learner_assessments l
@@ -29,7 +29,7 @@ router.get('/', asyncH(async (req, res) => {
   res.json({ data: rows });
 }));
 
-router.get('/students', asyncH(async (req, res) => {
+router.get('/students', requireRole(...WRITE), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT s.id, s.first_name, s.last_name, s.grade_level, s.sex, sec.name AS section_name,
             (SELECT level FROM learner_assessments la WHERE la.student_id = s.id AND la.kind = 'reading' AND la.level IS NOT NULL ORDER BY la.id DESC LIMIT 1) AS reading_level,
@@ -51,7 +51,7 @@ router.get('/students', asyncH(async (req, res) => {
   res.json({ data: out });
 }));
 
-router.get('/stats', asyncH(async (req, res) => {
+router.get('/stats', requireRole(...WRITE), asyncH(async (req, res) => {
   const reading = await qa(
     "SELECT level, COUNT(*) AS n FROM learner_assessments WHERE kind = 'reading' AND level IS NOT NULL GROUP BY level");
   const numeracy = await qa(
@@ -126,7 +126,7 @@ router.delete('/:id', requireRole(...ADMIN_ROLES, 'teacher', 'guidance'), asyncH
   res.json({ ok: true });
 }));
 
-router.post('/ai/recommend', asyncH(async (req, res) => {
+router.post('/ai/recommend', requireRole(...WRITE), asyncH(async (req, res) => {
   const sid = (req.body || {}).student_id;
   const rec = { level: null, suggestions: [], severity: 'low' };
   if (sid) {

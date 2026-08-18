@@ -9,6 +9,9 @@ router.use(authenticate);
 
 const READ = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
+const isPg = db.dialect === 'pg';
+function fc(cond) { return isPg ? `COUNT(*) FILTER (WHERE ${cond})` : `SUM(CASE WHEN ${cond} THEN 1 ELSE 0 END)`; }
+
 // ── Strand Distribution ────────────────────────────────────────────
 // Returns enrollment counts grouped by strand for a school year.
 router.get('/strand-distribution', requireRole(...READ), asyncH(async (req, res) => {
@@ -112,9 +115,9 @@ router.get('/strand-comparison', requireRole(...READ), asyncH(async (req, res) =
     SELECT COALESCE(sec.strand, 'Unassigned') AS strand,
            COUNT(*) AS total_grades,
            ROUND(AVG(g.computed_grade), 2) AS mean_grade,
-           COUNT(*) FILTER (WHERE g.computed_grade >= 75) AS passing,
-           COUNT(*) FILTER (WHERE g.computed_grade < 75) AS failing,
-           ROUND(COUNT(*) FILTER (WHERE g.computed_grade >= 75)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS pass_rate
+           ${fc('g.computed_grade >= 75')} AS passing,
+           ${fc('g.computed_grade < 75')} AS failing,
+           ROUND(${fc('g.computed_grade >= 75')} * 100.0 / NULLIF(COUNT(*), 0), 1) AS pass_rate
     FROM grades g
     JOIN sections sec ON sec.id = g.section_id
     WHERE ${where.join(' AND ')}
@@ -135,8 +138,8 @@ router.get('/teacher-performance', requireRole(...READ), asyncH(async (req, res)
     SELECT t.id, t.first_name || ' ' || t.last_name AS name,
            COUNT(DISTINCT g.student_id) AS students,
            ROUND(AVG(g.computed_grade), 2) AS avg_grade,
-           COUNT(*) FILTER (WHERE g.computed_grade >= 75) AS passing,
-           COUNT(*) FILTER (WHERE g.computed_grade < 75) AS failing
+           ${fc('g.computed_grade >= 75')} AS passing,
+           ${fc('g.computed_grade < 75')} AS failing
     FROM grades g
     JOIN class_assignments ca ON ca.section_id = g.section_id
       AND ca.subject_id = g.subject_id AND ca.school_year = g.school_year
@@ -157,7 +160,7 @@ router.get('/certification-readiness', requireRole(...READ), asyncH(async (req, 
 
   const rows = await qa(`
     SELECT strand, COUNT(*) AS students, ROUND(AVG(gwa), 2) AS avg_grade,
-           COUNT(*) FILTER (WHERE gwa >= 75) AS ready
+           ${fc('gwa >= 75')} AS ready
     FROM (
       SELECT g.student_id, sec.strand, AVG(g.computed_grade) AS gwa
       FROM grades g

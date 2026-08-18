@@ -198,9 +198,9 @@ router.put('/submit', requireRole(...PORTAL), asyncH(async (req, res) => {
   }
   if (existing) {
     await qr(`UPDATE assignment_submissions SET text_content = ?, link_url = ?, status = 'submitted',
-              score = NULL, feedback = NULL, rubric_scores = NULL, submitted_at = ?, updated_at = ${nowSql()}
+              score = NULL, feedback = NULL, rubric_scores = NULL, submitted_at = ${nowSql()}, updated_at = ${nowSql()}
               WHERE id = ?`,
-      [text || null, link || null, nowSql(), existing.id]);
+      [text || null, link || null, existing.id]);
   } else {
     await qi(
       `INSERT INTO assignment_submissions (assignment_id, student_id, text_content, link_url, status, submitted_at)

@@ -410,22 +410,24 @@ async function seedAiModules() {
 
   const levelPool = ['Independent', 'Independent', 'Instructional', 'Instructional', 'Frustration', 'Frustration', 'Non-Reader'];
   const fluPool = ['Fluent', 'Fluent', 'Fairly Fluent', 'Slow', 'Slow', 'Non-Fluent', 'Non-Fluent'];
-  ids.slice(0, 14).forEach((sid, i) => {
+  for (let i = 0; i < ids.slice(0, 14).length; i++) {
+    const sid = ids.slice(0, 14)[i];
     const lev = levelPool[i % levelPool.length];
     const score = { Independent: 17, Instructional: 14, Frustration: 9, 'Non-Reader': 4 }[lev];
-    qi(
+    await qi(
       `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, fluency, comprehension, remarks, recorded_by)
        VALUES (?, 'reading', 'PHIL-IRI', ?, ?, 20, ?, ?, ?, 'Seeded PHIL-IRI record', ?)`,
       [sid, '2025-07-15', score, lev, fluPool[i % fluPool.length], lev === 'Frustration' ? 'Literal comprehension only' : (lev === 'Non-Reader' ? 'Letter-sound skills need development' : 'Age-appropriate comprehension'), teachers[0].id]);
-  });
+  }
 
-  ids.slice(7, 12).forEach((sid, i) => {
+  for (let i = 0; i < ids.slice(7, 12).length; i++) {
+    const sid = ids.slice(7, 12)[i];
     const lev = i % 2 ? 'Independent' : 'Developing';
-    qi(
+    await qi(
       `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, remarks, recorded_by)
        VALUES (?, 'numeracy', 'Numeracy Assessment', ?, ?, 50, ?, 'Seeded numeracy record', ?)`,
       [sid, '2025-08-01', lev === 'Independent' ? 41 : 28, lev, teachers[1].id]);
-  });
+  }
 
   // ---- ARAL Program demo: tag learners, baseline+post assessments, sessions ----
   const aralRows = await qa(
@@ -441,30 +443,31 @@ async function seedAiModules() {
     const postLevels = ['Instructional', 'Independent', 'Instructional', 'Frustration', 'Independent', 'Instructional'];
     const baseScore = { Frustration: 9, 'Non-Reader': 4 };
     const postScore = { Instructional: 14, Independent: 17, Frustration: 9 };
-    aralLearners.forEach((lr, i) => {
+    for (let i = 0; i < aralLearners.length; i++) {
+      const lr = aralLearners[i];
       const bLevel = baseLevels[i % baseLevels.length];
       const pLevel = postLevels[i % postLevels.length];
-      qi(
+      await qi(
         `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, fluency, comprehension, remarks, recorded_by)
          VALUES (?, 'reading', 'PHIL-IRI', '2026-07-10', ?, 20, ?, 'Slow', 'Literal comprehension only', 'ARAL baseline (pre-test)', ?)`,
         [lr.student_id, baseScore[bLevel], bLevel, teachers[0].id]);
-      qi(
+      await qi(
         `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, fluency, comprehension, remarks, recorded_by)
          VALUES (?, 'reading', 'PHIL-IRI', '2026-11-18', ?, 20, ?, ?, 'Improved comprehension with guidance', 'ARAL post-test', ?)`,
         [lr.student_id, postScore[pLevel], pLevel, pLevel === 'Independent' ? 'Fluent' : 'Fairly Fluent', teachers[0].id]);
       if (i % 2 === 0) {
-        qi(
+        await qi(
           `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, remarks, recorded_by)
            VALUES (?, 'numeracy', 'Numeracy Assessment', '2026-07-12', 25, 50, 'Frustration', 'ARAL numeracy baseline', ?)`,
           [lr.student_id, teachers[1].id]);
-        const pLevel = i % 4 === 0 ? 'Independent' : 'Developing';
+        const pLevel2 = i % 4 === 0 ? 'Independent' : 'Developing';
         const pScore = i % 4 === 0 ? 41 : 38;
-        qi(
+        await qi(
           `INSERT INTO learner_assessments (student_id, kind, assessment_type, date, score, max_score, level, remarks, recorded_by)
            VALUES (?, 'numeracy', 'Numeracy Assessment', '2026-11-18', ?, 50, ?, 'ARAL numeracy post-test', ?)`,
-          [lr.student_id, pScore, pLevel, teachers[1].id]);
+          [lr.student_id, pScore, pLevel2, teachers[1].id]);
       }
-    });
+    }
     const numeracyIds = new Set(aralLearners.filter((_, i) => i % 2 === 0).map((r) => r.student_id));
     const bySection = {};
     for (const lr of aralLearners) (bySection[lr.section_id] = bySection[lr.section_id] || []).push(lr.student_id);
@@ -478,13 +481,14 @@ async function seedAiModules() {
           `INSERT INTO aral_sessions (school_year, section_id, subject_area, session_date, session_no, tutor, remarks, recorded_by)
            VALUES ('2026-2027', ?, ?, ?, ?, ?, 'Seeded ARAL remediation session', ?)`,
           [Number(secId), area, sDate, seq, `Tutor ${seq}`, teachers[0].id]);
-        targets.forEach((sid, pos) => {
+        for (let pos = 0; pos < targets.length; pos++) {
+          const sid = targets[pos];
           const roll = (pos + seq) % 5;
           const status = roll === 0 ? 'absent' : roll === 1 ? 'excused' : 'present';
-          qi(
+          await qi(
             'INSERT INTO aral_session_attendance (session_id, student_id, status, remarks) VALUES (?, ?, ?, ?)',
             [sesId, sid, status, status === 'present' ? null : 'seeded']);
-        });
+        }
       }
     }
   }

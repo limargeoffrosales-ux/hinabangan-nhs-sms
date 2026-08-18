@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { linkedStudentIds } = require('../scope');
@@ -7,6 +7,8 @@ const { linkedStudentIds } = require('../scope');
 const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
+
+function safeNotDistinctPg(col) { return dialect === 'pg' ? `${col} IS NOT DISTINCT FROM ?` : `(${col} = ? OR (${col} IS NULL AND ? IS NULL))`; }
 
 /* ── Get competencies for a subject ─────────────────── */
 router.get('/competencies', requireRole(...WRITE), asyncH(async (req, res) => {
@@ -53,9 +55,12 @@ router.post('/scores', requireRole(...WRITE), asyncH(async (req, res) => {
     return res.status(400).json({ error: 'student_id, competency_id, and school_year are required' });
   }
   const level = scoreToLevel(b.score);
+  const subId = b.subject_id || null;
+  const qrtr = b.quarter || null;
   const existing = await q(
-    'SELECT id FROM student_competency_scores WHERE student_id = ? AND competency_id = ? AND subject_id IS NOT DISTINCT FROM ? AND school_year = ? AND quarter IS NOT DISTINCT FROM ?',
-    [b.student_id, b.competency_id, b.subject_id || null, b.school_year, b.quarter || null]
+    `SELECT id FROM student_competency_scores
+     WHERE student_id = ? AND competency_id = ? AND ${safeNotDistinctPg('subject_id')} AND school_year = ? AND ${safeNotDistinctPg('quarter')}`,
+    [b.student_id, b.competency_id, subId, ...(dialect !== 'pg' ? [subId] : []), b.school_year, qrtr, ...(dialect !== 'pg' ? [qrtr] : [])]
   );
   if (existing) {
     await qr(
@@ -86,9 +91,12 @@ router.post('/scores/batch', requireRole(...WRITE), asyncH(async (req, res) => {
   for (const s of scores) {
     if (!s.student_id || !s.competency_id) continue;
     const level = scoreToLevel(s.score);
+    const subId = subject_id || null;
+    const qrtr = quarter || null;
     const existing = await q(
-      'SELECT id FROM student_competency_scores WHERE student_id = ? AND competency_id = ? AND subject_id IS NOT DISTINCT FROM ? AND school_year = ? AND quarter IS NOT DISTINCT FROM ?',
-      [s.student_id, s.competency_id, subject_id || null, school_year, quarter || null]
+      `SELECT id FROM student_competency_scores
+       WHERE student_id = ? AND competency_id = ? AND ${safeNotDistinctPg('subject_id')} AND school_year = ? AND ${safeNotDistinctPg('quarter')}`,
+      [s.student_id, s.competency_id, subId, ...(dialect !== 'pg' ? [subId] : []), school_year, qrtr, ...(dialect !== 'pg' ? [qrtr] : [])]
     );
     if (existing) {
       await qr('UPDATE student_competency_scores SET score=?, level=?, assessed_by=?, assessed_at=NOW(), updated_at=NOW() WHERE id=?',

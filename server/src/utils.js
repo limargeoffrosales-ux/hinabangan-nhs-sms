@@ -37,6 +37,7 @@ function maskPII(row, fields = ['lrn', 'contact', 'guardian_contact', 'guardian_
 
 // Log read access to student records
 async function logAccess(req, studentId, action = 'STUDENT_VIEW') {
+  if (!req.user) return;
   try {
     const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '';
     await qi(

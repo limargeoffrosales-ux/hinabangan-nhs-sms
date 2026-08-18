@@ -65,13 +65,13 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
   await purgeDemo();
   if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
     const bcrypt = require('bcryptjs');
-    const rows = await db.q('SELECT id, password_hash FROM users WHERE username = ?', ['superadmin']);
-    if (rows && rows.length) {
-      const isLegacy = await bcrypt.compare('REDACTED', rows[0].password_hash);
+    const row = await db.q('SELECT id, password_hash FROM users WHERE username = ?', ['superadmin']);
+    if (row) {
+      const isLegacy = await bcrypt.compare('REDACTED', row.password_hash);
       if (isLegacy) {
         await db.qr(
           'UPDATE users SET password_hash = ? WHERE id = ?',
-          [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), rows[0].id],
+          [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
         );
         console.log('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
       } else {
