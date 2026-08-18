@@ -3,8 +3,7 @@ import { RefreshCw, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { ErrorBanner, Spinner } from '../components/ui';
-
-function fmt(n) { return n == null ? '—' : Number(n); }
+import { fmt } from '../lib/utils';
 
 export default function Portal() {
   const { me, students, loading: meLoading, error: meError } = useLinkedStudents();
@@ -24,7 +23,7 @@ export default function Portal() {
 
   useEffect(() => {
     if (me) load();
-  }, [me]);
+  }, [me, sy]);
 
   if (meLoading) return <Spinner />;
 

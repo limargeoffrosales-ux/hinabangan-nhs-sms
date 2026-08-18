@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, Upload, FileSpreadsheet, Filter, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Search } from 'lucide-react';
 import { api, getToken, getApiBase } from '../lib/api';
+import { downloadBlob } from '../lib/export';
 import { PageHead, Badge, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const TABS = [
@@ -10,16 +11,6 @@ const TABS = [
   { key: 'import-teachers', labelKey: 'die.importTeachers' },
   { key: 'oneroster', labelKey: 'die.oneRoster' },
 ];
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 300);
-}
 
 export default function DataImportExport() {
   const { t } = useTranslation();
@@ -108,7 +99,7 @@ export default function DataImportExport() {
         throw new Error(j.error || `Export failed (${res.status})`);
       }
       const ext = expFormat === 'xlsx' ? 'xlsx' : expFormat;
-      downloadBlob(await res.blob(), `${expEntity}-${Date.now()}.${ext}`);
+      downloadBlob(await res.blob(), `${expEntity}-${Date.now()}.${ext}`, res.headers.get('content-type') || 'application/octet-stream');
     } catch (e) { setError(e.message); } finally { setExpLoading(false); }
   }
 

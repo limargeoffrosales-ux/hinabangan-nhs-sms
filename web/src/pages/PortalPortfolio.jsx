@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Badge, Empty, ErrorBanner, Spinner } from '../components/ui';
-
-function fmt(n) { return n == null ? '—' : Number(n); }
+import { fmt } from '../lib/utils';
 
 export default function PortalPortfolio() {
   const { t } = useTranslation();

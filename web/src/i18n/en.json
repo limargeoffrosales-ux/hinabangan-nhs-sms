@@ -145,8 +145,8 @@
   "pw.current": "Current password",
   "pw.new": "New password",
   "pw.confirm": "Confirm new password",
-  "pw.minimum": "At least 8 characters.",
-  "pw.tooShort": "New password must be at least 8 characters",
+  "pw.minimum": "At least 12 characters.",
+  "pw.tooShort": "New password must be at least 12 characters",
   "pw.noMatch": "New passwords do not match",
   "pw.updated": "Password updated successfully",
   "pw.failed": "Failed to update password",
@@ -180,9 +180,22 @@
   "common.edit": "Edit",
   "common.new": "New",
   "common.confirmDelete": "Are you sure? This cannot be undone.",
+  "common.for": "For",
+
+  "conduct.bullying": "Bullying",
+  "conduct.callSlip": "Call Slip",
+  "conduct.disrespect": "Disrespect",
+  "conduct.fighting": "Fighting",
+  "conduct.inappropriateBehavior": "Inappropriate Behavior",
+  "conduct.other": "Other",
+  "conduct.tardiness": "Tardiness",
+  "conduct.vandalism": "Vandalism",
 
   "dashboard.title": "Dashboard",
   "dashboard.subtitle": "School Data Overview",
+  "dashboard.highRisk": "High Risk",
+  "dashboard.moderateRisk": "Moderate Risk",
+  "dashboard.lowRisk": "Low Risk",
   "dashboard.enrolledStudents": "Enrolled Students",
   "dashboard.activeTeachers": "Active Teachers",
   "dashboard.sections": "Sections",
@@ -264,6 +277,8 @@
   "students.unlinkConfirm": "Unlink this portal account from the student?",
   "students.removeParentConfirm": "Remove this parent link?",
   "students.deleteConfirm": "Delete student record of",
+  "students.status": "Status",
+  "students.autoGenerateLrn": "Auto-generate LRN",
 
   "teachers.title": "Teachers",
   "teachers.subtitle": "Faculty directory with positions and PRC records",
@@ -299,6 +314,7 @@
   "teachers.removeConfirm": "Remove from the teachers directory?",
 
   "subjects.title": "Subjects",
+  "subjects.description": "Description",
   "subjects.subtitle": "Curriculum subjects — MATATAG (JHS) and Strengthened SHS Curriculum with term offerings",
   "subjects.newSubject": "New Subject",
   "subjects.editSubject": "Edit Subject",
@@ -392,6 +408,7 @@
   "sections.subtitle": "Class sections with advisers, rooms, and capacity",
 
   "users.title": "Users & Roles",
+  "users.newPasswordLabel": "New password",
   "users.subtitle": "Role-based access control — each user maps to a DepEd role with its own permissions",
   "users.newUser": "New User",
   "users.editUser": "Edit User",
@@ -426,6 +443,7 @@
   "users.ipAddress": "IP Address",
 
   "announcements.title": "Announcements",
+  "announcements.audienceInfo": "Audience info",
   "announcements.subtitle": "Broadcast messages to learners, parents, teachers, or the whole school",
   "announcements.newAnnouncement": "New Announcement",
   "announcements.editAnnouncement": "Edit Announcement",
@@ -553,6 +571,8 @@
   "die.selectFileType": "Select file type",
 
   "analytics.title": "Analytics & Reports",
+  "analytics.avgGrade": "Average Grade",
+  "analytics.strand": "Strand",
   "analytics.subtitle": "Grade distribution, attendance KPIs, enrollment retention, and at-risk student analytics",
   "analytics.schoolYear": "School Year",
   "analytics.quarter": "Quarter",
@@ -599,6 +619,7 @@
   "analytics.meanGrade": "Mean Grade",
 
   "cur.title": "Curriculum Management",
+  "cur.deleteMappingConfirm": "Delete this mapping?",
   "cur.subtitle": "Manage tracks, strands, competencies, and subject mappings for the SHS curriculum",
   "cur.tabTracks": "Tracks & Strands",
   "cur.tabCompetencies": "Competencies",

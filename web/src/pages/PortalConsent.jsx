@@ -54,8 +54,8 @@ export default function PortalConsent() {
 
   return (
     <div className="space-y-6">
-      <PageHead title={t('consent.portal_title', 'Consent Forms')} subtitle={t('consent.portal_subtitle', 'Review and sign consent forms for your child')} />
-      {error && <ErrorBanner msg={error} onClose={() => setError(null)} />}
+      <PageHead title={t('consent.portal_title', 'Consent Forms')} sub={t('consent.portal_subtitle', 'Review and sign consent forms for your child')} />
+      {error && <ErrorBanner error={error} />}
       {notice && <div className="bg-emerald-900/40 border border-emerald-700/50 text-emerald-200 px-4 py-3 rounded-lg text-sm">{notice}</div>}
 
       {pending.length > 0 && (
@@ -98,7 +98,7 @@ export default function PortalConsent() {
         </div>
       )}
 
-      {pending.length === 0 && signed.length === 0 && <Empty message="No consent forms available." />}
+      {pending.length === 0 && signed.length === 0 && <Empty text="No consent forms available." />}
 
       {/* Sign Modal */}
       {signing && (

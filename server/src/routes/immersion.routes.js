@@ -54,6 +54,7 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 
 immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
+  if (b.status && !['ongoing', 'completed', 'dropped'].includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   const cur = await q('SELECT * FROM work_immersion WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
   await qr(
@@ -117,6 +118,7 @@ jdvp.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 
 jdvp.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
+  if (b.status && !['ongoing', 'completed', 'dropped'].includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   const cur = await q('SELECT * FROM jdvp_recipients WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
   await qr(

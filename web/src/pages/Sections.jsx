@@ -6,7 +6,7 @@ import { useAuth, can } from '../lib/auth';
 import { SHS_TRACKS, SECTION_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
-const EMPTY_FORM = { name: '', grade_level: 'Grade 11', strand: '', adviser_teacher_id: '', room: '', capacity: 40, school_year: '2025-2026', status: 'active' };
+const EMPTY_FORM = { name: '', grade_level: 'Grade 11', strand: '', adviser_teacher_id: '', room: '', capacity: 40, school_year: '2026-2027', status: 'active' };
 
 export default function Sections() {
   const { t } = useTranslation();

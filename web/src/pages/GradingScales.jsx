@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Download, RefreshCw, Trash2, Star } from 'lucide-react';
 import { api, getToken, getApiBase } from '../lib/api';
+import { downloadBlob } from '../lib/export';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const TYPE_LABELS = { numeric: 'Numeric', letter: 'Letter', gpa: 'GPA', ib: 'IB', cambridge: 'Cambridge', custom: 'Custom' };
@@ -9,19 +10,6 @@ const BAND_FIELDS = ['min', 'max', 'letter', 'points', 'label'];
 const BAND_PLACEHOLDERS = { min: 'Min', max: 'Max', letter: 'Letter', points: 'Points', label: 'Proficiency' };
 
 function emptyBand() { return { min: '', max: '', letter: '', points: '', label: '' }; }
-
-function downloadBlob(res, name) {
-  return res.blob().then((blob) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  });
-}
 
 export default function GradingScales() {
   const [scales, setScales] = useState([]);
@@ -160,7 +148,7 @@ export default function GradingScales() {
       }
       const student = students.find((s) => String(s.id) === String(trStudent));
       const file = `transcript-${(student ? student.last_name : trStudent).replace(/\s+/g, '_')}-${trYear}.${trFormat}`;
-      await downloadBlob(res, file);
+      downloadBlob(await res.blob(), file, res.headers.get('content-type') || 'application/octet-stream');
     } catch (err) { setError(err.message); } finally { setTrLoading(false); }
   }
 

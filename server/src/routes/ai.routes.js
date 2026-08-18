@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, safeJsonParse } = require('../utils');
 const { TEMPLATES, getTemplate, renderTemplate, fill, DEFAULTS } = require('../ai/templates');
 const { ask, SUGGESTED_QUESTIONS } = require('../ai/knowledge');
 const { improve, summarize, insights } = require('../ai/engine');
@@ -194,7 +194,7 @@ router.patch('/formats/:id', requireRole(...ADMIN), asyncH(async (req, res) => {
   const b = req.body || {};
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   await qr('UPDATE doc_formats SET name = ?, body = ?, fields = ? WHERE id = ?',
-    [f('name', row.name).trim(), f('body', row.body), JSON.stringify(f('fields', JSON.parse(row.fields || '[]'))), row.id]);
+    [f('name', row.name).trim(), f('body', row.body), JSON.stringify(f('fields', safeJsonParse(row.fields, []))), row.id]);
   await audit(req, 'UPDATE_DOC_FORMAT', 'doc_formats', row.id, { name: row.name });
   res.json({ ok: true });
 }));

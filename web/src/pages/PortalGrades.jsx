@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Badge, Empty, ErrorBanner, Spinner } from '../components/ui';
-
-function fmt(n) { return n == null ? '—' : Number(n); }
+import { fmt } from '../lib/utils';
 
 export default function PortalGrades() {
   const { students, loading: meLoading, error: meError } = useLinkedStudents();
@@ -31,7 +30,7 @@ export default function PortalGrades() {
 
   useEffect(() => {
     if (students.length && studentId) load();
-  }, [studentId, term]);
+  }, [studentId, term, sy]);
 
   if (meLoading) return <Spinner />;
   if (!students.length) {

@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, safeJsonParse } = require('../utils');
 const { REPORT_TYPES } = require('../report-types');
 
 const router = express.Router();
@@ -75,7 +75,7 @@ async function submissionDetail(req, id) {
   return row;
 }
 
-router.get('/types', asyncH(async (req, res) => {
+router.get('/types', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const { frequency, group, deped } = req.query;
   let sql = 'SELECT * FROM report_types WHERE active = TRUE';
   const params = [];
@@ -87,13 +87,13 @@ router.get('/types', asyncH(async (req, res) => {
   res.json({ data: rows, groups: await qa('SELECT DISTINCT group_name FROM report_types ORDER BY group_name') });
 }));
 
-router.get('/workflows', asyncH(async (req, res) => {
+router.get('/workflows', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const rows = await qa(
     'SELECT w.report_type_id, t.group_name, t.code, w.review_roles, w.approve_roles FROM submission_workflows w JOIN report_types t ON t.id = w.report_type_id ORDER BY t.id');
-  res.json({ data: rows.map((r) => ({ ...r, review: JSON.parse(r.review_roles), approve: JSON.parse(r.approve_roles) })) });
+  res.json({ data: rows.map((r) => ({ ...r, review: safeJsonParse(r.review_roles, []), approve: safeJsonParse(r.approve_roles, []) })) });
 }));
 
-router.get('/', asyncH(async (req, res) => {
+router.get('/', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || null;
   const teacherId = req.query.teacher_id || null;
   const status = req.query.status || null;
@@ -128,7 +128,7 @@ router.get('/', asyncH(async (req, res) => {
   res.json({ data: usable });
 }));
 
-router.post('/', asyncH(async (req, res) => {
+router.post('/', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.report_type_id || !b.period) return res.status(400).json({ error: 'report_type_id and period are required' });
   const type = await q('SELECT * FROM report_types WHERE id = ?', [b.report_type_id]);
@@ -309,7 +309,7 @@ function draftFor(code, ctx) {
     `A. Background\nB. Details / Data\nC. Findings\nD. Recommendations\nE. Attachments\n\n${footer}`;
 }
 
-router.post('/generate-draft', asyncH(async (req, res) => {
+router.post('/generate-draft', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const b = req.body || {};
   const type = b.report_type_id
     ? await q('SELECT * FROM report_types WHERE id = ?', [b.report_type_id])
@@ -328,7 +328,7 @@ router.post('/generate-draft', asyncH(async (req, res) => {
 }));
 
 // Active non-admin users that can be given submission tasks
-router.get('/teachers', asyncH(async (req, res) => {
+router.get('/teachers', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT id, username, name, role FROM users
      WHERE status = 'active' AND role NOT IN ('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar')

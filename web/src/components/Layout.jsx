@@ -52,6 +52,7 @@ const NAV = [
   { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
   { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
   { to: '/consent', labelKey: 'nav.consent', icon: Shield },
+  { to: '/mfa', labelKey: 'nav.mfa', icon: Shield, adminOnly: true },
   { to: '/privacy', labelKey: 'nav.privacy', icon: ShieldCheck },
   { to: '/security-incidents', labelKey: 'nav.securityIncidents', icon: ShieldAlert },
   { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
@@ -81,6 +82,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const isAdmin = can(user?.role, 'super_admin', 'school_admin');
+  const isSuperAdmin = can(user?.role, 'super_admin');
   const [theme, setTheme] = useState(() => {
     const s = localStorage.getItem('meridianed_theme') || 'midnight';
     return LEGACY_MAP[s] || s;
@@ -173,7 +175,7 @@ export default function Layout({ children }) {
           </NavLink>
         ))}
         <div className="nav-label">{t('nav.operations')}</div>
-        {NAV.slice(6).filter((n) => isAdmin || !STAFF_HIDDEN.includes(n.to)).map((n) => (
+        {NAV.slice(6).filter((n) => (isAdmin || !STAFF_HIDDEN.includes(n.to)) && (!n.adminOnly || isSuperAdmin)).map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
             <n.icon size={17} /> <span>{t(n.labelKey)}</span>
           </NavLink>

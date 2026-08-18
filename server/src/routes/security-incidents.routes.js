@@ -1,5 +1,6 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const db = require('../db');
+const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
@@ -42,7 +43,7 @@ router.patch('/:id/resolve', requireRole(...ADMIN_ROLES), asyncH(async (req, res
   if (!incident) return res.status(404).json({ error: 'Incident not found' });
   if (incident.resolved) return res.status(400).json({ error: 'Already resolved' });
   await qr(
-    'UPDATE security_incidents SET resolved = TRUE, resolved_by = ?, resolved_at = now() WHERE id = ?',
+    `UPDATE security_incidents SET resolved = TRUE, resolved_by = ?, resolved_at = ${nowSql()} WHERE id = ?`,
     [req.user.id, req.params.id]
   );
   await audit(req, 'INCIDENT_RESOLVE', 'security_incidents', req.params.id, { type: incident.incident_type });

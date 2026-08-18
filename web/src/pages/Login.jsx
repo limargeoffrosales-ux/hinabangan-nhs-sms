@@ -37,7 +37,6 @@ export default function Login() {
   const [serverOpen, setServerOpen] = useState(false);
   const [serverBase, setServerBase] = useState(getStoredApiBase());
   const [role, setRole] = useState('admin');
-  const [remember, setRemember] = useState(false);
   const [showRequest, setShowRequest] = useState(false);
   const formRef = useRef(null);
 
@@ -151,15 +150,6 @@ export default function Login() {
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-
-              <label className="login-remember">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                />
-                <span>{t('login.rememberMe')}</span>
-              </label>
 
               <button type="submit" className="btn btn-primary login-submit" disabled={busy}>
                 {busy ? <span className="login-spinner" /> : <Lock size={15} />}

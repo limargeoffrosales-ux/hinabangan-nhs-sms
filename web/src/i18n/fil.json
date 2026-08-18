@@ -144,8 +144,8 @@
   "pw.current": "Kasalukuyang password",
   "pw.new": "Bagong password",
   "pw.confirm": "Kumpirmahin ang bagong password",
-  "pw.minimum": "Hindi bababa sa 8 na karakter.",
-  "pw.tooShort": "Ang bagong password ay dapat hindi bababa sa 8 na karakter",
+  "pw.minimum": "Hindi bababa sa 12 na karakter.",
+  "pw.tooShort": "Ang bagong password ay dapat hindi bababa sa 12 na karakter",
   "pw.noMatch": "Hindi tugma ang bagong password",
   "pw.updated": "Matagumpay na na-update ang password",
   "pw.failed": "Nabigong i-update ang password",
@@ -179,8 +179,21 @@
   "common.edit": "I-edit",
   "common.new": "Bago",
   "common.confirmDelete": "Sigurado ka ba? Hindi na ito mababawi.",
+  "common.for": "Para sa",
+
+  "conduct.bullying": "Pananakot",
+  "conduct.callSlip": "Call Slip",
+  "conduct.disrespect": "Kawalang-galang",
+  "conduct.fighting": " pakikipag-away",
+  "conduct.inappropriateBehavior": "Hindi Angkop na Pag-uugali",
+  "conduct.other": "Iba pa",
+  "conduct.tardiness": "Pagiging Male-late",
+  "conduct.vandalism": "Pagsira",
 
   "dashboard.title": "Dashboard",
+  "dashboard.highRisk": "Mataas na Panganib",
+  "dashboard.moderateRisk": "Katamtamang Panganib",
+  "dashboard.lowRisk": "Mababang Panganib",
   "dashboard.subtitle": "Pangkalahatang-tanaw ng Datos ng Paaralan",
   "dashboard.enrolledStudents": "Mga Nakatala na Mag-aaral",
   "dashboard.activeTeachers": "Mga Aktibong Guro",
@@ -263,6 +276,8 @@
   "students.unlinkConfirm": "Alisin ang portal account na ito mula sa mag-aaral?",
   "students.removeParentConfirm": "Alisin ang link ng magulang na ito?",
   "students.deleteConfirm": "Tanggalin ang rekord ng mag-aaral na",
+  "students.status": "Estado",
+  "students.autoGenerateLrn": "Awtomatikong lumikha ng LRN",
 
   "teachers.title": "Mga Guro",
   "teachers.subtitle": "Direktoryo ng faculty na may mga posisyon at rekord ng PRC",
@@ -298,6 +313,7 @@
   "teachers.removeConfirm": "Alisin mula sa direktoryo ng mga guro?",
 
   "subjects.title": "Mga Aralin",
+  "subjects.description": "Paglalarawan",
   "subjects.subtitle": "Mga aralin sa kurikulum — MATATAG (JHS) at Pinatatag na Kurikulum ng SHS na may mga alok na termin",
   "subjects.newSubject": "Bagong Aralin",
   "subjects.editSubject": "I-edit ang Aralin",
@@ -388,6 +404,7 @@
   "grades.scaleLabel": "Sukatan:",
 
   "users.title": "Mga Gumagamit at Papel",
+  "users.newPasswordLabel": "Bagong password",
   "users.subtitle": "Role-based access control — bawat gumagamit ay umaayon sa isang papel ng DepEd na may sariling mga pahintulot",
   "users.newUser": "Bagong Gumagamit",
   "users.editUser": "I-edit ang Gumagamit",
@@ -422,6 +439,7 @@
   "users.ipAddress": "IP Address",
 
   "announcements.title": "Mga Anunsyo",
+  "announcements.audienceInfo": "Impormasyon sa audience",
   "announcements.subtitle": "Mag-broadcast ng mga mensahe sa mga mag-aaral, magulang, guro, o buong paaralan",
   "announcements.newAnnouncement": "Bagong Anunsyo",
   "announcements.editAnnouncement": "I-edit ang Anunsyo",
@@ -549,6 +567,8 @@
   "die.selectFileType": "Pumili ng file type",
 
   "analytics.title": "Analytics at Mga Ulat",
+  "analytics.avgGrade": "Average na Grado",
+  "analytics.strand": "Strand",
   "analytics.subtitle": "Distribusyon ng grado, attendance KPIs, enrollment retention, at analytics ng mga estudyante na nangangailangan ng tulong",
   "analytics.schoolYear": "Taon-Aral",
   "analytics.quarter": "Quarter",
@@ -595,6 +615,7 @@
   "analytics.meanGrade": "Average na Grado",
 
   "cur.title": "Pamamahala ng Kurikulum",
+  "cur.deleteMappingConfirm": "Tanggalin ang mapping na ito?",
   "cur.subtitle": "Pamahalaan ang mga track, strand, kompetensya, at subject mapping para sa kurikulum ng SHS",
   "cur.tabTracks": "Mga Track at Strand",
   "cur.tabCompetencies": "Mga Kompetensya",
