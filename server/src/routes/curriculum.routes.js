@@ -13,7 +13,7 @@ router.get('/tracks', requireRole(...WRITE), asyncH(async (req, res) => {
   let sql = 'SELECT * FROM tracks';
   const params = [];
   if (req.query.active === '1') {
-    sql += ' WHERE active = 1';
+    sql += ' WHERE active = TRUE';
   }
   sql += ' ORDER BY code';
   res.json({ data: await qa(sql, params) });

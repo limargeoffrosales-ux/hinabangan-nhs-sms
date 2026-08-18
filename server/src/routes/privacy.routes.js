@@ -58,9 +58,10 @@ async function runPurge(policy, req) {
   const table = TABLE_MAP[policy.entity];
   if (!table) return { error: `Unknown entity: ${policy.entity}` };
 
+  const days = Number(policy.retention_days) || 365;
   const cutoffParam = db.dialect === 'pg'
-    ? `(now() - interval '${policy.retention_days} days')`
-    : `datetime('now', '-${policy.retention_days} days')`;
+    ? `(now() - interval '${days} days')`
+    : `datetime('now', '-${days} days')`;
 
   const result = await qr(`DELETE FROM ${table} WHERE created_at < ${cutoffParam}`);
   const deletedCount = result.changes || 0;

@@ -343,14 +343,14 @@ router.get('/aral-progress', requireRole(...WRITE, 'teacher', 'guidance'), async
   const assessments = await qa(
     `SELECT la.student_id, la.kind, la.date, la.level, la.score
      FROM learner_assessments la
-     WHERE la.student_id IN (${learners.length ? learners.map((l) => l.student_id).join(',') : 'NULL'})${dateWhere}
+     WHERE la.student_id IN (${learners.length ? learners.map((l) => Number(l.student_id)).join(',') : 'NULL'})${dateWhere}
      ORDER BY la.date ASC, la.id ASC`);
   const attRows = await qa(
     `SELECT aa.student_id, COUNT(aa.id) AS sessions,
        SUM(CASE WHEN aa.status IN ('present', 'excused') THEN 1 ELSE 0 END) AS attended
      FROM aral_session_attendance aa
      JOIN aral_sessions sess ON sess.id = aa.session_id
-     WHERE aa.student_id IN (${learners.length ? learners.map((l) => l.student_id).join(',') : 'NULL'})
+     WHERE aa.student_id IN (${learners.length ? learners.map((l) => Number(l.student_id)).join(',') : 'NULL'})
      GROUP BY aa.student_id`);
   const attMap = {};
   for (const a of attRows) attMap[a.student_id] = { sessions: Number(a.sessions), attended: Number(a.attended) };
