@@ -122,20 +122,29 @@ router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   res.json(result);
 }));
 
-router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) => {
+router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { school_year } = req.query;
   const teachers = await qa(
-    `SELECT t.*, u.name as user_name
+    `SELECT t.*, u.name as user_name,
+            (SELECT sec.name FROM sections sec
+             WHERE sec.adviser_teacher_id = t.id
+               AND (sec.school_year = $1::text OR $1::text IS NULL)
+             LIMIT 1) as advisory_class
      FROM teachers t
      LEFT JOIN users u ON u.id = t.user_id
-     ORDER BY u.name`
+     WHERE t.status = 'active'
+     ORDER BY u.name`,
+    [school_year || null]
   );
   const assignments = await qa(
     `SELECT ca.teacher_id, sub.title as subject_name, sec.name as section_name, sec.grade_level,
-            ca.schedule, ca.minutes_per_day
+            ca.schedule, ca.duration_minutes as minutes_per_day
      FROM class_assignments ca
      JOIN subjects sub ON sub.id = ca.subject_id
      JOIN sections sec ON sec.id = ca.section_id
-     ORDER BY ca.teacher_id, sub.title`
+     WHERE (ca.school_year = $1::text OR $1::text IS NULL)
+     ORDER BY ca.teacher_id, sub.title`,
+    [school_year || null]
   );
   const byTeacher = {};
   for (const a of assignments) {
@@ -143,6 +152,24 @@ router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) => {
     byTeacher[a.teacher_id].push(a);
   }
   res.json({ teachers, assignments: byTeacher });
+}));
+
+router.get('/sf8', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { section_id, school_year } = req.query;
+  if (!section_id) return res.json({ students: [], section: null });
+  const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const students = await qa(
+    `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex,
+            sh.height_cm, sh.weight_kg, sh.bmi, sh.nutritional_status, sh.cct
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     LEFT JOIN student_health sh ON sh.student_id = s.id
+       AND (sh.school_year = $1::text OR $1::text IS NULL)
+     WHERE e.section_id = $2::bigint
+     ORDER BY s.last_name, s.first_name`,
+    [school_year || null, section_id]
+  );
+  res.json({ students, section });
 }));
 
 router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {

@@ -75,12 +75,16 @@ export default function DepedForms() {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [term, setTerm] = useState('');
+  const [schoolYear, setSchoolYear] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    api('/deped-forms/school-info').then(r => setInfo(r)).catch(() => {});
+    api('/deped-forms/school-info').then(r => {
+      setInfo(r);
+      if (!schoolYear && r.school_year) setSchoolYear(r.school_year);
+    }).catch(() => {});
     api('/sections').then(r => setSections(r.data || r.rows || [])).catch(() => {});
   }, []);
 
@@ -108,9 +112,12 @@ export default function DepedForms() {
     } else if (tab === 'sf6') {
       setLoading(true);
       api('/deped-forms/sf6').then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
-    } else if (tab === 'sf7') {
+    } else if (tab === 'sf7' && schoolYear) {
       setLoading(true);
-      api('/deped-forms/sf7').then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
+      api(`/deped-forms/sf7?school_year=${schoolYear}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
+    } else if (tab === 'sf8' && sectionId) {
+      setLoading(true);
+      api(`/deped-forms/sf8?section_id=${sectionId}&school_year=${schoolYear || ''}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     } else if (tab === 'sf9' && (studentId || sectionId)) {
       setLoading(true);
       const url = studentId ? `/deped-forms/sf9?student_id=${studentId}` : `/deped-forms/sf9?section_id=${sectionId}&term=${term}`;
@@ -122,7 +129,7 @@ export default function DepedForms() {
       setLoading(true);
       api(`/deped-forms/summary-of-grades?section_id=${sectionId}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     }
-  }, [tab, sectionId, studentId, month, year, term, info.school_year]);
+  }, [tab, sectionId, studentId, month, year, term, schoolYear, info.school_year]);
 
   const form = FORMS.find(f => f.code === tab);
   const ctx = { sectionId, studentId, month, year, term, sections, students };
@@ -142,7 +149,7 @@ export default function DepedForms() {
         ))}
       </div>
 
-      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf5' || tab === 'sf9' || tab === 'sog') && (
+      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf5' || tab === 'sf8' || tab === 'sf9' || tab === 'sog') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ fontSize: 13 }}>Section
@@ -190,6 +197,16 @@ export default function DepedForms() {
               {students.map(st => <option key={st.id} value={st.id}>{st.last_name}, {st.first_name}</option>)}
             </select>
           </label>
+        </div>
+      )}
+
+      {(tab === 'sf7') && (
+        <div className="card" style={{ padding: 12, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ fontSize: 13 }}>School Year
+              <input className="input" style={{ marginLeft: 6, width: 140 }} value={schoolYear} onChange={ev => setSchoolYear(ev.target.value)} placeholder="2026-2027" />
+            </label>
+          </div>
         </div>
       )}
 
@@ -578,12 +595,12 @@ ${teachers.length ? teachers.map((t, idx) => {
   const asgn = assignments[t.id] || [];
   return `<tr>
     <td class="c">${idx + 1}</td>
-    <td>${esc(t.user_name || t.name || '')}</td>
+    <td>${esc(t.user_name || [t.last_name, t.first_name, t.middle_name].filter(Boolean).join(', ') || '')}</td>
     <td>${esc(t.position || '')}</td>
-    <td>${esc(t.employment_status || '')}</td>
-    <td>${esc(t.specialization || '')}</td>
+    <td>${esc(t.status || '')}</td>
+    <td>${esc(t.position || '')}</td>
     <td class="small">${asgn.map(a => esc(a.subject_name)).join(', ')}</td>
-    <td>${asgn.find(a => a.advisory_class) ? esc(asgn.find(a => a.advisory_class).advisory_class) : ''}</td>
+    <td>${esc(t.advisory_class || '')}</td>
     <td class="small">${asgn.map(a => esc(a.schedule || '')).join('<br/>')}</td>
     <td class="c">${asgn.reduce((sum, a) => sum + Number(a.minutes_per_day || 0), 0) || ''}</td>
     <td></td>
@@ -598,12 +615,16 @@ function renderSF7Blank(info) { return renderSF7(null, info); }
 /* ── SF8: Health & Nutrition ─────────────────────────────── */
 
 function renderSF8(data, info) {
+  const students = data?.students || [];
+  const section = data?.section;
+  const sy = info.school_year || '____-____';
   return `
 ${formHeaderHtml(info, 'sf8', "School Form 8 (SF8) — Learner's Basic Health and Nutrition Report")}
 <table style="font-size:8pt;margin-bottom:6pt;">
   <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info?.school_name || 'Hinabangan National High School')}</td>
-      <td style="border:none;width:50%"><strong>School Year:</strong> ____-____</td></tr>
-  <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
+      <td style="border:none;width:50%"><strong>School Year:</strong> ${esc(sy)}</td></tr>
+  <tr><td style="border:none"><strong>Grade Level:</strong> ${section ? esc(section.grade_level) : '____'}</td>
+      <td style="border:none"><strong>Section:</strong> ${section ? esc(section.name) : '____'}</td></tr>
 </table>
 <table style="font-size:7pt;">
 <thead><tr>
@@ -612,7 +633,30 @@ ${formHeaderHtml(info, 'sf8', "School Form 8 (SF8) — Learner's Basic Health an
   <th style="width:30pt">BMI</th><th style="width:40pt">Nutritional Status</th>
   <th style="width:30pt">Remarks</th><th style="width:30pt">CCT</th>
 </tr></thead>
-<tbody>${blankRows(30, 9)}</tbody></table>
+<tbody>
+${students.length ? students.map(s => {
+  const bmi = s.bmi != null ? Number(s.bmi).toFixed(1) : (s.height_cm && s.weight_kg ? (s.weight_kg / ((s.height_cm / 100) ** 2)).toFixed(1) : '');
+  let status = s.nutritional_status || '';
+  if (!status && bmi) {
+    const b = Number(bmi);
+    if (b < 18.5) status = 'UW';
+    else if (b < 25) status = 'NW';
+    else if (b < 30) status = 'OW';
+    else status = 'OB';
+  }
+  return `<tr>
+    <td>${esc(s.lrn || '')}</td>
+    <td>${esc(s.last_name)}, ${esc(s.first_name)}${s.middle_name ? ', ' + esc(s.middle_name) : ''}</td>
+    <td class="c">${esc(s.sex || '')}</td>
+    <td class="c">${s.height_cm != null ? Number(s.height_cm).toFixed(1) : ''}</td>
+    <td class="c">${s.weight_kg != null ? Number(s.weight_kg).toFixed(2) : ''}</td>
+    <td class="c"><strong>${bmi}</strong></td>
+    <td class="c">${esc(status)}</td>
+    <td class="c">${esc(s.remarks || '')}</td>
+    <td class="c">${s.cct ? '✓' : ''}</td>
+  </tr>`;
+}).join('') : blankRows(30, 9)}
+</tbody></table>
 <div class="small" style="margin:6pt 0;">
   <strong>Nutritional Status:</strong> UW=Underweight | NW=Normal Weight | OW=Overweight | OB=Obese<br/>
   <strong>BMI Categories (Age 12-18):</strong> Underweight (&lt;18.5) | Normal (18.5-24.9) | Overweight (25-29.9) | Obese (&#8805;30)
