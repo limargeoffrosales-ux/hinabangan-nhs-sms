@@ -36,7 +36,6 @@ const Research = lazy(() => import('./pages/Research'));
 const ReadingNumeracy = lazy(() => import('./pages/ReadingNumeracy'));
 const Interventions = lazy(() => import('./pages/Interventions'));
 const Assessment = lazy(() => import('./pages/Assessment'));
-const DepedForms = lazy(() => import('./pages/DepedForms'));
 const Immersion = lazy(() => import('./pages/Immersion'));
 const Discipline = lazy(() => import('./pages/Discipline'));
 const Notifications = lazy(() => import('./pages/Notifications'));
@@ -55,6 +54,7 @@ const PortalPortfolio = lazy(() => import('./pages/PortalPortfolio'));
 const PortalImmersion = lazy(() => import('./pages/PortalImmersion'));
 const PortalResearch = lazy(() => import('./pages/PortalResearch'));
 const PortalAnalytics = lazy(() => import('./pages/PortalAnalytics'));
+const DepedForms = lazy(() => import('./pages/DepedForms'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -115,7 +115,6 @@ export default function App() {
       <Route path="/reading-numeracy" element={<Protected><Page><ReadingNumeracy /></Page></Protected>} />
       <Route path="/interventions" element={<Protected><Page><Interventions /></Page></Protected>} />
       <Route path="/assessment" element={<Protected><Page><Assessment /></Page></Protected>} />
-      <Route path="/forms" element={<Protected><Page><DepedForms /></Page></Protected>} />
       <Route path="/immersion" element={<Protected><Page><Immersion /></Page></Protected>} />
       <Route path="/discipline" element={<Protected><Page><Discipline /></Page></Protected>} />
       <Route path="/notifications" element={<Protected><AdminOnly><Page><Notifications /></Page></AdminOnly></Protected>} />
@@ -134,6 +133,7 @@ export default function App() {
       <Route path="/rooms" element={<Protected><AdminOnly><Page><Rooms /></Page></AdminOnly></Protected>} />
       <Route path="/lessons" element={<Protected><Page><Lessons /></Page></Protected>} />
       <Route path="/competency-tracker" element={<Protected><Page><CompetencyTracker /></Page></Protected>} />
+      <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

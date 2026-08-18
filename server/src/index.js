@@ -47,6 +47,7 @@ const departmentRoutes = require('./routes/department.routes');
 const lessonsRoutes = require('./routes/lessons.routes');
 const competencyTrackerRoutes = require('./routes/competency-tracker.routes');
 const passwordAuditRoutes = require('./routes/password-audit.routes');
+const depedFormsRoutes = require('./routes/deped-forms.routes');
 
 (async () => {
   await db.init();
@@ -184,6 +185,7 @@ const passwordAuditRoutes = require('./routes/password-audit.routes');
   app.use('/api/v1/lessons', lessonsRoutes);
   app.use('/api/v1/competency-tracker', competencyTrackerRoutes);
   app.use('/api/v1/password-audit', passwordAuditRoutes);
+  app.use('/api/v1/deped-forms', depedFormsRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',
