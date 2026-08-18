@@ -166,6 +166,9 @@ router.post('/change-password', authenticate, asyncH(async (req, res) => {
   }
 
   await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [await bcrypt.hash(String(newPassword), 10), req.user.id]);
+  await qi(
+    'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+    [req.user.id, req.user.id, 'changed', req.ip]);
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
   await audit(req, 'CHANGE_PASSWORD', 'auth', req.user.id);
   res.json({ ok: true });
