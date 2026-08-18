@@ -51,6 +51,10 @@ const Curriculum = lazy(() => import('./pages/Curriculum'));
 const Rooms = lazy(() => import('./pages/Rooms'));
 const Lessons = lazy(() => import('./pages/Lessons'));
 const CompetencyTracker = lazy(() => import('./pages/CompetencyTracker'));
+const PortalPortfolio = lazy(() => import('./pages/PortalPortfolio'));
+const PortalImmersion = lazy(() => import('./pages/PortalImmersion'));
+const PortalResearch = lazy(() => import('./pages/PortalResearch'));
+const PortalAnalytics = lazy(() => import('./pages/PortalAnalytics'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -116,6 +120,10 @@ export default function App() {
       <Route path="/discipline" element={<Protected><Page><Discipline /></Page></Protected>} />
       <Route path="/notifications" element={<Protected><AdminOnly><Page><Notifications /></Page></AdminOnly></Protected>} />
       <Route path="/consent" element={<Protected><AdminOnly><Page><ConsentForms /></Page></AdminOnly></Protected>} />
+      <Route path="/portal/portfolio" element={<PortalProtected><Page><PortalPortfolio /></Page></PortalProtected>} />
+      <Route path="/portal/immersion" element={<PortalProtected><Page><PortalImmersion /></Page></PortalProtected>} />
+      <Route path="/portal/research" element={<PortalProtected><Page><PortalResearch /></Page></PortalProtected>} />
+      <Route path="/portal/analytics" element={<PortalProtected><Page><PortalAnalytics /></Page></PortalProtected>} />
       <Route path="/portal/consent" element={<PortalProtected><Page><PortalConsent /></Page></PortalProtected>} />
       <Route path="/privacy" element={<Protected><AdminOnly><Page><Privacy /></Page></AdminOnly></Protected>} />
       <Route path="/mfa" element={<Protected><Page><MFASetup /></Page></Protected>} />

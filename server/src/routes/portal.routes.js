@@ -85,4 +85,67 @@ router.get('/overview', requireRole(...PORTAL), asyncH(async (req, res) => {
   res.json({ school_year, announcements, students });
 }));
 
+router.get('/my-immersion', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = ids[0];
+  if (!studentId) return res.json({ data: [] });
+  const rows = await qa(
+    `SELECT wi.* FROM work_immersion wi WHERE wi.student_id = ? ORDER BY wi.batch DESC, wi.program`,
+    [studentId]);
+  res.json({ data: rows });
+}));
+
+router.get('/my-research', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const rows = await qa(
+    `SELECT p.*, u.name AS user_name FROM research_projects p JOIN users u ON u.id = p.user_id ORDER BY p.updated_at DESC`);
+  for (const r of rows) {
+    r.milestones = await qa('SELECT id, milestone, target_date, status, note FROM research_milestones WHERE project_id = ? ORDER BY target_date', [r.id]);
+  }
+  res.json({ data: rows });
+}));
+
+router.get('/today-schedule', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = ids[0];
+  if (!studentId) return res.json({ data: [] });
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const today = dayNames[new Date().getDay()];
+  const { school_year } = req.query;
+  const rows = await qa(
+    `SELECT se.*, sub.code AS subject_code, sub.title AS subject_title,
+            t.first_name || ' ' || t.last_name AS teacher_name, sec.name AS section_name
+     FROM schedule_entries se
+     JOIN class_assignments ca ON ca.id = se.assignment_id
+     JOIN subjects sub ON sub.id = ca.subject_id
+     JOIN teachers t ON t.id = ca.teacher_id
+     JOIN sections sec ON sec.id = ca.section_id
+     JOIN enrollments e ON e.section_id = sec.id AND e.school_year = se.school_year AND e.status = 'enrolled'
+     WHERE e.student_id = ? AND se.day = ? ${school_year ? 'AND se.school_year = ?' : ''}
+     ORDER BY se.start_time`,
+    school_year ? [studentId, today, school_year] : [studentId, today]);
+  res.json({ data: rows });
+}));
+
+router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = ids[0];
+  if (!studentId) return res.json({ data: [] });
+  const { school_year } = req.query;
+  const rows = await qa(
+    `SELECT a.id, a.title, a.due_date, a.description, sub.code AS subject_code, sub.title AS subject_title,
+            asub.status AS submission_status
+     FROM assignments a
+     JOIN class_assignments ca ON ca.id = a.class_assignment_id
+     JOIN subjects sub ON sub.id = ca.subject_id
+     JOIN enrollments e ON e.section_id = ca.section_id AND e.school_year = a.school_year AND e.status = 'enrolled'
+     LEFT JOIN assignment_submissions asub ON asub.assignment_id = a.id AND asub.student_id = ?
+     WHERE e.student_id = ? ${school_year ? 'AND a.school_year = ?' : ''}
+       AND (a.due_date IS NULL OR a.due_date >= CURRENT_DATE)
+       AND asub.id IS NULL
+     ORDER BY a.due_date IS NULL, a.due_date ASC
+     LIMIT 10`,
+    school_year ? [studentId, studentId, school_year] : [studentId, studentId]);
+  res.json({ data: rows });
+}));
+
 module.exports = router;
