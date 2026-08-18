@@ -19,7 +19,7 @@ function withStudent(row, ctx) {
   return { ...row, student_name: ctx ? `${ctx.first_name} ${ctx.last_name}` : null };
 }
 
-router.get('/', asyncH(async (req, res) => {
+router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { status, student_id } = req.query;
   let sql = `SELECT p.*, s.first_name, s.last_name, s.grade_level, sec.name AS section_name, u.name AS recorder_name
              FROM intervention_plans p
@@ -39,7 +39,7 @@ router.get('/', asyncH(async (req, res) => {
   res.json({ data: rows, categories: CATEGORIES });
 }));
 
-router.get('/stats', asyncH(async (req, res) => {
+router.get('/stats', requireRole(...WRITE), asyncH(async (req, res) => {
   const byCat = await qa('SELECT category, COUNT(*) AS n FROM intervention_plans GROUP BY category');
   const byStatus = await qa('SELECT status, COUNT(*) AS n FROM intervention_plans GROUP BY status');
   res.json({
@@ -49,7 +49,7 @@ router.get('/stats', asyncH(async (req, res) => {
   });
 }));
 
-router.get('/at-risk', asyncH(async (req, res) => {
+router.get('/at-risk', requireRole(...WRITE), asyncH(async (req, res) => {
   const sy = req.query.school_year || '2025-2026';
   const gradeRows = await qa(
     `SELECT g.student_id, s.first_name, s.last_name, s.grade_level, sec.name AS section_name, s.sex,

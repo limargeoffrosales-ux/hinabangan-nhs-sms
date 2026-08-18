@@ -299,8 +299,12 @@ router.get('/access-logs', requireRole(...ADMIN_ROLES), asyncH(async (req, res) 
   if (req.query.user_id) { conditions.push('dal.user_id = ?'); params.push(Number(req.query.user_id)); }
   if (req.query.action) { conditions.push('dal.action = ?'); params.push(req.query.action); }
   if (req.query.filter) {
-    conditions.push('(u.name ILIKE ? OR s.first_name ILIKE ? OR s.last_name ILIKE ? OR dal.action ILIKE ?)');
     const f = `%${req.query.filter}%`;
+    if (db.dialect === 'pg') {
+      conditions.push('(u.name ILIKE ? OR s.first_name ILIKE ? OR s.last_name ILIKE ? OR dal.action ILIKE ?)');
+    } else {
+      conditions.push('(u.name LIKE ? ESCAPE \'\\\' OR s.first_name LIKE ? ESCAPE \'\\\' OR s.last_name LIKE ? ESCAPE \'\\\' OR dal.action LIKE ? ESCAPE \'\\\')');
+    }
     params.push(f, f, f, f);
   }
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';

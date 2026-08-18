@@ -12,7 +12,7 @@ function canManage(req, row) {
   return row.user_id === req.user.id || isAdminRole(req.user.role);
 }
 
-router.get('/', asyncH(async (req, res) => {
+router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT p.*, u.name AS user_name FROM research_projects p JOIN users u ON u.id = p.user_id
      ORDER BY p.updated_at DESC`);

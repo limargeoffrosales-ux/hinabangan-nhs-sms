@@ -53,7 +53,7 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   const term = b.term !== undefined && b.term !== null && b.term !== ''
     ? (TERMS.includes(b.term) ? b.term : row.term)
-    : null;
+    : row.term;
   if (b.code !== undefined) {
     const dup = await q('SELECT id FROM subjects WHERE code = ? AND id != ?', [b.code.trim(), row.id]);
     if (dup) return res.status(409).json({ error: 'Subject code already exists' });

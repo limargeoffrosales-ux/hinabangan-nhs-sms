@@ -9,10 +9,10 @@ router.use(authenticate);
 
 router.get('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
-  const q = req.query.q ? `%${req.query.q}%` : '%';
+  const searchQ = req.query.q ? `%${req.query.q}%` : '%';
   const rows = await qa(
     'SELECT id, username, name, role, email, phone, status, created_at FROM users WHERE (username LIKE ? OR name LIKE ?) ORDER BY id DESC LIMIT ? OFFSET ?',
-    [q, q, limit, offset]);
+    [searchQ, searchQ, limit, offset]);
   res.json({ data: rows, limit, offset });
 }));
 

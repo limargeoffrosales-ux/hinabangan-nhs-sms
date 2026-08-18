@@ -367,7 +367,7 @@ export default function DashboardSections() {
             <StatChip label="On leave" value={teacherStatus?.counts.on_leave ?? 0} color="#4D96FF" />
             <StatChip label="Unmarked" value={teacherStatus?.counts.unmarked ?? 0} color="#8A94A6" />
             <StatChip label="Total" value={teacherStatus?.teachers?.length ?? 0} color="#A78BFA" />
-            <StatChip label="Attendance" value={teacherStatus?.teachers?.length ? Math.round((teacherStatus.counts.present / (teacherStatus.counts.present + teacherStatus.counts.absent + teacherStatus.counts.on_leave)) * 100) + '%' : '—'} color="#F5B942" />
+            <StatChip label="Attendance" value={(() => { const p = teacherStatus?.counts.present ?? 0; const a = teacherStatus?.counts.absent ?? 0; const l = teacherStatus?.counts.on_leave ?? 0; const t = p + a + l; return t > 0 ? Math.round(p / t * 100) + '%' : '—'; })()} color="#F5B942" />
           </div>
         </div>
         <div className="table-wrap" style={{ marginTop: 12 }}>

@@ -129,7 +129,7 @@ export default function Layout({ children }) {
     e.preventDefault();
     setPwMsg(null);
     setPwErr(null);
-    if (pw.next.length < 8) return setPwErr(t('pw.tooShort'));
+    if (pw.next.length < 12) return setPwErr(t('pw.tooShort'));
     if (pw.next !== pw.confirm) return setPwErr(t('pw.noMatch'));
     setPwBusy(true);
     try {

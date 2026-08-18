@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa } = require('../db');
+const { q, qa, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, page } = require('../utils');
 
@@ -41,7 +41,9 @@ router.get('/all', requireRole('super_admin'), asyncH(async (req, res) => {
 // GET /password-audit/stats — summary statistics
 router.get('/stats', requireRole('super_admin'), asyncH(async (req, res) => {
   const [total] = await qa('SELECT COUNT(*) AS count FROM password_audit');
-  const [recent] = await qa("SELECT COUNT(*) AS count FROM password_audit WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'");
+  const [recent] = await qa(dialect === 'pg'
+    ? "SELECT COUNT(*) AS count FROM password_audit WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'"
+    : "SELECT COUNT(*) AS count FROM password_audit WHERE created_at >= datetime('now', '-7 days')");
   const [byAction] = await qa(
     "SELECT action, COUNT(*) AS count FROM password_audit GROUP BY action ORDER BY action");
   const [byUser] = await qa(

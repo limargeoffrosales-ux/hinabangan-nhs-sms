@@ -40,11 +40,11 @@ export default function PortalLayout({ children }) {
     e.preventDefault();
     setPwErr(null);
     setPwMsg(null);
-    if (pw.next.length < 8) return setPwErr(t('pw.tooShort'));
+    if (pw.next.length < 12) return setPwErr(t('pw.tooShort'));
     if (pw.next !== pw.confirm) return setPwErr(t('pw.noMatch'));
     setPwBusy(true);
     try {
-      await api('/auth/change-password', { method: 'POST', body: { current: pw.current, password: pw.next } });
+      await api('/auth/change-password', { method: 'POST', body: { currentPassword: pw.current, newPassword: pw.next } });
       setPwMsg(t('pw.updated'));
       setPw({ current: '', next: '', confirm: '' });
     } catch (err) {
