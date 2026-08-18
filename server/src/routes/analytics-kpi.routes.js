@@ -21,23 +21,18 @@ router.get('/grade-distribution', requireRole(...READ), asyncH(async (req, res) 
   if (section_id) { where.push('g.section_id = ?'); params.push(Number(section_id)); }
   if (grade_level) { where.push('s.grade_level = ?'); params.push(grade_level); }
 
+  const gradeCase = `CASE WHEN g.computed_grade >= 90 THEN '90-100' WHEN g.computed_grade >= 85 THEN '85-89' WHEN g.computed_grade >= 80 THEN '80-84' WHEN g.computed_grade >= 75 THEN '75-79' ELSE 'Below 75' END`;
   const rows = await qa(`
     SELECT
-      CASE
-        WHEN g.computed_grade >= 90 THEN '90-100'
-        WHEN g.computed_grade >= 85 THEN '85-89'
-        WHEN g.computed_grade >= 80 THEN '80-84'
-        WHEN g.computed_grade >= 75 THEN '75-79'
-        ELSE 'Below 75'
-      END AS band,
+      ${gradeCase} AS band,
       COUNT(*) AS n,
       ROUND(AVG(g.computed_grade), 2) AS avg_grade
     FROM grades g
     JOIN students s ON s.id = g.student_id
     WHERE ${where.join(' AND ')} AND g.computed_grade IS NOT NULL
-    GROUP BY band
+    GROUP BY ${gradeCase}
     ORDER BY
-      CASE band
+      CASE ${gradeCase}
         WHEN '90-100' THEN 1 WHEN '85-89' THEN 2
         WHEN '80-84' THEN 3 WHEN '75-79' THEN 4 ELSE 5
       END
@@ -269,18 +264,14 @@ router.get('/report/csv', requireRole(...READ), asyncH(async (req, res) => {
 
   lines.push('GRADE DISTRIBUTION');
   lines.push('Band,Count,Average Grade');
+  const csvGradeCase = `CASE WHEN g.computed_grade >= 90 THEN '90-100' WHEN g.computed_grade >= 85 THEN '85-89' WHEN g.computed_grade >= 80 THEN '80-84' WHEN g.computed_grade >= 75 THEN '75-79' ELSE 'Below 75' END`;
   const grades = await qa(`
     SELECT
-      CASE
-        WHEN g.computed_grade >= 90 THEN '90-100'
-        WHEN g.computed_grade >= 85 THEN '85-89'
-        WHEN g.computed_grade >= 80 THEN '80-84'
-        WHEN g.computed_grade >= 75 THEN '75-79'
-        ELSE 'Below 75'
-      END AS band, COUNT(*) AS n, ROUND(AVG(g.computed_grade), 2) AS avg_grade
+      ${csvGradeCase} AS band, COUNT(*) AS n, ROUND(AVG(g.computed_grade), 2) AS avg_grade
     FROM grades g JOIN students s ON s.id = g.student_id
     WHERE ${whereStr} AND g.computed_grade IS NOT NULL
-    GROUP BY band ORDER BY CASE band WHEN '90-100' THEN 1 WHEN '85-89' THEN 2 WHEN '80-84' THEN 3 WHEN '75-79' THEN 4 ELSE 5 END
+    GROUP BY ${csvGradeCase}
+    ORDER BY CASE ${csvGradeCase} WHEN '90-100' THEN 1 WHEN '85-89' THEN 2 WHEN '80-84' THEN 3 WHEN '75-79' THEN 4 ELSE 5 END
   `, params);
   for (const r of grades) lines.push(`${r.band},${r.n},${r.avg_grade}`);
   lines.push('');
