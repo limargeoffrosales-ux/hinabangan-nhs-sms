@@ -26,6 +26,9 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
   const id = await qi(
     'INSERT INTO users (username, password_hash, name, role, email, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [String(username).trim(), await bcrypt.hash(String(password), 10), name, role, email || null, phone || null, 'active']);
+  await qi(
+    'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+    [id, req.user.id, 'created', req.ip]);
   await audit(req, 'CREATE_USER', 'users', id, { username, role });
   res.status(201).json({ id });
 }));
@@ -37,7 +40,11 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   if (password) {
     if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
-    await qr('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(String(password), 10), user.id]);
+    await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [await bcrypt.hash(String(password), 10), user.id]);
+    await qi(
+      'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+      [user.id, req.user.id, 'reset', req.ip]);
   }
   await qr('UPDATE users SET name = ?, role = ?, email = ?, phone = ?, status = ? WHERE id = ?',
     [name ?? user.name, role ?? user.role, email ?? user.email, phone ?? user.phone, status ?? user.status, user.id]);
