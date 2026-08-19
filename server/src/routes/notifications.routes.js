@@ -4,6 +4,43 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 const { settings, setSetting, getTemplates, resend, sendTest, isEmail, MAX_ATTEMPTS } = require('../notify');
 
+async function sendSmsBlast(message, studentIds) {
+  let contacts;
+  if (studentIds && studentIds.length) {
+    const placeholders = studentIds.map(() => '?').join(',');
+    contacts = await qa(
+      `SELECT DISTINCT s.parent_contact, s.guardian_name, s.first_name, s.last_name
+       FROM students s
+       WHERE s.parent_contact IS NOT NULL AND s.parent_contact != ''
+         AND s.id IN (${placeholders})`,
+      studentIds
+    );
+  } else {
+    contacts = await qa(
+      `SELECT DISTINCT s.parent_contact, s.guardian_name, s.first_name, s.last_name
+       FROM students s
+       WHERE s.parent_contact IS NOT NULL AND s.parent_contact != ''`
+    );
+  }
+  let sent = 0;
+  let failed = 0;
+  for (const c of contacts) {
+    try {
+      const phone = c.parent_contact.replace(/\s+/g, '');
+      if (!phone) { failed++; continue; }
+      await qr(
+        `INSERT INTO notifications (channel, event, recipient_address, body, status, attempts)
+         VALUES ('sms', 'blast', ?, ?, 'queued', 0)`,
+        [phone, message]
+      );
+      sent++;
+    } catch {
+      failed++;
+    }
+  }
+  return { sent, failed, total: contacts.length };
+}
+
 const router = express.Router();
 router.use(authenticate);
 router.use(requireRole('super_admin', 'school_admin'));
@@ -86,6 +123,18 @@ router.post('/:id/resend', asyncH(async (req, res) => {
   const result = await resend(row.id);
   await audit(req, 'NOTIFY_RESEND', 'notifications', row.id, { channel: row.channel });
   res.json(result);
+}));
+
+// POST /notifications/blast — send SMS blast to all parents (or specific students)
+router.post('/blast', asyncH(async (req, res) => {
+  const b = req.body || {};
+  const message = String(b.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'Message is required' });
+  if (message.length > 160) return res.status(400).json({ error: 'SMS messages must be 160 characters or less' });
+  const studentIds = Array.isArray(b.student_ids) && b.student_ids.length ? b.student_ids : null;
+  const result = await sendSmsBlast(message, studentIds);
+  await audit(req, 'NOTIFY_BLAST', 'notifications', null, { message_length: message.length, student_count: studentIds?.length || 'all' });
+  res.json({ ok: true, ...result });
 }));
 
 module.exports = router;

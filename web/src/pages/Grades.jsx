@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, FileText, Target } from 'lucide-react';
+import { Save, FileText, Target, Printer } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { printElementHtml } from '../lib/export';
 
 const TERMS = [1, 2, 3];
 const LEVEL_COLORS = { Advanced: '#2FD6A0', Proficient: '#4D96FF', 'Approaching Proficiency': '#F5B942', Developing: '#FB7185', Beginning: '#F2555A' };
@@ -119,6 +120,41 @@ export default function Grades() {
   const section = sections.find((s) => s.id === Number(sectionId));
   const subject = subjects.find((s) => s.id === Number(subjectId));
 
+  function printClassRecord() {
+    if (!rows || !rows.length || !section || !subject) return;
+    const escHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const headers = `<tr><th style="border:1px solid #000;padding:3pt;font-size:8pt;width:20pt">#</th><th style="border:1px solid #000;padding:3pt;font-size:8pt;min-width:100pt">Name</th><th style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center;width:25pt">WW</th><th style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center;width:25pt">PT</th><th style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center;width:25pt">QA</th><th style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center;width:25pt">Final</th><th style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center;width:25pt">Remarks</th></tr>`;
+    const bodyRows = rows.map((r, i) => {
+      const avg = r.written_work != null || r.performance_task != null || r.quarterly_exam != null
+        ? ((Number(r.written_work || 0) * (weights?.written_work || 30) + Number(r.performance_task || 0) * (weights?.performance_task || 50) + Number(r.quarterly_exam || 0) * (weights?.quarterly_exam || 20)) / 100).toFixed(1)
+        : '';
+      const remark = avg && Number(avg) >= 75 ? 'Passed' : avg ? 'Did Not Pass' : '';
+      return `<tr><td style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center">${i + 1}</td><td style="border:1px solid #000;padding:3pt;font-size:8pt">${escHtml(r.last_name)}, ${escHtml(r.first_name)}</td><td style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center">${r.written_work ?? ''}</td><td style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center">${r.performance_task ?? ''}</td><td style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center">${r.quarterly_exam ?? ''}</td><td style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center;font-weight:bold">${avg}</td><td style="border:1px solid #000;padding:3pt;font-size:8pt;text-align:center">${remark}</td></tr>`;
+    }).join('');
+    const html = `
+<div style="text-align:center;margin-bottom:6pt;">
+  <div style="font-size:10pt;font-weight:bold;">REPUBLIC OF THE PHILIPPINES</div>
+  <div style="font-size:8pt;">Department of Education</div>
+  <div style="font-size:9pt;font-weight:bold;margin-top:4pt;">Class Record</div>
+</div>
+<table style="font-size:8pt;margin-bottom:4pt;border:none;">
+  <tr><td style="border:none;width:50%"><strong>Section:</strong> ${escHtml(section.name)}</td><td style="border:none"><strong>School Year:</strong> ${escHtml(schoolYear)}</td></tr>
+  <tr><td style="border:none"><strong>Subject:</strong> ${escHtml(subject.title)}</td><td style="border:none"><strong>Term:</strong> ${term}</td></tr>
+</table>
+<table style="font-size:8pt;border-collapse:collapse;">${headers}<tbody>${bodyRows}</tbody></table>
+<div style="margin-top:12pt;font-size:8pt;">
+  <strong>Grading Weights:</strong> Written Work ${weights?.written_work || 30}% · Performance Task ${weights?.performance_task || 50}% · Term Exam ${weights?.quarterly_exam || 20}%<br/>
+  <strong>Remarks:</strong> Passed (&#8805;75) | Did Not Pass (&lt;75)
+</div>
+<div style="margin-top:12pt;font-size:8pt;display:flex;gap:24pt;">
+  <div style="text-align:center;">________________________________<br/><strong>${escHtml(section.name)}</strong><br/>Class Adviser</div>
+  <div style="text-align:center;">________________________________<br/><strong>School Head</strong></div>
+</div>`;
+    const css = `@page{size:legal landscape;margin:0.5in}body{font-family:'Times New Roman',serif;font-size:11pt;color:#000}table{border-collapse:collapse}td,th{border:1px solid #000;padding:3pt}`;
+    const full = `<!doctype html><html><head><meta charset="utf-8"><title>Class Record</title><style>${css}</style></head><body>${html}</body></html>`;
+    printElementHtml('Class Record', full, { orientation: 'landscape', paper: 'legal' });
+  }
+
   return (
     <>
       <PageHead
@@ -172,6 +208,9 @@ export default function Grades() {
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button className={`btn ${compMode ? 'btn-primary' : ''}`} onClick={() => { setCompMode(!compMode); if (!compMode) loadCompetencies(); }} type="button">
                 <Target size={14} /> {compMode ? 'Grade Mode' : 'Competency Mode'}
+              </button>
+              <button className="btn" onClick={printClassRecord} disabled={!rows || !rows.length} type="button">
+                <Printer size={14} /> Print Class Record
               </button>
               <button className="btn btn-primary" onClick={compMode ? saveCompScores : save} disabled={saving || compSaving}>
                 <Save size={14} /> {compSaving ? 'Saving…' : saving ? t('common.saving') : t('grades.saveGrades')}

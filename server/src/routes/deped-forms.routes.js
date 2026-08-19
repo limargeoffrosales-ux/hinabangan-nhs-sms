@@ -221,6 +221,99 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   res.json({ learners });
 }));
 
+router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { section_id, term } = req.query;
+  if (!section_id) return res.json({ learners: [] });
+  const learners = await qa(
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name, s.lrn
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     WHERE e.section_id = ?
+     ORDER BY s.last_name, s.first_name`,
+    [section_id]
+  );
+  const result = [];
+  for (const lr of learners) {
+    const student = await q('SELECT * FROM students WHERE id = ?', [lr.id]);
+    const enrollment = await q(
+      `SELECT e.*, sec.name as section_name, sec.grade_level, u.name as adviser_name
+       FROM enrollments e
+       JOIN sections sec ON sec.id = e.section_id
+       LEFT JOIN users u ON u.id = sec.adviser_user_id
+       WHERE e.student_id = ? AND e.section_id = ?
+       ORDER BY e.enrolled_at DESC LIMIT 1`,
+      [lr.id, section_id]
+    );
+    const termCond = term ? 'AND g.term = $2::text' : '';
+    const grades = await qa(
+      `SELECT g.*, sub.title as subject_name
+       FROM grades g
+       JOIN subjects sub ON sub.id = g.subject_id
+       WHERE g.student_id = $1::bigint AND g.section_id = $3::bigint ${termCond}
+       ORDER BY sub.title`,
+      [lr.id, ...(term ? [term] : []), section_id]
+    );
+    const attendance = await qa(
+      `SELECT
+         COUNT(*) as total_days,
+         SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+         SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent,
+         SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as days_late
+       FROM attendance a
+       WHERE a.student_id = ? AND a.section_id = ?`,
+      [lr.id, section_id]
+    );
+    result.push({ student, enrollment, grades, attendance: attendance[0] });
+  }
+  res.json({ learners: result });
+}));
+
+router.get('/attendance-summary', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { section_id, start_date, end_date } = req.query;
+  if (!section_id) return res.json({ students: [], months: [] });
+  const students = await qa(
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     WHERE e.section_id = ?
+     ORDER BY s.last_name, s.first_name`,
+    [section_id]
+  );
+  const dateCond = start_date && end_date
+    ? 'AND a.date BETWEEN $2::date AND $3::date'
+    : '';
+  const attendance = await qa(
+    db.dialect === 'pg'
+      ? `SELECT a.student_id, EXTRACT(MONTH FROM a.date::timestamp) as month,
+                EXTRACT(YEAR FROM a.date::timestamp) as year,
+                a.status
+         FROM attendance a
+         WHERE a.section_id = $1::int ${dateCond}`
+      : `SELECT a.student_id, CAST(strftime('%m', a.date) AS INTEGER) as month,
+                CAST(strftime('%Y', a.date) AS INTEGER) as year,
+                a.status
+         FROM attendance a
+         WHERE a.section_id = ? ${dateCond}`,
+    section_id ? [Number(section_id), ...(start_date && end_date ? [start_date, end_date] : [])] : []
+  );
+  res.json({ students, attendance });
+}));
+
+router.get('/student-id', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { student_id } = req.query;
+  if (!student_id) return res.json({ student: null });
+  const student = await q(
+    `SELECT s.*, e.grade_level, sec.name as section_name, sec.adviser_user_id
+     FROM students s
+     LEFT JOIN enrollments e ON e.student_id = s.id
+     LEFT JOIN sections sec ON sec.id = e.section_id
+     WHERE s.id = ?
+     ORDER BY e.enrolled_at DESC LIMIT 1`,
+    [student_id]
+  );
+  res.json({ student });
+}));
+
 router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id } = req.query;
   if (!student_id) return res.json({ learners: [] });

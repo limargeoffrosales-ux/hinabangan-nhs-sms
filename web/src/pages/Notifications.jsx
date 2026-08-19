@@ -26,6 +26,9 @@ export default function Notifications() {
   const [filter, setFilter] = useState({ status: '', channel: '' });
   const [test, setTest] = useState({ email: '', phone: '' });
   const [editing, setEditing] = useState(null);
+  const [blast, setBlast] = useState({ message: '' });
+  const [blastBusy, setBlastBusy] = useState(false);
+  const [blastResult, setBlastResult] = useState(null);
 
   async function loadAll() {
     setLoading(true);
@@ -113,6 +116,25 @@ export default function Notifications() {
     }
   }
 
+  async function sendBlast() {
+    const msg = blast.message.trim();
+    if (!msg) return setError('Enter a message to send.');
+    if (msg.length > 160) return setError('SMS messages must be 160 characters or less.');
+    setBlastBusy(true);
+    setError(null);
+    setBlastResult(null);
+    try {
+      const r = await api('/notifications/blast', { method: 'POST', body: { message: msg } });
+      setBlastResult(r);
+      setBlast({ message: '' });
+      loadAll();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBlastBusy(false);
+    }
+  }
+
   const statusBadge = (s) => (s === 'sent' ? 'ok' : s === 'failed' ? 'absent' : 'normal');
 
   return (
@@ -173,6 +195,34 @@ export default function Notifications() {
                   <Send size={13} /> Send test SMS
                 </button>
               </div>
+            </div>
+
+            <div className="card">
+              <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MessageSquare size={16} style={{ color: 'var(--accent)' }} /> SMS Blast
+              </h3>
+              <div className="sub" style={{ marginBottom: 8 }}>Send a message to all parents/guardians. Messages must be 160 characters or less (standard SMS length).</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <textarea
+                  className="input"
+                  rows={3}
+                  placeholder="Type your message here... e.g. Parent-teacher conference on Friday at 2pm."
+                  value={blast.message}
+                  onChange={(e) => setBlast({ message: e.target.value })}
+                  maxLength={160}
+                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span className="sub" style={{ marginRight: 'auto' }}>{blast.message.length}/160 characters</span>
+                  <button className="btn btn-primary" disabled={blastBusy || !blast.message.trim()} onClick={sendBlast}>
+                    <Send size={13} /> {blastBusy ? 'Sending...' : 'Send to All Parents'}
+                  </button>
+                </div>
+              </div>
+              {blastResult && (
+                <div className="notice" style={{ marginTop: 8 }}>
+                  Blast queued: {blastResult.sent} messages queued, {blastResult.failed} failed, {blastResult.total} parents contacted.
+                </div>
+              )}
             </div>
           </div>
 
