@@ -142,7 +142,7 @@ router.post('/:id/contacts', requireRole(...WRITE), asyncH(async (req, res) => {
   res.status(201).json({ id });
 }));
 
-router.post('/ai/parent-notice', asyncH(async (req, res) => {
+router.post('/ai/parent-notice', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   const sid = b.student_id;
   const pupil = sid

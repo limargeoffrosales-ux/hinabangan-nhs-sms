@@ -29,7 +29,7 @@ router.get('/competencies', requireRole(...WRITE), asyncH(async (req, res) => {
 }));
 
 /* ── Get student competency scores ──────────────────── */
-router.get('/scores', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/scores', requireRole(...WRITE, 'student', 'parent'), asyncH(async (req, res) => {
   const { section_id, subject_id, school_year, quarter, student_id } = req.query;
   let sql = `
     SELECT scs.*, c.code AS competency_code, c.title AS competency_title, c.competency_type,
@@ -44,6 +44,11 @@ router.get('/scores', requireRole(...WRITE), asyncH(async (req, res) => {
   if (school_year) { where.push('scs.school_year = ?'); params.push(school_year); }
   if (quarter) { where.push('scs.quarter = ?'); params.push(Number(quarter)); }
   if (student_id) { where.push('scs.student_id = ?'); params.push(student_id); }
+  if (req.role === 'student' || req.role === 'parent') {
+    const ids = await linkedStudentIds(req.user);
+    if (!ids.length) { where.push('scs.student_id = ?'); params.push(-1); }
+    else if (!student_id) { where.push('scs.student_id IN (' + ids.map(() => '?').join(',') + ')'); params.push(...ids); }
+  }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY st.last_name, st.first_name, c.code';
   res.json({ data: await qa(sql, params) });

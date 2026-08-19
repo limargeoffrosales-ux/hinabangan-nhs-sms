@@ -20,6 +20,9 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
   const { username, password, name, role, email, phone } = req.body || {};
   if (!username || !password || !name || !role) return res.status(400).json({ error: 'username, password, name, role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: `role must be one of: ${ROLES.join(', ')}` });
+  if (req.user.role === 'school_admin' && role === 'super_admin') {
+    return res.status(403).json({ error: 'Cannot assign super_admin role' });
+  }
   if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
   const exists = await q('SELECT id FROM users WHERE username = ?', [String(username).trim()]);
   if (exists) return res.status(409).json({ error: 'Username already taken' });
@@ -38,6 +41,9 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
   const user = await q('SELECT * FROM users WHERE id = ?', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (req.user.role === 'school_admin' && role === 'super_admin') {
+    return res.status(403).json({ error: 'Cannot assign super_admin role' });
+  }
   if (password) {
     if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',

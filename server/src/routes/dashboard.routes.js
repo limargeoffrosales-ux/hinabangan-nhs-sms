@@ -61,7 +61,7 @@ router.get('/attendance-trend', requireRole(...WRITE), asyncH(async (req, res) =
   res.json({ data: rows });
 }));
 
-router.get('/latest-activity', requireRole('super_admin', 'school_admin', 'principal'), asyncH(async (req, res) => {
+router.get('/latest-activity', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'), asyncH(async (req, res) => {
   const { limit } = page(req);
   const rows = await qa('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ?', [limit]);
   res.json({ data: rows });

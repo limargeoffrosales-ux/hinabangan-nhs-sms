@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
+const { ensureTeacherSeesStudent, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
 const { notifyEvent } = require('../notify');
 
 const router = express.Router();
@@ -36,8 +36,20 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { section_id, date } = req.query;
   let sql = 'SELECT a.*, s.first_name, s.last_name, s.lrn FROM attendance a JOIN students s ON s.id = a.student_id';
   const params = [];
-  if (section_id) { sql += ' WHERE a.section_id = ?'; params.push(section_id); }
-  if (date) { sql += (params.length ? ' AND' : ' WHERE') + ' a.date = ?'; params.push(date); }
+  const where = [];
+  if (section_id) { where.push('a.section_id = ?'); params.push(section_id); }
+  if (date) { where.push('a.date = ?'); params.push(date); }
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    if (scope) {
+      const sc = sectionInScope(scope, 'a');
+      where.push(sc.sql);
+      params.push(...sc.params);
+    } else {
+      where.push('0 = 1');
+    }
+  }
+  if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY a.date DESC, s.last_name';
   const rows = await qa(sql, params);
   res.json({ data: rows });

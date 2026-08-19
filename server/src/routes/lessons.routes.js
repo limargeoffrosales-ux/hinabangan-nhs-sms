@@ -3,6 +3,7 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, safeJsonParse } = require('../utils');
+const { teacherScope, sectionInScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -27,6 +28,19 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (quarter) { where.push('l.quarter = ?'); params.push(Number(quarter)); }
   if (teacher_id) { where.push('l.teacher_id = ?'); params.push(teacher_id); }
   if (status) { where.push('l.status = ?'); params.push(status); }
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    if (scope) {
+      where.push('l.teacher_id = ?');
+      params.push(scope.teacherId);
+      if (scope.sections.length) {
+        where.push('l.section_id IN (' + scope.sections.map(() => '?').join(',') + ')');
+        params.push(...scope.sections);
+      }
+    } else {
+      where.push('0 = 1');
+    }
+  }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY l.scheduled_date DESC, l.created_at DESC';
   res.json({ data: await qa(sql, params) });
@@ -117,7 +131,7 @@ router.get('/summary/stats', requireRole(...WRITE), asyncH(async (req, res) => {
   const params = teacherId ? [teacherId] : [];
   const total = await q(`SELECT COUNT(*) AS count FROM lessons l${where}`, params);
   const byStatus = await qa(`SELECT status, COUNT(*) AS count FROM lessons l${where} GROUP BY status`, params);
-  const byQuarter = await qa(`SELECT quarter, COUNT(*) AS count FROM lessons l${where} AND quarter IS NOT NULL GROUP BY quarter`, params);
+  const byQuarter = await qa(`SELECT quarter, COUNT(*) AS count FROM lessons l${where ? where + ' AND' : ' WHERE'} quarter IS NOT NULL GROUP BY quarter`, params);
   res.json({ total: total.count, by_status: byStatus, by_quarter: byQuarter });
 }));
 
