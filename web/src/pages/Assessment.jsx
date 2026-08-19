@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Sparkles, Calculator, ClipboardList, Star } from 'lucide-react';
+import { Plus, Trash2, Calculator, ClipboardList, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
 import { downloadDoc } from '../lib/export';
 
-const TABS = ['Question Bank', 'AI Question Generator', 'Rubrics & TOS', 'Item Analysis'];
+const TABS = ['Question Bank', 'Rubrics & TOS', 'Item Analysis'];
 
 export default function Assessment() {
   const [tab, setTab] = useState(TABS[0]);
@@ -18,10 +18,6 @@ export default function Assessment() {
 
   const [qModal, setQModal] = useState(false);
   const [qForm, setQForm] = useState({ question: '', options: ['', '', '', ''], answer: 'A', subject_id: '', competency: '', qtype: 'mcq', difficulty: 2, grade_level: 'Grade 11' });
-
-  const [aiTopic, setAiTopic] = useState('');
-  const [aiCount, setAiCount] = useState(5);
-  const [aiResult, setAiResult] = useState([]);
 
   const [tosForm, setTosForm] = useState({ title: '', subject_id: '', quarter: 1, rows: [{ competency: '', items: 1, type: 'mcq' }] });
 
@@ -66,19 +62,6 @@ export default function Assessment() {
     if (!confirm('Delete this question?')) return;
     await api(`/assessment/questions/${id}`, { method: 'DELETE' });
     await load();
-  }
-
-  async function genQuestions() {
-    if (!aiTopic) return alert('Enter a topic / competency');
-    setBusy(true);
-    try {
-      const r = await api('/assessment/ai/questions', { method: 'POST', body: { topics: aiTopic, count: aiCount } });
-      setAiResult(r.questions);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function saveTos() {
@@ -190,35 +173,6 @@ export default function Assessment() {
               </tbody>
             </table>
           )}
-        </div>
-      )}
-
-      {tab === 'AI Question Generator' && (
-        <div className="two-col" style={{ alignItems: 'start' }}>
-          <div className="card">
-            <h4><Sparkles size={15} /> AI exam item drafting</h4>
-            <div className="form-row">
-              <label>Topic / competency *<input value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="e.g. Rational functions" /></label>
-            </div>
-            <div className="form-row">
-              <label>Items<select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>{[3, 5, 8, 10, 15].map((n) => <option key={n}>{n}</option>)}</select></label>
-            </div>
-            <button className="btn btn-primary" onClick={genQuestions} disabled={busy}>{busy ? 'Drafting...' : 'Generate AI questions'}</button>
-            <div className="notice warn" style={{ marginTop: 10 }}>AI-drafted items are a starting point — always validate options and distractors against your competencies.</div>
-          </div>
-          <div className="card">
-            <h4>Generated draft</h4>
-            {aiResult.length === 0 ? <Empty text="Draft items will appear here." /> : (
-              <div className="ai-q-list">
-                {aiResult.map((q, i) => (
-                  <div key={i} className="ai-q-item">
-                    <div className="ai-q-head"><b>{i + 1}. {q.question}</b> <span className={`badge badge-${q.level === 'hard' ? 'red' : q.level === 'average' ? 'yellow' : 'green'}`}>{q.level}</span></div>
-                    <ul>{q.options.map((o, j) => <li key={j}>&#9633; {o}</li>)}</ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
