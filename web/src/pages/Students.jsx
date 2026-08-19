@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Pencil, Trash2, Link2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Link2, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
@@ -32,6 +32,10 @@ export default function Students() {
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [linkQuery, setLinkQuery] = useState('');
   const [linkResults, setLinkResults] = useState([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importCsv, setImportCsv] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   async function loadAccounts(id) {
     setAccountsLoading(true);
@@ -130,6 +134,21 @@ export default function Students() {
     setShowModal(true);
   }
 
+  async function importEnrollments() {
+    if (!importCsv.trim()) return;
+    setImportBusy(true);
+    setImportResult(null);
+    try {
+      const r = await api('/enrollments/import', { method: 'POST', body: { csv: importCsv } });
+      setImportResult(r);
+      if (r.imported) load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
   function openEdit(s) {
     setForm({ ...EMPTY_FORM, ...s, birth_date: (s.birth_date || '').slice(0, 10) });
     setEditing(s.id);
@@ -194,6 +213,44 @@ export default function Students() {
           <input style={{ paddingLeft: 32 }} placeholder={t('students.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
       </div>
+      {canWrite && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setImportOpen(!importOpen)}>
+            <Upload size={14} style={{ color: 'var(--accent)' }} />
+            <strong style={{ fontSize: 13 }}>Bulk Enrollment Import</strong>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{importOpen ? '▲ Collapse' : '▼ Expand'}</span>
+          </div>
+          {importOpen && (
+            <div style={{ marginTop: 10 }}>
+              <div className="sub" style={{ marginBottom: 8 }}>Paste CSV with headers: <code>lrn, section_name, school_year, grade_level</code>. The first row must be the header. Students matching an existing enrollment are skipped.</div>
+              <textarea
+                className="input"
+                rows={6}
+                placeholder={'lrn,section_name,school_year,grade_level\n123456789012,Grade 11 - STEM,2026-2027,Grade 11'}
+                value={importCsv}
+                onChange={(e) => setImportCsv(e.target.value)}
+                style={{ fontFamily: 'monospace', fontSize: 12 }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                <button className="btn btn-primary" onClick={importEnrollments} disabled={importBusy || !importCsv.trim()}>
+                  <Upload size={13} /> {importBusy ? 'Importing...' : 'Import Enrollments'}
+                </button>
+                {importResult && (
+                  <span className="sub">
+                    Imported: <strong>{importResult.imported}</strong> | Skipped: <strong>{importResult.skipped}</strong>
+                    {importResult.errors?.length > 0 && <> | Errors: <strong>{importResult.errors.length}</strong></>}
+                  </span>
+                )}
+              </div>
+              {importResult?.errors?.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 12, color: '#e74c3c' }}>
+                  {importResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('students.noData')} /> : (
         <div className="card table-wrap">
           <table>

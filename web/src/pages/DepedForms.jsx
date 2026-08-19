@@ -16,6 +16,8 @@ const FORMS = [
   { code: 'sf9', label: 'SF9', title: 'Report Card', orient: 'portrait' },
   { code: 'sf10', label: 'SF10', title: 'Permanent Record', orient: 'portrait' },
   { code: 'sog', label: 'SOG', title: 'Summary of Grades', orient: 'landscape' },
+  { code: 'sas', label: 'SAS', title: 'Attendance Summary', orient: 'landscape' },
+  { code: 'sid', label: 'SID', title: 'Student ID', orient: 'landscape' },
 ];
 
 function esc(s) {
@@ -56,6 +58,23 @@ function blankRows(n, cols) {
 
 function printForm(code, title, html, orient) {
   printElementHtml(`${code.toUpperCase()} - ${title}`, html, { orientation: orient, paper: 'legal' });
+}
+
+async function batchPrintSF9(sectionId, term, info) {
+  try {
+    const res = await api(`/deped-forms/sf9/batch?section_id=${sectionId}&term=${term || ''}`);
+    const learners = res.learners || [];
+    if (!learners.length) return alert('No learners found for this section.');
+    const cards = learners.map(lr => renderSF9Card(lr.student, lr.enrollment, lr.grades, lr.attendance || {}, info.school_year || '____-____', info));
+    const css = `@page{size:legal portrait;margin:0.4in}body{font-family:'Times New Roman',serif;font-size:11pt;line-height:1.3;color:#000;margin:0;padding:0}table{border-collapse:collapse;width:100%;margin:6pt 0}td,th{border:1px solid #000;padding:3pt;font-size:9pt;vertical-align:top}.center{text-align:center}.c{text-align:center}.b{font-weight:bold}.small{font-size:8.5pt}.sig{width:100%;border:none}.sig td{border:none;text-align:center;font-size:10pt;padding:10pt 4pt 0}.card-page{page-break-after:always}.card-page:last-child{page-break-after:auto}`;
+    const full = `<!doctype html><html><head><meta charset="utf-8"><title>SF9 - Report Cards - Batch</title><style>${css}</style></head><body>${cards.map(c => `<div class="card-page">${c}</div>`).join('\n')}</body></html>`;
+    const w = window.open('', '_blank');
+    w.document.write(full);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  } catch (e) {
+    alert('Error loading batch report cards: ' + e.message);
+  }
 }
 
 function downloadBlankForm(code, title, html, orient, info) {
@@ -128,6 +147,12 @@ export default function DepedForms() {
     } else if (tab === 'sog' && sectionId) {
       setLoading(true);
       api(`/deped-forms/summary-of-grades?section_id=${sectionId}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
+    } else if (tab === 'sas' && sectionId) {
+      setLoading(true);
+      api(`/deped-forms/attendance-summary?section_id=${sectionId}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
+    } else if (tab === 'sid' && studentId) {
+      setLoading(true);
+      api(`/deped-forms/student-id?student_id=${studentId}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     }
   }, [tab, sectionId, studentId, month, year, term, schoolYear, info.school_year]);
 
@@ -149,7 +174,7 @@ export default function DepedForms() {
         ))}
       </div>
 
-      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf5' || tab === 'sf8' || tab === 'sf9' || tab === 'sog') && (
+      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf5' || tab === 'sf8' || tab === 'sf9' || tab === 'sog' || tab === 'sas') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ fontSize: 13 }}>Section
@@ -200,6 +225,17 @@ export default function DepedForms() {
         </div>
       )}
 
+      {(tab === 'sid') && (
+        <div className="card" style={{ padding: 12, marginBottom: 16 }}>
+          <label style={{ fontSize: 13 }}>Student
+            <select className="input" style={{ marginLeft: 6, minWidth: 280 }} value={studentId} onChange={ev => setStudentId(ev.target.value)}>
+              <option value="">Select Student for ID Card</option>
+              {students.map(st => <option key={st.id} value={st.id}>{st.last_name}, {st.first_name}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+
       {(tab === 'sf7') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -212,13 +248,20 @@ export default function DepedForms() {
 
       {loading && <Spinner />}
       {!loading && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => form && printForm(form.code, form.title, html, form.orient)}>
             <Printer size={14} /> Download PDF
           </button>
-          <button className="btn" onClick={() => form && downloadBlankForm(form.code, form.title, blankHtml, form.orient, info)}>
-            <Download size={14} /> Download Blank Form
-          </button>
+          {tab !== 'sid' && (
+            <button className="btn" onClick={() => form && downloadBlankForm(form.code, form.title, blankHtml, form.orient, info)}>
+              <Download size={14} /> Download Blank Form
+            </button>
+          )}
+          {tab === 'sf9' && sectionId && !studentId && (
+            <button className="btn btn-primary" onClick={() => batchPrintSF9(sectionId, term, info)}>
+              <Printer size={14} /> Print All Report Cards
+            </button>
+          )}
         </div>
       )}
 
@@ -242,6 +285,8 @@ function renderForm(tab, data, info, ctx) {
     case 'sf9': return renderSF9(data, info);
     case 'sf10': return renderSF10(data, info);
     case 'sog': return renderSOG(data, info);
+    case 'sas': return renderSAS(data, info);
+    case 'sid': return renderSID(data, info);
     default: return '<p>Select a form tab above.</p>';
   }
 }
@@ -259,6 +304,8 @@ function renderBlankForm(tab, info, ctx) {
     case 'sf9': return renderSF9Blank(info);
     case 'sf10': return renderSF10Blank(info);
     case 'sog': return renderSOGBlank(info, ctx);
+    case 'sas': return '<p>Select a section to generate the attendance summary.</p>';
+    case 'sid': return '<p>Select a student to generate their ID card.</p>';
     default: return '<p>Select a form.</p>';
   }
 }
@@ -992,4 +1039,118 @@ ${formHeaderHtml(info, 'sog', 'Summary of Grades')}
   75-79 = Fair | Below 75 = Did Not Meet Expectations
 </div>
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
+}
+
+/* ── SAS: Attendance Summary Report ─────────────────────── */
+
+function renderSAS(data, info) {
+  const students = data?.students || [];
+  const att = data?.attendance || [];
+  const attMap = {};
+  for (const a of att) {
+    if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, absent: 0, late: 0, total: 0 };
+    attMap[a.student_id].total++;
+    if (a.status === 'present') attMap[a.student_id].present++;
+    else if (a.status === 'absent') attMap[a.student_id].absent++;
+    else if (a.status === 'late') attMap[a.student_id].late++;
+  }
+  const months = {};
+  for (const a of att) {
+    const key = `${a.year}-${String(a.month).padStart(2, '0')}`;
+    if (!months[key]) months[key] = { present: 0, absent: 0, late: 0 };
+    months[key][a.status === 'present' ? 'present' : a.status === 'absent' ? 'absent' : 'late']++;
+  }
+  const monthKeys = Object.keys(months).sort();
+  return `
+${formHeaderHtml(info, 'sas', 'Section Attendance Summary Report')}
+<table style="font-size:8pt;margin-bottom:6pt;">
+  <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info.school_name)}</td>
+      <td style="border:none;width:50%"><strong>School Year:</strong> ${esc(info.school_year || '____-____')}</td></tr>
+</table>
+<div class="small" style="margin-bottom:6pt;"><em>Consolidated attendance per student across months — for filing and trend analysis.</em></div>
+<div style="overflow-x:auto;">
+<table style="font-size:7pt;">
+<thead><tr>
+  <th style="width:20pt">#</th>
+  <th style="min-width:90pt">Name of Learner</th>
+  <th style="width:25pt" class="c"><strong>Total<br/>Days</strong></th>
+  <th style="width:25pt" class="c"><strong>Present</strong></th>
+  <th style="width:25pt" class="c"><strong>Absent</strong></th>
+  <th style="width:25pt" class="c"><strong>Late</strong></th>
+  <th style="width:30pt" class="c"><strong>Attendance<br/>%</strong></th>
+  ${monthKeys.map(m => `<th style="width:22pt" class="c" colspan="3"><strong>${m}</strong></th>`).join('')}
+  <th style="width:30pt">Remarks</th>
+</tr>
+<tr>
+  <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+  ${monthKeys.map(() => '<th style="width:8pt;font-size:6pt" class="c">P</th><th style="width:8pt;font-size:6pt" class="c">A</th><th style="width:8pt;font-size:6pt" class="c">L</th>').join('')}
+  <th></th>
+</tr></thead>
+<tbody>
+${students.length ? students.map((st, idx) => {
+  const m = attMap[st.id] || { present: 0, absent: 0, late: 0, total: 0 };
+  const pct = m.total > 0 ? ((m.present / m.total) * 100).toFixed(1) : '';
+  const remark = pct >= 95 ? 'Excellent' : pct >= 85 ? 'Good' : pct >= 75 ? 'Fair' : pct ? 'Poor' : '';
+  return `<tr>
+    <td class="c">${idx + 1}</td>
+    <td>${esc(st.last_name)}, ${esc(st.first_name)}${st.extension_name ? ', ' + esc(st.extension_name) : ''}</td>
+    <td class="c">${m.total || ''}</td>
+    <td class="c">${m.present || ''}</td>
+    <td class="c">${m.absent || ''}</td>
+    <td class="c">${m.late || ''}</td>
+    <td class="c"><strong>${pct}%</strong></td>
+    ${monthKeys.map(key => {
+      const mm = months[key];
+      const sp = att.filter(a => a.student_id === st.id && `${a.year}-${String(a.month).padStart(2, '0')}` === key);
+      return `<td class="c">${sp.filter(a => a.status === 'present').length || ''}</td>
+             <td class="c">${sp.filter(a => a.status === 'absent').length || ''}</td>
+             <td class="c">${sp.filter(a => a.status === 'late').length || ''}</td>`;
+    }).join('')}
+    <td class="c small">${remark}</td>
+  </tr>`;
+}).join('') : blankRows(30, monthKeys.length * 3 + 7)}
+</tbody></table></div>
+<div class="small" style="margin:6pt 0;">
+  <strong>Legend:</strong> P=Present, A=Absent, L=Late &nbsp;|&nbsp;
+  <strong>Attendance:</strong> Excellent (&#8805;95%) | Good (85-94%) | Fair (75-84%) | Poor (&lt;75%)
+</div>
+${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
+}
+
+/* ── SID: Student ID Card ─────────────────────────────── */
+
+function renderSID(data, info) {
+  const s = data?.student;
+  if (!s) return '<p>Select a student to generate their ID card.</p>';
+  return `
+<div style="display:flex;gap:20pt;flex-wrap:wrap;justify-content:center;padding:16pt;">
+  <div style="width:300pt;border:2pt solid #000;padding:12pt;text-align:center;font-family:'Times New Roman',serif;">
+    <div style="font-size:8pt;font-weight:bold;color:#1a5276;">REPUBLIC OF THE PHILIPPINES</div>
+    <div style="font-size:7pt;">Department of Education</div>
+    <div style="font-size:8pt;font-weight:bold;margin-top:3pt;">${esc(info.school_name || 'Hinabangan National High School')}</div>
+    <div style="font-size:7pt;">School ID: ${esc(info.school_id || '')}</div>
+    <div style="font-size:7pt;">${esc(info.region || '')} · ${esc(info.division || '')}</div>
+    <hr style="border:none;border-top:1.5pt solid #1a5276;margin:6pt 0;"/>
+    <div style="font-size:9pt;font-weight:bold;margin:6pt 0;">STUDENT IDENTIFICATION CARD</div>
+    <div style="width:80pt;height:80pt;border:1pt solid #ccc;margin:8pt auto;display:flex;align-items:center;justify-content:center;background:#f5f5f5;">
+      ${s.photo_url ? `<img src="${esc(s.photo_url)}" style="width:80pt;height:80pt;object-fit:cover;" alt="Photo"/>` : '<span style="font-size:8pt;color:#999;">No Photo</span>'}
+    </div>
+    <div style="text-align:left;font-size:8pt;margin-top:8pt;">
+      <div style="margin-bottom:3pt;"><strong>Name:</strong> ${esc(s.last_name)}, ${esc(s.first_name)}${s.extension_name ? ', ' + esc(s.extension_name) : ''}${s.middle_name ? ', ' + esc(s.middle_name) : ''}</div>
+      <div style="margin-bottom:3pt;"><strong>LRN:</strong> ${esc(s.lrn || '____________________')}</div>
+      <div style="margin-bottom:3pt;"><strong>Grade & Section:</strong> ${esc(s.grade_level || '____')} — ${esc(s.section_name || '____')}</div>
+      <div style="margin-bottom:3pt;"><strong>Sex:</strong> ${esc(s.sex || '____')}</div>
+      <div style="margin-bottom:3pt;"><strong>Birthdate:</strong> ${esc(s.birthdate || '____')}</div>
+      <div style="margin-bottom:3pt;"><strong>Address:</strong> ${esc(s.address || '____________________________')}</div>
+    </div>
+    <hr style="border:none;border-top:1pt solid #ccc;margin:8pt 0;"/>
+    <div style="font-size:7pt;color:#666;">
+      <div>This card is for official use only.</div>
+      <div>Valid SY: ${esc(info.school_year || '____-____')}</div>
+    </div>
+    <div style="margin-top:6pt;font-size:7pt;text-align:left;">
+      <strong>School Head:</strong> ________________________
+    </div>
+  </div>
+</div>`;
 }

@@ -130,4 +130,55 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
+router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
+  const b = req.body || {};
+  const csvText = String(b.csv || '').trim();
+  if (!csvText) return res.status(400).json({ error: 'CSV data is required' });
+  const lines = csvText.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return res.status(400).json({ error: 'CSV must have a header row and at least one data row' });
+  const header = lines[0].toLowerCase().split(',').map(h => h.trim());
+  const lrnIdx = header.findIndex(h => h === 'lrn');
+  const sectionIdx = header.findIndex(h => h === 'section_name' || h === 'section');
+  const syIdx = header.findIndex(h => h === 'school_year');
+  const glIdx = header.findIndex(h => h === 'grade_level' || h === 'grade');
+  if (lrnIdx === -1 || sectionIdx === -1) {
+    return res.status(400).json({ error: 'CSV must have lrn and section_name columns' });
+  }
+  const schoolYear = syIdx >= 0 ? null : (b.school_year || '2026-2027');
+  let imported = 0;
+  let skipped = 0;
+  const errors = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim());
+    const lrn = cols[lrnIdx];
+    const sectionName = cols[sectionIdx];
+    const sy = syIdx >= 0 ? cols[syIdx] : schoolYear;
+    const gl = glIdx >= 0 ? cols[glIdx] : null;
+    if (!lrn || !sectionName) { skipped++; continue; }
+    try {
+      const student = await q('SELECT id FROM students WHERE lrn = ?', [lrn]);
+      if (!student) { errors.push(`Row ${i + 1}: student LRN ${lrn} not found`); skipped++; continue; }
+      const section = await q('SELECT id, grade_level FROM sections WHERE name = ? AND (school_year = ? OR school_year IS NULL)', [sectionName, sy]);
+      if (!section) { errors.push(`Row ${i + 1}: section "${sectionName}" not found`); skipped++; continue; }
+      const gradeLevel = gl || section.grade_level;
+      const existing = await q(
+        'SELECT id FROM enrollments WHERE student_id = ? AND school_year = ?',
+        [student.id, sy]
+      );
+      if (existing) { skipped++; continue; }
+      await qr(
+        'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, status) VALUES (?, ?, ?, ?, ?)',
+        [student.id, section.id, sy, gradeLevel, 'enrolled']
+      );
+      await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', student.id]);
+      imported++;
+    } catch (e) {
+      errors.push(`Row ${i + 1}: ${e.message}`);
+      skipped++;
+    }
+  }
+  await audit(req, 'ENROLL_IMPORT', 'enrollments', null, { imported, skipped, errors: errors.length });
+  res.json({ ok: true, imported, skipped, errors: errors.slice(0, 20) });
+}));
+
 module.exports = router;
