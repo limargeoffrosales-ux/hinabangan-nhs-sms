@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid,
 } from 'recharts';
-import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, Sparkles, AlertTriangle, CheckCircle2, Wand2, BadgeCheck, ShieldAlert } from 'lucide-react';
+import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, CheckCircle2, Wand2, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
@@ -19,12 +19,8 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [trend, setTrend] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
-  const [insights, setInsights] = useState(null);
   const [error, setError] = useState(null);
   const [conduct, setConduct] = useState(null);
-
-  const RISK_CLASS_MAP = { 'high risk': 'badge-red', 'moderate risk': 'badge-yellow', 'low risk': 'badge-blue' };
-  const getRiskBadge = (risk) => RISK_CLASS_MAP[String(risk).toLowerCase()] || 'badge-gray';
 
   const CONDUCT_TYPE_LABEL = {
     call_slip: t('conduct.callSlip'), bullying: t('conduct.bullying'), inappropriate_behavior: t('conduct.inappropriateBehavior'),
@@ -34,17 +30,15 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [s, trendRes, a, i, c] = await Promise.all([
+        const [s, trendRes, a, c] = await Promise.all([
           api('/dashboard/summary'),
           api('/dashboard/attendance-trend?days=7'),
           api('/announcements?limit=5'),
-          api('/ai/insights'),
           api('/conduct/summary'),
         ]);
         setData(s);
         setTrend(trendRes.data);
         setAnnouncements(a.data);
-        setInsights(i);
         setConduct(c);
       } catch (e) {
         setError(e.message);
@@ -76,16 +70,8 @@ export default function Dashboard() {
   }
   const trendChart = Object.values(trendData).sort((a, b) => a.date.localeCompare(b.date));
 
-  const riskSection = insights?.sections?.find((s) => s.id === 'risk');
-  const readingSection = insights?.sections?.find((s) => s.id === 'reading');
-  const complianceSection = insights?.sections?.find((s) => s.id === 'compliance');
-  const approvalsSection = insights?.sections?.find((s) => s.id === 'approvals');
-  const recsSection = insights?.sections?.find((s) => s.id === 'recommendations');
-
   const quick = [
-    { to: '/ai-docs', label: t('dashboard.generateDoc', 'Generate a document'), icon: Sparkles },
-    { to: '/reading-numeracy', label: t('dashboard.encodedReading', 'Encoded reading results'), icon: BookOpen },
-    { to: '/interventions', label: t('dashboard.reviewRisk', 'Review at-risk learners'), icon: AlertTriangle },
+    { to: '/interventions', label: t('dashboard.reviewRisk', 'Review at-risk learners'), icon: ShieldAlert },
     { to: '/assessment', label: t('dashboard.buildExam', 'Build exam / TOS'), icon: Wand2 },
     { to: '/enroll', label: t('dashboard.enrollStudent', 'Enroll a student'), icon: Users },
     { to: '/grades', label: t('dashboard.enterGrades', 'Enter class grades'), icon: Activity },
@@ -108,34 +94,6 @@ export default function Dashboard() {
       <div style={{ height: 18 }} />
 
       <DashboardSections />
-
-      <div style={{ height: 18 }} />
-
-      <div className="ai-strip">
-        <div className="ai-strip-head"><Sparkles size={15} /> {t('dashboard.aiInsights')}</div>
-        <div className="grid grid-4">
-          <div className="card kpi ai-kpi">
-            <div className="kpi-num danger">{riskSection?.data?.filter((r) => r.risk === 'High risk').length ?? '—'}</div>
-            <div className="kpi-lbl">{t('dashboard.highRiskLearners')}</div>
-          </div>
-          <div className="card kpi ai-kpi">
-            <div className="kpi-num accent">{readingSection?.data?.find((d) => d.name === 'frustration')?.value ?? 0}</div>
-            <div className="kpi-lbl">{t('dashboard.readingFrustration')}</div>
-          </div>
-          <div className="card kpi ai-kpi">
-            <div className="kpi-num" style={{ color: complianceSection?.data?.percent >= 80 ? 'var(--success)' : 'var(--warn)' }}>
-              {complianceSection?.data?.percent ?? 0}%
-            </div>
-            <div className="kpi-lbl">{t('dashboard.staffCompliance')}</div>
-          </div>
-          <div className="card kpi ai-kpi">
-            <div className="kpi-num">
-              {(approvalsSection?.data?.pending_reviews?.length ?? 0) + (approvalsSection?.data?.pending_approvals?.length ?? 0)}
-            </div>
-            <div className="kpi-lbl">{t('dashboard.awaitingApproval')}</div>
-          </div>
-        </div>
-      </div>
 
       <div style={{ height: 18 }} />
       <div className="grid grid-3">
@@ -184,54 +142,6 @@ export default function Dashboard() {
               </span>
             ))}
           </div>
-        </div>
-      </div>
-
-      <div style={{ height: 18 }} />
-
-      <div className="two-col">
-        <div className="card">
-          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <AlertTriangle size={16} /> {t('dashboard.riskPrediction')}
-          </h3>
-          {!insights ? <Spinner /> : !riskSection?.data?.length ? <Empty text={t('dashboard.noLearnersFlagged')} /> : (
-            <div className="risk-list">
-              {riskSection.data.map((r) => (
-                <div className="risk-row" key={r.student_id}>
-                  <div>
-                    <Link className="risk-name" to={`/students?q=${encodeURIComponent(r.name.split(' ')[0])}`}>{r.name}</Link>
-                    <div className="sub">{r.section || r.grade_level} · avg {r.avg_grade} · attendance {r.attendance_rate}%{r.reading_level ? ` · ${r.reading_level}` : ''}</div>
-                  </div>
-                  <span className={`badge ${getRiskBadge(r.risk)}`}>{r.risk}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="card">
-          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <BadgeCheck size={16} /> {t('dashboard.approvalCenter')}
-          </h3>
-          {!insights ? <Spinner /> : !approvalsSection?.data?.pending_reviews?.length && !approvalsSection?.data?.pending_approvals?.length ? (
-            <Empty text={t('dashboard.approvalClear')} />
-          ) : (
-            <>
-              {approvalsSection.data.pending_reviews.map((p) => (
-                <div className="risk-row" key={`rv-${p.id}`}>
-                  <div><div className="risk-name">{p.report_name}</div><div className="sub">{p.user_name} · {p.period}</div></div>
-                  <span className="badge badge-yellow">{t('dashboard.review')}</span>
-                </div>
-              ))}
-              {approvalsSection.data.pending_approvals.map((p) => (
-                <div className="risk-row" key={`ap-${p.id}`}>
-                  <div><div className="risk-name">{p.report_name}</div><div className="sub">{p.user_name} · {p.period}</div></div>
-                  <span className="badge badge-blue">{t('dashboard.approve')}</span>
-                </div>
-              ))}
-              <Link className="btn btn-sm" style={{ marginTop: 10 }} to="/submissions">{t('dashboard.openSubmissions')}</Link>
-            </>
-          )}
         </div>
       </div>
 
@@ -304,15 +214,6 @@ export default function Dashboard() {
               </div>
             ))
           )}
-        </div>
-
-        <div className="card">
-          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={16} /> {t('dashboard.aiRecommendations')}
-          </h3>
-          {!insights ? <Spinner /> : recsSection?.data?.map((r, i) => (
-            <div className="rec-item" key={i}><span className="rec-dot">{i + 1}</span>{r}</div>
-          ))}
         </div>
 
         <div className="card">

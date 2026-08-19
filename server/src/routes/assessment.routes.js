@@ -198,30 +198,4 @@ router.post('/item-analysis', requireRole('super_admin', 'school_admin', 'princi
   });
 }));
 
-router.post('/ai/questions', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
-  const b = req.body || {};
-  const count = Math.min(Number(b.count) || 5, 15);
-  const topic = String(b.topics || b.topic || 'key concepts of the lesson').trim();
-  const level = ['easy', 'average', 'hard'];
-  const verbs = { easy: ['Identify', 'Recall', 'List', 'Define', 'Name'], average: ['Explain', 'Compare', 'Apply', 'Describe', 'Interpret'], hard: ['Analyze', 'Evaluate', 'Justify', 'Design', 'Critique'] };
-  const stems = {
-    easy: ['Which of the following best defines {topic}?', 'Which term best describes {topic}?', 'Which of the following is an example of {topic}?'],
-    average: ['Which scenario best illustrates the application of {topic}?', 'What is the most accurate explanation of {topic}?', 'Which statement about {topic} is correct?'],
-    hard: ['Given the situation, which is the most defensible conclusion about {topic}?', 'Evaluate the following statement about {topic}:', 'Which approach best addresses a problem involving {topic}?'],
-  };
-  const options = ['The correct answer', 'A plausible but incorrect option', 'A partially correct option', 'An obviously incorrect option'];
-  const questions = [];
-  for (let i = 0; i < count; i++) {
-    const lv = level[i % 3];
-    const stem = stems[lv][Math.floor(Math.random() * stems[lv].length)].replace('{topic}', topic);
-    questions.push({
-      question: `${stem}`,
-      options: [...options].sort(() => Math.random() - 0.5),
-      level: lv,
-      note: `AI-drafted item on "${topic}". Review and replace the options with discipline-specific distractors before use.`,
-    });
-  }
-  res.json({ questions, suggestion: 'AI-drafted items are a starting point — always validate against your lesson objectives and competencies.' });
-}));
-
 module.exports = router;

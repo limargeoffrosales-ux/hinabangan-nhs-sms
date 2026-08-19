@@ -95,15 +95,6 @@ router.get('/my-immersion', requireRole(...PORTAL), asyncH(async (req, res) => {
   res.json({ data: rows });
 }));
 
-router.get('/my-research', requireRole(...PORTAL), asyncH(async (req, res) => {
-  const rows = await qa(
-    `SELECT p.*, u.name AS user_name FROM research_projects p JOIN users u ON u.id = p.user_id ORDER BY p.updated_at DESC`);
-  for (const r of rows) {
-    r.milestones = await qa('SELECT id, milestone, target_date, status, note FROM research_milestones WHERE project_id = ? ORDER BY target_date', [r.id]);
-  }
-  res.json({ data: rows });
-}));
-
 router.get('/today-schedule', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
   const studentId = ids[0];

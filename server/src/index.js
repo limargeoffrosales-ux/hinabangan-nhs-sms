@@ -23,30 +23,24 @@ const auditRoutes = require('./routes/audit.routes');
 const scheduleRoutes = require('./routes/schedule.routes');
 const assignmentsRoutes = require('./routes/assignments.routes');
 const submissionsRoutes = require('./routes/submissions.routes');
-const aiRoutes = require('./routes/ai.routes');
-const researchRoutes = require('./routes/research.routes');
 const learnerProgressRoutes = require('./routes/learner-progress.routes');
 const interventionsRoutes = require('./routes/interventions.routes');
 const assessmentRoutes = require('./routes/assessment.routes');
 const conductRoutes = require('./routes/conduct.routes');
-const dataExchangeRoutes = require('./routes/data-exchange.routes');
 const gradingRoutes = require('./routes/grading.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const analyticsKpiRoutes = require('./routes/analytics-kpi.routes');
 const portalRoutes = require('./routes/portal.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
-const consentRoutes = require('./routes/consent.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
 const privacyRoutes = require('./routes/privacy.routes');
 const mfaRoutes = require('./routes/mfa.routes');
 const privacyAuditRoutes = require('./routes/privacy-audit.routes');
-const securityIncidentsRoutes = require('./routes/security-incidents.routes');
 const curriculumRoutes = require('./routes/curriculum.routes');
 const roomsRoutes = require('./routes/rooms.routes');
 const departmentRoutes = require('./routes/department.routes');
 const lessonsRoutes = require('./routes/lessons.routes');
 const competencyTrackerRoutes = require('./routes/competency-tracker.routes');
-const passwordAuditRoutes = require('./routes/password-audit.routes');
 const depedFormsRoutes = require('./routes/deped-forms.routes');
 
 (async () => {
@@ -54,8 +48,6 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
   const { ensureDefaults, startNotifySweep } = require('./notify');
   await ensureDefaults();
   startNotifySweep();
-  const { startCleanup } = require('./cleanup');
-  startCleanup();
   if (process.env.SEED_ON_BOOT === '1') {
     const { seed } = require('./seed');
     await seed();
@@ -93,7 +85,6 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
   app.use(compression());
   app.use(express.json({ limit: '10mb' }));
 
-  // Request ID tracking — every response gets a unique X-Request-ID
   app.use((req, res, next) => {
     const requestId = req.headers['x-request-id'] || crypto.randomUUID();
     req.requestId = requestId;
@@ -101,7 +92,6 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
     next();
   });
 
-  // Brute-force protection for the credential endpoints (IP-based).
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 20,
@@ -112,7 +102,6 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
   app.use('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth/refresh', authLimiter);
 
-  // Generous per-IP cap for the rest of the API to blunt abuse/DoS.
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 1000,
@@ -122,22 +111,10 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
   });
   app.use('/api/', apiLimiter);
 
-  // The AI assistant does heavier work and writes chat logs — keep it tighter.
-  const aiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 120,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: { error: 'AI assistant is busy. Please wait a moment.' },
-  });
-  app.use('/api/v1/ai/', aiLimiter);
-
   app.get('/api/v1/health', (req, res) => {
     res.json({ ok: true, service: 'meridianed', dialect: db.dialect, time: new Date().toISOString() });
   });
 
-  // A person pasting an API URL into a browser should land on the app, not raw JSON.
-  // API clients (app, curl, Postman) send Accept: */* or application/json, so they are unaffected.
   app.use('/api/', (req, res, next) => {
     if (req.method === 'GET' && (req.headers.accept || '').includes('text/html')) {
       return res.redirect(302, '/');
@@ -164,27 +141,21 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
   app.use('/api/v1/schedule', scheduleRoutes);
   app.use('/api/v1/assignments', assignmentsRoutes);
   app.use('/api/v1/submissions', submissionsRoutes);
-  app.use('/api/v1/ai', aiRoutes);
-  app.use('/api/v1/research', researchRoutes);
   app.use('/api/v1/learner-progress', learnerProgressRoutes);
   app.use('/api/v1/interventions', interventionsRoutes);
   app.use('/api/v1/assessment', assessmentRoutes);
   app.use('/api/v1/immersion', immersion);
   app.use('/api/v1/jdvp', jdvp);
   app.use('/api/v1/conduct', conductRoutes);
-  app.use('/api/v1/exchange', dataExchangeRoutes);
   app.use('/api/v1/notifications', notificationsRoutes);
-  app.use('/api/v1/consent', consentRoutes);
   app.use('/api/v1/privacy', privacyRoutes);
   app.use('/api/v1/mfa', mfaRoutes);
   app.use('/api/v1/privacy-audit', privacyAuditRoutes);
-  app.use('/api/v1/security-incidents', securityIncidentsRoutes);
   app.use('/api/v1/curriculum', curriculumRoutes);
   app.use('/api/v1/rooms', roomsRoutes);
   app.use('/api/v1/department', departmentRoutes);
   app.use('/api/v1/lessons', lessonsRoutes);
   app.use('/api/v1/competency-tracker', competencyTrackerRoutes);
-  app.use('/api/v1/password-audit', passwordAuditRoutes);
   app.use('/api/v1/deped-forms', depedFormsRoutes);
 
   app.use(express.static(WEB_DIR, {
@@ -198,8 +169,6 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
     },
   }));
 
-  // SPA fallback for deep links, but never mask missing static assets with HTML
-  // (stale clients fetching an old asset hash must get a clean 404, not the SPA).
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     if (req.path.startsWith('/assets/')) return res.status(404).json({ error: 'Asset not found. Refresh the page (Ctrl+F5) to load the latest version.' });
