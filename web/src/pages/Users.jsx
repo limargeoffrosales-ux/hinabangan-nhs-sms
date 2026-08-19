@@ -1,40 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Pencil, Trash2, KeyRound, History, Clock } from 'lucide-react';
+import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 const EMPTY_FORM = { username: '', password: '', name: '', role: 'teacher', email: '', phone: '' };
-
-function timeSince(dateStr) {
-  if (!dateStr) return '—';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
-function passwordAgeClass(dateStr) {
-  if (!dateStr) return '';
-  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
-  if (days > 90) return 'pw-expired';
-  if (days > 60) return 'pw-warning';
-  return 'pw-ok';
-}
-
-function actionLabel(action) {
-  if (action === 'created') return { text: 'Account Created', color: 'info' };
-  if (action === 'reset') return { text: 'Password Reset', color: 'warning' };
-  if (action === 'changed') return { text: 'Self-Changed', color: 'ok' };
-  return { text: action, color: '' };
-}
 
 export default function Users() {
   const { t } = useTranslation();
@@ -47,9 +18,6 @@ export default function Users() {
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [resetPw, setResetPw] = useState(null);
-  const [historyUser, setHistoryUser] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
 
   const isAdmin = ['super_admin', 'school_admin'].includes(user?.role);
   const isSuperAdmin = user?.role === 'super_admin';
@@ -126,20 +94,6 @@ export default function Users() {
     }
   }
 
-  async function openHistory(u) {
-    setHistoryUser(u);
-    setHistory([]);
-    setHistoryLoading(true);
-    try {
-      const res = await api(`/password-audit?user_id=${u.id}&limit=50`);
-      setHistory(res.data || []);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }
-
   if (!isAdmin) {
     return <PageHead title={t('users.title')}><Empty text={t('users.noPermission')} /></PageHead>;
   }
@@ -156,7 +110,6 @@ export default function Users() {
             <thead>
               <tr>
                 <th>{t('users.username')}</th><th>{t('users.name')}</th><th>{t('users.role')}</th><th>{t('users.email')}</th>
-                {isSuperAdmin && <th>{t('users.password')}</th>}
                 <th>{t('users.status')}</th><th>{t('users.created')}</th><th style={{ textAlign: 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
@@ -167,22 +120,6 @@ export default function Users() {
                   <td><strong>{u.name}</strong></td>
                   <td><Badge status={u.role.replace(/_/g, ' ')} /></td>
                   <td>{u.email || '—'}</td>
-                  {isSuperAdmin && (
-                    <td className={passwordAgeClass(u.password_changed_at)}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Clock size={12} />
-                        <span style={{ fontSize: 12.5 }}>{u.password_changed_at ? timeSince(u.password_changed_at) : 'never'}</span>
-                      </div>
-                      <button
-                        className="btn btn-sm"
-                        style={{ marginTop: 2, fontSize: 11, padding: '1px 6px' }}
-                        onClick={() => openHistory(u)}
-                        title={t('users.viewPasswordHistory')}
-                      >
-                        <History size={11} /> {t('users.history')}
-                      </button>
-                    </td>
-                  )}
                   <td><Badge status={u.status} /></td>
                   <td style={{ fontSize: 13 }}>{u.created_at?.slice(0, 10)}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -249,43 +186,6 @@ export default function Users() {
         </Modal>
       )}
 
-      {historyUser && (
-        <Modal
-          title={`${t('users.passwordHistory')} — ${historyUser.username}`}
-          sub={historyUser.name}
-          onClose={() => setHistoryUser(null)}
-        >
-          {historyLoading ? <Spinner /> : history.length === 0 ? (
-            <div className="empty">{t('users.noPasswordHistory')}</div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('common.date')}</th>
-                    <th>{t('users.action')}</th>
-                    <th>{t('users.changedBy')}</th>
-                    <th>{t('users.ipAddress')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => {
-                    const al = actionLabel(h.action);
-                    return (
-                      <tr key={h.id}>
-                        <td style={{ fontSize: 12.5 }}>{new Date(h.created_at).toLocaleString()}</td>
-                        <td><Badge status={al.text} /></td>
-                        <td>{h.changer_username ? `${h.changer_name} (${h.changer_username})` : '—'}</td>
-                        <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{h.ip_address || '—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Modal>
-      )}
     </>
   );
 }

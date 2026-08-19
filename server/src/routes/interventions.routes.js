@@ -2,7 +2,6 @@ const express = require('express');
 const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { renderTemplate } = require('../ai/templates');
 
 const router = express.Router();
 router.use(authenticate);
@@ -151,14 +150,14 @@ router.post('/ai/parent-notice', asyncH(async (req, res) => {
     : null;
   const guardian = (pupil && pupil.guardian_name) || b.guardian || 'Parent/Guardian';
   const studentName = pupil ? `${pupil.first_name} ${pupil.last_name}` : b.student || 'your child';
-  const doc = renderTemplate('parent_letter', {
-    student: studentName, guardian,
-    purpose: b.reason || 'academic progress and the school intervention program for the learner',
-    meeting_date: b.meeting_date || '______________________',
-    prepared_by: req.user.name,
-  });
+  const body = `<h2>Notification Letter</h2>
+<p>Dear ${guardian},</p>
+<p>We are writing to inform you about <strong>${studentName}</strong>'s ${b.reason || 'academic progress and the school intervention program for the learner'}.</p>
+${b.meeting_date ? `<p>Please be informed that a meeting is scheduled on <strong>${b.meeting_date}</strong>.</p>` : ''}
+<p>We look forward to your cooperation.</p>
+<p>Prepared by: <strong>${req.user.name}</strong></p>`;
   await audit(req, 'AI_PARENT_NOTICE', 'intervention_plans', sid || null);
-  res.json({ body: doc.body });
+  res.json({ body });
 }));
 
 module.exports = router;

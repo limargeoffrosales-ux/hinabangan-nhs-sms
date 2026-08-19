@@ -4,24 +4,13 @@ import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
-  FileText, Gauge, Sparkles, FlaskConical, BookOpenCheck, HeartPulse, LifeBuoy, ClipboardPenLine,
-  KeyRound, Briefcase, Palette, Check, ShieldAlert, GraduationCap, Scale, Trophy, NotebookPen, Bell,
-  Globe, Shield, FileSpreadsheet, TrendingUp, DoorOpen, Target,
+  FileText, Gauge, LifeBuoy, ClipboardPenLine,
+  KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
+  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
 import { api } from '../lib/api';
-import AiAssistant from './AiAssistant';
-
-const THEMES = [
-  { id: 'midnight', name: 'Midnight', preview: 'linear-gradient(135deg, #4D96FF, #2FD6A0)' },
-  { id: 'ocean', name: 'Ocean', preview: 'linear-gradient(135deg, #22D3EE, #34D399)' },
-  { id: 'forest', name: 'Forest', preview: 'linear-gradient(135deg, #34D399, #A3E635)' },
-  { id: 'amethyst', name: 'Amethyst', preview: 'linear-gradient(135deg, #A78BFA, #34D399)' },
-  { id: 'light', name: 'Daylight', preview: 'linear-gradient(135deg, #2F7DF4, #12A97C)' },
-  { id: 'solar', name: 'Solar', preview: 'linear-gradient(135deg, #E8850C, #0FA968)' },
-  { id: 'rose', name: 'Rose', preview: 'linear-gradient(135deg, #E11D5F, #12A97C)' },
-];
 
 const LEGACY_MAP = { dark: 'midnight', light: 'light' };
 
@@ -45,37 +34,35 @@ const NAV = [
   { to: '/aral', labelKey: 'nav.aral', icon: GraduationCap },
   { to: '/discipline', labelKey: 'nav.conduct', icon: ShieldAlert },
   { to: '/grades', labelKey: 'nav.classRecords', icon: BarChart3 },
-  { to: '/assignments', labelKey: 'nav.assignments', icon: NotebookPen },
+  { to: '/assignments', labelKey: 'nav.assignments', icon: ClipboardPenLine },
   { to: '/grading-scales', labelKey: 'nav.gradingScales', icon: Scale },
   { to: '/rankings', labelKey: 'nav.rankings', icon: Trophy },
   { to: '/attendance', labelKey: 'nav.attendance', icon: CalendarCheck },
   { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
   { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
-  { to: '/consent', labelKey: 'nav.consent', icon: Shield },
   { to: '/mfa', labelKey: 'nav.mfa', icon: Shield, adminOnly: true },
   { to: '/privacy', labelKey: 'nav.privacy', icon: ShieldCheck },
-  { to: '/security-incidents', labelKey: 'nav.securityIncidents', icon: ShieldAlert },
   { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
   { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
   { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
-  { to: '/import-export', labelKey: 'nav.importExport', icon: FileSpreadsheet },
   { to: '/analytics', labelKey: 'nav.analytics', icon: TrendingUp },
-  { to: '/curriculum', labelKey: 'nav.curriculum', icon: BookOpenCheck },
+  { to: '/curriculum', labelKey: 'nav.curriculum', icon: BookOpen },
   { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },
   { to: '/lessons', labelKey: 'nav.lessons', icon: BookOpen },
   { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
   { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
 ];
 
-const AI_NAV = [
-  { to: '/ai-docs', labelKey: 'nav.aiDocs', icon: Sparkles },
-  { to: '/research', labelKey: 'nav.research', icon: FlaskConical },
-  { to: '/reading-numeracy', labelKey: 'nav.readingNumeracy', icon: BookOpenCheck },
+const TOOL_NAV = [
   { to: '/interventions', labelKey: 'nav.interventions', icon: LifeBuoy },
   { to: '/assessment', labelKey: 'nav.assessment', icon: ClipboardPenLine },
 ];
 
-const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/consent', '/privacy', '/security-incidents', '/import-export', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
+const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/privacy', '/import-export', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
+
+function FileSpreadsheet(props) {
+  return <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
+}
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
@@ -87,7 +74,6 @@ export default function Layout({ children }) {
     const s = localStorage.getItem('meridianed_theme') || 'midnight';
     return LEGACY_MAP[s] || s;
   });
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
@@ -110,21 +96,18 @@ export default function Layout({ children }) {
   }, [theme]);
 
   useEffect(() => {
-    if (!pickerOpen && !langOpen) return;
+    if (!langOpen) return;
     function onClick(e) {
-      if (!e.target.closest('.theme-wrap') && !e.target.closest('.lang-wrap')) {
-        setPickerOpen(false);
-        setLangOpen(false);
-      }
+      if (!e.target.closest('.lang-wrap')) setLangOpen(false);
     }
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
-  }, [pickerOpen, langOpen]);
+  }, [langOpen]);
 
-  function pickTheme(id) {
-    setTheme(id);
-    localStorage.setItem('meridianed_theme', id);
-    setPickerOpen(false);
+  function toggleTheme() {
+    const next = theme === 'midnight' ? 'light' : 'midnight';
+    setTheme(next);
+    localStorage.setItem('meridianed_theme', next);
   }
 
   async function onChangePassword(e) {
@@ -181,7 +164,7 @@ export default function Layout({ children }) {
           </NavLink>
         ))}
         <div className="nav-label">{t('nav.ai')}</div>
-        {AI_NAV.map((n) => (
+        {TOOL_NAV.map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
             <n.icon size={17} /> <span>{t(n.labelKey)}</span>
           </NavLink>
@@ -194,7 +177,7 @@ export default function Layout({ children }) {
           </button>
           <h1>{t('schoolName')}</h1>
           <div className="lang-wrap" style={{ position: 'relative' }}>
-            <button className="icon-btn" onClick={() => { setLangOpen((o) => !o); setPickerOpen(false); }} title="Language" aria-label="Language">
+            <button className="icon-btn" onClick={() => setLangOpen((o) => !o)} title="Language" aria-label="Language">
               <Globe size={16} aria-hidden="true" />
             </button>
             {langOpen && (
@@ -211,28 +194,9 @@ export default function Layout({ children }) {
               </div>
             )}
           </div>
-          <div className="theme-wrap">
-            <button className="icon-btn" onClick={() => setPickerOpen((o) => !o)} title={t('topbar.changeTheme')} aria-label={t('topbar.changeTheme')}>
-              <Palette size={16} aria-hidden="true" />
-            </button>
-            {pickerOpen && (
-              <div className="theme-pop">
-                <div className="theme-pop-title">{t('topbar.appearance')}</div>
-                {THEMES.map((th) => (
-                  <button key={th.id} className={`theme-opt ${theme === th.id ? 'on' : ''}`} onClick={() => pickTheme(th.id)}>
-                    <span className="theme-swatch" style={{ background: th.preview }} />
-                    {th.name}
-                    {theme === th.id && <Check size={14} />}
-                  </button>
-                ))}
-                <button className={`theme-opt ${theme === 'auto' ? 'on' : ''}`} onClick={() => pickTheme('auto')}>
-                  <span className="theme-swatch auto" />
-                  {t('topbar.autoTheme')}
-                  {theme === 'auto' && <Check size={14} />}
-                </button>
-              </div>
-            )}
-          </div>
+          <button className="icon-btn" onClick={toggleTheme} title={t('topbar.changeTheme')} aria-label={t('topbar.changeTheme')}>
+            {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
+          </button>
           <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title={t('topbar.changePassword')} aria-label={t('topbar.changePassword')}>
             <KeyRound size={16} aria-hidden="true" />
           </button>
@@ -266,7 +230,6 @@ export default function Layout({ children }) {
         <div className="content">{children}</div>
         <div className="footer-note">{t('schoolName')} · {t('schoolAddress')} · {t('schoolTagline')}</div>
       </div>
-      <AiAssistant />
     </div>
   );
 }

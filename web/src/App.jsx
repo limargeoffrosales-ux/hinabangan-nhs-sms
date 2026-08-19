@@ -31,20 +31,13 @@ const Programs = lazy(() => import('./pages/Programs'));
 const Submissions = lazy(() => import('./pages/Submissions'));
 const Compliance = lazy(() => import('./pages/Compliance'));
 const Aral = lazy(() => import('./pages/Aral'));
-const AiDocs = lazy(() => import('./pages/AiDocs'));
-const Research = lazy(() => import('./pages/Research'));
-const ReadingNumeracy = lazy(() => import('./pages/ReadingNumeracy'));
 const Interventions = lazy(() => import('./pages/Interventions'));
 const Assessment = lazy(() => import('./pages/Assessment'));
 const Immersion = lazy(() => import('./pages/Immersion'));
 const Discipline = lazy(() => import('./pages/Discipline'));
 const Notifications = lazy(() => import('./pages/Notifications'));
-const ConsentForms = lazy(() => import('./pages/ConsentForms'));
-const PortalConsent = lazy(() => import('./pages/PortalConsent'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const MFASetup = lazy(() => import('./pages/MFASetup'));
-const SecurityIncidents = lazy(() => import('./pages/SecurityIncidents'));
-const DataImportExport = lazy(() => import('./pages/DataImportExport'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const Curriculum = lazy(() => import('./pages/Curriculum'));
 const Rooms = lazy(() => import('./pages/Rooms'));
@@ -52,7 +45,6 @@ const Lessons = lazy(() => import('./pages/Lessons'));
 const CompetencyTracker = lazy(() => import('./pages/CompetencyTracker'));
 const PortalPortfolio = lazy(() => import('./pages/PortalPortfolio'));
 const PortalImmersion = lazy(() => import('./pages/PortalImmersion'));
-const PortalResearch = lazy(() => import('./pages/PortalResearch'));
 const PortalAnalytics = lazy(() => import('./pages/PortalAnalytics'));
 const DepedForms = lazy(() => import('./pages/DepedForms'));
 
@@ -110,24 +102,16 @@ export default function App() {
       <Route path="/announcements" element={<Protected><AdminOnly><Page><Announcements /></Page></AdminOnly></Protected>} />
       <Route path="/users" element={<Protected><AdminOnly><Page><Users /></Page></AdminOnly></Protected>} />
       <Route path="/audit" element={<Protected><AdminOnly><Page><AuditLogs /></Page></AdminOnly></Protected>} />
-      <Route path="/ai-docs" element={<Protected><Page><AiDocs /></Page></Protected>} />
-      <Route path="/research" element={<Protected><Page><Research /></Page></Protected>} />
-      <Route path="/reading-numeracy" element={<Protected><Page><ReadingNumeracy /></Page></Protected>} />
       <Route path="/interventions" element={<Protected><Page><Interventions /></Page></Protected>} />
       <Route path="/assessment" element={<Protected><Page><Assessment /></Page></Protected>} />
       <Route path="/immersion" element={<Protected><Page><Immersion /></Page></Protected>} />
       <Route path="/discipline" element={<Protected><Page><Discipline /></Page></Protected>} />
       <Route path="/notifications" element={<Protected><AdminOnly><Page><Notifications /></Page></AdminOnly></Protected>} />
-      <Route path="/consent" element={<Protected><AdminOnly><Page><ConsentForms /></Page></AdminOnly></Protected>} />
       <Route path="/portal/portfolio" element={<PortalProtected><Page><PortalPortfolio /></Page></PortalProtected>} />
       <Route path="/portal/immersion" element={<PortalProtected><Page><PortalImmersion /></Page></PortalProtected>} />
-      <Route path="/portal/research" element={<PortalProtected><Page><PortalResearch /></Page></PortalProtected>} />
       <Route path="/portal/analytics" element={<PortalProtected><Page><PortalAnalytics /></Page></PortalProtected>} />
-      <Route path="/portal/consent" element={<PortalProtected><Page><PortalConsent /></Page></PortalProtected>} />
       <Route path="/privacy" element={<Protected><AdminOnly><Page><Privacy /></Page></AdminOnly></Protected>} />
       <Route path="/mfa" element={<Protected><Page><MFASetup /></Page></Protected>} />
-      <Route path="/security-incidents" element={<Protected><AdminOnly><Page><SecurityIncidents /></Page></AdminOnly></Protected>} />
-      <Route path="/import-export" element={<Protected><AdminOnly><Page><DataImportExport /></Page></AdminOnly></Protected>} />
       <Route path="/analytics" element={<Protected><AdminOnly><Page><Analytics /></Page></AdminOnly></Protected>} />
       <Route path="/curriculum" element={<Protected><AdminOnly><Page><Curriculum /></Page></AdminOnly></Protected>} />
       <Route path="/rooms" element={<Protected><AdminOnly><Page><Rooms /></Page></AdminOnly></Protected>} />

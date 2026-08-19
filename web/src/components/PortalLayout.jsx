@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound, NotebookPen, Globe, Shield, Briefcase, BookOpen, BarChart3 } from 'lucide-react';
+import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound, NotebookPen, Globe, Briefcase, BookOpen, BarChart3 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Modal, initials } from './ui';
 import { api } from '../lib/api';
@@ -15,9 +15,7 @@ const PORTAL_NAV = [
   { to: '/portal/analytics', labelKey: 'portal.analytics', icon: BarChart3 },
   { to: '/portal/portfolio', labelKey: 'portal.portfolio', icon: BookOpen },
   { to: '/portal/immersion', labelKey: 'portal.immersion', icon: Briefcase },
-  { to: '/portal/research', labelKey: 'portal.research', icon: NotebookPen },
   { to: '/portal/announcements', labelKey: 'portal.announcements', icon: Megaphone },
-  { to: '/portal/consent', labelKey: 'portal.consent', icon: Shield },
 ];
 
 export default function PortalLayout({ children }) {

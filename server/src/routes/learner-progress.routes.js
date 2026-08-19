@@ -126,34 +126,4 @@ router.delete('/:id', requireRole(...ADMIN_ROLES, 'teacher', 'guidance'), asyncH
   res.json({ ok: true });
 }));
 
-router.post('/ai/recommend', requireRole(...WRITE), asyncH(async (req, res) => {
-  const sid = (req.body || {}).student_id;
-  const rec = { level: null, suggestions: [], severity: 'low' };
-  if (sid) {
-    const last = await q(
-      `SELECT level, fluency, remarks FROM learner_assessments WHERE student_id = ? AND kind = 'reading' AND level IS NOT NULL ORDER BY date DESC LIMIT 1`,
-      [sid]);
-    if (last) {
-      rec.level = last.level;
-      const order = LEVEL_ORDER[last.level] || 3;
-      rec.severity = order >= 3 ? 'high' : order === 2 ? 'medium' : 'low';
-      if (order === 1) {
-        rec.suggestions.push('Maintain independent reading program; introduce enrichment texts and peer mentoring.');
-      } else if (order === 2) {
-        rec.suggestions.push('Guided reading 3x a week with comprehension checks.');
-        rec.suggestions.push('Use leveled readers at the learner\u2019s instructional level.');
-      } else if (order === 3) {
-        rec.suggestions.push('Daily 20-minute one-on-one tutoring (paired reading, word families).');
-        rec.suggestions.push('Conduct a PHIL-IRI post-test within 4-6 weeks to measure growth.');
-        rec.suggestions.push('Coordinate with parents for at-home reading practice.');
-      } else {
-        rec.suggestions.push('Immediate referral to the reading coordinator and guidance office.');
-        rec.suggestions.push('Begin explicit phonics and decoding intervention with progress monitoring.');
-        rec.suggestions.push('Inform parents through a home visitation or conference.');
-      }
-    }
-  }
-  res.json(rec);
-}));
-
 module.exports = router;
