@@ -63,7 +63,7 @@ Entry: `server/src/index.js` → boots DB, runs migrations, seeds, mounts Expres
 Key modules:
 - `db.js` — `q()` (single row), `qa()` (all rows), `qr()` (run), `qi()` (runId). Exports `dialect`, `usePg`, `bool()`.
 - `auth.js` — JWT sign/verify, `authenticate` middleware, `requireRole()`.
-- `utils.js` — `asyncH()` (error wrapper), `audit()`, `page()`, `maskPII()`, `logAccess()`.
+- `utils.js` — `asyncH()` (error wrapper), `audit()`, `page()`, `maskPII()`, `logAccess()`, `safeJsonParse()`.
 - `routes/` — one file per domain. Mounted in `index.js` under `/api/v1/`.
 - `notify.js` — email (nodemailer/SMTP) + SMS engine, background sweep.
 - `schedule.js` — `generateSchedule`, `findConflicts` for auto-program generation.
@@ -99,6 +99,23 @@ React 19 + React Router 7 + Vite. Lazy-loaded pages via `React.lazy()`. Auth via
 - **Adding a new migration**: Create both `NNN-name.sql` (PG) and `NNN-name.sqlite.sql` (SQLite) in `database/migrations/`. Auto-applied on next boot.
 - **i18n**: Add keys to both `web/src/i18n/en.json` and `fil.json`. Use `t('key')` in components.
 - **Server-side filtering**: Use parameterized queries with `?` placeholders — the PG driver converts them to `$1, $2...` automatically via `db.js` params wrapper.
+
+## Removed features (historical — do not re-add)
+
+These features were intentionally removed in commit `5aeb3b8` to reduce bloat:
+
+- **AI Document Generator** (`server/src/ai/`, `AiDocs`, `AiAssistant`, cleanup timer)
+- **7-theme picker** (reduced to light/dark toggle only)
+- **OneRoster v1.2** (`data-exchange/` module, `DataImportExport` page)
+- **Research module** (`research.routes`, `Research`, `PortalResearch`)
+- **Password audit trail** (`password-audit.routes`, Users.jsx history modal)
+- **Security incidents page** (`security-incidents.routes`, `SecurityIncidents`)
+- **Data erasure requests** (erasure endpoints removed from `privacy.routes`)
+- **Capacitor Android shell** (config, `android/` directory)
+- **Consent forms** (`consent.routes`, `ConsentForms`, `PortalConsent`)
+- **Reading & Numeracy** (`ReadingNumeracy` page)
+
+Note: `password_audit` and `security_incidents` **tables are retained** — they are still written to by `auth.routes.js` and `users.routes.js`. Only the routes, UI pages, and i18n keys were removed.
 
 ## Login
 
