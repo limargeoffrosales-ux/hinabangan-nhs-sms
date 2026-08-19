@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, esc } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
@@ -148,14 +148,17 @@ router.post('/ai/parent-notice', requireRole(...WRITE), asyncH(async (req, res) 
   const pupil = sid
     ? await q('SELECT first_name, last_name, guardian_name FROM students WHERE id = ?', [sid])
     : null;
-  const guardian = (pupil && pupil.guardian_name) || b.guardian || 'Parent/Guardian';
-  const studentName = pupil ? `${pupil.first_name} ${pupil.last_name}` : b.student || 'your child';
+  const guardian = esc((pupil && pupil.guardian_name) || b.guardian || 'Parent/Guardian');
+  const studentName = esc(pupil ? `${pupil.first_name} ${pupil.last_name}` : b.student || 'your child');
+  const reason = esc(b.reason || 'academic progress and the school intervention program for the learner');
+  const meetingDate = b.meeting_date ? esc(b.meeting_date) : null;
+  const preparer = esc(req.user.name);
   const body = `<h2>Notification Letter</h2>
 <p>Dear ${guardian},</p>
-<p>We are writing to inform you about <strong>${studentName}</strong>'s ${b.reason || 'academic progress and the school intervention program for the learner'}.</p>
-${b.meeting_date ? `<p>Please be informed that a meeting is scheduled on <strong>${b.meeting_date}</strong>.</p>` : ''}
+<p>We are writing to inform you about <strong>${studentName}</strong>'s ${reason}.</p>
+${meetingDate ? `<p>Please be informed that a meeting is scheduled on <strong>${meetingDate}</strong>.</p>` : ''}
 <p>We look forward to your cooperation.</p>
-<p>Prepared by: <strong>${req.user.name}</strong></p>`;
+<p>Prepared by: <strong>${preparer}</strong></p>`;
   await audit(req, 'AI_PARENT_NOTICE', 'intervention_plans', sid || null);
   res.json({ body });
 }));

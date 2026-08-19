@@ -51,4 +51,14 @@ function safeJsonParse(str, fallback = null) {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
-module.exports = { audit, asyncH, page, maskPII, logAccess, safeJsonParse };
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+module.exports = { audit, asyncH, page, maskPII, logAccess, safeJsonParse, esc };
