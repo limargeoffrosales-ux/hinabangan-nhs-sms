@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr, nowSql, bool } = require('../db');
 const { authenticate, requireRole, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { teacherForUser, ensurePortalSeesStudent } = require('../scope');
+const { teacherForUser, ensurePortalSeesStudent, linkedStudentIds } = require('../scope');
 const { notifyEvent } = require('../notify');
 
 const router = express.Router();
@@ -177,7 +177,14 @@ router.get('/student/:studentId', requireRole(...PORTAL), asyncH(async (req, res
 // PUT /assignments/submit — student (or parent on their behalf) submits a response.
 router.put('/submit', requireRole(...PORTAL), asyncH(async (req, res) => {
   const b = req.body || {};
-  const studentId = Number(b.student_id);
+  let studentId;
+  if (req.user.role === 'student') {
+    const ids = await linkedStudentIds(req.user);
+    studentId = ids && ids.length ? ids[0] : null;
+  } else {
+    studentId = Number(b.student_id);
+  }
+  if (!studentId) return res.status(400).json({ error: 'Could not determine student' });
   const chk = await ensurePortalSeesStudent(req.user, studentId);
   if (!chk.ok) return res.status(403).json({ error: chk.reason });
   const assignment = await q(

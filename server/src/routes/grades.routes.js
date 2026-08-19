@@ -101,6 +101,18 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
       return res.status(403).json({ error: 'You can only save grades for your assigned class' });
     }
   }
+  const studentIds = b.rows.filter((r) => r.student_id).map((r) => r.student_id);
+  if (studentIds.length) {
+    const enrolled = await qa(
+      `SELECT student_id FROM enrollments WHERE section_id = ? AND school_year = ? AND status = 'enrolled' AND student_id IN (${studentIds.map(() => '?').join(',')})`,
+      [b.section_id, b.school_year, ...studentIds]);
+    const enrolledSet = new Set(enrolled.map((r) => r.student_id));
+    for (const r of b.rows) {
+      if (r.student_id && !enrolledSet.has(r.student_id)) {
+        return res.status(400).json({ error: `Student ${r.student_id} is not enrolled in this section` });
+      }
+    }
+  }
   const scale = await getScaleForSubject(b.subject_id);
   const passing = Number(scale.passing_grade);
   let n = 0;
