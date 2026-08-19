@@ -1,9 +1,10 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
 import PortalLayout from './components/PortalLayout';
 import { Spinner } from './components/ui';
+import { isNative } from './lib/capacitor';
 import './i18n';
 
 const Login = lazy(() => import('./pages/Login'));
@@ -75,6 +76,15 @@ function Page({ children }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (isNative()) {
+      import('@capacitor/status-bar').then(({ StatusBar }) => {
+        StatusBar.setStyle({ style: 1 }).catch(() => {});
+        StatusBar.setBackgroundColor({ color: '#1e3a5f' }).catch(() => {});
+      }).catch(() => {});
+    }
+  }, []);
+
   return (
     <Routes>
       <Route path="/login" element={<Page><Login /></Page>} />
