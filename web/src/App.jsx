@@ -66,7 +66,7 @@ function PortalProtected({ children }) {
 
 function AdminOnly({ children }) {
   const { user } = useAuth();
-  if (!can(user?.role, 'super_admin', 'school_admin')) return <Navigate to="/" replace />;
+  if (!can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar')) return <Navigate to="/" replace />;
   return children;
 }
 

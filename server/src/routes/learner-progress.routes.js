@@ -6,7 +6,7 @@ const { asyncH, audit } = require('../utils');
 const router = express.Router();
 router.use(authenticate);
 
-const WRITE = [...ADMIN_ROLES, 'teacher', 'guidance', 'librarian'];
+const WRITE = [...ADMIN_ROLES, 'teacher', 'guidance'];
 
 const LEVELS = ['Independent', 'Instructional', 'Frustration', 'Non-Reader'];
 const LEVEL_ORDER = { Independent: 1, Instructional: 2, Frustration: 3, 'Non-Reader': 4 };

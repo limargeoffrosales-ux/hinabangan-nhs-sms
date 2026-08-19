@@ -7,7 +7,7 @@ const { ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope'
 
 const router = express.Router();
 router.use(authenticate);
-const WRITE = ['super_admin', 'school_admin'];
+const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const PORTAL_READ = ['super_admin', 'school_admin', 'registrar', 'student', 'parent'];
 const DURATIONS = [60, 90, 120];
 

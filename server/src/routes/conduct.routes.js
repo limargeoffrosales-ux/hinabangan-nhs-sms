@@ -63,7 +63,7 @@ router.get('/', requireRole('super_admin', 'school_admin', 'principal', 'assista
   res.json({ data: decorate(await qa(sql, params)), limit, offset });
 }));
 
-router.get('/summary', asyncH(async (req, res) => {
+router.get('/summary', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher', 'guidance'), asyncH(async (req, res) => {
   const monthStart = db.dialect === 'pg'
     ? "date_trunc('month', now())::date"
     : "date('now', 'start of month')";

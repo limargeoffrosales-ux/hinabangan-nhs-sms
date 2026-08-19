@@ -15,7 +15,7 @@ function studentSelect(alias) {
 const immersion = express.Router();
 immersion.use(authenticate);
 
-immersion.get('/', asyncH(async (req, res) => {
+immersion.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const where = [];
   const params = [];
@@ -82,7 +82,7 @@ immersion.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 const jdvp = express.Router();
 jdvp.use(authenticate);
 
-jdvp.get('/', asyncH(async (req, res) => {
+jdvp.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const where = [];
   const params = [];

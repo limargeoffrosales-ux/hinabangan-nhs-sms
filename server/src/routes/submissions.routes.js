@@ -146,7 +146,7 @@ router.post('/', requireRole('super_admin', 'school_admin', 'principal', 'assist
   res.status(201).json({ id, detail: await submissionDetail(req, id) });
 }));
 
-router.patch('/:id', asyncH(async (req, res) => {
+router.patch('/:id', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM report_submissions WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Submission not found' });
   if (row.user_id !== req.user.id && !isAdminRole(req.user.role)) {
@@ -164,7 +164,7 @@ router.patch('/:id', asyncH(async (req, res) => {
   res.json({ detail: await submissionDetail(req, row.id) });
 }));
 
-router.post('/:id/submit', asyncH(async (req, res) => {
+router.post('/:id/submit', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM report_submissions WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Submission not found' });
   if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Only the owner can submit' });
@@ -174,7 +174,7 @@ router.post('/:id/submit', asyncH(async (req, res) => {
   res.json({ detail: await submissionDetail(req, row.id) });
 }));
 
-router.post('/:id/review', asyncH(async (req, res) => {
+router.post('/:id/review', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM report_submissions WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Submission not found' });
   const type = await q('SELECT group_name FROM report_types WHERE id = ?', [row.report_type_id]);
@@ -191,7 +191,7 @@ router.post('/:id/review', asyncH(async (req, res) => {
   res.json({ detail: await submissionDetail(req, row.id) });
 }));
 
-router.post('/:id/approve', asyncH(async (req, res) => {
+router.post('/:id/approve', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM report_submissions WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Submission not found' });
   const type = await q('SELECT group_name FROM report_types WHERE id = ?', [row.report_type_id]);
@@ -205,7 +205,7 @@ router.post('/:id/approve', asyncH(async (req, res) => {
   res.json({ detail: await submissionDetail(req, row.id) });
 }));
 
-router.post('/:id/return', asyncH(async (req, res) => {
+router.post('/:id/return', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM report_submissions WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Submission not found' });
   const type = await q('SELECT group_name FROM report_types WHERE id = ?', [row.report_type_id]);

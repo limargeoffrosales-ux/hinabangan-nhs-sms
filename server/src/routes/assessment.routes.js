@@ -8,7 +8,7 @@ router.use(authenticate);
 
 const WRITE = [...ADMIN_ROLES, 'teacher'];
 
-router.get('/questions', asyncH(async (req, res) => {
+router.get('/questions', requireRole(...WRITE), asyncH(async (req, res) => {
   const { subject_id, qtype, competency } = req.query;
   let sql = `SELECT qb.*, s.title AS subject_title FROM question_bank qb
              LEFT JOIN subjects s ON s.id = qb.subject_id`;
@@ -66,7 +66,7 @@ router.post('/questions/use/:id', requireRole('super_admin', 'school_admin', 'pr
   res.json({ ok: true });
 }));
 
-router.get('/rubrics', asyncH(async (req, res) => {
+router.get('/rubrics', requireRole(...WRITE), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT rb.*, s.title AS subject_title, u.name AS user_name FROM rubrics rb
      LEFT JOIN subjects s ON s.id = rb.subject_id JOIN users u ON u.id = rb.user_id
@@ -95,7 +95,7 @@ router.delete('/rubrics/:id', requireRole(...WRITE), asyncH(async (req, res) => 
   res.json({ ok: true });
 }));
 
-router.get('/tos', asyncH(async (req, res) => {
+router.get('/tos', requireRole(...WRITE), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT t.*, s.title AS subject_title, u.name AS user_name FROM tos_records t
      LEFT JOIN subjects s ON s.id = t.subject_id JOIN users u ON u.id = t.user_id
@@ -123,7 +123,7 @@ router.delete('/tos/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
-router.get('/analyses', asyncH(async (req, res) => {
+router.get('/analyses', requireRole(...WRITE), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT a.*, s.title AS subject_title, u.name AS user_name FROM item_analyses a
      LEFT JOIN subjects s ON s.id = a.subject_id JOIN users u ON u.id = a.user_id
