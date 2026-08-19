@@ -58,7 +58,7 @@ async function runPurge(policy, req) {
   return { purged: deletedCount };
 }
 
-router.post('/retention/:id/purge', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
+router.post('/retention/:id/purge', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const policy = await q('SELECT * FROM data_retention_policies WHERE id = ? AND enabled = TRUE', [req.params.id]);
   if (!policy) return res.status(404).json({ error: 'No active retention policy for this id' });
   const result = await runPurge(policy, req);
@@ -66,7 +66,7 @@ router.post('/retention/:id/purge', requireRole(...ADMIN_ROLES), asyncH(async (r
   res.json({ purged: result.purged, entity: policy.entity });
 }));
 
-router.post('/purge/:entity', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
+router.post('/purge/:entity', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const policy = await q('SELECT * FROM data_retention_policies WHERE entity = ? AND enabled = TRUE', [req.params.entity]);
   if (!policy) return res.status(404).json({ error: 'No active retention policy for this entity' });
   const result = await runPurge(policy, req);
