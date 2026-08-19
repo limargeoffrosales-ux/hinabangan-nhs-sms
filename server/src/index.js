@@ -189,7 +189,8 @@ const depedFormsRoutes = require('./routes/deped-forms.routes');
   app.listen(PORT, () => {
     console.log(`MeridianEd API listening on http://localhost:${PORT} (dialect: ${db.dialect})`);
     if (!process.env.JWT_SECRET) {
-      console.warn('WARNING: JWT_SECRET is not set — using the development default. Set a strong JWT_SECRET in production.');
+      console.error('FATAL: JWT_SECRET is not set. The server is using the insecure development default. Set a strong JWT_SECRET environment variable.');
+      if (process.env.NODE_ENV === 'production') process.exit(1);
     }
   });
 })();
