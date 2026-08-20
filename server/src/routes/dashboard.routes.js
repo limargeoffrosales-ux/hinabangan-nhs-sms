@@ -338,21 +338,39 @@ router.get('/aral-progress', requireRole(...DASH_READ), asyncH(async (req, res) 
      WHERE ${where.join(' AND ')}
      ORDER BY sect.name, st.last_name`, params);
   const startYear = sy ? Number(sy.slice(0, 4)) : null;
-  const dateWhere = startYear
-    ? ` AND la.date >= '${startYear}-07-01' AND la.date < '${startYear + 1}-07-01'`
-    : '';
-  const assessments = await qa(
-    `SELECT la.student_id, la.kind, la.date, la.level, la.score
-     FROM learner_assessments la
-     WHERE la.student_id IN (${learners.length ? learners.map((l) => Number(l.student_id)).join(',') : 'NULL'})${dateWhere}
-     ORDER BY la.date ASC, la.id ASC`);
-  const attRows = await qa(
-    `SELECT aa.student_id, COUNT(aa.id) AS sessions,
-       SUM(CASE WHEN aa.status IN ('present', 'excused') THEN 1 ELSE 0 END) AS attended
-     FROM aral_session_attendance aa
-     JOIN aral_sessions sess ON sess.id = aa.session_id
-     WHERE aa.student_id IN (${learners.length ? learners.map((l) => Number(l.student_id)).join(',') : 'NULL'})
-     GROUP BY aa.student_id`);
+  const assessmentParams = [];
+  let dateFilterSql = '';
+  if (startYear) {
+    assessmentParams.push(`${startYear}-07-01`, `${startYear + 1}-07-01`);
+    dateFilterSql = ' AND la.date >= ? AND la.date < ?';
+  }
+  const learnerIds = learners.map((l) => Number(l.student_id));
+  let assessments;
+  if (learnerIds.length) {
+    const idPlaceholders = learnerIds.map(() => '?').join(',');
+    assessments = await qa(
+      `SELECT la.student_id, la.kind, la.date, la.level, la.score
+       FROM learner_assessments la
+       WHERE la.student_id IN (${idPlaceholders})${dateFilterSql}
+       ORDER BY la.date ASC, la.id ASC`,
+      [...learnerIds, ...assessmentParams]);
+  } else {
+    assessments = [];
+  }
+  let attRows;
+  if (learnerIds.length) {
+    const idPlaceholders = learnerIds.map(() => '?').join(',');
+    attRows = await qa(
+      `SELECT aa.student_id, COUNT(aa.id) AS sessions,
+         SUM(CASE WHEN aa.status IN ('present', 'excused') THEN 1 ELSE 0 END) AS attended
+       FROM aral_session_attendance aa
+       JOIN aral_sessions sess ON sess.id = aa.session_id
+       WHERE aa.student_id IN (${idPlaceholders})
+       GROUP BY aa.student_id`,
+      learnerIds);
+  } else {
+    attRows = [];
+  }
   const attMap = {};
   for (const a of attRows) attMap[a.student_id] = { sessions: Number(a.sessions), attended: Number(a.attended) };
   const byLearner = {};

@@ -185,7 +185,11 @@ const pushRoutes = require('./routes/push.routes');
   app.use((err, req, res, next) => {
     console.error(err);
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
-    res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+    const status = err.status || 500;
+    const message = status === 500 && process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
+      : (err.message || 'Internal server error');
+    res.status(status).json({ error: message });
   });
 
   app.listen(PORT, () => {
