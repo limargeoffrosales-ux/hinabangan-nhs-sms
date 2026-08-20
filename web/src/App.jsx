@@ -4,7 +4,7 @@ import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
 import PortalLayout from './components/PortalLayout';
 import { Spinner } from './components/ui';
-import { isNative } from './lib/capacitor';
+import { isNative, registerForPushNotifications } from './lib/capacitor';
 import './i18n';
 
 const Login = lazy(() => import('./pages/Login'));
@@ -76,6 +76,8 @@ function Page({ children }) {
 }
 
 export default function App() {
+  const { user } = useAuth();
+
   useEffect(() => {
     if (isNative()) {
       import('@capacitor/status-bar').then(({ StatusBar }) => {
@@ -84,6 +86,12 @@ export default function App() {
       }).catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    if (isNative() && user) {
+      registerForPushNotifications().catch(() => {});
+    }
+  }, [user]);
 
   return (
     <Routes>

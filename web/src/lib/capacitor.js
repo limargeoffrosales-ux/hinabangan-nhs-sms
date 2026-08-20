@@ -19,12 +19,23 @@ export async function registerForPushNotifications() {
   if (!isNative()) return null;
   const { PushNotifications } = await import('@capacitor/push-notifications');
   await PushNotifications.register();
-  return new Promise((resolve) => {
-    PushNotifications.addListener('registration', (token) => {
-      resolve(token.value);
-    });
+  const token = await new Promise((resolve) => {
+    PushNotifications.addListener('registration', (t) => resolve(t.value));
     setTimeout(() => resolve(null), 5000);
   });
+  if (token) {
+    try {
+      const auth = localStorage.getItem('meridianed_token');
+      if (auth) {
+        await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/push/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth}` },
+          body: JSON.stringify({ token, platform: getPlatform() }),
+        });
+      }
+    } catch (_) { /* best effort */ }
+  }
+  return token;
 }
 
 export async function pickImage() {
