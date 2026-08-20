@@ -44,6 +44,9 @@ const competencyTrackerRoutes = require('./routes/competency-tracker.routes');
 const depedFormsRoutes = require('./routes/deped-forms.routes');
 const pushRoutes = require('./routes/push.routes');
 const certificationsRoutes = require('./routes/certifications.routes');
+const libraryRoutes = require('./routes/library.routes');
+const clinicRoutes = require('./routes/clinic.routes');
+const guidanceRoutes = require('./routes/guidance.routes');
 
 (async () => {
   await db.init();
@@ -161,6 +164,9 @@ const certificationsRoutes = require('./routes/certifications.routes');
   app.use('/api/v1/deped-forms', depedFormsRoutes);
   app.use('/api/v1/push', pushRoutes);
   app.use('/api/v1/certifications', certificationsRoutes);
+  app.use('/api/v1/library', libraryRoutes);
+  app.use('/api/v1/clinic', clinicRoutes);
+  app.use('/api/v1/guidance', guidanceRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',
