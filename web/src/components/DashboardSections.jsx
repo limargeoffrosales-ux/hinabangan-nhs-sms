@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
-} from 'recharts';
 import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target, GitBranch, Clock } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { Empty, Spinner, Modal } from './ui';
+import { loadRecharts } from '../lib/lazy-recharts';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
@@ -57,6 +55,9 @@ export default function DashboardSections() {
   const [aralRoll, setAralRoll] = useState([]);
   const [rollLoading, setRollLoading] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [R, setR] = useState(null);
+
+  useEffect(() => { loadRecharts().then(setR); }, []);
 
   // Restore the last dashboard view (school year / term / date) from the server.
   useEffect(() => {
@@ -267,18 +268,18 @@ export default function DashboardSections() {
             <StatChip label="Total" value={totalEnrolled} color="#A78BFA" />
           </div>
         </div>
-        {chartData.length > 0 && (
+        {chartData.length > 0 && R && (
           <div style={{ height: 180, margin: '14px 0' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-                <XAxis dataKey="section" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
-                <YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-                <Bar dataKey="Male" fill="#4D96FF" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Female" fill="#F5B942" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={chartData}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
+                <R.XAxis dataKey="section" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
+                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
+                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Bar dataKey="Male" fill="#4D96FF" radius={[4, 4, 0, 0]} />
+                <R.Bar dataKey="Female" fill="#F5B942" radius={[4, 4, 0, 0]} />
+              </R.BarChart>
+            </R.ResponsiveContainer>
           </div>
         )}
         <div className="table-wrap">
@@ -516,19 +517,19 @@ export default function DashboardSections() {
             ))}
           </div>
         </div>
-        {strandDist?.data?.length > 0 ? (
+        {strandDist?.data?.length > 0 && R ? (
           <div style={{ height: 180, margin: '14px 0' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={strandDist.data}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-                <XAxis dataKey="strand" tick={{ fill: 'var(--text-dim)', fontSize: 10 }} angle={-15} textAnchor="end" height={60} />
-                <YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-                <Bar dataKey="students" name="Students" radius={[4, 4, 0, 0]}>
-                  {strandDist.data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={strandDist.data}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
+                <R.XAxis dataKey="strand" tick={{ fill: 'var(--text-dim)', fontSize: 10 }} angle={-15} textAnchor="end" height={60} />
+                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
+                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Bar dataKey="students" name="Students" radius={[4, 4, 0, 0]}>
+                  {strandDist.data.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </R.Bar>
+              </R.BarChart>
+            </R.ResponsiveContainer>
           </div>
         ) : <div className="sub">No strand distribution data available for {sy}.</div>}
         <div className="table-wrap" style={{ marginTop: 8 }}>
