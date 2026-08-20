@@ -6,7 +6,7 @@ import {
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
-  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
+  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award, BookMarked, Stethoscope,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -57,6 +57,9 @@ const NAV = [
 const TOOL_NAV = [
   { to: '/interventions', labelKey: 'nav.interventions', icon: LifeBuoy },
   { to: '/assessment', labelKey: 'nav.assessment', icon: ClipboardPenLine },
+  { to: '/library', labelKey: 'nav.library', icon: BookMarked },
+  { to: '/clinic', labelKey: 'nav.clinic', icon: Stethoscope },
+  { to: '/guidance', labelKey: 'nav.guidance', icon: LifeBuoy },
 ];
 
 const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/privacy', '/analytics', '/curriculum', '/rooms', '/deped-forms'];

@@ -652,6 +652,9 @@
 
   "nav.depedForms": "Mga DepEd School Forms",
   "nav.certifications": "TVL Mga Sertipikasyon",
+  "nav.library": "Perpustakaan",
+  "nav.clinic": "Kalusugan",
+  "nav.guidance": "Gabay",
 
   "depedForms.title": "Mga DepEd School Forms (SF1–SF10)",
   "depedForms.sub": "Opisyal na format ng DepEd forms — tingnan, i-download bilang PDF, o i-download bilang blangkong template.",
