@@ -30,23 +30,24 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [s, trendRes, a, c] = await Promise.all([
+        const [s, trendRes, a, c] = await Promise.allSettled([
           api('/dashboard/summary'),
           api('/dashboard/attendance-trend?days=7'),
           api('/announcements?limit=5'),
           api('/conduct/summary'),
         ]);
-        setData(s);
-        setTrend(trendRes.data);
-        setAnnouncements(a.data);
-        setConduct(c);
+        if (s.status === 'fulfilled') setData(s.value);
+        if (trendRes.status === 'fulfilled') setTrend(trendRes.value.data);
+        if (a.status === 'fulfilled') setAnnouncements(a.value.data);
+        if (c.status === 'fulfilled') setConduct(c.value);
+        if (s.status !== 'fulfilled') setError(s.reason?.message || 'Failed to load dashboard');
       } catch (e) {
         setError(e.message);
       }
     })();
   }, []);
 
-  if (error) return <PageHead title={t('dashboard.title')}><div className="err-banner">{error}</div></PageHead>;
+  if (error && !data) return <PageHead title={t('dashboard.title')}><div className="err-banner">{error}</div></PageHead>;
   if (!data) return <Spinner />;
 
   const kpis = [

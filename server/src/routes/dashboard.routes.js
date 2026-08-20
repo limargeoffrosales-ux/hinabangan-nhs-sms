@@ -12,9 +12,10 @@ function today() {
 }
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const DASH_READ = [...WRITE, 'teacher', 'guidance', 'nurse', 'librarian', 'accounting', 'hr'];
 const SHS_GRADES = ['Grade 11', 'Grade 12'];
 
-router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const [students, teachers, sections, subjects, enrollments] = await Promise.all([
     qa('SELECT grade_level, sex, COUNT(*) AS n FROM students GROUP BY grade_level, sex'),
     qa('SELECT COUNT(*) AS n FROM teachers WHERE status = \'active\''),
@@ -50,7 +51,7 @@ router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
   });
 }));
 
-router.get('/attendance-trend', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/attendance-trend', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const days = Number(req.query.days || 7);
   const cutoff = db.dialect === 'pg'
     ? `CURRENT_DATE - (? * INTERVAL '1 day')`
@@ -61,7 +62,7 @@ router.get('/attendance-trend', requireRole(...WRITE), asyncH(async (req, res) =
   res.json({ data: rows });
 }));
 
-router.get('/latest-activity', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'), asyncH(async (req, res) => {
+router.get('/latest-activity', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const { limit } = page(req);
   const rows = await qa('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ?', [limit]);
   res.json({ data: rows });
@@ -70,7 +71,7 @@ router.get('/latest-activity', requireRole('super_admin', 'school_admin', 'princ
 // ------------------------------------------------------------
 // SHS Enrollment — Grade 11/12 per section, by gender (term-aware)
 // ------------------------------------------------------------
-router.get('/enrollment', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/enrollment', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const term = (req.query.term || '').toLowerCase().trim();
   const params = [...SHS_GRADES];
@@ -106,7 +107,7 @@ router.get('/enrollment', requireRole(...WRITE), asyncH(async (req, res) => {
 // ------------------------------------------------------------
 // Attendance by grade level + section (for a date)
 // ------------------------------------------------------------
-router.get('/attendance-groups', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/attendance-groups', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const d = req.query.date || today();
   const by_section = await qa(
     `SELECT s.grade_level, s.name AS section_name,
@@ -134,7 +135,7 @@ router.get('/attendance-groups', requireRole(...WRITE), asyncH(async (req, res) 
 // ------------------------------------------------------------
 // Teacher status for the day — present / absent / on leave
 // ------------------------------------------------------------
-router.get('/teacher-status', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/teacher-status', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const d = req.query.date || today();
   const teachers = await qa(
     `SELECT t.id, t.first_name, t.last_name, t.position,
@@ -176,7 +177,7 @@ router.post('/teacher-status', requireRole(...WRITE), asyncH(async (req, res) =>
 // ------------------------------------------------------------
 // Students enrolled per subject — core vs electives
 // ------------------------------------------------------------
-router.get('/subject-enrollment', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/subject-enrollment', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const params = [];
   let syWhere = '';
@@ -203,7 +204,7 @@ router.get('/subject-enrollment', requireRole(...WRITE), asyncH(async (req, res)
 // ------------------------------------------------------------
 // Aral Program — enrolled learners per section/term
 // ------------------------------------------------------------
-router.get('/aral-summary', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/aral-summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const term = (req.query.term || '').toLowerCase().trim();
   const params = [];
@@ -238,7 +239,7 @@ router.get('/aral-summary', requireRole(...WRITE), asyncH(async (req, res) => {
 // Aral Program — remediation session attendance
 // Filters: school_year, grade_level, section_id, subject_area
 // ------------------------------------------------------------
-router.get('/aral-attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/aral-attendance', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const gradeLevel = req.query.grade_level || null;
   const sectionId = req.query.section_id || null;
@@ -318,7 +319,7 @@ const LEVEL_ORDER = {
 };
 const ARAL_EXIT = { reading: ['Independent'], numeracy: ['Independent'] };
 
-router.get('/aral-progress', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
+router.get('/aral-progress', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const gradeLevel = req.query.grade_level || null;
   const sectionId = req.query.section_id || null;
@@ -431,7 +432,7 @@ router.post('/aral-sessions', requireRole(...WRITE, 'teacher', 'guidance'), asyn
 // ------------------------------------------------------------
 // Aral Program — learners currently tagged in ARAL
 // ------------------------------------------------------------
-router.get('/aral-enrolled', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/aral-enrolled', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const params = [];
   let where = 'e.is_aral = TRUE';
@@ -487,7 +488,7 @@ router.post('/aral-unenroll', requireRole(...WRITE), asyncH(async (req, res) => 
 // ------------------------------------------------------------
 // Student progress — computed grades per learner (SHS)
 // ------------------------------------------------------------
-router.get('/student-progress', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
+router.get('/student-progress', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const sy = req.query.school_year || null;
   const term = (req.query.term || '').toLowerCase().trim();
   const params = [];
@@ -527,7 +528,7 @@ router.get('/student-progress', requireRole(...WRITE, 'teacher', 'guidance'), as
 // ------------------------------------------------------------
 // Work Immersion summary — by batch, program, partner, status
 // ------------------------------------------------------------
-router.get('/immersion-summary', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/immersion-summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT wi.batch, wi.program, wi.partner_institution, wi.status,
        COUNT(*) AS learners,
@@ -550,7 +551,7 @@ router.get('/immersion-summary', requireRole(...WRITE), asyncH(async (req, res) 
 // ------------------------------------------------------------
 // JDVP summary — by batch, gender
 // ------------------------------------------------------------
-router.get('/jdvp-summary', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/jdvp-summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT j.batch, j.program, j.status, st.sex, COUNT(*) AS n
      FROM jdvp_recipients j JOIN students st ON st.id = j.student_id

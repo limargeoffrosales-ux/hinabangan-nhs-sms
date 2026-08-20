@@ -90,7 +90,7 @@ export default function DashboardSections() {
       setLoading(true);
       setError(null);
       try {
-        const [en, at, ts, se, im, jv, ar, pr, sd, tw] = await Promise.all([
+        const [en, at, ts, se, im, jv, ar, pr, sd, tw] = await Promise.allSettled([
           api(`/dashboard/enrollment?school_year=${encodeURIComponent(sy)}&term=${encodeURIComponent(term)}`),
           api(`/dashboard/attendance-groups?date=${encodeURIComponent(date)}`),
           api(`/dashboard/teacher-status?date=${encodeURIComponent(date)}`),
@@ -103,10 +103,11 @@ export default function DashboardSections() {
           api(`/department/teacher-workload?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
         ]);
         if (dead) return;
-        setEnrollment(en); setAttGroups(at); setTeacherStatus(ts);
-        setSubjectEnr(se); setImmersion(im); setJdvp(jv);
-        setAral(ar); setProgress(pr);
-        setStrandDist(sd); setTeacherWorkload(tw);
+        const ok = (r) => r.status === 'fulfilled' ? r.value : null;
+        setEnrollment(ok(en)); setAttGroups(ok(at)); setTeacherStatus(ok(ts));
+        setSubjectEnr(ok(se)); setImmersion(ok(im)); setJdvp(ok(jv));
+        setAral(ok(ar)); setProgress(ok(pr));
+        setStrandDist(ok(sd)); setTeacherWorkload(ok(tw));
       } catch (e) {
         if (!dead) setError(e.message);
       } finally {
@@ -124,15 +125,16 @@ export default function DashboardSections() {
           + (aralFilter.grade ? `&grade_level=${encodeURIComponent(aralFilter.grade)}` : '')
           + (aralFilter.section ? `&section_id=${encodeURIComponent(aralFilter.section)}` : '')
           + (aralFilter.area ? `&subject_area=${encodeURIComponent(aralFilter.area)}` : '');
-        const [secs, att, prog] = await Promise.all([
+        const [secs, att, prog] = await Promise.allSettled([
           api(`/sections?school_year=${encodeURIComponent(sy)}`),
           api(`/dashboard/aral-attendance?${qs}`),
           api(`/dashboard/aral-progress?${qs}`),
         ]);
         if (dead) return;
-        setSections(secs.data);
-        setAralAtt(att);
-        setAralProg(prog);
+        const ok = (r) => r.status === 'fulfilled' ? r.value : null;
+        setSections(ok(secs)?.data || []);
+        setAralAtt(ok(att));
+        setAralProg(ok(prog));
       } catch (e) {
         if (!dead) setError(e.message);
       }
