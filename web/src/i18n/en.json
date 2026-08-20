@@ -40,6 +40,7 @@
   "nav.interventions": "Interventions",
   "nav.assessment": "Assessment",
   "nav.depedForms": "DepEd School Forms",
+  "nav.certifications": "TVL Certifications",
 
   "portal.home": "Home",
   "portal.grades": "Grades",
@@ -49,6 +50,7 @@
   "portal.analytics": "My Progress",
   "portal.portfolio": "Portfolio",
   "portal.immersion": "Work Immersion",
+  "portal.certifications": "Certifications",
   "portal.announcements": "Announcements",
 
   "topbar.menu": "Menu",

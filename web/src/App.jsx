@@ -44,9 +44,11 @@ const Curriculum = lazy(() => import('./pages/Curriculum'));
 const Rooms = lazy(() => import('./pages/Rooms'));
 const Lessons = lazy(() => import('./pages/Lessons'));
 const CompetencyTracker = lazy(() => import('./pages/CompetencyTracker'));
+const Certifications = lazy(() => import('./pages/Certifications'));
 const PortalPortfolio = lazy(() => import('./pages/PortalPortfolio'));
 const PortalImmersion = lazy(() => import('./pages/PortalImmersion'));
 const PortalAnalytics = lazy(() => import('./pages/PortalAnalytics'));
+const PortalCertifications = lazy(() => import('./pages/PortalCertifications'));
 const DepedForms = lazy(() => import('./pages/DepedForms'));
 
 function Protected({ children }) {
@@ -128,6 +130,7 @@ export default function App() {
       <Route path="/portal/portfolio" element={<PortalProtected><Page><PortalPortfolio /></Page></PortalProtected>} />
       <Route path="/portal/immersion" element={<PortalProtected><Page><PortalImmersion /></Page></PortalProtected>} />
       <Route path="/portal/analytics" element={<PortalProtected><Page><PortalAnalytics /></Page></PortalProtected>} />
+      <Route path="/portal/certifications" element={<PortalProtected><Page><PortalCertifications /></Page></PortalProtected>} />
       <Route path="/privacy" element={<Protected><AdminOnly><Page><Privacy /></Page></AdminOnly></Protected>} />
       <Route path="/mfa" element={<Protected><Page><MFASetup /></Page></Protected>} />
       <Route path="/analytics" element={<Protected><AdminOnly><Page><Analytics /></Page></AdminOnly></Protected>} />
@@ -135,6 +138,7 @@ export default function App() {
       <Route path="/rooms" element={<Protected><AdminOnly><Page><Rooms /></Page></AdminOnly></Protected>} />
       <Route path="/lessons" element={<Protected><Page><Lessons /></Page></Protected>} />
       <Route path="/competency-tracker" element={<Protected><Page><CompetencyTracker /></Page></Protected>} />
+      <Route path="/certifications" element={<Protected><Page><Certifications /></Page></Protected>} />
       <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
