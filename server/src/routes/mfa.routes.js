@@ -12,6 +12,25 @@ router.use(authenticate);
 
 const MFA_TEMP_TTL = '5m';
 
+const mfaAttempts = new Map();
+const MFA_MAX_ATTEMPTS = 5;
+const MFA_WINDOW_MS = 5 * 60 * 1000;
+
+function checkMfaRateLimit(key) {
+  const now = Date.now();
+  const record = mfaAttempts.get(key);
+  if (!record || now - record.start > MFA_WINDOW_MS) {
+    mfaAttempts.set(key, { start: now, count: 1 });
+    return true;
+  }
+  record.count++;
+  if (record.count > MFA_MAX_ATTEMPTS) {
+    mfaAttempts.delete(key);
+    return false;
+  }
+  return true;
+}
+
 // POST /mfa/setup — generate TOTP secret and return otpauth URL + QR code data URL
 router.post('/setup', asyncH(async (req, res) => {
   const user = await q('SELECT id, username, mfa_secret, mfa_enabled FROM users WHERE id = ?', [req.user.id]);
@@ -101,6 +120,12 @@ router.post('/verify', asyncH(async (req, res) => {
 
   if (!payload.mfa_pending) {
     return res.status(400).json({ error: 'This token is not a pending MFA token' });
+  }
+
+  const rateKey = `mfa:${payload.sub}`;
+  if (!checkMfaRateLimit(rateKey)) {
+    await audit(req, 'MFA_RATE_LIMITED', 'auth', payload.sub, {});
+    return res.status(429).json({ error: 'Too many MFA attempts. Try again later.' });
   }
 
   const user = await q('SELECT id, username, name, role, status, mfa_secret, mfa_enabled FROM users WHERE id = ?', [payload.sub]);

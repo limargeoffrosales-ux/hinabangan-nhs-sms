@@ -6,6 +6,11 @@ const usePg = !!process.env.DATABASE_URL;
 let driver = null;
 let dialect = 'sqlite';
 
+function pgParams(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => '$' + (++i));
+}
+
 async function init() {
   if (usePg) {
     dialect = 'pg';
@@ -14,15 +19,33 @@ async function init() {
     const sslMode = connUrl.searchParams.get('sslmode');
     const useSsl = sslMode === 'disable' ? false : { rejectUnauthorized: false };
     const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl });
-    const params = (sql) => { params.i = 0; return sql.replace(/\?/g, () => '$' + (++params.i)); };
     driver = {
-      params,
-      run: (sql, p) => pool.query(params(sql), p || []).then((r) => ({ changes: r.rowCount })),
-      runId: async (sql, p) => (await pool.query(params(sql + ' RETURNING *'), p || [])).rows[0]?.id,
-      get: async (sql, p) => (await pool.query(params(sql), p || [])).rows[0] || null,
-      all: async (sql, p) => (await pool.query(params(sql), p || [])).rows,
+      params: pgParams,
+      run: (sql, p) => pool.query(pgParams(sql), p || []).then((r) => ({ changes: r.rowCount })),
+      runId: async (sql, p) => (await pool.query(pgParams(sql + ' RETURNING *'), p || [])).rows[0]?.id,
+      get: async (sql, p) => (await pool.query(pgParams(sql), p || [])).rows[0] || null,
+      all: async (sql, p) => (await pool.query(pgParams(sql), p || [])).rows,
       exec: (sql) => pool.query(sql),
       close: () => pool.end(),
+      tx: async (fn) => {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const result = await fn({
+            run: (sql, p) => client.query(pgParams(sql), p || []).then((r) => ({ changes: r.rowCount })),
+            runId: async (sql, p) => (await client.query(pgParams(sql + ' RETURNING *'), p || [])).rows[0]?.id,
+            get: async (sql, p) => (await client.query(pgParams(sql), p || [])).rows[0] || null,
+            all: async (sql, p) => (await client.query(pgParams(sql), p || [])).rows,
+          });
+          await client.query('COMMIT');
+          return result;
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+      },
     };
   } else {
     const { DatabaseSync } = require('node:sqlite');
@@ -52,6 +75,36 @@ async function init() {
       },
       exec: (sql) => db.exec(sql),
       close: () => db.close(),
+      tx: async (fn) => {
+        db.exec('BEGIN');
+        try {
+          const result = await fn({
+            run: (sql, p) => {
+              const st = db.prepare(sql);
+              const r = p ? st.run(...p) : st.run();
+              return { changes: Number(r.changes || 0) };
+            },
+            runId: (sql, p) => {
+              const st = db.prepare(sql);
+              const r = p ? st.run(...p) : st.run();
+              return Number(r.lastInsertRowid);
+            },
+            get: (sql, p) => {
+              const st = db.prepare(sql);
+              return (p ? st.get(...p) : st.get()) || null;
+            },
+            all: (sql, p) => {
+              const st = db.prepare(sql);
+              return p ? st.all(...p) : st.all();
+            },
+          });
+          db.exec('COMMIT');
+          return result;
+        } catch (err) {
+          db.exec('ROLLBACK');
+          throw err;
+        }
+      },
     };
   }
   await migrate();
@@ -124,4 +177,4 @@ function bool(v) {
   return usePg ? !!v : (v ? 1 : 0);
 }
 
-module.exports = { init, q, qa, qr, qi, close, nowSql, bool, usePg, get dialect() { return dialect; } };
+module.exports = { init, q, qa, qr, qi, close, nowSql, bool, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };

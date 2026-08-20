@@ -139,4 +139,24 @@ router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, r
   res.json({ data: rows });
 }));
 
+router.get('/report-card', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = ids[0];
+  if (!studentId) return res.json({ subjects: [], general_average: null });
+  const { school_year, term } = req.query;
+  if (!school_year || !term) return res.status(400).json({ error: 'school_year and term are required' });
+  const period = String(term).trim();
+  if (!/^[1-3]$/.test(period)) return res.status(400).json({ error: 'term must be 1, 2 or 3' });
+  const rows = await qa(
+    `SELECT g.subject_id, su.code, su.title, g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
+     FROM grades g JOIN subjects su ON su.id = g.subject_id
+     WHERE g.student_id = ? AND g.school_year = ? AND g.quarter = ? ORDER BY su.code`,
+    [studentId, school_year, period]);
+  const withGrades = rows.filter((r) => r.computed_grade != null);
+  const average = withGrades.length
+    ? Math.round(withGrades.reduce((a, r) => a + Number(r.computed_grade), 0) / withGrades.length * 100) / 100
+    : null;
+  res.json({ subjects: rows, general_average: average, school_year, term: Number(period) });
+}));
+
 module.exports = router;
