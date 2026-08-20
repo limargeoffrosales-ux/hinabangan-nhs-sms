@@ -169,4 +169,63 @@ router.get('/certifications', requireRole(...PORTAL), asyncH(async (req, res) =>
   res.json({ data: rows });
 }));
 
+/* ── Teacher contacts for linked student ─────────── */
+router.get('/teacher-contacts', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = ids[0];
+  if (!studentId) return res.json({ data: [] });
+  const { school_year } = req.query;
+  const enr = await q(
+    `SELECT e.section_id FROM enrollments e WHERE e.student_id = ? AND e.school_year = ? AND e.status = 'enrolled' LIMIT 1`,
+    [studentId, school_year || new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)]);
+  if (!enr) return res.json({ data: [] });
+  const rows = await qa(
+    `SELECT DISTINCT t.id, t.first_name, t.last_name, t.email, t.phone,
+            ca.subject_id, sub.code AS subject_code, sub.title AS subject_title,
+            sec.name AS section_name,
+            CASE WHEN sec.adviser_teacher_id = t.id THEN 1 ELSE 0 END AS is_adviser
+     FROM class_assignments ca
+     JOIN teachers t ON t.id = ca.teacher_id
+     JOIN subjects sub ON sub.id = ca.subject_id
+     JOIN sections sec ON sec.id = ca.section_id
+     WHERE ca.section_id = ? ${school_year ? 'AND ca.school_year = ?' : ''}
+     ORDER BY is_adviser DESC, sub.code`,
+    school_year ? [enr.section_id, school_year] : [enr.section_id]);
+  res.json({ data: rows });
+}));
+
+/* ── Weekly schedule for linked student ──────────── */
+router.get('/weekly-schedule', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = ids[0];
+  if (!studentId) return res.json({ data: [] });
+  const { school_year } = req.query;
+  const rows = await qa(
+    `SELECT se.day, se.start_time, se.end_time, se.room,
+            sub.code AS subject_code, sub.title AS subject_title,
+            t.first_name || ' ' || t.last_name AS teacher_name,
+            sec.name AS section_name
+     FROM schedule_entries se
+     JOIN class_assignments ca ON ca.id = se.assignment_id
+     JOIN subjects sub ON sub.id = ca.subject_id
+     JOIN teachers t ON t.id = ca.teacher_id
+     JOIN sections sec ON sec.id = ca.section_id
+     JOIN enrollments e ON e.section_id = sec.id AND e.school_year = se.school_year AND e.status = 'enrolled'
+     WHERE e.student_id = ? ${school_year ? 'AND se.school_year = ?' : ''}
+     ORDER BY CASE se.day WHEN 'Mon' THEN 1 WHEN 'Tue' THEN 2 WHEN 'Wed' THEN 3 WHEN 'Thu' THEN 4 WHEN 'Fri' THEN 5 WHEN 'Sat' THEN 6 ELSE 7 END, se.start_time`,
+    school_year ? [studentId, school_year] : [studentId]);
+  res.json({ data: rows });
+}));
+
+/* ── Announcements (extended) ────────────────────── */
+router.get('/announcements', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const rows = await qa(
+    `SELECT a.id, a.title, a.body, a.created_at, u.name AS author_name
+     FROM announcements a LEFT JOIN users u ON u.id = a.author_id
+     ORDER BY a.created_at DESC LIMIT ?`,
+    [limit]);
+  res.json({ data: rows });
+}));
+
 module.exports = router;

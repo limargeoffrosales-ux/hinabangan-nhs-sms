@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Megaphone } from 'lucide-react';
+import { RefreshCw, Megaphone, CalendarDays, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { ErrorBanner, Spinner } from '../components/ui';
 import { fmt } from '../lib/utils';
+
+const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function Portal() {
   const { me, students, loading: meLoading, error: meError } = useLinkedStudents();
@@ -11,12 +13,18 @@ export default function Portal() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [teachers, setTeachers] = useState([]);
+  const [weekly, setWeekly] = useState([]);
 
   function load() {
     setLoading(true);
     setError(null);
-    api(`/portal/overview?school_year=${encodeURIComponent(sy)}`)
-      .then(setData)
+    Promise.all([
+      api(`/portal/overview?school_year=${encodeURIComponent(sy)}`),
+      api(`/portal/teacher-contacts?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
+      api(`/portal/weekly-schedule?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
+    ])
+      .then(([ov, tc, ws]) => { setData(ov); setTeachers(tc.data); setWeekly(ws.data); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
@@ -28,6 +36,13 @@ export default function Portal() {
   if (meLoading) return <Spinner />;
 
   const err = meError || error;
+
+  const weeklyByDay = {};
+  for (const r of weekly) {
+    if (!weeklyByDay[r.day]) weeklyByDay[r.day] = [];
+    weeklyByDay[r.day].push(r);
+  }
+
   return (
     <>
       <div className="portal-hero">
@@ -77,6 +92,56 @@ export default function Portal() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+            {/* Weekly Schedule */}
+            <div className="card">
+              <h3 style={{ marginTop: 0 }}><CalendarDays size={15} style={{ verticalAlign: -2 }} /> Weekly Schedule</h3>
+              {weekly.length === 0 ? (
+                <div className="sub">No schedule available.</div>
+              ) : (
+                DAY_ORDER.map((day) => (
+                  weeklyByDay[day]?.length ? (
+                    <div key={day} style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 4 }}>{day}</div>
+                      {weeklyByDay[day].map((r, i) => (
+                        <div key={i} style={{ fontSize: 12, padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ fontWeight: 600 }}>{r.subject_code}</span> — {r.subject_title}
+                          <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>{r.start_time?.slice(0, 5)}–{r.end_time?.slice(0, 5)}</span>
+                          {r.room && <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>Room {r.room}</span>}
+                          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{r.teacher_name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null
+                ))
+              )}
+            </div>
+
+            {/* Teacher Contacts */}
+            <div className="card">
+              <h3 style={{ marginTop: 0 }}><Users size={15} style={{ verticalAlign: -2 }} /> Teachers</h3>
+              {teachers.length === 0 ? (
+                <div className="sub">No teacher info available.</div>
+              ) : (
+                teachers.map((t) => (
+                  <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>
+                      {t.last_name}, {t.first_name}
+                      {t.is_adviser ? <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: 'rgba(77,150,255,0.12)', color: 'var(--accent)', marginLeft: 6 }}>ADVISER</span> : null}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{t.subject_code} — {t.subject_title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                      {t.email && <span>✉ {t.email}</span>}
+                      {t.email && t.phone && <span style={{ margin: '0 4px' }}>·</span>}
+                      {t.phone && <span>☎ {t.phone}</span>}
+                      {!t.email && !t.phone && <span style={{ fontStyle: 'italic' }}>No contact info</span>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="card">
