@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts';
-import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, GitBranch } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, GitBranch, Brain, Shield, Zap, Target } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge, Modal } from '../components/ui';
 
@@ -31,6 +31,10 @@ export default function Analytics() {
   const [retention, setRetention] = useState(null);
   const [passRate, setPassRate] = useState(null);
   const [strandComp, setStrandComp] = useState(null);
+  const [compMastery, setCompMastery] = useState(null);
+  const [studentRisk, setStudentRisk] = useState(null);
+  const [aiInsights, setAiInsights] = useState(null);
+  const [riskThreshold, setRiskThreshold] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('overview');
@@ -55,18 +59,24 @@ export default function Analytics() {
         const params = new URLSearchParams({ school_year: sy });
         if (quarter) params.set('quarter', quarter);
         const qs = params.toString();
-        const [g, a, r, p, sc] = await Promise.all([
+        const [g, a, r, p, sc, cm, ri, ai] = await Promise.all([
           api(`/analytics/kpi/grade-distribution?${qs}`),
           api(`/analytics/kpi/attendance-kpi?${qs}`),
           api(`/analytics/kpi/enrollment-retention?school_year=${sy}`),
           api(`/analytics/kpi/pass-rate?${qs}`),
           api(`/department/strand-comparison?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')).catch(() => ({ data: [] })),
+          api(`/analytics/kpi/competency-mastery?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')).catch(() => null),
+          api(`/analytics/kpi/student-risk?school_year=${sy}`).catch(() => null),
+          api(`/analytics/kpi/ai-insights?school_year=${sy}`).catch(() => null),
         ]);
         setGrades(g);
         setAttendance(a);
         setRetention(r);
         setPassRate(p);
         setStrandComp(sc);
+        setCompMastery(cm);
+        setStudentRisk(ri);
+        setAiInsights(ai);
       } catch (e) { setError(e.message); }
       setLoading(false);
     })();
@@ -97,6 +107,10 @@ export default function Analytics() {
     { name: t('analytics.failing'), value: passRate.failing },
   ] : [];
 
+  const riskData = studentRisk?.data || [];
+  const filteredRisk = riskThreshold ? riskData.filter((r) => r.risk_score >= riskThreshold) : riskData;
+  const riskSummary = studentRisk?.summary || {};
+
   return (
     <div>
       <PageHead title={t('analytics.title')} sub={t('analytics.subtitle')}>
@@ -126,6 +140,7 @@ export default function Analytics() {
               ['retention', t('analytics.tabRetention')],
               ['atRisk', t('analytics.tabAtRisk')],
               ['strand', t('analytics.tabStrand')],
+              ['advanced', t('analytics.tabAdvanced')],
             ].map(([id, label]) => (
               <button key={id} className={`tab ${tab === id ? 'active' : ''}`}
                 onClick={() => setTab(id)} role="tab" aria-selected={tab === id}>{label}</button>
@@ -411,6 +426,182 @@ export default function Analytics() {
                     </ResponsiveContainer>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Advanced Analytics Tab ────────────────── */}
+          {tab === 'advanced' && (
+            <div>
+              {/* KPI Cards */}
+              <div className="kpi-grid" style={{ marginBottom: 24 }}>
+                <KPICard label={t('analytics.overallAvg')} value={compMastery?.overall?.overall_avg ?? '—'} icon={Target} color="var(--accent)" sub={`${compMastery?.overall?.total_competencies ?? 0} competencies`} />
+                <KPICard label={t('analytics.masteryRate')} value={compMastery?.overall?.mastered != null ? `${Math.round(compMastery.overall.mastered / (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) * 100)}%` : '—'} icon={GraduationCap} color="var(--accent-2)" sub={`${compMastery?.overall?.mastered ?? 0} mastered`} />
+                <KPICard label={t('analytics.riskStudents')} value={riskSummary.high ?? '—'} icon={AlertTriangle} color="var(--danger)" sub={`${riskSummary.medium ?? 0} medium · ${riskSummary.low ?? 0} low`} />
+                <KPICard label={t('analytics.aiInsights')} value={aiInsights?.insights?.filter((i) => i.ai_ready).length ?? 0} icon={Brain} color="#A78BFA" sub={`${aiInsights?.insights?.filter((i) => !i.ai_ready).length ?? 0} coming soon`} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+                {/* Competency Mastery Heatmap */}
+                <div className="card">
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.competencyMastery')}</h3>
+                  {compMastery?.by_competency?.length ? (
+                    <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                      <table className="table">
+                        <thead><tr>
+                          <th>{t('analytics.code')}</th>
+                          <th>{t('analytics.title')}</th>
+                          <th>{t('analytics.avgScore')}</th>
+                          <th>{t('analytics.masteryRate')}</th>
+                          <th>{t('analytics.levelDistribution')}</th>
+                        </tr></thead>
+                        <tbody>
+                          {compMastery.by_competency.map((c) => (
+                            <tr key={c.competency_id}>
+                              <td style={{ fontSize: 12, fontWeight: 600 }}>{c.code}</td>
+                              <td style={{ fontSize: 12 }}>{c.title}</td>
+                              <td style={{ fontSize: 12, fontWeight: 700, color: c.avg_score >= 85 ? 'var(--accent-2)' : c.avg_score >= 75 ? 'var(--warn)' : 'var(--danger)' }}>{c.avg_score}</td>
+                              <td style={{ fontSize: 12 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ width: 60, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                                    <div style={{ width: `${c.mastery_rate || 0}%`, height: '100%', background: (c.mastery_rate || 0) >= 70 ? 'var(--accent-2)' : (c.mastery_rate || 0) >= 40 ? 'var(--warn)' : 'var(--danger)', borderRadius: 3 }} />
+                                  </div>
+                                  <span style={{ fontSize: 11 }}>{c.mastery_rate ?? 0}%</span>
+                                </div>
+                              </td>
+                              <td style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                                <span style={{ color: 'var(--accent)' }}>{c.advanced}A</span> ·{' '}
+                                <span style={{ color: 'var(--accent-2)' }}>{c.proficient}P</span> ·{' '}
+                                <span style={{ color: 'var(--warn)' }}>{c.approaching}AP</span> ·{' '}
+                                <span style={{ color: '#F97316' }}>{c.developing}D</span> ·{' '}
+                                <span style={{ color: 'var(--danger)' }}>{c.beginning}B</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : <Empty text={t('analytics.noCompetencyData')} />}
+                </div>
+
+                {/* Subject Mastery Overview */}
+                <div className="card">
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.subjectMastery')}</h3>
+                  {compMastery?.by_subject?.length ? (
+                    <ResponsiveContainer width="100%" height={360}>
+                      <BarChart data={compMastery.by_subject} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
+                        <YAxis type="category" dataKey="subject_code" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} width={60} />
+                        <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                        <Legend />
+                        <Bar dataKey="avg_score" name={t('analytics.avgScore')} fill="var(--accent)" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="mastery_rate" name={t('analytics.masteryRate')} fill="var(--accent-2)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : <Empty text={t('analytics.noCompetencyData')} />}
+
+                  {/* Weakest competencies */}
+                  {compMastery?.weakest?.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <h4 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--danger)' }}>{t('analytics.weakestCompetencies')}</h4>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {compMastery.weakest.map((c, i) => (
+                          <span key={i} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, background: 'rgba(251,113,133,0.12)', color: 'var(--danger)' }}>
+                            {c.code}: {c.avg_score}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Student Risk Dashboard */}
+              <div className="card" style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h3 style={{ margin: 0, fontSize: 15 }}>{t('analytics.studentRiskDashboard')}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{t('analytics.filterThreshold')}:</span>
+                    <select className="input" value={riskThreshold} onChange={(e) => setRiskThreshold(Number(e.target.value))} style={{ width: 140 }} aria-label="Risk threshold">
+                      <option value={0}>{t('analytics.allStudents')}</option>
+                      <option value={30}>{t('analytics.mediumAndHigh')}</option>
+                      <option value={60}>{t('analytics.highOnly')}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Risk summary badges */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, padding: '4px 10px', borderRadius: 8, background: 'rgba(251,113,133,0.12)', color: 'var(--danger)' }}>
+                    <AlertTriangle size={13} /> {riskSummary.high ?? 0} {t('analytics.highRisk')}
+                  </span>
+                  <span style={{ fontSize: 13, padding: '4px 10px', borderRadius: 8, background: 'rgba(245,185,66,0.12)', color: 'var(--warn)' }}>
+                    <Zap size={13} /> {riskSummary.medium ?? 0} {t('analytics.mediumRisk')}
+                  </span>
+                  <span style={{ fontSize: 13, padding: '4px 10px', borderRadius: 8, background: 'rgba(47,214,160,0.12)', color: 'var(--accent-2)' }}>
+                    <Shield size={13} /> {riskSummary.low ?? 0} {t('analytics.lowRisk')}
+                  </span>
+                </div>
+
+                {filteredRisk.length ? (
+                  <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                    <table className="table">
+                      <thead><tr>
+                        <th>{t('analytics.student')}</th>
+                        <th>{t('analytics.section')}</th>
+                        <th>{t('analytics.riskScore')}</th>
+                        <th>{t('analytics.riskLevel')}</th>
+                        <th>{t('analytics.contributingFactors')}</th>
+                      </tr></thead>
+                      <tbody>
+                        {filteredRisk.slice(0, 50).map((r) => (
+                          <tr key={r.student_id}>
+                            <td style={{ fontSize: 13 }}>
+                              <div style={{ fontWeight: 600 }}>{r.name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{r.lrn}</div>
+                            </td>
+                            <td style={{ fontSize: 13 }}>{r.section_name}</td>
+                            <td style={{ fontSize: 13 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 80, height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                                  <div style={{ width: `${r.risk_score}%`, height: '100%', background: r.risk_level === 'high' ? 'var(--danger)' : r.risk_level === 'medium' ? 'var(--warn)' : 'var(--accent-2)', borderRadius: 4 }} />
+                                </div>
+                                <span style={{ fontWeight: 700, color: r.risk_level === 'high' ? 'var(--danger)' : r.risk_level === 'medium' ? 'var(--warn)' : 'var(--accent-2)' }}>{r.risk_score}</span>
+                              </div>
+                            </td>
+                            <td><Badge status={r.risk_level === 'high' ? 'FAILED' : r.risk_level === 'medium' ? 'PENDING' : 'ENROLLED'} /></td>
+                            <td style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                              {r.factors.length ? r.factors.map((f) => f.factor).join(', ') : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : <Empty text={t('analytics.noRiskData')} />}
+              </div>
+
+              {/* AI Insights Section */}
+              <div className="card">
+                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}><Brain size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />{t('analytics.aiInsightsTitle')}</h3>
+                {aiInsights?.insights?.length ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                    {aiInsights.insights.map((ins) => (
+                      <div key={ins.id} style={{ padding: 14, borderRadius: 10, border: '1px solid var(--border)', background: ins.ai_ready ? 'rgba(47,214,160,0.04)' : 'rgba(167,139,250,0.04)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{ins.title}</span>
+                          {ins.ai_ready ? (
+                            <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: 'rgba(47,214,160,0.15)', color: 'var(--accent-2)' }}>LIVE</span>
+                          ) : (
+                            <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: 'rgba(167,139,250,0.15)', color: '#A78BFA' }}>SOON</span>
+                          )}
+                        </div>
+                        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{ins.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : <Empty text={t('analytics.noInsights')} />}
               </div>
             </div>
           )}
