@@ -71,4 +71,27 @@ router.get('/roles', requireRole('super_admin', 'school_admin'), asyncH(async (r
   res.json({ data: ROLES.map((r) => ({ role: r, admin: isAdminRole(r) })) });
 }));
 
+router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const { user_ids, password } = req.body || {};
+  if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+    return res.status(400).json({ error: 'user_ids array is required' });
+  }
+  if (!password || String(password).length < 12) {
+    return res.status(400).json({ error: 'Password must be at least 12 characters' });
+  }
+  const hash = await bcrypt.hash(String(password), 10);
+  let reset = 0;
+  for (const uid of user_ids) {
+    const user = await q('SELECT id, username FROM users WHERE id = ?', [Number(uid)]);
+    if (!user) continue;
+    await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
+    await qi(
+      'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+      [user.id, req.user.id, 'bulk_reset', req.ip]);
+    reset++;
+  }
+  await audit(req, 'BULK_PASSWORD_RESET', 'users', null, { count: reset });
+  res.json({ ok: true, reset });
+}));
+
 module.exports = router;

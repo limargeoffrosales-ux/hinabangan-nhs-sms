@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
+import { Plus, Pencil, Trash2, KeyRound, UsersRound } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { useAuth } from '../lib/auth';
@@ -18,6 +18,9 @@ export default function Users() {
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [resetPw, setResetPw] = useState(null);
+  const [selected, setSelected] = useState(new Set());
+  const [bulkReset, setBulkReset] = useState(false);
+  const [bulkPassword, setBulkPassword] = useState('');
 
   const isAdmin = ['super_admin', 'school_admin'].includes(user?.role);
   const isSuperAdmin = user?.role === 'super_admin';
@@ -79,6 +82,41 @@ export default function Users() {
     }
   }
 
+  function toggleSelect(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === rows.length) setSelected(new Set());
+    else setSelected(new Set(rows.map((u) => u.id)));
+  }
+
+  async function handleBulkReset(e) {
+    e.preventDefault();
+    if (!bulkPassword || String(bulkPassword).length < 12) {
+      return setError(t('users.passwordMin12'));
+    }
+    setError(null);
+    try {
+      const res = await api('/users/bulk-reset-password', {
+        method: 'POST',
+        body: { user_ids: [...selected], password: bulkPassword },
+      });
+      setBulkReset(false);
+      setBulkPassword('');
+      setSelected(new Set());
+      alert(`${res.reset} ${t('users.passwordsReset')}`);
+      load();
+    } catch (e2) {
+      setError(e2.message);
+    }
+  }
+
   async function resetPassword(e) {
     e.preventDefault();
     if (!resetPw || String(resetPw.password).length < 12) {
@@ -101,7 +139,14 @@ export default function Users() {
   return (
     <>
       <PageHead title={t('users.title')} sub={t('users.subtitle')}>
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('users.newUser')}</button>
+        <div className="row" style={{ gap: 8 }}>
+          {selected.size > 0 && (
+            <button className="btn btn-warn" onClick={() => setBulkReset(true)}>
+              <KeyRound size={15} /> {t('users.bulkReset')} ({selected.size})
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('users.newUser')}</button>
+        </div>
       </PageHead>
       <ErrorBanner error={error} />
       {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('users.noData')} /> : (
@@ -109,6 +154,9 @@ export default function Users() {
           <table>
             <thead>
               <tr>
+                <th style={{ width: 36 }}>
+                  <input type="checkbox" checked={selected.size === rows.length && rows.length > 0} onChange={toggleSelectAll} aria-label="Select all" />
+                </th>
                 <th>{t('users.username')}</th><th>{t('users.name')}</th><th>{t('users.role')}</th><th>{t('users.email')}</th>
                 <th>{t('users.status')}</th><th>{t('users.created')}</th><th style={{ textAlign: 'right' }}>{t('common.actions')}</th>
               </tr>
@@ -116,6 +164,9 @@ export default function Users() {
             <tbody>
               {rows.map((u) => (
                 <tr key={u.id}>
+                  <td>
+                    <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleSelect(u.id)} aria-label={`Select ${u.username}`} />
+                  </td>
                   <td style={{ fontFamily: 'monospace' }}>{u.username}</td>
                   <td><strong>{u.name}</strong></td>
                   <td><Badge status={u.role.replace(/_/g, ' ')} /></td>
@@ -181,6 +232,24 @@ export default function Users() {
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setResetPw(null)}>{t('common.cancel')}</button>
               <button className="btn btn-primary">{t('users.updatePassword')}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {bulkReset && (
+        <Modal
+          title={t('users.bulkResetTitle')}
+          sub={t('users.bulkResetSub', { count: selected.size })}
+          onClose={() => setBulkReset(false)}
+        >
+          <form onSubmit={handleBulkReset}>
+            <label>{t('users.newPasswordLabel')}</label>
+            <input type="password" autoFocus value={bulkPassword} onChange={(e) => setBulkPassword(e.target.value)} placeholder={t('users.newPasswordPlaceholder')} />
+            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{t('users.bulkResetWarning')}</p>
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setBulkReset(false)}>{t('common.cancel')}</button>
+              <button className="btn btn-warn">{t('users.resetNPasswords', { count: selected.size })}</button>
             </div>
           </form>
         </Modal>

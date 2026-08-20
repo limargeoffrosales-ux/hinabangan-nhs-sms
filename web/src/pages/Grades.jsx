@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, FileText, Target, Printer } from 'lucide-react';
+import { Save, FileText, Target, Printer, Copy } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { printElementHtml } from '../lib/export';
@@ -90,6 +90,11 @@ export default function Grades() {
 
   function update(studentId, key, value) {
     setRows((rs) => rs.map((r) => (r.id === studentId ? { ...r, [key]: value === '' ? null : Number(value) } : r)));
+  }
+
+  function quickFill(key, value) {
+    const n = value === '' ? null : Number(value);
+    setRows((rs) => rs.map((r) => ({ ...r, [key]: n != null && (n < 0 || n > 100) ? r[key] : n })));
   }
 
   async function save() {
@@ -226,6 +231,25 @@ export default function Grades() {
                 <th style={{ textAlign: 'center' }}>{t('grades.termExam')} ({weights.quarterly_exam}%)</th>
                 <th style={{ textAlign: 'center' }}>{t('grades.finalGrade')}</th>
                 <th>{t('grades.remarks')}</th><th></th>
+              </tr>
+              <tr style={{ background: 'var(--bg-secondary)' }}>
+                <td colSpan={2} style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic' }}>{t('grades.quickFill')}</td>
+                <td style={{ textAlign: 'center' }}>
+                  <input className="grade-input" type="number" min="0" max="100" placeholder="—" style={{ width: 60, fontSize: 11 }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { quickFill('written_work', e.target.value); e.target.value = ''; } }} />
+                  <button className="btn btn-sm" type="button" title="Apply to all" onClick={(e) => { const inp = e.target.closest('td').querySelector('input'); quickFill('written_work', inp.value); inp.value = ''; }}><Copy size={11} /></button>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <input className="grade-input" type="number" min="0" max="100" placeholder="—" style={{ width: 60, fontSize: 11 }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { quickFill('performance_task', e.target.value); e.target.value = ''; } }} />
+                  <button className="btn btn-sm" type="button" title="Apply to all" onClick={(e) => { const inp = e.target.closest('td').querySelector('input'); quickFill('performance_task', inp.value); inp.value = ''; }}><Copy size={11} /></button>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <input className="grade-input" type="number" min="0" max="100" placeholder="—" style={{ width: 60, fontSize: 11 }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { quickFill('quarterly_exam', e.target.value); e.target.value = ''; } }} />
+                  <button className="btn btn-sm" type="button" title="Apply to all" onClick={(e) => { const inp = e.target.closest('td').querySelector('input'); quickFill('quarterly_exam', inp.value); inp.value = ''; }}><Copy size={11} /></button>
+                </td>
+                <td colSpan={3}></td>
               </tr>
             </thead>
             <tbody>
