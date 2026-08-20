@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid,
-} from 'recharts';
 import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, CheckCircle2, Wand2, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
+import { loadRecharts } from '../lib/lazy-recharts';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942'];
 
@@ -21,6 +19,9 @@ export default function Dashboard() {
   const [announcements, setAnnouncements] = useState([]);
   const [error, setError] = useState(null);
   const [conduct, setConduct] = useState(null);
+  const [R, setR] = useState(null);
+
+  useEffect(() => { loadRecharts().then(setR); }, []);
 
   const CONDUCT_TYPE_LABEL = {
     call_slip: t('conduct.callSlip'), bullying: t('conduct.bullying'), inappropriate_behavior: t('conduct.inappropriateBehavior'),
@@ -100,41 +101,47 @@ export default function Dashboard() {
       <div className="grid grid-3">
         <div className="card">
           <h3 style={{ marginTop: 0 }}>{t('dashboard.studentsByGrade')}</h3>
-          <ResponsiveContainer width="100%" height={230}>
-            <BarChart data={gradeData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-              <XAxis dataKey="grade" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
-              <YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
-              <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-              <Bar dataKey="Male" fill="#4D96FF" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Female" fill="#2FD6A0" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {R ? (
+            <R.ResponsiveContainer width="100%" height={230}>
+              <R.BarChart data={gradeData}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
+                <R.XAxis dataKey="grade" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
+                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
+                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Bar dataKey="Male" fill="#4D96FF" radius={[4, 4, 0, 0]} />
+                <R.Bar dataKey="Female" fill="#2FD6A0" radius={[4, 4, 0, 0]} />
+              </R.BarChart>
+            </R.ResponsiveContainer>
+          ) : <div style={{ height: 230 }}><Spinner /></div>}
         </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>{t('dashboard.attendanceTrend')}</h3>
-          <ResponsiveContainer width="100%" height={230}>
-            <LineChart data={trendChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-              <XAxis dataKey="date" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} tickFormatter={(d) => d.slice(5)} />
-              <YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
-              <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-              <Line type="monotone" dataKey="present" stroke="#34C77B" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="late" stroke="#F5B942" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="absent" stroke="#F2555A" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          {R ? (
+            <R.ResponsiveContainer width="100%" height={230}>
+              <R.LineChart data={trendChart}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
+                <R.XAxis dataKey="date" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} tickFormatter={(d) => d.slice(5)} />
+                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
+                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Line type="monotone" dataKey="present" stroke="#34C77B" strokeWidth={2} dot={false} />
+                <R.Line type="monotone" dataKey="late" stroke="#F5B942" strokeWidth={2} dot={false} />
+                <R.Line type="monotone" dataKey="absent" stroke="#F2555A" strokeWidth={2} dot={false} />
+              </R.LineChart>
+            </R.ResponsiveContainer>
+          ) : <div style={{ height: 230 }}><Spinner /></div>}
         </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>{t('dashboard.genderDistribution')}</h3>
-          <ResponsiveContainer width="100%" height={230}>
-            <PieChart>
-              <Pie data={sexData} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                {sexData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          {R ? (
+            <R.ResponsiveContainer width="100%" height={230}>
+              <R.PieChart>
+                <R.Pie data={sexData} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                  {sexData.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </R.Pie>
+                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+              </R.PieChart>
+            </R.ResponsiveContainer>
+          ) : <div style={{ height: 230 }}><Spinner /></div>}
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', fontSize: 13 }}>
             {sexData.map((s, i) => (
               <span key={s.name} style={{ color: 'var(--text-dim)' }}>
