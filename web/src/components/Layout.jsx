@@ -6,7 +6,7 @@ import {
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
-  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon,
+  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -50,6 +50,7 @@ const NAV = [
   { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },
   { to: '/lessons', labelKey: 'nav.lessons', icon: BookOpen },
   { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
+  { to: '/certifications', labelKey: 'nav.certifications', icon: Award },
   { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
 ];
 

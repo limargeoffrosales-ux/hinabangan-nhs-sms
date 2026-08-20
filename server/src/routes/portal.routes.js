@@ -159,4 +159,14 @@ router.get('/report-card', requireRole(...PORTAL), asyncH(async (req, res) => {
   res.json({ subjects: rows, general_average: average, school_year, term: Number(period) });
 }));
 
+/* ── Student certifications ───────────────────────── */
+router.get('/certifications', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  if (!ids.length) return res.json({ data: [] });
+  const rows = await qa(
+    `SELECT * FROM certifications WHERE student_id IN (${ids.map(() => '?').join(',')}) ORDER BY date_acquired DESC`,
+    ids);
+  res.json({ data: rows });
+}));
+
 module.exports = router;

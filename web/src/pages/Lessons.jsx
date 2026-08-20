@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Plus, Pencil, Trash2, Filter, Clock, CheckCircle, FileText, X } from 'lucide-react';
+import { BookOpen, Plus, Pencil, Trash2, Filter, Clock, CheckCircle, FileText, X, Send, Eye, Copy, RotateCcw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
+const REVIEWERS = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
 const STATUSES = ['draft', 'ready', 'taught', 'revised'];
+const SUB_STATUSES = ['draft', 'submitted', 'returned', 'approved'];
 const STATUS_COLORS = { draft: 'badge-gray', ready: 'badge-blue', taught: 'badge-green', revised: 'badge-yellow' };
+const SUB_COLORS = { draft: 'badge-gray', submitted: 'badge-blue', returned: 'badge-yellow', approved: 'badge-green' };
 const EMPTY_FORM = {
   title: '', subject_id: '', section_id: '', school_year: '2026-2027', quarter: '',
   objectives: '', content_outline: '', teaching_strategy: '', materials: '', assessment_plan: '',
@@ -18,6 +21,7 @@ export default function Lessons() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const canWrite = can(user?.role, ...WRITE);
+  const canReview = can(user?.role, ...REVIEWERS);
   const [rows, setRows] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [sections, setSections] = useState([]);
@@ -27,8 +31,11 @@ export default function Lessons() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [filter, setFilter] = useState({ subject: '', quarter: '', status: '' });
+  const [filter, setFilter] = useState({ subject: '', quarter: '', status: '', submission: '' });
   const [saving, setSaving] = useState(false);
+  const [showReview, setShowReview] = useState(null);
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -112,11 +119,52 @@ export default function Lessons() {
     }
   }
 
+  async function submitLesson(id) {
+    try {
+      await api(`/lessons/${id}/submit`, { method: 'POST' });
+      const res = await api('/lessons?limit=300');
+      setRows(res.data);
+    } catch (e2) {
+      setError(e2.message);
+    }
+  }
+
+  async function reviewLesson(action) {
+    if (!showReview) return;
+    setReviewing(true);
+    try {
+      await api(`/lessons/${showReview.id}/review`, { method: 'POST', body: { action, review_notes: reviewNotes } });
+      const res = await api('/lessons?limit=300');
+      setRows(res.data);
+      setShowReview(null);
+      setReviewNotes('');
+    } catch (e2) {
+      setError(e2.message);
+    } finally {
+      setReviewing(false);
+    }
+  }
+
+  async function copyLesson(id) {
+    try {
+      const r = await api(`/lessons/${id}/copy`, { method: 'POST' });
+      const res = await api('/lessons?limit=300');
+      setRows(res.data);
+      openForm(res.data.find((l) => l.id === r.id));
+    } catch (e2) {
+      setError(e2.message);
+    }
+  }
+
   const filtered = rows.filter((r) =>
     (!filter.subject || String(r.subject_id) === filter.subject) &&
     (!filter.quarter || String(r.quarter) === filter.quarter) &&
-    (!filter.status || r.status === filter.status)
+    (!filter.status || r.status === filter.status) &&
+    (!filter.submission || r.submission_status === filter.submission)
   );
+
+  const counts = { draft: 0, submitted: 0, returned: 0, approved: 0 };
+  rows.forEach((r) => { counts[r.submission_status] = (counts[r.submission_status] || 0) + 1; });
 
   if (loading) return <Spinner />;
 
@@ -130,6 +178,16 @@ export default function Lessons() {
         )}
       </PageHead>
       <ErrorBanner error={error} />
+
+      {/* Submission overview KPIs */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="kpi-row">
+          <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--text-dim)' }}>{counts.draft}</div><div className="kpi-mini-label">Drafts</div></div>
+          <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--accent)' }}>{counts.submitted}</div><div className="kpi-mini-label">Submitted</div></div>
+          <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--warn)' }}>{counts.returned}</div><div className="kpi-mini-label">Returned</div></div>
+          <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--success)' }}>{counts.approved}</div><div className="kpi-mini-label">Approved</div></div>
+        </div>
+      </div>
 
       <div className="card">
         <div className="form-row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -154,6 +212,13 @@ export default function Lessons() {
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
+          <label style={{ margin: 0 }}>
+            Submission
+            <select value={filter.submission} onChange={(e) => setFilter((f) => ({ ...f, submission: e.target.value }))} style={{ marginTop: 4 }}>
+              <option value="">All</option>
+              {SUB_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
         </div>
         <div className="sub" style={{ marginTop: 8 }}>{filtered.length} {t('lessons.lessonsFound', 'lessons found')}</div>
       </div>
@@ -161,7 +226,7 @@ export default function Lessons() {
       {filtered.length === 0 ? (
         <Empty text={t('lessons.noLessons', 'No lesson plans yet. Click "New Lesson" to create one.')} />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
           {filtered.map((l) => (
             <div key={l.id} className="card" style={{ cursor: 'pointer' }} onClick={() => openForm(l)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -170,7 +235,12 @@ export default function Lessons() {
                   <div className="sub" style={{ fontSize: 12 }}>{l.subject_code} — {l.subject_title}</div>
                   {l.section_name && <div className="sub" style={{ fontSize: 12 }}>{l.grade_level} — {l.section_name}</div>}
                 </div>
-                <span className={`badge ${STATUS_COLORS[l.status]}`}>{l.status}</span>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <span className={`badge ${STATUS_COLORS[l.status]}`}>{l.status}</span>
+                  {l.submission_status && l.submission_status !== 'draft' && (
+                    <span className={`badge ${SUB_COLORS[l.submission_status]}`}>{l.submission_status}</span>
+                  )}
+                </div>
               </div>
               {l.objectives && <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '8px 0 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{l.objectives}</p>}
               <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 12, color: 'var(--text-dim)' }}>
@@ -181,11 +251,38 @@ export default function Lessons() {
                   <span><CheckCircle size={12} /> {JSON.parse(l.competency_ids).length} competencies</span>
                 )}
               </div>
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
+                {/* Teacher: submit own draft/returned lessons */}
+                {canWrite && (l.submission_status === 'draft' || l.submission_status === 'returned') && (
+                  <button className="btn btn-sm btn-primary" onClick={() => submitLesson(l.id)} title="Submit for review">
+                    <Send size={12} /> Submit
+                  </button>
+                )}
+                {/* Admin: review submitted lessons */}
+                {canReview && l.submission_status === 'submitted' && (
+                  <button className="btn btn-sm" style={{ background: 'var(--success)', color: '#fff' }} onClick={() => { setShowReview(l); setReviewNotes(l.review_notes || ''); }} title="Review this lesson">
+                    <Eye size={12} /> Review
+                  </button>
+                )}
+                {/* Copy as template */}
+                {canWrite && (
+                  <button className="btn btn-sm" onClick={() => copyLesson(l.id)} title="Copy as template">
+                    <Copy size={12} /> Copy
+                  </button>
+                )}
+                {l.review_notes && (
+                  <span className="sub" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <RotateCcw size={11} /> Review notes
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* Lesson form modal */}
       {showModal && (
         <Modal title={editing ? t('lessons.editLesson', 'Edit Lesson') : t('lessons.newLesson', 'New Lesson')} onClose={() => setShowModal(false)} wide>
           <form onSubmit={save}>
@@ -271,6 +368,29 @@ export default function Lessons() {
               <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Review modal */}
+      {showReview && (
+        <Modal title="Review Lesson Plan" onClose={() => setShowReview(null)}>
+          <div style={{ marginBottom: 12 }}>
+            <h4 style={{ margin: '0 0 4px' }}>{showReview.title}</h4>
+            <div className="sub" style={{ fontSize: 13 }}>{showReview.subject_code} — {showReview.subject_title}</div>
+            {showReview.teacher_name && <div className="sub" style={{ fontSize: 13 }}>Teacher: {showReview.teacher_name}</div>}
+          </div>
+          <label>Review Notes
+            <textarea rows={3} value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="Optional notes for the teacher…" />
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="btn" onClick={() => setShowReview(null)}>Cancel</button>
+            <button type="button" className="btn" style={{ background: 'var(--warn)', color: '#fff' }} disabled={reviewing} onClick={() => reviewLesson('return')}>
+              <RotateCcw size={14} /> Return
+            </button>
+            <button type="button" className="btn btn-primary" disabled={reviewing} onClick={() => reviewLesson('approve')}>
+              <CheckCircle size={14} /> Approve
+            </button>
+          </div>
         </Modal>
       )}
     </div>

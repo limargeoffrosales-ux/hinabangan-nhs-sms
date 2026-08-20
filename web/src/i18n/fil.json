@@ -48,6 +48,7 @@
   "portal.analytics": "Aking Pag-unlad",
   "portal.portfolio": "Portfolio",
   "portal.immersion": "Work Immersion",
+  "portal.certifications": "Mga Sertipikasyon",
   "portal.announcements": "Mga Anunsyo",
 
   "topbar.menu": "Menu",
@@ -650,6 +651,7 @@
   "lang.fil": "Filipino",
 
   "nav.depedForms": "Mga DepEd School Forms",
+  "nav.certifications": "TVL Mga Sertipikasyon",
 
   "depedForms.title": "Mga DepEd School Forms (SF1–SF10)",
   "depedForms.sub": "Opisyal na format ng DepEd forms — tingnan, i-download bilang PDF, o i-download bilang blangkong template.",
