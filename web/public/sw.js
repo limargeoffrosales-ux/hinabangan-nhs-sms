@@ -1,4 +1,4 @@
-const CACHE_NAME = 'meridianed-v1';
+const CACHE_NAME = 'meridianed-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -36,6 +36,34 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+
+  const url = new URL(request.url);
+  const isStaticAsset = url.pathname.startsWith('/assets/') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('.png') ||
+    url.pathname.endsWith('.jpg') ||
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.woff2') ||
+    url.pathname.endsWith('.woff');
+
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.match(request).then((cached) => {
+          if (cached) return cached;
+          return fetch(request).then((response) => {
+            if (response && response.status === 200) {
+              cache.put(request, response.clone());
+            }
+            return response;
+          });
+        })
+      )
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetched = fetch(request).then((response) => {
