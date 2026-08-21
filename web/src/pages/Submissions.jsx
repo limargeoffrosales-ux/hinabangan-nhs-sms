@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList } from 'lucide-react';
+import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList, Paperclip } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
+import FileUpload from '../components/FileUpload';
 
 const ADMIN = ['super_admin', 'school_admin'];
 const FREQS = ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'periodic'];
@@ -111,7 +112,7 @@ export default function Submissions() {
 
   return (
     <div>
-      <PageHead title="Teacher Submissions" sub="Paperless submission of every required report — input the data online or mark the task as done. No file uploads.">
+      <PageHead title="Teacher Submissions" sub="Paperless submission of every required report — input the data online, attach files, or mark the task as done.">
         {canAssign && (
           <button className="btn" style={{ marginRight: 8 }} onClick={() => setModal({ mode: 'assign' })}>
             <ClipboardList size={15} /> Assign task
@@ -322,6 +323,7 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
   const [notes, setNotes] = useState(submission?.notes || '');
   const [due, setDue] = useState(submission?.due_date || '');
   const [draft, setDraft] = useState(submission?.draft_body || '');
+  const [files, setFiles] = useState(submission?.files_json ? JSON.parse(submission.files_json) : []);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -357,13 +359,13 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
       if (!id) {
         const res = await api('/submissions', {
           method: 'POST',
-          body: { report_type_id: Number(typeId), period, notes, due_date: due || null, draft_body: draft || null },
+          body: { report_type_id: Number(typeId), period, notes, due_date: due || null, draft_body: draft || null, files_json: files.length ? JSON.stringify(files) : null },
         });
         id = res.id;
       } else {
         await api(`/submissions/${id}`, {
           method: 'PATCH',
-          body: { period, notes, due_date: due || null, draft_body: draft || null },
+          body: { period, notes, due_date: due || null, draft_body: draft || null, files_json: files.length ? JSON.stringify(files) : null },
         });
       }
       if (submitNow) await api(`/submissions/${id}/submit`, { method: 'POST', body: {} });
@@ -410,6 +412,30 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
           </button>
         </div>
       ) : null}
+      <div style={{ margin: '10px 0', padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Paperclip size={13} /> Attachments
+        </label>
+        <FileUpload
+          folder="submissions"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.jpg,.jpeg,.png"
+          label="Attach file"
+          compact
+          onUpload={(res) => setFiles((prev) => [...prev, { name: res.name, key: res.key, url: res.url, size: res.size }])}
+        />
+        {files.length > 0 && (
+          <div style={{ marginTop: 6 }}>
+            {files.map((f, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0' }}>
+                <FileText size={12} />
+                <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>{f.name}</a>
+                <span style={{ color: 'var(--text-dim)' }}>({Math.round((f.size || 0) / 1024)}KB)</span>
+                <button type="button" className="btn btn-sm" onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} style={{ padding: 0, color: 'var(--danger)' }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <label>Notes for the reviewer</label>
       <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       <div className="modal-actions">

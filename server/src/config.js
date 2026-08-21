@@ -32,6 +32,14 @@ const SMS_SENDER = process.env.SMS_SENDER || 'SCHOOL';
 const NOTIFY_EMAIL_ENABLED = process.env.NOTIFY_EMAIL_ENABLED !== '0';
 const NOTIFY_SMS_ENABLED = process.env.NOTIFY_SMS_ENABLED === '1';
 
+// --- Cloudflare R2 (S3-compatible object storage) ------------------------------
+const R2_ENDPOINT = process.env.R2_ENDPOINT || '';
+const R2_BUCKET = process.env.R2_BUCKET || 'meridianed-uploads';
+const R2_ACCESS_KEY = process.env.R2_ACCESS_KEY || '';
+const R2_SECRET_KEY = process.env.R2_SECRET_KEY || '';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
+const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
+
 // Browser/APK origins allowed to call the API cross-origin. Same-origin
 // requests (the web portal served by this same process) are always allowed.
 const ALLOWED_ORIGINS = [
@@ -53,4 +61,5 @@ module.exports = {
   PORT, DATA_DIR, WEB_DIR, JWT_SECRET, ACCESS_TTL, REFRESH_TTL_DAYS, GRADE_WEIGHTS, isAllowedOrigin,
   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, NOTIFY_EMAIL_MODE,
   SMS_PROVIDER_URL, SMS_PROVIDER_TOKEN, SMS_SENDER, NOTIFY_EMAIL_ENABLED, NOTIFY_SMS_ENABLED,
+  R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY, R2_SECRET_KEY, R2_PUBLIC_URL, UPLOAD_MAX_MB,
 };

@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import FileUpload from '../components/FileUpload';
 
 const EMPTY_FORM = {
   lrn: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: 'Male',
@@ -316,6 +317,18 @@ export default function Students() {
               <div><label>{t('students.relationship')}</label>{field('guardian_relation')}</div>
               <div><label>{t('students.status')}</label>{field('status', { options: STUDENT_STATUSES })}</div>
             </div>
+            {editing && (
+              <div style={{ marginTop: 8, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Student Photo</label>
+                <FileUpload
+                  folder={`students/${editing}`}
+                  accept="image/jpeg,image/png,image/webp"
+                  label="Upload Photo"
+                  compact
+                  onUpload={(res) => { alert('Photo uploaded!'); }}
+                />
+              </div>
+            )}
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
               <button className="btn btn-primary" disabled={saving}>{saving ? t('common.saving') : t('students.saveStudent')}</button>
