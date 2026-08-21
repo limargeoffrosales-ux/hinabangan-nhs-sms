@@ -47,6 +47,7 @@ const certificationsRoutes = require('./routes/certifications.routes');
 const libraryRoutes = require('./routes/library.routes');
 const clinicRoutes = require('./routes/clinic.routes');
 const guidanceRoutes = require('./routes/guidance.routes');
+const uploadsRoutes = require('./routes/uploads.routes');
 
 (async () => {
   await db.init();
@@ -167,6 +168,7 @@ const guidanceRoutes = require('./routes/guidance.routes');
   app.use('/api/v1/library', libraryRoutes);
   app.use('/api/v1/clinic', clinicRoutes);
   app.use('/api/v1/guidance', guidanceRoutes);
+  app.use('/api/v1/uploads', uploadsRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',

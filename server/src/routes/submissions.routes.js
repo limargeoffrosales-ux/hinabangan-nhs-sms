@@ -139,9 +139,9 @@ router.post('/', requireRole('super_admin', 'school_admin', 'principal', 'assist
     if (t) teacherId = b.teacher_id;
   }
   const id = await qi(
-    `INSERT INTO report_submissions (report_type_id, user_id, teacher_id, school_year, period, status, notes, due_date, draft_body)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
-    [type.id, req.user.id, teacherId, b.school_year || '2026-2027', b.period, b.notes || null, b.due_date || null, b.draft_body || null]);
+    `INSERT INTO report_submissions (report_type_id, user_id, teacher_id, school_year, period, status, notes, due_date, draft_body, files_json)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
+    [type.id, req.user.id, teacherId, b.school_year || '2026-2027', b.period, b.notes || null, b.due_date || null, b.draft_body || null, b.files_json || null]);
   await audit(req, 'CREATE_SUBMISSION', 'report_submissions', id, { report: type.code, period: b.period });
   res.status(201).json({ id, detail: await submissionDetail(req, id) });
 }));
@@ -158,8 +158,8 @@ router.patch('/:id', requireRole('super_admin', 'school_admin', 'principal', 'as
   const b = req.body || {};
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   await qr(
-    `UPDATE report_submissions SET period = ?, notes = ?, due_date = ?, draft_body = ?, updated_at = ${nowSql()} WHERE id = ?`,
-    [f('period', row.period), f('notes', row.notes), f('due_date', row.due_date), f('draft_body', row.draft_body), row.id]);
+    `UPDATE report_submissions SET period = ?, notes = ?, due_date = ?, draft_body = ?, files_json = ?, updated_at = ${nowSql()} WHERE id = ?`,
+    [f('period', row.period), f('notes', row.notes), f('due_date', row.due_date), f('draft_body', row.draft_body), f('files_json', row.files_json), row.id]);
   await audit(req, 'UPDATE_SUBMISSION', 'report_submissions', row.id);
   res.json({ detail: await submissionDetail(req, row.id) });
 }));
