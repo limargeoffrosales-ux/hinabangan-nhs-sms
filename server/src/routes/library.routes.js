@@ -31,6 +31,22 @@ router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ total: total.count, total_copies: total.copies, available_copies: total.available, active_borrows: borrows.active, overdue: overdue.count, by_category: byCategory });
 }));
 
+/* ── List borrows ──────────────────────────────────── */
+router.get('/borrows/all', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { status } = req.query;
+  let sql = `SELECT bb.*, lb.title AS book_title, lb.author AS book_author,
+    CASE WHEN bb.borrower_type = 'student' THEN st.first_name || ' ' || st.last_name
+      ELSE t.first_name || ' ' || t.last_name END AS borrower_name
+    FROM book_borrows bb
+    JOIN library_books lb ON lb.id = bb.book_id
+    LEFT JOIN students st ON st.id = bb.borrower_id AND bb.borrower_type = 'student'
+    LEFT JOIN teachers t ON t.id = bb.borrower_id AND bb.borrower_type = 'teacher'`;
+  const params = [];
+  if (status) { sql += ' WHERE bb.status = ?'; params.push(status); }
+  sql += ' ORDER BY bb.borrow_date DESC';
+  res.json({ data: await qa(sql, params) });
+}));
+
 /* ── Get single book ───────────────────────────────── */
 router.get('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM library_books WHERE id = ?', [req.params.id]);
@@ -118,22 +134,6 @@ router.post('/borrows/:id/return', requireRole(...WRITE), asyncH(async (req, res
   await qr('UPDATE library_books SET available_copies = available_copies + 1 WHERE id = ?', [borrow.book_id]);
   await audit(req, 'RETURN_BOOK', 'book_borrows', borrow.id);
   res.json({ ok: true });
-}));
-
-/* ── List borrows ──────────────────────────────────── */
-router.get('/borrows/all', requireRole(...WRITE), asyncH(async (req, res) => {
-  const { status } = req.query;
-  let sql = `SELECT bb.*, lb.title AS book_title, lb.author AS book_author,
-    CASE WHEN bb.borrower_type = 'student' THEN st.first_name || ' ' || st.last_name
-      ELSE t.first_name || ' ' || t.last_name END AS borrower_name
-    FROM book_borrows bb
-    JOIN library_books lb ON lb.id = bb.book_id
-    LEFT JOIN students st ON st.id = bb.borrower_id AND bb.borrower_type = 'student'
-    LEFT JOIN teachers t ON t.id = bb.borrower_id AND bb.borrower_type = 'teacher'`;
-  const params = [];
-  if (status) { sql += ' WHERE bb.status = ?'; params.push(status); }
-  sql += ' ORDER BY bb.borrow_date DESC';
-  res.json({ data: await qa(sql, params) });
 }));
 
 module.exports = router;
