@@ -299,67 +299,82 @@ export default function Students() {
           wide
         >
           <form onSubmit={save}>
-            <div className="form-row">
-              <div><label>{t('students.firstName')} *</label>{field('first_name', { required: true })}</div>
-              <div><label>{t('students.middleName')}</label>{field('middle_name')}</div>
-              <div><label>{t('students.lastName')} *</label>{field('last_name', { required: true })}</div>
-              <div><label>{t('students.suffix')}</label>{field('suffix', { options: SUFFIXES })}</div>
-            </div>
-            <div className="form-row">
-              <div><label>{t('students.sex')} *</label>{field('sex', { options: ['Male', 'Female'] })}</div>
-              <div><label>{t('students.birthDate')}</label>{field('birth_date', { type: 'date' })}</div>
-              <div><label>{t('students.birthPlace')}</label>{field('birth_place')}</div>
-              <div><label>{t('students.religion')}</label>{field('religion')}</div>
-            </div>
-            <div className="form-row">
-              <div><label>{t('students.gradeLevel')} *</label>{field('grade_level', { options: GRADE_LEVELS })}</div>
-              <div><label>{t('students.strandTrack')} (SHS)</label>{field('track_strand', { options: SHS_TRACKS })}</div>
-              <div><label>{t('students.address')}</label>{field('address')}</div>
-              <div><label>{t('students.contactNo')}</label>{field('contact')}</div>
-            </div>
-            <div className="form-row">
-              <div><label>{t('students.guardianName')}</label>{field('guardian_name')}</div>
-              <div><label>{t('students.guardianContact')}</label>{field('guardian_contact')}</div>
-              <div><label>{t('students.relationship')}</label>{field('guardian_relation')}</div>
-              <div><label>{t('students.status')}</label>{field('status', { options: STUDENT_STATUSES })}</div>
-            </div>
             {editing && (
-              <div style={{ marginTop: 8, padding: '12px 0', borderTop: '1px solid var(--border)' }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: 'block' }}>Student Photo</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-alt)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 20, marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="form-row">
+                    <div><label>{t('students.firstName')} *</label>{field('first_name', { required: true })}</div>
+                    <div><label>{t('students.middleName')}</label>{field('middle_name')}</div>
+                    <div><label>{t('students.lastName')} *</label>{field('last_name', { required: true })}</div>
+                    <div><label>{t('students.suffix')}</label>{field('suffix', { options: SUFFIXES })}</div>
+                  </div>
+                  <div className="form-row">
+                    <div><label>{t('students.sex')} *</label>{field('sex', { options: ['Male', 'Female'] })}</div>
+                    <div><label>{t('students.gradeLevel')} *</label>{field('grade_level', { options: GRADE_LEVELS })}</div>
+                    <div><label>{t('students.strandTrack')} (SHS)</label>{field('track_strand', { options: SHS_TRACKS })}</div>
+                    <div><label>{t('students.status')}</label>{field('status', { options: STUDENT_STATUSES })}</div>
+                  </div>
+                </div>
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 150, height: 180, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-alt)', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
                     {photoUrl ? (
                       <img src={photoUrl} alt="Student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <Camera size={28} style={{ color: 'var(--text-dim)' }} />
+                      <Camera size={40} style={{ color: 'var(--text-dim)' }} />
                     )}
                   </div>
-                  <div>
-                    <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setPhotoUploading(true);
-                      setPhotoError(null);
-                      try {
-                        const form = new FormData();
-                        form.append('photo', file);
-                        const res = await api(`/uploads/student-photo/${editing}`, { method: 'POST', body: form });
-                        setPhotoUrl(res.url);
-                      } catch (err) {
-                        setPhotoError(err.message);
-                      } finally {
-                        setPhotoUploading(false);
-                        if (photoInputRef.current) photoInputRef.current.value = '';
-                      }
-                    }} />
-                    <button type="button" className="btn btn-sm" onClick={() => photoInputRef.current?.click()} disabled={photoUploading}>
-                      {photoUploading ? 'Uploading...' : photoUrl ? 'Change Photo' : 'Upload Photo'}
-                    </button>
-                    {photoError && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>{photoError}</div>}
-                  </div>
+                  <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setPhotoUploading(true);
+                    setPhotoError(null);
+                    try {
+                      const fd = new FormData();
+                      fd.append('photo', file);
+                      const res = await api(`/uploads/student-photo/${editing}`, { method: 'POST', body: fd });
+                      setPhotoUrl(res.url);
+                    } catch (err) {
+                      setPhotoError(err.message);
+                    } finally {
+                      setPhotoUploading(false);
+                      if (photoInputRef.current) photoInputRef.current.value = '';
+                    }
+                  }} />
+                  <button type="button" className="btn btn-sm" onClick={() => photoInputRef.current?.click()} disabled={photoUploading}>
+                    {photoUploading ? 'Uploading...' : photoUrl ? 'Change Photo' : 'Upload Photo'}
+                  </button>
+                  {photoError && <div style={{ fontSize: 11, color: 'var(--danger)', textAlign: 'center' }}>{photoError}</div>}
                 </div>
               </div>
             )}
+            {!editing && (
+              <>
+                <div className="form-row">
+                  <div><label>{t('students.firstName')} *</label>{field('first_name', { required: true })}</div>
+                  <div><label>{t('students.middleName')}</label>{field('middle_name')}</div>
+                  <div><label>{t('students.lastName')} *</label>{field('last_name', { required: true })}</div>
+                  <div><label>{t('students.suffix')}</label>{field('suffix', { options: SUFFIXES })}</div>
+                </div>
+                <div className="form-row">
+                  <div><label>{t('students.sex')} *</label>{field('sex', { options: ['Male', 'Female'] })}</div>
+                  <div><label>{t('students.gradeLevel')} *</label>{field('grade_level', { options: GRADE_LEVELS })}</div>
+                  <div><label>{t('students.strandTrack')} (SHS)</label>{field('track_strand', { options: SHS_TRACKS })}</div>
+                  <div><label>{t('students.status')}</label>{field('status', { options: STUDENT_STATUSES })}</div>
+                </div>
+              </>
+            )}
+            <div className="form-row">
+              <div><label>{t('students.birthDate')}</label>{field('birth_date', { type: 'date' })}</div>
+              <div><label>{t('students.birthPlace')}</label>{field('birth_place')}</div>
+              <div><label>{t('students.religion')}</label>{field('religion')}</div>
+              <div><label>{t('students.contactNo')}</label>{field('contact')}</div>
+            </div>
+            <div className="form-row">
+              <div><label>{t('students.address')}</label>{field('address')}</div>
+              <div><label>{t('students.guardianName')}</label>{field('guardian_name')}</div>
+              <div><label>{t('students.guardianContact')}</label>{field('guardian_contact')}</div>
+              <div><label>{t('students.relationship')}</label>{field('guardian_relation')}</div>
+            </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
               {canWrite && <button className="btn btn-primary" disabled={saving}>{saving ? t('common.saving') : t('students.saveStudent')}</button>}
