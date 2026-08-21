@@ -541,10 +541,9 @@ router.get('/student-risk', requireRole(...READ), asyncH(async (req, res) => {
            SUM(CASE WHEN gc.status IN ('open', 'in_progress') THEN 1 ELSE 0 END) AS active_cases
     FROM guidance_cases gc
     JOIN students st ON st.id = gc.student_id
-    WHERE gc.school_year = ?
-    ${grade_level ? 'AND st.grade_level = ?' : ''}
+    ${grade_level ? 'WHERE st.grade_level = ?' : ''}
     GROUP BY gc.student_id
-  `, grade_level ? [school_year, grade_level] : [school_year]);
+  `, grade_level ? [grade_level] : []);
 
   const guidanceScores = new Map();
   for (const r of guidanceRows) {
