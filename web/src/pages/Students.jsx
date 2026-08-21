@@ -19,6 +19,7 @@ export default function Students() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
+  const canViewPhoto = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -191,7 +192,7 @@ export default function Students() {
   }
 
   const field = (k, opts = {}) => {
-    const p = { value: form[k] || '', onChange: (e) => set(k, e.target.value), ...opts };
+    const p = { value: form[k] || '', onChange: (e) => set(k, e.target.value), disabled: !canWrite, ...opts };
     if (opts.options) {
       return (
         <select {...p}>
@@ -279,7 +280,7 @@ export default function Students() {
                   {canWrite && (
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <button className="btn btn-sm" title={t('students.portalAccounts')} onClick={() => openAccounts(s)}><Link2 size={13} /></button>{' '}
-                       <button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit student"><Pencil size={13} aria-hidden="true" /></button>{' '}
+                       {canViewPhoto && <button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit student"><Pencil size={13} aria-hidden="true" /></button>}{' '}
                        <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete student"><Trash2 size={13} aria-hidden="true" /></button>
                     </td>
                   )}
@@ -361,7 +362,7 @@ export default function Students() {
             )}
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
-              <button className="btn btn-primary" disabled={saving}>{saving ? t('common.saving') : t('students.saveStudent')}</button>
+              {canWrite && <button className="btn btn-primary" disabled={saving}>{saving ? t('common.saving') : t('students.saveStudent')}</button>}
             </div>
           </form>
         </Modal>
