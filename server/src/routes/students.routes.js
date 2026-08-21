@@ -24,7 +24,7 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const q2 = req.query.q ? `%${req.query.q}%` : '%';
   const gradeLevel = req.query.grade_level ? req.query.grade_level : null;
   const params = [q2, q2];
-  let sql = 'SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status FROM students WHERE (last_name LIKE ? OR first_name LIKE ? OR lrn LIKE ?)';
+  let sql = 'SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status, photo_url FROM students WHERE (last_name LIKE ? OR first_name LIKE ? OR lrn LIKE ?)';
   params.push(q2);
   if (req.role === 'teacher') {
     const scope = await teacherScope(req.user);

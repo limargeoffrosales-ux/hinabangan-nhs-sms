@@ -55,12 +55,13 @@ export function notifyUnauthorized() {
 }
 
 export async function api(path, { method = 'GET', body, auth = true } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
   const res = await fetch(`${getApiBase()}${path}`, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
   if (res.status === 401 && auth) {
     if (refreshRetries >= MAX_REFRESH_RETRIES) {

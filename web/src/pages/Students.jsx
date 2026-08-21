@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Plus, Search, Pencil, Trash2, Link2, Upload } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
-import FileUpload from '../components/FileUpload';
 
 const EMPTY_FORM = {
   lrn: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: 'Male',
@@ -37,6 +36,10 @@ export default function Students() {
   const [importCsv, setImportCsv] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState(null);
+  const photoInputRef = useRef(null);
 
   async function loadAccounts(id) {
     setAccountsLoading(true);
@@ -153,6 +156,8 @@ export default function Students() {
   function openEdit(s) {
     setForm({ ...EMPTY_FORM, ...s, birth_date: (s.birth_date || '').slice(0, 10) });
     setEditing(s.id);
+    setPhotoUrl(s.photo_url || null);
+    setPhotoError(null);
     setShowModal(true);
   }
 
@@ -318,15 +323,40 @@ export default function Students() {
               <div><label>{t('students.status')}</label>{field('status', { options: STUDENT_STATUSES })}</div>
             </div>
             {editing && (
-              <div style={{ marginTop: 8, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Student Photo</label>
-                <FileUpload
-                  folder={`students/${editing}`}
-                  accept="image/jpeg,image/png,image/webp"
-                  label="Upload Photo"
-                  compact
-                  onUpload={(res) => { alert('Photo uploaded!'); }}
-                />
+              <div style={{ marginTop: 8, padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: 'block' }}>Student Photo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-alt)', flexShrink: 0 }}>
+                    {photoUrl ? (
+                      <img src={photoUrl} alt="Student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Camera size={28} style={{ color: 'var(--text-dim)' }} />
+                    )}
+                  </div>
+                  <div>
+                    <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setPhotoUploading(true);
+                      setPhotoError(null);
+                      try {
+                        const form = new FormData();
+                        form.append('photo', file);
+                        const res = await api(`/uploads/student-photo/${editing}`, { method: 'POST', body: form });
+                        setPhotoUrl(res.url);
+                      } catch (err) {
+                        setPhotoError(err.message);
+                      } finally {
+                        setPhotoUploading(false);
+                        if (photoInputRef.current) photoInputRef.current.value = '';
+                      }
+                    }} />
+                    <button type="button" className="btn btn-sm" onClick={() => photoInputRef.current?.click()} disabled={photoUploading}>
+                      {photoUploading ? 'Uploading...' : photoUrl ? 'Change Photo' : 'Upload Photo'}
+                    </button>
+                    {photoError && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>{photoError}</div>}
+                  </div>
+                </div>
               </div>
             )}
             <div className="modal-actions">
