@@ -14,8 +14,8 @@ router.get('/cases', requireRole(...WRITE), asyncH(async (req, res) => {
   let sql = `SELECT gc.*,
     st.first_name || ' ' || st.last_name AS student_name, st.grade_level,
     sec.name AS section_name,
-    ou.first_name || ' ' || ou.last_name AS opened_by_name,
-    au.first_name || ' ' || au.last_name AS assigned_to_name
+    ou.name AS opened_by_name,
+    au.name AS assigned_to_name
     FROM guidance_cases gc
     LEFT JOIN students st ON st.id = gc.student_id
     LEFT JOIN enrollments e ON e.student_id = st.id AND e.status = 'enrolled'
@@ -53,7 +53,7 @@ router.get('/cases/:id', requireRole(...WRITE), asyncH(async (req, res) => {
      WHERE gc.id = ?`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Case not found' });
   const sessions = await qa(
-    `SELECT gs.*, u.first_name || ' ' || u.last_name AS conducted_by_name
+    `SELECT gs.*, u.name AS conducted_by_name
      FROM guidance_sessions gs LEFT JOIN users u ON u.id = gs.conducted_by
      WHERE gs.case_id = ? ORDER BY gs.session_date DESC`, [row.id]);
   res.json({ ...row, sessions });
