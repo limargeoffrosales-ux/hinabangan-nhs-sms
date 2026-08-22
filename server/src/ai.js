@@ -79,10 +79,13 @@ async function generateStudentReport(studentId) {
   const attendance = await qa(
     `SELECT status, COUNT(*) AS n FROM attendance WHERE student_id = ? GROUP BY status`, [studentId]
   );
-  const conduct = await qa(
-    `SELECT incident_type, severity, status FROM student_conduct_records WHERE student_id = ?`, [studentId]
-  );
-  const gradeList = grades.length ? grades.map(g => g.subject_title + ': ' + (g.grade || 'N/A') + ' [' + (g.term || 'N/A') + ']').join('; ') : 'No grades recorded';
+  let conduct = [];
+  try {
+    conduct = await qa(
+      `SELECT incident_type, severity, status FROM student_conduct_records WHERE student_id = ?`, [studentId]
+    );
+  } catch { /* table may not exist yet */ }
+  const gradeList = grades.length ? grades.map(g => g.subject_title + ': ' + (g.computed_grade || 'N/A') + ' [' + (g.term || 'N/A') + ']').join('; ') : 'No grades recorded';
   const attList = attendance.length ? attendance.map(a => a.status + ': ' + a.n).join(', ') : 'No attendance records';
   const condList = conduct.length ? conduct.map(c => c.incident_type + ' (' + c.severity + ') - ' + c.status).join('; ') : 'No conduct records';
 
@@ -132,11 +135,14 @@ async function analyzeStudentRisk(studentId) {
   const attendance = await qa(
     `SELECT status, COUNT(*) AS n FROM attendance WHERE student_id = ? GROUP BY status`, [studentId]
   );
-  const conduct = await qa(
-    `SELECT incident_type, severity, status, incident_date
-     FROM student_conduct_records WHERE student_id = ?
-     ORDER BY incident_date DESC`, [studentId]
-  );
+  let conduct = [];
+  try {
+    conduct = await qa(
+      `SELECT incident_type, severity, status, incident_date
+       FROM student_conduct_records WHERE student_id = ?
+       ORDER BY incident_date DESC`, [studentId]
+    );
+  } catch { /* table may not exist yet */ }
   const totalAtt = attendance.reduce((a, r) => a + Number(r.n), 0);
   const absentCount = attendance.find(r => r.status === 'absent')?.n || 0;
   const lateCount = attendance.find(r => r.status === 'late')?.n || 0;
