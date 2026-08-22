@@ -21,20 +21,34 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), asyncH(async (r
   }
   let ctx = context || '';
   if (req.user) ctx += '\nLogged in as: ' + req.user.name + ' (role: ' + req.user.role + ')';
-  const reply = await ai.chatMessage(
-    messages.map(m => ({ role: m.role || 'user', content: m.content })),
-    ctx
-  );
-  await audit(req, 'AI_CHAT', 'ai', null, { message_count: messages.length });
-  res.json({ reply });
+  try {
+    const reply = await ai.chatMessage(
+      messages.map(m => ({ role: m.role || 'user', content: m.content })),
+      ctx
+    );
+    await audit(req, 'AI_CHAT', 'ai', null, { message_count: messages.length });
+    res.json({ reply });
+  } catch (e) {
+    if (e.message.includes('AI not configured')) {
+      return res.status(503).json({ error: 'AI service not configured. Set GROQ_API_KEY in your environment variables.' });
+    }
+    throw e;
+  }
 }));
 
 router.post('/report', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
-  const report = await ai.generateStudentReport(student_id);
-  await audit(req, 'AI_REPORT', 'ai', null, { student_id });
-  res.json(report);
+  try {
+    const report = await ai.generateStudentReport(student_id);
+    await audit(req, 'AI_REPORT', 'ai', null, { student_id });
+    res.json(report);
+  } catch (e) {
+    if (e.message.includes('AI not configured')) {
+      return res.status(503).json({ error: 'AI service not configured. Set GROQ_API_KEY in your environment variables.' });
+    }
+    throw e;
+  }
 }));
 
 router.post('/lesson-plan', requireRole(...STAFF), asyncH(async (req, res) => {

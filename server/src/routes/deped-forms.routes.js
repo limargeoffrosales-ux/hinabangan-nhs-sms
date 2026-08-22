@@ -16,6 +16,91 @@ router.get('/school-info', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) 
   res.json(info);
 }));
 
+router.get('/sf3', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { section_id } = req.query;
+  if (!section_id) return res.json({ students: [], books: [], section: null });
+  const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const students = await qa(
+    `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     WHERE e.section_id = ? AND e.status = 'enrolled'
+     ORDER BY s.last_name, s.first_name`,
+    [section_id]
+  );
+  const books = await qa(
+    `SELECT bb.*, lb.title AS book_title, lb.isbn, lb.category
+     FROM book_borrows bb
+     JOIN library_books lb ON lb.id = bb.book_id
+     WHERE bb.borrower_type = 'student' AND bb.borrower_id IN (
+       SELECT e.student_id FROM enrollments e WHERE e.section_id = ? AND e.status = 'enrolled'
+     )
+     ORDER BY bb.borrow_date DESC`,
+    [section_id]
+  );
+  res.json({ students, books, section });
+}));
+
+router.get('/sf4', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { section_id, month, year } = req.query;
+  if (!section_id) return res.json({ movements: [], attendance: [] });
+  const sec = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const m = Number(month || (new Date().getMonth() + 1));
+  const y = Number(year || new Date().getFullYear());
+  const enrollments = await qa(
+    `SELECT e.*, s.first_name, s.last_name, s.sex,
+            CASE
+              WHEN e.enrolled_at IS NOT NULL AND EXTRACT(MONTH FROM e.enrolled_at::timestamp) = $2::int
+                AND EXTRACT(YEAR FROM e.enrolled_at::timestamp) = $3::int THEN 'new'
+              ELSE 'old'
+            END AS enrollment_type
+     FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     WHERE e.section_id = $1::bigint`,
+    [Number(section_id), m, y]
+  );
+  const movements = await qa(
+    db.dialect === 'pg'
+      ? `SELECT e.student_id, s.first_name, s.last_name, e.status, e.enrolled_at
+         FROM enrollments e
+         JOIN students s ON s.id = e.student_id
+         WHERE e.section_id = $1::bigint
+           AND e.enrolled_at IS NOT NULL
+           AND EXTRACT(MONTH FROM e.enrolled_at::timestamp) = $2::int
+           AND EXTRACT(YEAR FROM e.enrolled_at::timestamp) = $3::int`
+      : `SELECT e.student_id, s.first_name, s.last_name, e.status, e.enrolled_at
+         FROM enrollments e
+         JOIN students s ON s.id = e.student_id
+         WHERE e.section_id = ?
+           AND e.enrolled_at IS NOT NULL
+           AND CAST(strftime('%m', e.enrolled_at) AS INTEGER) = ?
+           AND CAST(strftime('%Y', e.enrolled_at) AS INTEGER) = ?`,
+    [Number(section_id), m, y]
+  );
+  const attendance = await qa(
+    db.dialect === 'pg'
+      ? `SELECT a.student_id, a.status,
+                EXTRACT(DAY FROM a.date::timestamp) AS day_num
+         FROM attendance a
+         WHERE a.section_id = $1::bigint
+           AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int
+           AND EXTRACT(YEAR FROM a.date::timestamp) = $3::int`
+      : `SELECT a.student_id, a.status,
+                CAST(strftime('%d', a.date) AS INTEGER) AS day_num
+         FROM attendance a
+         WHERE a.section_id = ?
+           AND CAST(strftime('%m', a.date) AS INTEGER) = ?
+           AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
+    [Number(section_id), m, y]
+  );
+  const enrolledCount = enrollments.filter(e => e.status === 'enrolled').length;
+  const maleCount = enrollments.filter(e => e.status === 'enrolled' && e.sex === 'Male').length;
+  const femaleCount = enrolledCount - maleCount;
+  const totalDaysPresent = attendance.filter(a => a.status === 'present' || a.status === 'late').length;
+  const totalDaysAbsent = attendance.filter(a => a.status === 'absent').length;
+  res.json({ section: sec, movements, enrolledCount, maleCount, femaleCount, totalDaysPresent, totalDaysAbsent, month: m, year: y });
+}));
+
 router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, school_year } = req.query;
   if (!section_id) return res.json({ students: [], section: null });

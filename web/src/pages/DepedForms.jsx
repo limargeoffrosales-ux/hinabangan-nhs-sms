@@ -125,6 +125,12 @@ export default function DepedForms() {
     } else if (tab === 'sf2' && sectionId) {
       setLoading(true);
       api(`/deped-forms/sf2?section_id=${sectionId}&month=${month}&year=${year}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
+    } else if (tab === 'sf3' && sectionId) {
+      setLoading(true);
+      api(`/deped-forms/sf3?section_id=${sectionId}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
+    } else if (tab === 'sf4' && sectionId) {
+      setLoading(true);
+      api(`/deped-forms/sf4?section_id=${sectionId}&month=${month}&year=${year}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     } else if (tab === 'sf5' && sectionId) {
       setLoading(true);
       api(`/deped-forms/sf5?section_id=${sectionId}&term=${term}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
@@ -174,7 +180,7 @@ export default function DepedForms() {
         ))}
       </div>
 
-      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf5' || tab === 'sf8' || tab === 'sf9' || tab === 'sog' || tab === 'sas') && (
+      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf3' || tab === 'sf4' || tab === 'sf5' || tab === 'sf8' || tab === 'sf9' || tab === 'sog' || tab === 'sas') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ fontSize: 13 }}>Section
@@ -183,7 +189,7 @@ export default function DepedForms() {
                 {sections.map(sec => <option key={sec.id} value={sec.id}>Grade {sec.grade_level} — {sec.name}</option>)}
               </select>
             </label>
-            {(tab === 'sf2') && <>
+            {(tab === 'sf2' || tab === 'sf4') && <>
               <label style={{ fontSize: 13 }}>Month
                 <select className="input" style={{ marginLeft: 6 }} value={month} onChange={ev => setMonth(Number(ev.target.value))}>
                   {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{new Date(2000, i).toLocaleString('en', { month: 'long' })}</option>)}
@@ -481,22 +487,54 @@ ${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
 /* ── SF3: Books Issued & Returned ─────────────────────────── */
 
 function renderSF3(data, info) {
+  const students = data?.students || [];
+  const books = data?.books || [];
+  const sec = (data?.section) || null;
   return `
 ${formHeaderHtml(info, 'sf3', 'School Form 3 (SF3) — Books Issued and Returned')}
 <table style="font-size:8pt;margin-bottom:6pt;">
   <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info?.school_name || 'Hinabangan National High School')}</td>
-      <td style="border:none;width:50%"><strong>School Year:</strong> ____-____</td></tr>
-  <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
+      <td style="border:none;width:50%"><strong>School Year:</strong> ${esc(info.school_year || '____-____')}</td></tr>
+  <tr><td style="border:none"><strong>Grade Level:</strong> ${sec ? esc(String(sec.grade_level)) : '____'}</td>
+      <td style="border:none"><strong>Section:</strong> ${sec ? esc(sec.name) : '____'}</td></tr>
 </table>
-<table>
+<table style="font-size:7pt;">
 <thead><tr>
-  <th style="width:25pt">LRN</th><th style="min-width:80pt">Name</th>
-  <th style="min-width:80pt">Title of Textbook</th><th style="width:35pt">Date Issued</th>
-  <th style="width:35pt">Date Returned</th><th style="width:25pt">Condition</th>
-  <th style="width:20pt">Code</th><th style="width:30pt">Action</th>
-  <th style="width:20pt">M</th><th style="width:20pt">F</th><th style="width:25pt">Total</th>
+  <th style="width:25pt">LRN</th><th style="min-width:70pt">Name</th>
+  <th style="min-width:70pt">Title of Textbook</th><th style="width:30pt">Date Issued</th>
+  <th style="width:30pt">Date Returned</th><th style="width:25pt">Condition</th>
+  <th style="width:20pt">Code</th><th style="width:25pt">Action</th>
+  <th style="width:15pt">M</th><th style="width:15pt">F</th><th style="width:20pt">Total</th>
 </tr></thead>
-<tbody>${blankRows(30, 11)}</tbody></table>
+<tbody>
+${students.length ? students.map(st => {
+  const stBooks = books.filter(b => b.borrower_id === st.id);
+  if (stBooks.length === 0) {
+    return `<tr>
+      <td>${esc(st.lrn || '')}</td>
+      <td class="small">${esc(st.last_name)}, ${esc(st.first_name)}</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td>
+      <td class="c"></td><td class="c"></td><td class="c"></td>
+    </tr>`;
+  }
+  return stBooks.map(b => {
+    const condition = b.status === 'returned' ? 'Good' : b.status === 'overdue' ? 'Overdue' : 'Issued';
+    return `<tr>
+      <td>${esc(st.lrn || '')}</td>
+      <td class="small">${esc(st.last_name)}, ${esc(st.first_name)}</td>
+      <td class="small">${esc(b.book_title || '')}</td>
+      <td class="c">${esc(b.borrow_date || '')}</td>
+      <td class="c">${esc(b.returned_date || '')}</td>
+      <td class="c">${esc(condition)}</td>
+      <td class="c">${esc(b.isbn || '')}</td>
+      <td class="c">${b.status === 'returned' ? 'Returned' : 'Issued'}</td>
+      <td class="c">${esc(st.sex === 'M' || st.sex === 'Male' ? '' : '')}</td>
+      <td class="c">${esc(st.sex === 'F' || st.sex === 'Female' ? '' : '')}</td>
+      <td class="c">1</td>
+    </tr>`;
+  }).join('');
+}).join('') : blankRows(30, 11)}
+</tbody></table>
 <div class="small" style="margin:6pt 0;"><strong>Legend:</strong> FM=Force Majeure, TDO=Transferred/Dropped Out, NEG=Negligence &nbsp; | &nbsp; LLTR=Letter from Learner, TLTR=Teacher Letter, PTL=Paid by Learner</div>
 ${signatureBlockHtml('', 'Class Adviser / Teacher', '', 'School Head')}`;
 }
@@ -506,34 +544,52 @@ function renderSF3Blank(info) { return renderSF3(null, info); }
 /* ── SF4: Monthly Learner Movement ─────────────────────────── */
 
 function renderSF4(data, info) {
+  const sec = data?.section || null;
+  const m = data?.month || new Date().getMonth() + 1;
+  const y = data?.year || new Date().getFullYear();
+  const monthName = new Date(y, m - 1).toLocaleString('en', { month: 'long' });
+  const enrolledCount = data?.enrolledCount || 0;
+  const maleCount = data?.maleCount || 0;
+  const femaleCount = data?.femaleCount || 0;
+  const totalDaysPresent = data?.totalDaysPresent || 0;
+  const totalDaysAbsent = data?.totalDaysAbsent || 0;
+  const movements = data?.movements || [];
+  const transferredIn = movements.filter(mv => mv.status === 'enrolled' && mv.enrollment_type === 'new').length;
+  const transferredOut = movements.filter(mv => mv.status === 'transferred_out').length;
+  const droppedOut = movements.filter(mv => mv.status === 'dropped').length;
+  const balikAral = movements.filter(mv => mv.status === 'balik_aral').length;
   return `
-${formHeaderHtml(info, 'sf4', "School Form 4 (SF4) — Monthly Learner's Movement and Attendance")}
+${formHeaderHtml(info, 'sf4', "School Form 4 (SF4) \u2014 Monthly Learner's Movement and Attendance")}
 <table style="font-size:8pt;margin-bottom:6pt;">
   <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info?.school_name || 'Hinabangan National High School')}</td>
-      <td style="border:none;width:50%"><strong>School Year:</strong> ____-____</td></tr>
-  <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
-  <tr><td style="border:none"><strong>Curriculum:</strong> K to 12 BEC / MATATAG</td><td style="border:none"><strong>Month:</strong> ________________</td></tr>
+      <td style="border:none;width:50%"><strong>School Year:</strong> ${esc(info.school_year || '____-____')}</td></tr>
+  <tr><td style="border:none"><strong>Grade Level:</strong> ${sec ? esc(String(sec.grade_level)) : '____'}</td>
+      <td style="border:none"><strong>Section:</strong> ${sec ? esc(sec.name) : '____'}</td></tr>
+  <tr><td style="border:none"><strong>Curriculum:</strong> K to 12 BEC / MATATAG</td><td style="border:none"><strong>Month:</strong> ${monthName} ${y}</td></tr>
 </table>
-<table>
+<table style="font-size:8pt;">
 <thead><tr>
   <th style="min-width:50pt">Indicator</th><th style="width:20pt">Code</th>
-  <th style="min-width:60pt">Male</th><th style="min-width:60pt">Female</th><th style="min-width:60pt">Total</th>
+  <th style="min-width:40pt">Male</th><th style="min-width:40pt">Female</th><th style="min-width:40pt">Total</th>
 </tr></thead>
 <tbody>
-  <tr><td>Enrolment as of 1st Friday of June</td><td class="c"></td><td></td><td></td><td></td></tr>
-  <tr><td>Late Enrollees (within the month)</td><td class="c">LE</td><td></td><td></td><td></td></tr>
-  <tr><td>Registered Learners as of end of month</td><td class="c"></td><td></td><td></td><td></td></tr>
-  <tr><td>Transferred In</td><td class="c">T/I</td><td></td><td></td><td></td></tr>
-  <tr><td>Transferred Out</td><td class="c">T/O</td><td></td><td></td><td></td></tr>
-  <tr><td>Dropped Out</td><td class="c">DRP</td><td></td><td></td><td></td></tr>
-  <tr><td>Balik-Aral</td><td class="c">B/A</td><td></td><td></td><td></td></tr>
-  <tr><td>Archived</td><td class="c">ARC</td><td></td><td></td><td></td></tr>
-  <tr><td>Accelerated</td><td class="c">ACL</td><td></td><td></td><td></td></tr>
-  <tr><td>Learners with Disability</td><td class="c">LWD</td><td></td><td></td><td></td></tr>
-  <tr><td><strong>TOTAL</strong></td><td class="c"></td><td></td><td></td><td></td></tr>
+  <tr><td>Enrolment as of 1st Friday of June</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">${enrolledCount || ''}</td></tr>
+  <tr><td>Late Enrollees (within the month)</td><td class="c">LE</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+  <tr><td>Registered Learners as of end of month</td><td class="c"></td><td class="c">${maleCount}</td><td class="c">${femaleCount}</td><td class="c">${enrolledCount}</td></tr>
+  <tr><td>Transferred In</td><td class="c">T/I</td><td class="c"></td><td class="c"></td><td class="c">${transferredIn || ''}</td></tr>
+  <tr><td>Transferred Out</td><td class="c">T/O</td><td class="c"></td><td class="c"></td><td class="c">${transferredOut || ''}</td></tr>
+  <tr><td>Dropped Out</td><td class="c">DRP</td><td class="c"></td><td class="c"></td><td class="c">${droppedOut || ''}</td></tr>
+  <tr><td>Balik-Aral</td><td class="c">B/A</td><td class="c"></td><td class="c"></td><td class="c">${balikAral || ''}</td></tr>
+  <tr><td>Archived</td><td class="c">ARC</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+  <tr><td>Accelerated</td><td class="c">ACL</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+  <tr><td>Learners with Disability</td><td class="c">LWD</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+  <tr><td><strong>TOTAL</strong></td><td class="c"></td><td class="c"><strong>${maleCount}</strong></td><td class="c"><strong>${femaleCount}</strong></td><td class="c"><strong>${enrolledCount}</strong></td></tr>
 </tbody></table>
+<div class="small" style="margin:8pt 0;">
+  <strong>Monthly Attendance:</strong> Total School Days: ${totalDaysPresent + totalDaysAbsent} &nbsp;|&nbsp; Days Present: ${totalDaysPresent} &nbsp;|&nbsp; Days Absent: ${totalDaysAbsent}
+</div>
 <div class="small" style="margin:6pt 0;"><strong>Remarks:</strong> ________________________________________________</div>
-${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
+${signatureBlockHtml(sec?.adviser_name || '', 'Class Adviser', '', 'School Head')}`;
 }
 
 function renderSF4Blank(info) { return renderSF4(null, info); }
