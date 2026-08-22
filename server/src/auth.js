@@ -1,18 +1,21 @@
 const jwt = require('jsonwebtoken');
-const { JWT_SECRET, ACCESS_TTL } = require('./config');
+const { JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL } = require('./config');
 const { q } = require('./db');
+
+const userCache = new Map();
+const CACHE_TTL_MS = 60_000;
 
 function signAccess(user) {
   return jwt.sign(
     { sub: String(user.id), role: user.role, name: user.name, username: user.username },
     JWT_SECRET,
-    { expiresIn: ACCESS_TTL }
+    { expiresIn: ACCESS_TTL, audience: JWT_AUDIENCE, issuer: JWT_ISSUER }
   );
 }
 
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, JWT_SECRET, { audience: JWT_AUDIENCE, issuer: JWT_ISSUER });
   } catch {
     return null;
   }
@@ -24,12 +27,23 @@ async function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Missing bearer token' });
   const payload = verifyToken(token);
   if (!payload) return res.status(401).json({ error: 'Invalid or expired token' });
-  const user = await q('SELECT id, username, name, role, status, password_changed_at FROM users WHERE id = ?', [payload.sub]);
+
+  const userId = payload.sub;
+  const cached = userCache.get(userId);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    req.user = cached.user;
+    req.role = cached.user.role;
+    return next();
+  }
+
+  const user = await q('SELECT id, username, name, role, status, password_changed_at FROM users WHERE id = ?', [userId]);
   if (!user || user.status !== 'active') return res.status(401).json({ error: 'Account disabled or removed' });
-  req.user = { id: user.id, username: user.username, name: user.name, role: user.role };
+  const userObj = { id: user.id, username: user.username, name: user.name, role: user.role };
+  userCache.set(userId, { user: userObj, ts: Date.now() });
+  req.user = userObj;
   req.role = user.role;
 
-  // Password expiry warning — check against password_max_age_days setting
+  // Password expiry warning
   if (user.password_changed_at) {
     try {
       const { qa } = require('./db');
@@ -72,4 +86,4 @@ function hashToken(token) {
   return require('crypto').createHash('sha256').update(token).digest('hex');
 }
 
-module.exports = { signAccess, verifyToken, authenticate, requireRole, ROLES, ADMIN_ROLES, isAdminRole, hashToken };
+module.exports = { signAccess, verifyToken, authenticate, requireRole, ROLES, ADMIN_ROLES, isAdminRole, hashToken, clearUserCache: (id) => userCache.delete(String(id)) };

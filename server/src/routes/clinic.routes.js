@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa, qi, qr, nowSql } = db;
+const { q, qa, qi, qr, nowSql, dialect } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 
@@ -93,7 +93,10 @@ router.get('/medicines', requireRole(...WRITE), asyncH(async (req, res) => {
 router.get('/medicines/summary', requireRole(...WRITE), asyncH(async (req, res) => {
   const total = await q('SELECT COUNT(*) AS count, COALESCE(SUM(quantity),0) AS total_qty FROM clinic_medicines WHERE status = \'active\'');
   const low = await q('SELECT COUNT(*) AS count FROM clinic_medicines WHERE quantity <= 5 AND status = \'active\'');
-  const expiring = await q(`SELECT COUNT(*) AS count FROM clinic_medicines WHERE expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE + INTERVAL '30 days' AND status = 'active'`);
+  const expiringSql = dialect === 'pg'
+    ? `SELECT COUNT(*) AS count FROM clinic_medicines WHERE expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE + INTERVAL '30 days' AND status = 'active'`
+    : `SELECT COUNT(*) AS count FROM clinic_medicines WHERE expiry_date IS NOT NULL AND expiry_date <= date('now', '+30 days') AND status = 'active'`;
+  const expiring = await q(expiringSql);
   res.json({ total: total.count, total_qty: total.total_qty, low_stock: low.count, expiring_soon: expiring.count });
 }));
 

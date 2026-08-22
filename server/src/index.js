@@ -3,11 +3,16 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const Sentry = require('@sentry/node');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const pino = require('pino');
 const db = require('./db');
-const { PORT, WEB_DIR, JWT_SECRET, isAllowedOrigin } = require('./config');
+const { PORT, WEB_DIR, isAllowedOrigin } = require('./config');
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+module.exports.logger = logger;
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 const studentsRoutes = require('./routes/students.routes');
@@ -50,6 +55,10 @@ const guidanceRoutes = require('./routes/guidance.routes');
 const uploadsRoutes = require('./routes/uploads.routes');
 
 (async () => {
+  if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+    console.error('FATAL: JWT_SECRET must be set in production.');
+    process.exit(1);
+  }
   await db.init();
   const { ensureDefaults, startNotifySweep } = require('./notify');
   await ensureDefaults();
@@ -79,7 +88,29 @@ const uploadsRoutes = require('./routes/uploads.routes');
   }
   const app = express();
   app.disable('x-powered-by');
-  app.use(helmet());
+
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'development', tracesSampleRate: 0.1 });
+    app.use(Sentry.Handlers.requestHandler());
+  }
+
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com", "https://lh3.googleusercontent.com"],
+        connectSrc: ["'self'", "https://*.r2.dev", "wss:"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }));
   app.use(cors({
     origin(origin, cb) {
       cb(null, isAllowedOrigin(origin));
@@ -95,6 +126,16 @@ const uploadsRoutes = require('./routes/uploads.routes');
     const requestId = req.headers['x-request-id'] || crypto.randomUUID();
     req.requestId = requestId;
     res.setHeader('X-Request-ID', requestId);
+    next();
+  });
+
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const ms = Date.now() - start;
+      const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+      logger[level]({ method: req.method, url: req.originalUrl, status: res.statusCode, ms, requestId: req.requestId, userId: req.user?.id }, `${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
+    });
     next();
   });
 
@@ -117,8 +158,22 @@ const uploadsRoutes = require('./routes/uploads.routes');
   });
   app.use('/api/', apiLimiter);
 
-  app.get('/api/v1/health', (req, res) => {
-    res.json({ ok: true, service: 'meridianed', dialect: db.dialect, time: new Date().toISOString() });
+  const uploadLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 30,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many file uploads. Please try again later.' },
+  });
+  app.use('/api/v1/uploads', uploadLimiter);
+
+  app.get('/api/v1/health', async (req, res) => {
+    const health = { ok: true, service: 'meridianed', dialect: db.dialect, uptime: Math.floor(process.uptime()) };
+    try {
+      if (db.dialect === 'pg') { await db.q('SELECT 1 AS id'); health.db = 'connected'; }
+      else { health.db = 'ok'; }
+    } catch (e) { health.ok = false; health.db = 'disconnected'; health.error = e.message; res.status(503); }
+    res.json(health);
   });
 
   app.use('/api/', (req, res, next) => {
@@ -193,7 +248,8 @@ const uploadsRoutes = require('./routes/uploads.routes');
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
   app.use((err, req, res, next) => {
-    console.error(err);
+    logger.error({ err, requestId: req.requestId, url: req.originalUrl }, 'Unhandled error');
+    if (process.env.SENTRY_DSN) Sentry.captureException(err);
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
     const status = err.status || 500;
     const message = status === 500 && process.env.NODE_ENV === 'production'
@@ -202,11 +258,18 @@ const uploadsRoutes = require('./routes/uploads.routes');
     res.status(status).json({ error: message });
   });
 
-  app.listen(PORT, () => {
-    console.log(`MeridianEd API listening on http://localhost:${PORT} (dialect: ${db.dialect})`);
-    if (!process.env.JWT_SECRET) {
-      console.error('FATAL: JWT_SECRET is not set. The server is using the insecure development default. Set a strong JWT_SECRET environment variable.');
-      if (process.env.NODE_ENV === 'production') process.exit(1);
-    }
+  const server = app.listen(PORT, () => {
+    logger.info({ port: PORT, dialect: db.dialect }, `MeridianEd API listening on http://localhost:${PORT}`);
   });
+
+  function shutdown(signal) {
+    logger.info({ signal }, 'Received signal — shutting down gracefully...');
+    server.close(() => {
+      logger.info('HTTP server closed.');
+      process.exit(0);
+    });
+    setTimeout(() => { logger.error('Forced shutdown after timeout.'); process.exit(1); }, 10_000);
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 })();

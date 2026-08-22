@@ -54,15 +54,19 @@ export function notifyUnauthorized() {
   window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
 }
 
-export async function api(path, { method = 'GET', body, auth = true } = {}) {
+export async function api(path, { method = 'GET', body, auth = true, timeoutMs = 30000 } = {}) {
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
-  const res = await fetch(`${getApiBase()}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${getApiBase()}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
+      signal: controller.signal,
+    });
   if (res.status === 401 && auth) {
     if (refreshRetries >= MAX_REFRESH_RETRIES) {
       refreshRetries = 0;
@@ -74,7 +78,7 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
     }
     refreshRetries++;
     const ok = await tryRefresh();
-    if (ok) return api(path, { method, body, auth });
+    if (ok) return api(path, { method, body, auth, timeoutMs });
     refreshRetries = 0;
     clearSession();
     notifyUnauthorized();
@@ -93,6 +97,9 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
     throw err;
   }
   return data;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function tryRefresh() {

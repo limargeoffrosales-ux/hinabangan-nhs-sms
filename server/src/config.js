@@ -4,6 +4,8 @@ const PORT = Number(process.env.PORT || 4000);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const WEB_DIR = process.env.WEB_DIR || path.join(__dirname, '..', '..', 'web', 'dist');
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('JWT_SECRET must be set in production'); })() : 'meridianed-dev-secret-change-me');
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'meridianed';
+const JWT_ISSUER = process.env.JWT_ISSUER || 'meridianed';
 const ACCESS_TTL = process.env.ACCESS_TTL || '15m';
 const REFRESH_TTL_DAYS = Number(process.env.REFRESH_TTL_DAYS || 14);
 let GRADE_WEIGHTS;
@@ -58,7 +60,7 @@ function isAllowedOrigin(origin) {
 }
 
 module.exports = {
-  PORT, DATA_DIR, WEB_DIR, JWT_SECRET, ACCESS_TTL, REFRESH_TTL_DAYS, GRADE_WEIGHTS, isAllowedOrigin,
+  PORT, DATA_DIR, WEB_DIR, JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL, REFRESH_TTL_DAYS, GRADE_WEIGHTS, isAllowedOrigin,
   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, NOTIFY_EMAIL_MODE,
   SMS_PROVIDER_URL, SMS_PROVIDER_TOKEN, SMS_SENDER, NOTIFY_EMAIL_ENABLED, NOTIFY_SMS_ENABLED,
   R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY, R2_SECRET_KEY, R2_PUBLIC_URL, UPLOAD_MAX_MB,
