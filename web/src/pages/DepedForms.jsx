@@ -275,10 +275,10 @@ export default function DepedForms() {
 function renderForm(tab, data, info, ctx) {
   switch (tab) {
     case 'sf1': return renderSF1(data, info);
-    case 'sf2': return renderSF2(data, info);
+    case 'sf2': return renderSF2(data, info, ctx);
     case 'sf3': return renderSF3(data, info);
     case 'sf4': return renderSF4(data, info);
-    case 'sf5': return renderSF5(data, info);
+    case 'sf5': return renderSF5(data, info, ctx);
     case 'sf6': return renderSF6(data, info);
     case 'sf7': return renderSF7(data, info);
     case 'sf8': return renderSF8(data, info);
@@ -324,44 +324,47 @@ ${formHeaderHtml(info, 'sf1', 'School Form 1 (SF1) — School Register')}
       <td style="border:none"><strong>Section:</strong> ${sec ? esc(sec.name) : '____'}</td></tr>
 </table>
 <div class="small" style="margin-bottom:4pt;"><em>BoSY Date: ____________ &nbsp; EoSY Date: ____________</em></div>
-<table>
+<table style="font-size:7pt;">
 <thead><tr>
   <th rowspan="2" style="width:25pt">LRN</th>
-  <th rowspan="2" style="min-width:120pt">Name (Last, First, Middle)</th>
-  <th rowspan="2" style="width:18pt">Sex<br/>(M/F)</th>
-  <th rowspan="2" style="width:40pt">Birthdate<br/>(mm/dd/yy)</th>
-  <th rowspan="2" style="width:50pt">Birthplace<br/>(Province)</th>
-  <th rowspan="2" style="width:18pt">Age</th>
-  <th rowspan="2" style="width:35pt">Mother<br/>Tongue</th>
-  <th rowspan="2" style="width:18pt">IP</th>
+  <th rowspan="2" style="min-width:100pt">Name (Last, First, Middle)</th>
+  <th rowspan="2" style="width:14pt">Sex<br/>(M/F)</th>
+  <th rowspan="2" style="width:35pt">Birthdate<br/>(mm/dd/yy)</th>
+  <th rowspan="2" style="width:14pt">Age</th>
+  <th rowspan="2" style="width:25pt">Mother<br/>Tongue</th>
+  <th rowspan="2" style="width:14pt">IP</th>
+  <th rowspan="2" style="width:25pt">Learner<br/>Status</th>
+  <th rowspan="2" style="width:25pt">Learner<br/>Type</th>
   <th rowspan="2" style="width:50pt">Address</th>
-  <th colspan="3" style="width:100pt">Name of Parents</th>
-  <th rowspan="2" style="width:40pt">Contact<br/>Number</th>
-  <th rowspan="2" style="width:35pt">Remarks</th>
+  <th colspan="3" style="width:80pt">Name of Parents</th>
+  <th rowspan="2" style="width:35pt">Contact<br/>Number</th>
+  <th rowspan="2" style="width:25pt">Remarks</th>
 </tr><tr>
-  <th style="width:50pt;font-size:7pt">Father</th>
-  <th style="width:50pt;font-size:7pt">Mother (Maiden)</th>
-  <th style="width:50pt;font-size:7pt">Guardian</th>
+  <th style="width:40pt;font-size:6pt">Father</th>
+  <th style="width:40pt;font-size:6pt">Mother (Maiden)</th>
+  <th style="width:40pt;font-size:6pt">Guardian</th>
 </tr></thead>
 <tbody>
 ${students.length ? students.map(st => `<tr>
   <td class="c">${esc(st.lrn || '')}</td>
-  <td>${esc(st.last_name)}, ${esc(st.first_name)}${st.extension_name ? ', ' + esc(st.extension_name) : ''}, ${esc(st.middle_name || '')}</td>
+  <td class="small">${esc(st.last_name)}, ${esc(st.first_name)}${st.extension_name ? ', ' + esc(st.extension_name) : ''}, ${esc(st.middle_name || '')}</td>
   <td class="c">${esc(st.sex || '')}</td>
   <td class="c">${esc(st.birthdate || '')}</td>
-  <td>${esc(st.birthplace || '')}</td>
   <td class="c">${esc(String(st.age || ''))}</td>
   <td>${esc(st.mother_tongue || '')}</td>
   <td class="c">${esc(st.indigenous_people || '')}</td>
+  <td class="c">${esc(st.learner_status || '')}</td>
+  <td class="c">${esc(st.learner_type || 'Regular')}</td>
   <td class="small">${esc(st.address || '')}</td>
   <td class="small">${esc(st.father_name || '')}</td>
   <td class="small">${esc(st.mother_name || '')}</td>
   <td class="small">${esc(st.guardian_name || '')}</td>
   <td class="c">${esc(st.contact_number || st.parent_contact || '')}</td>
   <td class="c">${esc(st.remarks || '')}</td>
-</tr>`).join('') : blankRows(30, 14)}
+</tr>`).join('') : blankRows(30, 15)}
 </tbody></table>
-<div class="small" style="margin:6pt 0;"><strong>Legend:</strong> T/O=Transferred Out, T/I=Transferred In, B/A=Balik-Aral, DRP=Dropped, LWD=Learner with Disability, LE=Late Enrollment, ACL=Accelerated, CCT=CCT Recipient</div>
+<div class="small" style="margin:6pt 0;"><strong>Legend:</strong> T/O=Transferred Out, T/I=Transferred In, B/A=Balik-Aral, DRP=Dropped, LWD=Learner with Disability, LE=Late Enrollment, ACL=Accelerated, CCT=CCT Recipient<br/>
+<strong>Learner Status:</strong> New, Old, Transferee, Balik-Aral &nbsp;|&nbsp; <strong>Learner Type:</strong> Regular, Irregular, SPED, ALS</div>
 ${signatureBlockHtml(sec?.adviser_name, 'Class Adviser', '', 'School Head')}`;
 }
 
@@ -376,33 +379,35 @@ ${formHeaderHtml(info, 'sf1', 'School Form 1 (SF1) — School Register')}
       <td style="border:none"><strong>Section:</strong> ${sec ? esc(sec.name) : '____'}</td></tr>
 </table>
 <div class="small" style="margin-bottom:4pt;"><em>BoSY Date: ____________ &nbsp; EoSY Date: ____________</em></div>
-<table>
+<table style="font-size:7pt;">
 <thead><tr>
   <th rowspan="2" style="width:25pt">LRN</th>
-  <th rowspan="2" style="min-width:120pt">Name (Last, First, Middle)</th>
-  <th rowspan="2" style="width:18pt">Sex<br/>(M/F)</th>
-  <th rowspan="2" style="width:40pt">Birthdate<br/>(mm/dd/yy)</th>
-  <th rowspan="2" style="width:50pt">Birthplace<br/>(Province)</th>
-  <th rowspan="2" style="width:18pt">Age</th>
-  <th rowspan="2" style="width:35pt">Mother<br/>Tongue</th>
-  <th rowspan="2" style="width:18pt">IP</th>
+  <th rowspan="2" style="min-width:100pt">Name (Last, First, Middle)</th>
+  <th rowspan="2" style="width:14pt">Sex<br/>(M/F)</th>
+  <th rowspan="2" style="width:35pt">Birthdate<br/>(mm/dd/yy)</th>
+  <th rowspan="2" style="width:14pt">Age</th>
+  <th rowspan="2" style="width:25pt">Mother<br/>Tongue</th>
+  <th rowspan="2" style="width:14pt">IP</th>
+  <th rowspan="2" style="width:25pt">Learner<br/>Status</th>
+  <th rowspan="2" style="width:25pt">Learner<br/>Type</th>
   <th rowspan="2" style="width:50pt">Address</th>
-  <th colspan="3" style="width:100pt">Name of Parents</th>
-  <th rowspan="2" style="width:40pt">Contact<br/>Number</th>
-  <th rowspan="2" style="width:35pt">Remarks</th>
+  <th colspan="3" style="width:80pt">Name of Parents</th>
+  <th rowspan="2" style="width:35pt">Contact<br/>Number</th>
+  <th rowspan="2" style="width:25pt">Remarks</th>
 </tr><tr>
-  <th style="width:50pt;font-size:7pt">Father</th>
-  <th style="width:50pt;font-size:7pt">Mother (Maiden)</th>
-  <th style="width:50pt;font-size:7pt">Guardian</th>
+  <th style="width:40pt;font-size:6pt">Father</th>
+  <th style="width:40pt;font-size:6pt">Mother (Maiden)</th>
+  <th style="width:40pt;font-size:6pt">Guardian</th>
 </tr></thead>
-<tbody>${blankRows(30, 14)}</tbody></table>
-<div class="small" style="margin:6pt 0;"><strong>Legend:</strong> T/O, T/I, B/A, DRP, LWD, LE, ACL, CCT</div>
+<tbody>${blankRows(30, 15)}</tbody></table>
+<div class="small" style="margin:6pt 0;"><strong>Legend:</strong> T/O, T/I, B/A, DRP, LWD, LE, ACL, CCT<br/>
+<strong>Learner Status:</strong> New, Old, Transferee, Balik-Aral &nbsp;|&nbsp; <strong>Learner Type:</strong> Regular, Irregular, SPED, ALS</div>
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
 }
 
 /* ── SF2: Daily Attendance ─────────────────────────────────── */
 
-function renderSF2(data, info) {
+function renderSF2(data, info, ctx) {
   const students = data?.students || [];
   const att = data?.attendance || [];
   const m = data?.month || new Date().getMonth() + 1;
@@ -416,12 +421,13 @@ function renderSF2(data, info) {
     attMap[row.student_id][d] = row.status === 'present' ? '/' : row.status === 'late' ? 'L' : 'O';
   }
   const monthName = new Date(y, m - 1).toLocaleString('en', { month: 'long' });
+  const sec = (ctx?.sections || []).find(s => String(s.id) === String(ctx?.sectionId));
   return `
 ${formHeaderHtml(info, 'sf2', 'School Form 2 (SF2) — Daily Attendance Report of Learners')}
 <table style="font-size:8pt;margin-bottom:6pt;">
   <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info.school_name)}</td>
       <td style="border:none;width:50%"><strong>Month:</strong> ${monthName} ${y}</td></tr>
-  <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
+  <tr><td style="border:none"><strong>Grade Level:</strong> ${sec ? esc(String(sec.grade_level)) : '____'}</td><td style="border:none"><strong>Section:</strong> ${sec ? esc(sec.name) : '____'}</td></tr>
 </table>
 <div class="small" style="margin-bottom:4pt;"><em>Legend: / = Present, O = Absent, L = Late</em></div>
 <div style="overflow-x:auto;">
@@ -534,24 +540,26 @@ function renderSF4Blank(info) { return renderSF4(null, info); }
 
 /* ── SF5: Report on Promotion ─────────────────────────────── */
 
-function renderSF5(data, info) {
+function renderSF5(data, info, ctx) {
   const students = data?.students || [];
   const subjects = data?.subjects || [];
   const grades = data?.grades || [];
   const gradeMap = {};
   for (const g of grades) { gradeMap[`${g.student_id}_${g.subject_id}`] = g; }
+  const sec = data?.section || (ctx?.sections || []).find(s => String(s.id) === String(ctx?.sectionId));
   return `
 ${formHeaderHtml(info, 'sf5', 'School Form 5 (SF5) — Report on Promotion and Level of Proficiency')}
 <table style="font-size:8pt;margin-bottom:6pt;">
   <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info.school_name)}</td>
       <td style="border:none;width:50%"><strong>School Year:</strong> ${esc(info.school_year || '____-____')}</td></tr>
-  <tr><td style="border:none"><strong>Grade Level:</strong> ____</td><td style="border:none"><strong>Section:</strong> ____</td></tr>
+  <tr><td style="border:none"><strong>Grade Level:</strong> ${sec ? esc(String(sec.grade_level)) : '____'}</td>
+      <td style="border:none"><strong>Section:</strong> ${sec ? esc(sec.name) : '____'}</td></tr>
   <tr><td style="border:none"><strong>Curriculum:</strong> K to 12 BEC / MATATAG</td><td style="border:none"></td></tr>
 </table>
 <table style="font-size:7pt;">
 <thead><tr>
   <th style="width:25pt">LRN</th><th style="min-width:80pt">Name (LN, FN, MN)</th><th style="width:18pt">Sex</th>
-  ${subjects.map(sub => `<th style="min-width:50pt">${esc(sub.name)}</th>`).join('')}
+  ${subjects.map(sub => `<th style="min-width:50pt">${esc(sub.title || sub.name)}</th>`).join('')}
   <th style="min-width:30pt">Gen. Avg.</th><th style="min-width:35pt">Remarks</th>
 </tr></thead>
 <tbody>
@@ -561,9 +569,9 @@ ${students.length ? students.map(st => {
   const avgVal = avg || avg === 0 ? avg.toFixed(1) : '';
   const remark = avg >= 75 ? 'Promoted' : avg >= 60 ? 'Cond. Promoted' : avg > 0 ? 'Retained' : '';
   return `<tr>
-    <td></td>
+    <td class="c">${esc(st.lrn || '')}</td>
     <td>${esc(st.last_name)}, ${esc(st.first_name)}${st.extension_name ? ', ' + esc(st.extension_name) : ''}, ${esc(st.middle_name || '')}</td>
-    <td></td>
+    <td class="c">${esc(st.sex || '')}</td>
     ${rowGrades.map(g => `<td class="c">${g.computed_grade != null ? Number(g.computed_grade).toFixed(1) : ''}</td>`).join('')}
     <td class="c"><strong>${avgVal}</strong></td>
     <td class="c small">${remark}</td>
@@ -601,14 +609,16 @@ ${formHeaderHtml(info, 'sf6', 'School Form 6 (SF6) — Summarized Report on Prom
 <tbody>
 ${rows.length ? rows.map(r => {
   const total = Number(r.promotion?.promoted || 0) + Number(r.promotion?.conditional || 0) + Number(r.promotion?.retained || 0);
-  const enrolled = r.enrollments?.reduce((sum, item) => sum + Number(item.cnt || 0), 0) || 0;
   return `<tr>
     <td>${esc(r.section?.grade_level)} — ${esc(r.section?.name)}</td>
-    <td class="c">${enrolled}</td>
+    <td class="c">${r.enrolled || 0}</td>
     <td class="c">${r.promotion?.promoted || 0}</td>
     <td class="c">${r.promotion?.conditional || 0}</td>
     <td class="c">${r.promotion?.retained || 0}</td>
-    <td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td>
+    <td class="c">${r.transferred_out || 0}</td>
+    <td class="c">${r.dropped || 0}</td>
+    <td class="c">${r.lwd_count || 0}</td>
+    <td class="c"></td>
     <td class="c"><strong>${total}</strong></td>
   </tr>`;
 }).join('') : blankRows(15, 10)}
@@ -631,9 +641,10 @@ ${formHeaderHtml(info, 'sf7', 'School Form 7 (SF7) — School Personnel Assignme
 </table>
 <table style="font-size:7pt;">
 <thead><tr>
+  <th style="width:20pt">Emp.<br/>No.</th>
   <th style="width:25pt">#</th><th style="min-width:80pt">Name</th>
-  <th style="min-width:50pt">Position</th><th style="width:35pt">Employment Status</th>
-  <th style="min-width:50pt">Area of Specialization</th><th style="min-width:80pt">Subjects Taught</th>
+  <th style="min-width:50pt">Position</th><th style="width:35pt">Employment<br/>Status</th>
+  <th style="min-width:50pt">Area of<br/>Specialization</th><th style="min-width:80pt">Subjects Taught</th>
   <th style="min-width:50pt">Advisory Class</th><th style="min-width:50pt">Daily Program</th>
   <th style="width:30pt">Avg. Min/Day</th><th style="min-width:40pt">Remarks</th>
 </tr></thead>
@@ -641,18 +652,19 @@ ${formHeaderHtml(info, 'sf7', 'School Form 7 (SF7) — School Personnel Assignme
 ${teachers.length ? teachers.map((t, idx) => {
   const asgn = assignments[t.id] || [];
   return `<tr>
+    <td class="c">${esc(t.employee_no || '')}</td>
     <td class="c">${idx + 1}</td>
     <td>${esc(t.user_name || [t.last_name, t.first_name, t.middle_name].filter(Boolean).join(', ') || '')}</td>
     <td>${esc(t.position || '')}</td>
     <td>${esc(t.status || '')}</td>
-    <td>${esc(t.position || '')}</td>
+    <td>${esc(t.specialization || '')}</td>
     <td class="small">${asgn.map(a => esc(a.subject_name)).join(', ')}</td>
     <td>${esc(t.advisory_class || '')}</td>
     <td class="small">${asgn.map(a => `${esc(a.room || '')}${a.meetings_per_week ? ' (' + a.meetings_per_week + 'x/wk)' : ''}`).join('<br/>')}</td>
     <td class="c">${asgn.reduce((sum, a) => sum + Number(a.minutes_per_day || 0), 0) || ''}</td>
     <td></td>
   </tr>`;
-}).join('') : blankRows(20, 10)}
+}).join('') : blankRows(20, 11)}
 </tbody></table>
 ${signatureBlockHtml('', 'School Head', '', 'HR Officer')}`;
 }
@@ -665,6 +677,14 @@ function renderSF8(data, info) {
   const students = data?.students || [];
   const section = data?.section;
   const sy = info.school_year || '____-____';
+  function whoBmiStatus(bmi, age) {
+    if (!bmi) return '';
+    const b = Number(bmi);
+    if (b < 18.5) return 'UW';
+    if (b < 25) return 'N';
+    if (b < 30) return 'OW';
+    return 'OB';
+  }
   return `
 ${formHeaderHtml(info, 'sf8', "School Form 8 (SF8) — Learner's Basic Health and Nutrition Report")}
 <table style="font-size:8pt;margin-bottom:6pt;">
@@ -675,38 +695,36 @@ ${formHeaderHtml(info, 'sf8', "School Form 8 (SF8) — Learner's Basic Health an
 </table>
 <table style="font-size:7pt;">
 <thead><tr>
-  <th style="width:25pt">LRN</th><th style="min-width:80pt">Name (LN, FN, MN)</th><th style="width:18pt">Sex</th>
-  <th style="width:35pt">Height<br/>(cm)</th><th style="width:35pt">Weight<br/>(kg)</th>
-  <th style="width:30pt">BMI</th><th style="width:40pt">Nutritional Status</th>
-  <th style="width:30pt">Remarks</th><th style="width:30pt">CCT</th>
+  <th style="width:25pt">LRN</th><th style="min-width:70pt">Name (LN, FN, MN)</th><th style="width:14pt">Sex</th>
+  <th style="width:18pt">Age</th>
+  <th style="width:30pt">Height<br/>(cm)</th><th style="width:30pt">Weight<br/>(kg)</th>
+  <th style="width:25pt">BMI</th><th style="width:30pt">Nutritional<br/>Status</th>
+  <th style="width:40pt">Home Address</th>
+  <th style="width:25pt">CCT</th>
 </tr></thead>
 <tbody>
 ${students.length ? students.map(s => {
   const bmi = s.bmi != null ? Number(s.bmi).toFixed(1) : (s.height_cm && s.weight_kg ? (s.weight_kg / ((s.height_cm / 100) ** 2)).toFixed(1) : '');
   let status = s.nutritional_status || '';
-  if (!status && bmi) {
-    const b = Number(bmi);
-    if (b < 18.5) status = 'UW';
-    else if (b < 25) status = 'NW';
-    else if (b < 30) status = 'OW';
-    else status = 'OB';
-  }
+  if (!status && bmi) status = whoBmiStatus(bmi, s.age);
+  const statusLabel = { UW: 'Underweight', N: 'Normal', OW: 'Overweight', OB: 'Obese' }[status] || status;
   return `<tr>
     <td>${esc(s.lrn || '')}</td>
-    <td>${esc(s.last_name)}, ${esc(s.first_name)}${s.middle_name ? ', ' + esc(s.middle_name) : ''}</td>
+    <td class="small">${esc(s.last_name)}, ${esc(s.first_name)}${s.middle_name ? ', ' + esc(s.middle_name) : ''}</td>
     <td class="c">${esc(s.sex || '')}</td>
+    <td class="c">${esc(String(s.age || ''))}</td>
     <td class="c">${s.height_cm != null ? Number(s.height_cm).toFixed(1) : ''}</td>
-    <td class="c">${s.weight_kg != null ? Number(s.weight_kg).toFixed(2) : ''}</td>
+    <td class="c">${s.weight_kg != null ? Number(s.weight_kg).toFixed(1) : ''}</td>
     <td class="c"><strong>${bmi}</strong></td>
-    <td class="c">${esc(status)}</td>
-    <td class="c">${esc(s.remarks || '')}</td>
-    <td class="c">${s.cct ? '✓' : ''}</td>
+    <td class="c">${esc(statusLabel)}</td>
+    <td class="small">${esc(s.address || '')}</td>
+    <td class="c">${s.cct ? '\u2713' : ''}</td>
   </tr>`;
-}).join('') : blankRows(30, 9)}
+}).join('') : blankRows(30, 10)}
 </tbody></table>
 <div class="small" style="margin:6pt 0;">
-  <strong>Nutritional Status:</strong> UW=Underweight | NW=Normal Weight | OW=Overweight | OB=Obese<br/>
-  <strong>BMI Categories (Age 12-18):</strong> Underweight (&lt;18.5) | Normal (18.5-24.9) | Overweight (25-29.9) | Obese (&#8805;30)
+  <strong>Nutritional Status (WHO BMI-for-age 10-19):</strong> UW=Underweight | N=Normal Weight | OW=Overweight | OB=Obese<br/>
+  <strong>BMI Categories:</strong> Underweight (&lt;18.5) | Normal (18.5-24.9) | Overweight (25-29.9) | Obese (&#8805;30)
 </div>
 ${signatureBlockHtml('', 'Class Adviser / School Nurse', '', 'School Head')}`;
 }
@@ -734,6 +752,7 @@ function renderSF9(data, info) {
 }
 
 function renderSF9Card(stud, enrollment, grades, att, sy, info) {
+  const quarterLabel = grades.length && grades[0].term ? grades[0].term : '____';
   return `
 ${formHeaderHtml(info, 'sf9', "School Form 9 (SF9) — Learner's Progress Report Card (Form 138)")}
 <table style="font-size:8pt;margin-bottom:6pt;">
@@ -743,17 +762,17 @@ ${formHeaderHtml(info, 'sf9', "School Form 9 (SF9) — Learner's Progress Report
       <td style="border:none"><strong>Section:</strong> ${enrollment ? esc(enrollment.section_name) : '____'}</td></tr>
 </table>
 <table style="font-size:8pt;margin-bottom:8pt;">
-  <tr><td style="border:none;width:25%"><strong>Name:</strong></td><td style="border:none">${esc(stud.last_name)}, ${esc(stud.first_name)}${stud.extension_name ? ', ' + esc(stud.extension_name) : ''}</td>
+  <tr><td style="border:none;width:25%"><strong>Name:</strong></td><td style="border:none">${esc(stud.last_name)}, ${esc(stud.first_name)}${stud.extension_name ? ', ' + esc(stud.extension_name) : ''}${stud.middle_name ? ', ' + esc(stud.middle_name) : ''}</td>
       <td style="border:none;width:20%"><strong>LRN:</strong></td><td style="border:none">${esc(stud.lrn || '')}</td></tr>
   <tr><td style="border:none"><strong>Semester:</strong></td><td style="border:none">____</td>
-      <td style="border:none"><strong>Quarter:</strong></td><td style="border:none">____</td></tr>
+      <td style="border:none"><strong>Quarter:</strong></td><td style="border:none">${esc(quarterLabel)}</td></tr>
 </table>
 <strong>Learning Areas and Grades</strong>
 <table style="font-size:8pt;">
 <thead><tr>
   <th style="min-width:100pt">Learning Area</th>
-  <th style="width:30pt">WW<br/>(25%)</th><th style="width:30pt">PT<br/>(50%)</th>
-  <th style="width:30pt">QA<br/>(25%)</th><th style="width:30pt">Final<br/>Grade</th>
+  <th style="width:30pt">WW<br/>(25%)</th><th style="width:30pt">PT<br/>(45%)</th>
+  <th style="width:30pt">QA<br/>(30%)</th><th style="width:30pt">Quarterly<br/>Grade</th>
   <th style="width:30pt">Remarks</th>
 </tr></thead>
 <tbody>
@@ -762,7 +781,9 @@ ${grades.length ? grades.map(g => {
   const remark = finalGrade >= 75 ? 'Passed' : 'Did Not Pass';
   return `<tr>
     <td>${esc(g.subject_name)}</td>
-    <td class="c"></td><td class="c"></td><td class="c"></td>
+    <td class="c">${g.written_work != null ? Number(g.written_work).toFixed(1) : ''}</td>
+    <td class="c">${g.performance_task != null ? Number(g.performance_task).toFixed(1) : ''}</td>
+    <td class="c">${g.quarterly_exam != null ? Number(g.quarterly_exam).toFixed(1) : ''}</td>
     <td class="c"><strong>${finalGrade ? finalGrade.toFixed(1) : ''}</strong></td>
     <td class="c">${finalGrade ? remark : ''}</td>
   </tr>`;
@@ -772,9 +793,10 @@ ${grades.length ? grades.map(g => {
   <tr><td style="border:none"><strong>General Average:</strong></td><td style="border:none" class="c"><strong>${grades.length ? (grades.reduce((sum, g) => sum + (Number(g.computed_grade) || 0), 0) / grades.length).toFixed(1) : ''}</strong></td></tr>
 </table>
 <strong style="font-size:8pt;">Attendance</strong>
-<table style="font-size:8pt;width:50%;margin-top:4pt;">
-  <thead><tr><th>Days Present</th><th>Days Absent</th><th>Days Tardy</th></tr></thead>
+<table style="font-size:8pt;width:60%;margin-top:4pt;">
+  <thead><tr><th>Days Enrolled</th><th>Days Present</th><th>Days Absent</th><th>Days Tardy</th></tr></thead>
   <tbody><tr>
+    <td class="c">${att.days_enrolled || att.total_days || ''}</td>
     <td class="c">${att.days_present || ''}</td>
     <td class="c">${att.days_absent || ''}</td>
     <td class="c">${att.days_late || ''}</td>
@@ -782,9 +804,27 @@ ${grades.length ? grades.map(g => {
 </table>
 <div style="margin-top:12pt;font-size:8pt;">
   <strong>Conduct and Values:</strong><br/>
-  <em>Observed values: Maka-Diyos, Maka-Tao, Makakalikasan, Makabansa</em>
+  <em>Observed values: Maka-Diyos, Maka-Tao, Makakalikasan, Makabansa</em><br/>
+  <table style="font-size:7pt;margin-top:4pt;width:80%;">
+    <thead><tr><th>Values</th><th>Always</th><th>Often</th><th>Sometimes</th><th>Rarely</th></tr></thead>
+    <tbody>
+      <tr><td>Maka-Diyos</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+      <tr><td>Maka-Tao</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+      <tr><td>Makakalikasan</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+      <tr><td>Makabansa</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+    </tbody>
+  </table>
 </div>
-${signatureBlockHtml(enrollment?.adviser_name || '', 'Class Adviser', '', 'School Head')}`;
+<div style="margin-top:12pt;font-size:8pt;">
+  <strong>Remarks:</strong> ________________________________________________
+</div>
+<div style="margin-top:12pt;font-size:8pt;">
+  <strong>Parent/Guardian Acknowledged by:</strong> ________________________________________________
+</div>
+<table class="sig" style="margin-top:16pt;"><tr>
+  <td>____________________________________<br/><strong>${esc(enrollment?.adviser_name || '______________________')}</strong><br/>Class Adviser<br/><em>Date Signed: ____________</em></td>
+  <td>____________________________________<br/><strong>${esc(info.school_head_name || '______________________')}</strong><br/>School Head<br/><em>Date Signed: ____________</em></td>
+</tr></table>`;
 }
 
 function renderSF9Blank(info) {
@@ -805,8 +845,8 @@ ${formHeaderHtml(info, 'sf9', "School Form 9 (SF9) — Learner's Progress Report
 <table style="font-size:8pt;">
 <thead><tr>
   <th style="min-width:100pt">Learning Area</th>
-  <th style="width:30pt">WW<br/>(25%)</th><th style="width:30pt">PT<br/>(50%)</th>
-  <th style="width:30pt">QA<br/>(25%)</th><th style="width:30pt">Final<br/>Grade</th>
+  <th style="width:30pt">WW<br/>(25%)</th><th style="width:30pt">PT<br/>(45%)</th>
+  <th style="width:30pt">QA<br/>(30%)</th><th style="width:30pt">Quarterly<br/>Grade</th>
   <th style="width:30pt">Remarks</th>
 </tr></thead>
 <tbody>${blankRows(12, 6)}</tbody></table>
@@ -814,13 +854,28 @@ ${formHeaderHtml(info, 'sf9', "School Form 9 (SF9) — Learner's Progress Report
   <tr><td style="border:none"><strong>General Average:</strong></td><td style="border:none" class="c"><strong></strong></td></tr>
 </table>
 <strong style="font-size:8pt;">Attendance</strong>
-<table style="font-size:8pt;width:50%;margin-top:4pt;">
-  <thead><tr><th>Days Present</th><th>Days Absent</th><th>Days Tardy</th></tr></thead>
-  <tbody><tr><td class="c"></td><td class="c"></td><td class="c"></td></tr></tbody>
+<table style="font-size:8pt;width:60%;margin-top:4pt;">
+  <thead><tr><th>Days Enrolled</th><th>Days Present</th><th>Days Absent</th><th>Days Tardy</th></tr></thead>
+  <tbody><tr><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr></tbody>
 </table>
 <div style="margin-top:12pt;font-size:8pt;"><strong>Conduct and Values:</strong><br/>
-<em>Observed values: Maka-Diyos, Maka-Tao, Makakalikasan, Makabansa</em></div>
-${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
+<em>Observed values: Maka-Diyos, Maka-Tao, Makakalikasan, Makabansa</em><br/>
+<table style="font-size:7pt;margin-top:4pt;width:80%;">
+  <thead><tr><th>Values</th><th>Always</th><th>Often</th><th>Sometimes</th><th>Rarely</th></tr></thead>
+  <tbody>
+    <tr><td>Maka-Diyos</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+    <tr><td>Maka-Tao</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+    <tr><td>Makakalikasan</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+    <tr><td>Makabansa</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+  </tbody>
+</table>
+</div>
+<div style="margin-top:12pt;font-size:8pt;"><strong>Remarks:</strong> ________________________________________________</div>
+<div style="margin-top:12pt;font-size:8pt;"><strong>Parent/Guardian Acknowledged by:</strong> ________________________________________________</div>
+<table class="sig" style="margin-top:16pt;"><tr>
+  <td>____________________________________<br/><strong>______________________</strong><br/>Class Adviser<br/><em>Date Signed: ____________</em></td>
+  <td>____________________________________<br/><strong>______________________</strong><br/>School Head<br/><em>Date Signed: ____________</em></td>
+</tr></table>`;
 }
 
 /* ── SF10: Permanent Record (Form 137) ─────────────────────── */
@@ -832,6 +887,16 @@ function renderSF10(data, info) {
   const enrollments = lr.enrollments || [];
   const allGrades = lr.grades || [];
   const allAttendance = lr.attendance || [];
+
+  function numberToWords(n) {
+    if (!n || isNaN(n)) return '';
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    const num = Math.round(Number(n));
+    if (num < 20) return ones[num];
+    if (num < 100) return tens[Math.floor(num/10)] + (num%10 ? '-' + ones[num%10] : '');
+    return num.toString();
+  }
 
   const byYear = {};
   for (const en of enrollments) {
@@ -864,29 +929,38 @@ ${formHeaderHtml(info, 'sf10', "School Form 10 (SF10) — Learner's Permanent Ac
 <thead><tr>
   <th style="min-width:40pt">School Year</th><th style="min-width:40pt">Grade Level</th>
   <th style="min-width:40pt">Section</th><th style="min-width:40pt">Subjects / Grades</th>
-  <th style="width:30pt">Gen. Avg.</th><th style="width:40pt">Attendance<br/>Present / Absent</th>
-  <th style="width:40pt">Remarks</th><th style="min-width:40pt">School Last Attended</th>
+  <th style="width:30pt">Gen. Avg.</th><th style="width:35pt">GWA<br/>(words)</th>
+  <th style="width:40pt">Attendance<br/>Present / Absent</th>
+  <th style="width:35pt">Remarks</th><th style="min-width:40pt">School Last Attended</th>
 </tr></thead>
 <tbody>
 ${Object.keys(byYear).length ? Object.entries(byYear).map(([sy, yr]) => {
   const avg = yr.grades.length ? (yr.grades.reduce((sum, g) => sum + (Number(g.computed_grade) || 0), 0) / yr.grades.length).toFixed(1) : '';
   const promoted = avg && Number(avg) >= 75 ? 'Promoted' : avg ? 'Retained' : '';
+  const gwaWords = numberToWords(avg);
   return `<tr>
     <td>${esc(sy)}</td>
     <td class="c">${yr.enrollment?.grade_level || ''}</td>
     <td>${yr.enrollment?.section_name || ''}</td>
     <td class="small">${yr.grades.map(g => `${esc(g.subject_name)}: ${Number(g.computed_grade).toFixed(1)}`).join('<br/>')}</td>
     <td class="c"><strong>${avg}</strong></td>
+    <td class="c small">${esc(gwaWords)}</td>
     <td class="c">${yr.attendance ? `${yr.attendance.days_present || 0} / ${yr.attendance.days_absent || 0}` : ''}</td>
     <td class="c">${promoted}</td>
     <td>${esc(info.school_name)}</td>
   </tr>`;
-}).join('') : blankRows(6, 8)}
+}).join('') : blankRows(6, 9)}
 </tbody></table>
 <strong style="font-size:9pt;margin-top:8pt;display:block;">III. Behavior / Conduct</strong>
 <table style="font-size:8pt;">
 <thead><tr><th>School Year</th><th>Conduct Rating</th><th>Values Education</th></tr></thead>
 <tbody>${blankRows(4, 3)}</tbody></table>
+<strong style="font-size:9pt;margin-top:8pt;display:block;">IV. Character Reference</strong>
+<table style="font-size:8pt;">
+<tbody>
+  <tr><td style="border:none;width:50%"><strong>Noted by:</strong> ____________________________________<br/><em>Class Adviser</em></td>
+      <td style="border:none"><strong>Approved by:</strong> ____________________________________<br/><em>School Head / Registrar</em></td></tr>
+</tbody></table>
 <div class="small" style="margin:8pt 0;"><em>Note: SF10 is for Grades 1 &amp; 7 only (K to 12). SHS incoming Grade 11 uses SF10-SHS format per DO 69, s. 2016.</em></div>
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head / Registrar')}`;
 }
@@ -912,14 +986,21 @@ ${formHeaderHtml(info, 'sf10', "School Form 10 (SF10) — Learner's Permanent Ac
 <thead><tr>
   <th style="min-width:40pt">School Year</th><th style="min-width:40pt">Grade Level</th>
   <th style="min-width:40pt">Section</th><th style="min-width:40pt">Subjects / Grades</th>
-  <th style="width:30pt">Gen. Avg.</th><th style="width:40pt">Attendance</th>
-  <th style="width:40pt">Remarks</th><th style="min-width:40pt">School Last Attended</th>
+  <th style="width:30pt">Gen. Avg.</th><th style="width:35pt">GWA<br/>(words)</th>
+  <th style="width:40pt">Attendance</th>
+  <th style="width:35pt">Remarks</th><th style="min-width:40pt">School Last Attended</th>
 </tr></thead>
-<tbody>${blankRows(8, 8)}</tbody></table>
+<tbody>${blankRows(8, 9)}</tbody></table>
 <strong style="font-size:9pt;margin-top:8pt;display:block;">III. Behavior / Conduct</strong>
 <table style="font-size:8pt;">
 <thead><tr><th>School Year</th><th>Conduct Rating</th><th>Values Education</th></tr></thead>
 <tbody>${blankRows(4, 3)}</tbody></table>
+<strong style="font-size:9pt;margin-top:8pt;display:block;">IV. Character Reference</strong>
+<table style="font-size:8pt;">
+<tbody>
+  <tr><td style="border:none;width:50%"><strong>Noted by:</strong> ____________________________________<br/><em>Class Adviser</em></td>
+      <td style="border:none"><strong>Approved by:</strong> ____________________________________<br/><em>School Head / Registrar</em></td></tr>
+</tbody></table>
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head / Registrar')}`;
 }
 

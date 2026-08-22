@@ -65,7 +65,7 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   if (!section_id) return res.json({ students: [], subjects: [] });
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
   const students = await qa(
-    `SELECT DISTINCT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
+    `SELECT DISTINCT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.extension_name, s.sex
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
@@ -92,9 +92,9 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { school_year } = req.query;
-  const syCond = school_year ? 'AND s.school_year = $1::text' : '';
+  const syCond = school_year ? 'AND sec.school_year = $1::text' : '';
   const sections = await qa(
-    `SELECT id, name, grade_level FROM sections s WHERE 1=1 ${syCond} ORDER BY grade_level, name`,
+    `SELECT id, name, grade_level FROM sections sec WHERE 1=1 ${syCond} ORDER BY grade_level, name`,
     school_year ? [school_year] : []
   );
   const result = [];
@@ -106,6 +106,9 @@ router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        GROUP BY e.status`,
       [sec.id]
     );
+    const enrolled = enrollments.find(r => r.status === 'enrolled')?.cnt || 0;
+    const transferred_out = enrollments.find(r => r.status === 'transferred_out')?.cnt || 0;
+    const dropped = enrollments.find(r => r.status === 'dropped')?.cnt || 0;
     const grades = await qa(
       `SELECT
          COUNT(*) as total,
@@ -116,9 +119,18 @@ router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        WHERE g.section_id = ? AND g.term = 'Final'`,
       [sec.id]
     );
+    const lwd = await qa(
+      `SELECT COUNT(*) as cnt FROM students s
+       JOIN enrollments e ON e.student_id = s.id
+       WHERE e.section_id = ? AND (s.indigenous_people = 'Yes' OR s.special_needs IS NOT NULL AND s.special_needs != '')`,
+      [sec.id]
+    );
     result.push({
       section: sec,
-      enrollments,
+      enrolled,
+      transferred_out,
+      dropped,
+      lwd_count: Number(lwd[0]?.cnt || 0),
       promotion: grades[0] || { total: 0, promoted: 0, conditional: 0, retained: 0 },
     });
   }
@@ -208,7 +220,11 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        WHERE a.student_id = ?`,
       [student_id]
     );
-    return res.json({ learner: { student, enrollment, grades, attendance: attendance[0] } });
+    const daysEnrolled = await q(
+      `SELECT COUNT(*) as days_enrolled FROM attendance a WHERE a.student_id = ?`,
+      [student_id]
+    );
+    return res.json({ learner: { student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0 } });
   }
   const learners = await qa(
     `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
@@ -263,7 +279,11 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
        WHERE a.student_id = ? AND a.section_id = ?`,
       [lr.id, section_id]
     );
-    result.push({ student, enrollment, grades, attendance: attendance[0] });
+    const daysEnrolled = await q(
+      `SELECT COUNT(*) as days_enrolled FROM attendance a WHERE a.student_id = ? AND a.section_id = ?`,
+      [lr.id, section_id]
+    );
+    result.push({ student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0 });
   }
   res.json({ learners: result });
 }));
