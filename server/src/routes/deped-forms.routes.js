@@ -132,11 +132,11 @@ router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const y = Number(year || new Date().getFullYear());
   const attendance = await qa(
     db.dialect === 'pg'
-      ? `SELECT a.student_id, a.date, a.status
+      ? `SELECT a.student_id, a.date, a.status, a.session
          FROM attendance a
          WHERE a.section_id = $1::bigint AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int
            AND EXTRACT(YEAR FROM a.date::timestamp) = $3::int`
-      : `SELECT a.student_id, a.date, a.status
+      : `SELECT a.student_id, a.date, a.status, a.session
          FROM attendance a
          WHERE a.section_id = ? AND CAST(strftime('%m', a.date) AS INTEGER) = ?
            AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
@@ -309,7 +309,11 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       `SELECT COUNT(*) as days_enrolled FROM attendance a WHERE a.student_id = ?`,
       [student_id]
     );
-    return res.json({ learner: { student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0 } });
+    const conduct = await q(
+      'SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? AND term = ?',
+      [student_id, enrollment?.school_year || '', term || '']
+    );
+    return res.json({ learner: { student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0, conduct: conduct || null } });
   }
   const learners = await qa(
     `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
@@ -323,7 +327,7 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 }));
 
 router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
-  const { section_id, term } = req.query;
+  const { section_id, term, school_year } = req.query;
   if (!section_id) return res.json({ learners: [] });
   const learners = await qa(
     `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name, s.lrn
@@ -345,6 +349,7 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
        ORDER BY e.enrolled_at DESC LIMIT 1`,
       [lr.id, section_id]
     );
+    const sy = school_year || enrollment?.school_year || '';
     const termCond = term ? 'AND g.term = $2::text' : '';
     const grades = await qa(
       `SELECT g.*, sub.title as subject_name
@@ -368,7 +373,10 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
       `SELECT COUNT(*) as days_enrolled FROM attendance a WHERE a.student_id = ? AND a.section_id = ?`,
       [lr.id, section_id]
     );
-    result.push({ student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0 });
+    const conduct = term
+      ? (await q('SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? AND term = ?', [lr.id, sy, term])) || null
+      : null;
+    result.push({ student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0, conduct });
   }
   res.json({ learners: result });
 }));
@@ -490,6 +498,55 @@ router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, 
     );
   }
   res.json({ learners, subjects, grades, section });
+}));
+
+router.get('/sf9/conduct', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { student_id, school_year, term } = req.query;
+  if (!student_id || !school_year || !term) return res.json({ rating: null });
+  const rating = await q(
+    'SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? AND term = ?',
+    [student_id, school_year, term]
+  );
+  res.json({ rating: rating || null });
+}));
+
+router.get('/sf9/conduct/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { section_id, school_year, term } = req.query;
+  if (!section_id || !school_year || !term) return res.json({ ratings: [] });
+  const ratings = await qa(
+    `SELECT cr.* FROM student_conduct_ratings cr
+     JOIN enrollments e ON e.student_id = cr.student_id
+     WHERE e.section_id = ? AND cr.school_year = ? AND cr.term = ?`,
+    [section_id, school_year, term]
+  );
+  res.json({ ratings });
+}));
+
+router.put('/sf9/conduct', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { student_id, school_year, term, makadiyos, makatao, makakalikasan, makabansa, remarks } = req.body;
+  if (!student_id || !school_year || !term) return res.status(400).json({ error: 'student_id, school_year, term required' });
+  const valid = ['always', 'often', 'sometimes', 'rarely', null];
+  for (const v of [makadiyos, makatao, makakalikasan, makabansa]) {
+    if (!valid.includes(v)) return res.status(400).json({ error: 'Invalid conduct rating value' });
+  }
+  const existing = await q(
+    'SELECT id FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? AND term = ?',
+    [student_id, school_year, term]
+  );
+  if (existing) {
+    await qr(
+      `UPDATE student_conduct_ratings SET makadiyos=?, makatao=?, makakalikasan=?, makabansa=?, remarks=?, updated_at=now()
+       WHERE id=?`,
+      [makadiyos || null, makatao || null, makakalikasan || null, makabansa || null, remarks || null, existing.id]
+    );
+  } else {
+    await qi(
+      `INSERT INTO student_conduct_ratings (student_id, school_year, term, makadiyos, makatao, makakalikasan, makabansa, remarks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [student_id, school_year, term, makadiyos || null, makatao || null, makakalikasan || null, makabansa || null, remarks || null]
+    );
+  }
+  res.json({ ok: true });
 }));
 
 module.exports = router;
