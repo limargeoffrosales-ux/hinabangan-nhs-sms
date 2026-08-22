@@ -97,7 +97,7 @@ export default function Curriculum() {
   async function loadMappings() {
     if (!mapSubjectId) { setMappings([]); return; }
     try {
-      const res = await api(`/curriculum/subject-map?subject_id=${mapSubjectId}`);
+      const res = await api(`/curriculum/subject-competencies?subject_id=${mapSubjectId}`);
       setMappings(res.data);
     } catch (e) {
       setError(e.message);
@@ -142,9 +142,9 @@ export default function Curriculum() {
     } catch (e2) { setError(e2.message); }
   }
 
-  async function removeTrack(t) {
-    if (!confirm(t('cur.deleteTrackConfirm', { name: t.name }))) return;
-    await api(`/curriculum/tracks/${t.id}`, { method: 'DELETE' });
+  async function removeTrack(tr) {
+    if (!confirm(t('cur.deleteTrackConfirm', { name: tr.name }))) return;
+    await api(`/curriculum/tracks/${tr.id}`, { method: 'DELETE' });
     await loadTracks();
   }
 
@@ -173,8 +173,10 @@ export default function Curriculum() {
 
   async function removeStrand(s) {
     if (!confirm(t('cur.deleteStrandConfirm', { name: s.name }))) return;
-    await api(`/curriculum/strands/${s.id}`, { method: 'DELETE' });
-    await loadTracks();
+    try {
+      await api(`/curriculum/strands/${s.id}`, { method: 'DELETE' });
+      await loadTracks();
+    } catch (e2) { setError(e2.message); }
   }
 
   function openCreateComp() {
@@ -203,15 +205,17 @@ export default function Curriculum() {
 
   async function removeComp(c) {
     if (!confirm(t('cur.deleteCompConfirm', { title: c.title }))) return;
-    await api(`/curriculum/competencies/${c.id}`, { method: 'DELETE' });
-    await loadCompetencies();
+    try {
+      await api(`/curriculum/competencies/${c.id}`, { method: 'DELETE' });
+      await loadCompetencies();
+    } catch (e2) { setError(e2.message); }
   }
 
   async function saveMapping(e) {
     e.preventDefault();
     setError(null);
     try {
-      await api('/curriculum/subject-map', { method: 'POST', body: { ...mapForm, subject_id: mapSubjectId, competency_id: Number(mapForm.competency_id), quarter: Number(mapForm.quarter), sort_order: Number(mapForm.sort_order) } });
+      await api('/curriculum/subject-competencies', { method: 'POST', body: { ...mapForm, subject_id: mapSubjectId, competency_id: Number(mapForm.competency_id), quarter: Number(mapForm.quarter), sort_order: Number(mapForm.sort_order) } });
       setMapModal(false);
       setMapForm(EMPTY_MAPPING);
       await loadMappings();
@@ -220,8 +224,10 @@ export default function Curriculum() {
 
   async function removeMapping(m) {
     if (!confirm(t('cur.deleteMappingConfirm'))) return;
-    await api(`/curriculum/subject-map/${m.id}`, { method: 'DELETE' });
-    await loadMappings();
+    try {
+      await api(`/curriculum/subject-competencies/${m.id}`, { method: 'DELETE' });
+      await loadMappings();
+    } catch (e2) { setError(e2.message); }
   }
 
   const strandName = (id) => allStrands.find((s) => s.id === id)?.name || '—';

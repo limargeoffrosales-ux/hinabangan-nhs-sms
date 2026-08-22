@@ -93,6 +93,116 @@ router.get('/workflows', requireRole('super_admin', 'school_admin', 'principal',
   res.json({ data: rows.map((r) => ({ ...r, review: safeJsonParse(r.review_roles, []), approve: safeJsonParse(r.approve_roles, []) })) });
 }));
 
+router.get('/teachers', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
+  const rows = await qa(
+    `SELECT id, username, name, role FROM users
+     WHERE status = 'active' AND role NOT IN ('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar')
+     ORDER BY name`);
+  res.json({ data: rows });
+}));
+
+router.get('/compliance', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const schoolYear = req.query.school_year || '2026-2027';
+  const all = await qa('SELECT id, username, name, role FROM users WHERE status = ?', ['active']);
+  const staff = all.filter((u) => !isAdminRole(u.role));
+  const tasks = await qa(
+    `SELECT r.user_id, r.report_type_id, r.status, r.due_date, t.code, t.name AS report_name, t.group_name
+     FROM report_submissions r
+     JOIN report_types t ON t.id = r.report_type_id
+     WHERE r.school_year = ? AND r.assigned_by IS NOT NULL`,
+    [schoolYear]);
+  const today = new Date().toISOString().slice(0, 10);
+  const kpis = { draft: 0, submitted: 0, reviewed: 0, approved: 0, returned: 0, overdue: 0, missing: 0 };
+  const byUser = {};
+  const taskByUser = {};
+  const submissionRows = [];
+  const decorate = (s) => {
+    const complied = ['submitted', 'reviewed', 'approved'].includes(s.status);
+    const overdue = s.due_date && s.due_date < today && !complied && s.status !== 'returned';
+    const d = {
+      report_type_id: s.report_type_id, code: s.code, report_name: s.report_name,
+      group_name: s.group_name, status: s.status, due_date: s.due_date,
+      complied, overdue,
+    };
+    submissionRows.push(d);
+    return d;
+  };
+  for (const s of tasks) {
+    kpis[s.status] = (kpis[s.status] || 0) + 1;
+    if (s.due_date && s.due_date < today && s.status !== 'approved' && s.status !== 'returned') kpis.overdue++;
+    (taskByUser[s.user_id] = taskByUser[s.user_id] || []).push(s);
+    if (['submitted', 'reviewed', 'approved'].includes(s.status)) {
+      (byUser[s.user_id] = byUser[s.user_id] || new Set()).add(s.report_type_id);
+    }
+  }
+  const teachers = [];
+  const dept = {};
+  for (const u of staff) {
+    const assigned = taskByUser[u.id] || [];
+    const doneSet = byUser[u.id] || new Set();
+    const done = doneSet.size;
+    const missing = assigned.filter((t) => !doneSet.has(t.report_type_id)).map((t) => t.code);
+    const pct = assigned.length ? Math.round((done / assigned.length) * 100) : 0;
+    kpis.missing += missing.length;
+    teachers.push({
+      user_id: u.id, username: u.username, name: u.name, role: u.role,
+      required: assigned.length, done, percent: pct, missing,
+      submissions: assigned.map(decorate),
+    });
+    if (assigned.length) {
+      const d = (dept[u.role] = dept[u.role] || { users: 0, total: 0 });
+      d.users++;
+      d.total += pct;
+    }
+  }
+  const departments = Object.keys(dept).map((role) => ({
+    role, teachers: dept[role].users, percent: Math.round(dept[role].total / dept[role].users),
+  })).sort((a, b) => a.percent - b.percent);
+  const withTasks = teachers.filter((t) => t.required > 0);
+  const overall = withTasks.length ? Math.round(withTasks.reduce((s, t) => s + t.percent, 0) / withTasks.length) : 0;
+  const gaps = {};
+  for (const t of tasks) {
+    const g = gaps[t.group_name] = gaps[t.group_name] || { required: 0, covered: 0 };
+    g.required++;
+    if (['submitted', 'reviewed', 'approved'].includes(t.status)) g.covered++;
+  }
+  const groups = Object.keys(gaps).map((g) => ({
+    group: g, required: gaps[g].required, covered: gaps[g].covered,
+    percent: Math.round((gaps[g].covered / gaps[g].required) * 100),
+  })).sort((a, b) => a.percent - b.percent);
+  res.json({ school_year: schoolYear, overall, kpis, teachers, departments, groups, assigned_tasks: tasks.length, submissions: submissionRows });
+}));
+
+router.get('/portfolio', asyncH(async (req, res) => {
+  const targ = req.query.user_id || req.user.id;
+  const me = await q('SELECT id, username, name, role FROM users WHERE id = ?', [targ]);
+  if (!me) return res.status(404).json({ error: 'User not found' });
+  if (String(targ) !== String(req.user.id) && !isAdminRole(req.user.role)) {
+    return res.status(403).json({ error: 'Not allowed to view this portfolio' });
+  }
+  const subs = await qa(
+    `SELECT r.*, t.name AS report_name, t.code, t.group_name, t.frequency, t.is_deped_form,
+            rv.name AS reviewer_name, ap.name AS approver_name
+     FROM report_submissions r JOIN report_types t ON t.id = r.report_type_id
+     LEFT JOIN users rv ON rv.id = r.reviewer_id LEFT JOIN users ap ON ap.id = r.approver_id
+     WHERE r.user_id = ? ORDER BY t.group_name, t.name`,
+    [targ]);
+  const categories = {};
+  const counts = { draft: 0, submitted: 0, reviewed: 0, approved: 0, returned: 0 };
+  for (const s of subs) {
+    (categories[s.group_name] = categories[s.group_name] || []).push(s);
+    counts[s.status] = (counts[s.status] || 0) + 1;
+  }
+  const attendanceCount = (await q('SELECT COUNT(*) AS n FROM attendance WHERE recorded_by = ?', [targ]))?.n || 0;
+  res.json({
+    user: me,
+    categories,
+    counts,
+    attendanceCount,
+    total_submissions: subs.length,
+  });
+}));
+
 router.get('/', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || null;
   const teacherId = req.query.teacher_id || null;
@@ -327,15 +437,6 @@ router.post('/generate-draft', requireRole('super_admin', 'school_admin', 'princ
   res.json({ code: type.code, name: type.name, draft_body: draftFor(type.code, ctx) });
 }));
 
-// Active non-admin users that can be given submission tasks
-router.get('/teachers', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
-  const rows = await qa(
-    `SELECT id, username, name, role FROM users
-     WHERE status = 'active' AND role NOT IN ('super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar')
-     ORDER BY name`);
-  res.json({ data: rows });
-}));
-
 // Admin-initiated task assignment — creates a submission task for each
 // selected teacher. Compliance is computed only from these assigned tasks.
 router.post('/assign', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
@@ -365,108 +466,6 @@ router.post('/assign', requireRole('super_admin', 'school_admin'), asyncH(async 
   await audit(req, 'ASSIGN_TASK', 'report_submissions', created[0] || null,
     { report: type.code, period: b.period, school_year: sy, assigned: created.length, skipped: skipped.length });
   res.status(201).json({ created, skipped, count: created.length });
-}));
-
-router.get('/compliance', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
-  const schoolYear = req.query.school_year || '2026-2027';
-  const all = await qa('SELECT id, username, name, role FROM users WHERE status = ?', ['active']);
-  const staff = all.filter((u) => !isAdminRole(u.role));
-  const tasks = await qa(
-    `SELECT r.user_id, r.report_type_id, r.status, r.due_date, t.code, t.name AS report_name, t.group_name
-     FROM report_submissions r
-     JOIN report_types t ON t.id = r.report_type_id
-     WHERE r.school_year = ? AND r.assigned_by IS NOT NULL`,
-    [schoolYear]);
-  const today = new Date().toISOString().slice(0, 10);
-  const kpis = { draft: 0, submitted: 0, reviewed: 0, approved: 0, returned: 0, overdue: 0, missing: 0 };
-  const byUser = {};
-  const taskByUser = {};
-  const submissionRows = [];
-  const decorate = (s) => {
-    const complied = ['submitted', 'reviewed', 'approved'].includes(s.status);
-    const overdue = s.due_date && s.due_date < today && !complied && s.status !== 'returned';
-    const d = {
-      report_type_id: s.report_type_id, code: s.code, report_name: s.report_name,
-      group_name: s.group_name, status: s.status, due_date: s.due_date,
-      complied, overdue,
-    };
-    submissionRows.push(d);
-    return d;
-  };
-  for (const s of tasks) {
-    kpis[s.status] = (kpis[s.status] || 0) + 1;
-    if (s.due_date && s.due_date < today && s.status !== 'approved' && s.status !== 'returned') kpis.overdue++;
-    (taskByUser[s.user_id] = taskByUser[s.user_id] || []).push(s);
-    if (['submitted', 'reviewed', 'approved'].includes(s.status)) {
-      (byUser[s.user_id] = byUser[s.user_id] || new Set()).add(s.report_type_id);
-    }
-  }
-  const teachers = [];
-  const dept = {};
-  for (const u of staff) {
-    const assigned = taskByUser[u.id] || [];
-    const doneSet = byUser[u.id] || new Set();
-    const done = doneSet.size;
-    const missing = assigned.filter((t) => !doneSet.has(t.report_type_id)).map((t) => t.code);
-    const pct = assigned.length ? Math.round((done / assigned.length) * 100) : 0;
-    kpis.missing += missing.length;
-    teachers.push({
-      user_id: u.id, username: u.username, name: u.name, role: u.role,
-      required: assigned.length, done, percent: pct, missing,
-      submissions: assigned.map(decorate),
-    });
-    if (assigned.length) {
-      const d = (dept[u.role] = dept[u.role] || { users: 0, total: 0 });
-      d.users++;
-      d.total += pct;
-    }
-  }
-  const departments = Object.keys(dept).map((role) => ({
-    role, teachers: dept[role].users, percent: Math.round(dept[role].total / dept[role].users),
-  })).sort((a, b) => a.percent - b.percent);
-  const withTasks = teachers.filter((t) => t.required > 0);
-  const overall = withTasks.length ? Math.round(withTasks.reduce((s, t) => s + t.percent, 0) / withTasks.length) : 0;
-  const gaps = {};
-  for (const t of tasks) {
-    const g = gaps[t.group_name] = gaps[t.group_name] || { required: 0, covered: 0 };
-    g.required++;
-    if (['submitted', 'reviewed', 'approved'].includes(t.status)) g.covered++;
-  }
-  const groups = Object.keys(gaps).map((g) => ({
-    group: g, required: gaps[g].required, covered: gaps[g].covered,
-    percent: Math.round((gaps[g].covered / gaps[g].required) * 100),
-  })).sort((a, b) => a.percent - b.percent);
-  res.json({ school_year: schoolYear, overall, kpis, teachers, departments, groups, assigned_tasks: tasks.length, submissions: submissionRows });
-}));
-
-router.get('/portfolio', asyncH(async (req, res) => {
-  const targ = req.query.user_id || req.user.id;
-  const me = await q('SELECT id, username, name, role FROM users WHERE id = ?', [targ]);
-  if (!me) return res.status(404).json({ error: 'User not found' });
-  if (String(targ) !== String(req.user.id) && !isAdminRole(req.user.role)) {
-    return res.status(403).json({ error: 'Not allowed to view this portfolio' });
-  }
-  const subs = await qa(
-    `SELECT r.*, t.name AS report_name, t.code, t.group_name, t.frequency, t.is_deped_form,
-            rv.name AS reviewer_name, ap.name AS approver_name
-     FROM report_submissions r JOIN report_types t ON t.id = r.report_type_id
-     LEFT JOIN users rv ON rv.id = r.reviewer_id LEFT JOIN users ap ON ap.id = r.approver_id
-     WHERE r.user_id = ? ORDER BY t.group_name, t.name`,
-    [targ]);
-  const categories = {};
-  const counts = { draft: 0, submitted: 0, reviewed: 0, approved: 0, returned: 0 };
-  for (const s of subs) {
-    (categories[s.group_name] = categories[s.group_name] || []).push(s);
-    counts[s.status] = (counts[s.status] || 0) + 1;
-  }
-  const attendanceCount = (await q('SELECT COUNT(*) AS n FROM attendance WHERE recorded_by = ?', [targ]))?.n || 0;
-  res.json({
-    user: me,
-    categories,
-    counts,
-    attendanceCount,
-    total_submissions: subs.length,
-  });
 }));
 
 module.exports = router;

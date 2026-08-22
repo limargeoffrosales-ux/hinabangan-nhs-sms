@@ -417,8 +417,8 @@ export default function Students() {
               ))}
 
               <h4 style={{ margin: '16px 0 4px', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-dim)' }}>{t('students.linkedParents')}</h4>
-              {accountsData.parents.length === 0 && <div className="sub" style={{ padding: '8px 0' }}>{t('students.noParents')}</div>}
-              {accountsData.parents.map((p) => (
+              {(accountsData.parents || []).length === 0 && <div className="sub" style={{ padding: '8px 0' }}>{t('students.noParents')}</div>}
+              {(accountsData.parents || []).map((p) => (
                 <div key={p.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                   <div><strong>{p.name || p.username}</strong> <span className="sub">— {p.username} · {p.relation} · {p.status}</span></div>
                   <button className="btn btn-sm btn-danger" onClick={() => unlinkParent(p.user_id)}>{t('students.unlink')}</button>

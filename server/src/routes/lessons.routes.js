@@ -9,6 +9,19 @@ const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
 
+/* ── Lesson summary ─────────────────────────────────── */
+router.get('/summary/stats', requireRole(...WRITE), asyncH(async (req, res) => {
+  const teacherId = req.user.teacher_id;
+  if (!teacherId) return res.json({ total: 0, by_status: [], by_quarter: [] });
+  const where = teacherId ? ' WHERE l.teacher_id = ?' : '';
+  const params = teacherId ? [teacherId] : [];
+  const total = await q(`SELECT COUNT(*) AS count FROM lessons l${where}`, params);
+  const byStatus = await qa(`SELECT status, COUNT(*) AS count FROM lessons l${where} GROUP BY status`, params);
+  const byQuarter = await qa(`SELECT quarter, COUNT(*) AS count FROM lessons l${where ? where + ' AND' : ' WHERE'} quarter IS NOT NULL GROUP BY quarter`, params);
+  const bySubmission = await qa(`SELECT submission_status, COUNT(*) AS count FROM lessons l${where} GROUP BY submission_status`, params);
+  res.json({ total: total.count, by_status: byStatus, by_quarter: byQuarter, by_submission: bySubmission });
+}));
+
 /* ── List lessons ────────────────────────────────────── */
 router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { subject_id, section_id, school_year, quarter, teacher_id, status } = req.query;
@@ -121,19 +134,6 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   await qr('DELETE FROM lessons WHERE id = ?', [row.id]);
   await audit(req, 'DELETE_LESSON', 'lessons', row.id);
   res.json({ ok: true });
-}));
-
-/* ── Lesson summary ─────────────────────────────────── */
-router.get('/summary/stats', requireRole(...WRITE), asyncH(async (req, res) => {
-  const teacherId = req.user.teacher_id;
-  if (!teacherId) return res.json({ total: 0, by_status: [], by_quarter: [] });
-  const where = teacherId ? ' WHERE l.teacher_id = ?' : '';
-  const params = teacherId ? [teacherId] : [];
-  const total = await q(`SELECT COUNT(*) AS count FROM lessons l${where}`, params);
-  const byStatus = await qa(`SELECT status, COUNT(*) AS count FROM lessons l${where} GROUP BY status`, params);
-  const byQuarter = await qa(`SELECT quarter, COUNT(*) AS count FROM lessons l${where ? where + ' AND' : ' WHERE'} quarter IS NOT NULL GROUP BY quarter`, params);
-  const bySubmission = await qa(`SELECT submission_status, COUNT(*) AS count FROM lessons l${where} GROUP BY submission_status`, params);
-  res.json({ total: total.count, by_status: byStatus, by_quarter: byQuarter, by_submission: bySubmission });
 }));
 
 /* ── Submit lesson for review ─────────────────────── */
