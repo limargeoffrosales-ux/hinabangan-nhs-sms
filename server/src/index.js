@@ -63,7 +63,6 @@ const aiRoutes = require('./routes/ai.routes');
   await db.init();
   const { ensureDefaults, startNotifySweep } = require('./notify');
   await ensureDefaults();
-  startNotifySweep();
   if (process.env.SEED_ON_BOOT === '1') {
     const { seed } = require('./seed');
     await seed();
@@ -238,13 +237,14 @@ const aiRoutes = require('./routes/ai.routes');
     },
   }));
 
+  const indexPath = path.join(WEB_DIR, 'index.html');
+  const hasIndex = fs.existsSync(indexPath);
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     if (req.path.startsWith('/assets/')) return res.status(404).json({ error: 'Asset not found. Refresh the page (Ctrl+F5) to load the latest version.' });
-    const index = path.join(WEB_DIR, 'index.html');
-    if (!fs.existsSync(index)) return next();
+    if (!hasIndex) return next();
     res.setHeader('Cache-Control', 'no-store');
-    res.sendFile(index);
+    res.sendFile(indexPath);
   });
 
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
@@ -262,6 +262,7 @@ const aiRoutes = require('./routes/ai.routes');
 
   const server = app.listen(PORT, () => {
     logger.info({ port: PORT, dialect: db.dialect }, `MeridianEd API listening on http://localhost:${PORT}`);
+    startNotifySweep();
   });
 
   function shutdown(signal) {

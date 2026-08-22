@@ -22,8 +22,10 @@ export default function AIChatbot() {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   useEffect(() => {
-    api('/ai/status').then(r => setEnabled(r.enabled)).catch(() => setEnabled(false));
-  }, []);
+    if (open && !enabled) {
+      api('/ai/status').then(r => setEnabled(r.enabled)).catch(() => setEnabled(false));
+    }
+  }, [open, enabled]);
 
   if (!enabled) return null;
 
