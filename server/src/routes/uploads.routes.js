@@ -14,29 +14,26 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: UPLOAD_MAX_MB * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/i;
-    if (allowed.test(path.extname(file.originalname))) cb(null, true);
-    else cb(new Error(`File type not allowed. Max ${UPLOAD_MAX_MB}MB.`));
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/i;
+    const allowedMimes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain', 'text/csv', 'application/zip',
+    ];
+    if (!allowedExts.test(ext)) return cb(new Error(`File type not allowed. Max ${UPLOAD_MAX_MB}MB.`));
+    if (!allowedMimes.includes(file.mimetype)) return cb(new Error(`File MIME type "${file.mimetype}" not allowed.`));
+    cb(null, true);
   },
 });
-
-const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const FILE_TYPES = [
-  'application/pdf', 'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain', 'text/csv', 'application/zip',
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-];
 
 // ── Student photo upload ────────────────────────────────────────
 // POST /uploads/student-photo/:studentId
 router.post('/student-photo/:studentId', requireRole('super_admin', 'school_admin', 'registrar', 'teacher'), upload.single('photo'), asyncH(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  if (!PHOTO_TYPES.includes(req.file.mimetype)) {
-    return res.status(400).json({ error: 'Only JPG, PNG, or WebP images are allowed' });
-  }
   const studentId = Number(req.params.studentId);
   const student = await q('SELECT id, photo_url FROM students WHERE id = ?', [studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
@@ -56,11 +53,9 @@ router.post('/student-photo/:studentId', requireRole('super_admin', 'school_admi
 
 // ── General file upload ─────────────────────────────────────────
 // POST /uploads/file?folder=submissions
-router.post('/file', upload.single('file'), asyncH(async (req, res) => {
+const STAFF_UPLOAD = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'];
+router.post('/file', requireRole(...STAFF_UPLOAD), upload.single('file'), asyncH(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  if (!FILE_TYPES.includes(req.file.mimetype)) {
-    return res.status(400).json({ error: 'File type not allowed' });
-  }
   const folder = (req.query.folder || 'general').replace(/[^a-z0-9_-]/gi, '');
   const { key, url } = await uploadFile(folder, req.file, req.file.originalname);
   await audit(req, 'UPLOAD_FILE', 'uploads', null, { key, folder, size: req.file.size });

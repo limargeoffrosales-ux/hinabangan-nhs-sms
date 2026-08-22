@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, Component } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
@@ -6,6 +6,28 @@ import PortalLayout from './components/PortalLayout';
 import { Spinner } from './components/ui';
 import { isNative, registerForPushNotifications } from './lib/capacitor';
 import './i18n';
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('ErrorBoundary caught:', error, info?.componentStack); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: 20, textAlign: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: 24, marginBottom: 8 }}>Something went wrong</h1>
+            <p style={{ color: '#6b7280', marginBottom: 16 }}>{this.state.error.message || 'An unexpected error occurred.'}</p>
+            <button onClick={() => { this.setState({ error: null }); window.location.reload(); }} style={{ padding: '8px 24px', borderRadius: 8, border: 'none', background: '#1e3a5f', color: '#fff', cursor: 'pointer', fontSize: 14 }}>
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -99,6 +121,7 @@ export default function App() {
   }, [user]);
 
   return (
+    <ErrorBoundary>
     <Routes>
       <Route path="/login" element={<Page><Login /></Page>} />
       <Route path="/" element={<Protected><Page><Dashboard /></Page></Protected>} />
@@ -148,5 +171,6 @@ export default function App() {
       <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </ErrorBoundary>
   );
 }

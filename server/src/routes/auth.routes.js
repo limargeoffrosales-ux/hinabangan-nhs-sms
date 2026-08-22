@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { q, qa, qi, qr } = require('../db');
-const { signAccess, authenticate, hashToken } = require('../auth');
+const { signAccess, authenticate, hashToken, clearUserCache } = require('../auth');
 const { JWT_SECRET, REFRESH_TTL_DAYS } = require('../config');
 const { asyncH, audit } = require('../utils');
 
@@ -164,6 +164,7 @@ router.post('/change-password', authenticate, asyncH(async (req, res) => {
   }
 
   await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [await bcrypt.hash(String(newPassword), 10), req.user.id]);
+  clearUserCache(req.user.id);
   await qi(
     'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
     [req.user.id, req.user.id, 'changed', req.ip]);
