@@ -65,7 +65,7 @@ async function batchPrintSF9(sectionId, term, info) {
     const res = await api(`/deped-forms/sf9/batch?section_id=${sectionId}&term=${term || ''}`);
     const learners = res.learners || [];
     if (!learners.length) return alert('No learners found for this section.');
-    const cards = learners.map(lr => renderSF9Card(lr.student, lr.enrollment, lr.grades, lr.attendance || {}, info.school_year || '____-____', info));
+    const cards = learners.map(lr => renderSF9Card(lr.student, lr.enrollment, lr.grades, lr.attendance || {}, info.school_year || '____-____', info, lr.conduct || null));
     const css = `@page{size:legal portrait;margin:0.4in}body{font-family:'Times New Roman',serif;font-size:11pt;line-height:1.3;color:#000;margin:0;padding:0}table{border-collapse:collapse;width:100%;margin:6pt 0}td,th{border:1px solid #000;padding:3pt;font-size:9pt;vertical-align:top}.center{text-align:center}.c{text-align:center}.b{font-weight:bold}.small{font-size:8.5pt}.sig{width:100%;border:none}.sig td{border:none;text-align:center;font-size:10pt;padding:10pt 4pt 0}.card-page{page-break-after:always}.card-page:last-child{page-break-after:auto}`;
     const full = `<!doctype html><html><head><meta charset="utf-8"><title>SF9 - Report Cards - Batch</title><style>${css}</style></head><body>${cards.map(c => `<div class="card-page">${c}</div>`).join('\n')}</body></html>`;
     const w = window.open('', '_blank');
@@ -420,22 +420,54 @@ function renderSF2(data, info, ctx) {
   const y = data?.year || new Date().getFullYear();
   const daysInMonth = new Date(y, m, 0).getDate();
   const dayHeaders = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const attMap = {};
+  const sym = s => s === 'present' ? '/' : s === 'late' ? 'L' : s === 'half_day' ? 'HD' : 'O';
+  const hasSession = att.some(a => a.session === 'AM' || a.session === 'PM');
+  const attMap = { AM: {}, PM: {}, ALL: {} };
   for (const row of att) {
     const d = new Date(row.date).getDate();
-    if (!attMap[row.student_id]) attMap[row.student_id] = {};
-    attMap[row.student_id][d] = row.status === 'present' ? '/' : row.status === 'late' ? 'L' : 'O';
+    const sess = row.session || 'ALL';
+    if (!attMap[sess]) attMap[sess] = {};
+    if (!attMap[sess][row.student_id]) attMap[sess][row.student_id] = {};
+    attMap[sess][row.student_id][d] = sym(row.status);
   }
   const monthName = new Date(y, m - 1).toLocaleString('en', { month: 'long' });
   const sec = (ctx?.sections || []).find(s => String(s.id) === String(ctx?.sectionId));
+  const rows = [];
+  for (const st of students) {
+    if (hasSession) {
+      for (const sess of ['AM', 'PM']) {
+        const src = attMap[sess][st.id] || attMap['ALL'][st.id] || {};
+        const totalAbsent = dayHeaders.filter(d => src[d] === 'O').length;
+        const totalTardy = dayHeaders.filter(d => src[d] === 'L').length;
+        rows.push(`<tr>
+          <td class="small" style="white-space:nowrap">${esc(st.last_name)}, ${esc(st.first_name)} <em style="font-size:6pt;color:#888">(${sess})</em></td>
+          ${dayHeaders.map(d => `<td class="c">${src[d] || ''}</td>`).join('')}
+          <td class="c">${totalTardy || ''}</td>
+          <td class="c">${totalAbsent || ''}</td>
+          <td></td>
+        </tr>`);
+      }
+    } else {
+      const src = attMap['ALL'][st.id] || {};
+      const totalAbsent = dayHeaders.filter(d => src[d] === 'O').length;
+      const totalTardy = dayHeaders.filter(d => src[d] === 'L').length;
+      rows.push(`<tr>
+        <td class="small">${esc(st.last_name)}, ${esc(st.first_name)}</td>
+        ${dayHeaders.map(d => `<td class="c">${src[d] || ''}</td>`).join('')}
+        <td class="c">${totalTardy || ''}</td>
+        <td class="c">${totalAbsent || ''}</td>
+        <td></td>
+      </tr>`);
+    }
+  }
   return `
-${formHeaderHtml(info, 'sf2', 'School Form 2 (SF2) — Daily Attendance Report of Learners')}
+${formHeaderHtml(info, 'sf2', 'School Form 2 (SF2) \u2014 Daily Attendance Report of Learners')}
 <table style="font-size:8pt;margin-bottom:6pt;">
   <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info.school_name)}</td>
       <td style="border:none;width:50%"><strong>Month:</strong> ${monthName} ${y}</td></tr>
   <tr><td style="border:none"><strong>Grade Level:</strong> ${sec ? esc(String(sec.grade_level)) : '____'}</td><td style="border:none"><strong>Section:</strong> ${sec ? esc(sec.name) : '____'}</td></tr>
 </table>
-<div class="small" style="margin-bottom:4pt;"><em>Legend: / = Present, O = Absent, L = Late</em></div>
+<div class="small" style="margin-bottom:4pt;"><em>Legend: / = Present, O = Absent, L = Late, HD = Half Day${hasSession ? ' | AM = Morning, PM = Afternoon' : ''}</em></div>
 <div style="overflow-x:auto;">
 <table style="font-size:7pt;">
 <thead><tr>
@@ -446,19 +478,9 @@ ${formHeaderHtml(info, 'sf2', 'School Form 2 (SF2) — Daily Attendance Report o
   <th style="width:30pt">Remarks</th>
 </tr></thead>
 <tbody>
-${students.length ? students.map(st => {
-  const totalAbsent = dayHeaders.filter(d => attMap[st.id]?.[d] === 'O').length;
-  const totalTardy = dayHeaders.filter(d => attMap[st.id]?.[d] === 'L').length;
-  return `<tr>
-    <td class="small">${esc(st.last_name)}, ${esc(st.first_name)}</td>
-    ${dayHeaders.map(d => `<td class="c">${attMap[st.id]?.[d] || ''}</td>`).join('')}
-    <td class="c">${totalTardy || ''}</td>
-    <td class="c">${totalAbsent || ''}</td>
-    <td></td>
-  </tr>`;
-}).join('') : blankRows(30, daysInMonth + 4)}
+${rows.length ? rows.join('') : blankRows(30, daysInMonth + 4)}
 </tbody></table></div>
-${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
+${signatureBlockHtml(sec?.adviser_name || '', 'Class Adviser', '', 'School Head')}`;
 }
 
 function renderSF2Blank(info) {
@@ -796,8 +818,9 @@ function renderSF9(data, info) {
     const enrollment = learner.enrollment;
     const grades = learner.grades || [];
     const att = learner.attendance || {};
+    const conduct = learner.conduct || null;
     const sy = info.school_year || '____-____';
-    return renderSF9Card(stud, enrollment, grades, att, sy, info);
+    return renderSF9Card(stud, enrollment, grades, att, sy, info, conduct);
   }
   if (data?.learners) {
     return data.learners.map((lr, idx) => {
@@ -807,8 +830,11 @@ function renderSF9(data, info) {
   return '<p>Select a student or section to populate the report card.</p>';
 }
 
-function renderSF9Card(stud, enrollment, grades, att, sy, info) {
+function renderSF9Card(stud, enrollment, grades, att, sy, info, conduct) {
   const quarterLabel = grades.length && grades[0].term ? grades[0].term : '____';
+  const checkMark = (val, target) => val === target ? '\u2713' : '';
+  const values = ['Maka-Diyos', 'Maka-Tao', 'Makakalikasan', 'Makabansa'];
+  const conductKeys = ['makadiyos', 'makatao', 'makakalikasan', 'makabansa'];
   return `
 ${formHeaderHtml(info, 'sf9', "School Form 9 (SF9) — Learner's Progress Report Card (Form 138)")}
 <table style="font-size:8pt;margin-bottom:6pt;">
@@ -864,10 +890,10 @@ ${grades.length ? grades.map(g => {
   <table style="font-size:7pt;margin-top:4pt;width:80%;">
     <thead><tr><th>Values</th><th>Always</th><th>Often</th><th>Sometimes</th><th>Rarely</th></tr></thead>
     <tbody>
-      <tr><td>Maka-Diyos</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
-      <tr><td>Maka-Tao</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
-      <tr><td>Makakalikasan</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
-      <tr><td>Makabansa</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+      <tr><td>Maka-Diyos</td>${['always','often','sometimes','rarely'].map(l => `<td class="c">${checkMark(conduct?.makadiyos, l)}</td>`).join('')}</tr>
+      <tr><td>Maka-Tao</td>${['always','often','sometimes','rarely'].map(l => `<td class="c">${checkMark(conduct?.makatao, l)}</td>`).join('')}</tr>
+      <tr><td>Makakalikasan</td>${['always','often','sometimes','rarely'].map(l => `<td class="c">${checkMark(conduct?.makakalikasan, l)}</td>`).join('')}</tr>
+      <tr><td>Makabansa</td>${['always','often','sometimes','rarely'].map(l => `<td class="c">${checkMark(conduct?.makabansa, l)}</td>`).join('')}</tr>
     </tbody>
   </table>
 </div>

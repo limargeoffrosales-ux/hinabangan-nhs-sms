@@ -62,18 +62,24 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
   }
   const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
   if (!section) return res.status(404).json({ error: 'Section not found' });
-  const valid = ['present', 'absent', 'late', 'excused'];
+  const valid = ['present', 'absent', 'late', 'excused', 'half_day'];
   let n = 0;
   for (const r of b.records) {
     if (!r.student_id || !valid.includes(r.status)) continue;
-    const existing = await q('SELECT id FROM attendance WHERE student_id = ? AND date = ?', [r.student_id, b.date]);
+    const sess = r.session || null;
+    const existing = await q(
+      sess
+        ? 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?'
+        : 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NULL',
+      [r.student_id, b.date, sess]
+    );
     if (existing) {
-      await qr('UPDATE attendance SET status = ?, remarks = ?, recorded_by = ? WHERE id = ?',
-        [r.status, r.remarks || null, req.user.id, existing.id]);
+      await qr('UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ? WHERE id = ?',
+        [r.status, sess, r.remarks || null, req.user.id, existing.id]);
     } else {
       await qi(
-        'INSERT INTO attendance (student_id, section_id, date, status, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [r.student_id, b.section_id, b.date, r.status, r.remarks || null, req.user.id]);
+        'INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [r.student_id, b.section_id, b.date, r.status, sess, r.remarks || null, req.user.id]);
     }
     n++;
   }
@@ -87,14 +93,20 @@ router.post('/:studentId/check', requireRole(...WRITE), asyncH(async (req, res) 
   const date = b.date || new Date().toISOString().slice(0, 10);
   const student = await q('SELECT id FROM students WHERE id = ?', [req.params.studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
-  const existing = await q('SELECT id FROM attendance WHERE student_id = ? AND date = ?', [req.params.studentId, date]);
+  const sess = b.session || null;
+  const existing = await q(
+    sess
+      ? 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?'
+      : 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NULL',
+    [req.params.studentId, date, sess]
+  );
   const status = b.status || 'present';
   if (existing) {
-    await qr('UPDATE attendance SET status = ?, remarks = ?, recorded_by = ? WHERE id = ?',
-      [status, b.remarks || null, req.user.id, existing.id]);
+    await qr('UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ? WHERE id = ?',
+      [status, sess, b.remarks || null, req.user.id, existing.id]);
   } else {
-    await qi('INSERT INTO attendance (student_id, section_id, date, status, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.params.studentId, b.section_id || null, date, status, b.remarks || null, req.user.id]);
+    await qi('INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.params.studentId, b.section_id || null, date, status, sess, b.remarks || null, req.user.id]);
   }
   await audit(req, 'ATTENDANCE_CHECK', 'attendance', req.params.studentId, { date, status });
   fireAttendanceAlerts([{ student_id: req.params.studentId, status, remarks: b.remarks }], date);
