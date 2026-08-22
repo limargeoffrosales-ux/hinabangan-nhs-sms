@@ -53,6 +53,7 @@ const libraryRoutes = require('./routes/library.routes');
 const clinicRoutes = require('./routes/clinic.routes');
 const guidanceRoutes = require('./routes/guidance.routes');
 const uploadsRoutes = require('./routes/uploads.routes');
+const aiRoutes = require('./routes/ai.routes');
 
 (async () => {
   if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -224,6 +225,7 @@ const uploadsRoutes = require('./routes/uploads.routes');
   app.use('/api/v1/clinic', clinicRoutes);
   app.use('/api/v1/guidance', guidanceRoutes);
   app.use('/api/v1/uploads', uploadsRoutes);
+  app.use('/api/v1/ai', aiRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',
