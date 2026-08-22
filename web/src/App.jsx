@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
 import PortalLayout from './components/PortalLayout';
+import AIChatbot from './components/AIChatbot';
 import { Spinner } from './components/ui';
 import { isNative, registerForPushNotifications } from './lib/capacitor';
 import './i18n';
@@ -75,6 +76,7 @@ const PortalImmersion = lazy(() => import('./pages/PortalImmersion'));
 const PortalAnalytics = lazy(() => import('./pages/PortalAnalytics'));
 const PortalCertifications = lazy(() => import('./pages/PortalCertifications'));
 const DepedForms = lazy(() => import('./pages/DepedForms'));
+const AIPage = lazy(() => import('./pages/AIPage'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -169,8 +171,10 @@ export default function App() {
       <Route path="/clinic" element={<Protected><Page><Clinic /></Page></Protected>} />
       <Route path="/guidance" element={<Protected><Page><Guidance /></Page></Protected>} />
       <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
+      <Route path="/ai" element={<Protected><Page><AIPage /></Page></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <AIChatbot />
     </ErrorBoundary>
   );
 }

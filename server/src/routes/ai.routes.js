@@ -1,0 +1,68 @@
+﻿const express = require('express');
+const { q, qa } = require('../db');
+const { authenticate, requireRole } = require('../auth');
+const { asyncH, audit } = require('../utils');
+const ai = require('../ai');
+
+const router = express.Router();
+router.use(authenticate);
+
+const STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
+const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+
+router.get('/status', asyncH(async (_req, res) => {
+  res.json({ enabled: ai.isEnabled(), model: process.env.AI_MODEL || 'gpt-4o' });
+}));
+
+router.post('/chat', requireRole(...STAFF, 'student', 'parent'), asyncH(async (req, res) => {
+  const { messages, context } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array required' });
+  }
+  let ctx = context || '';
+  if (req.user) ctx += '\nLogged in as: ' + req.user.name + ' (role: ' + req.user.role + ')';
+  const reply = await ai.chatMessage(
+    messages.map(m => ({ role: m.role || 'user', content: m.content })),
+    ctx
+  );
+  await audit(req, 'AI_CHAT', 'ai', null, { message_count: messages.length });
+  res.json({ reply });
+}));
+
+router.post('/report', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res) => {
+  const { student_id } = req.body || {};
+  if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  const report = await ai.generateStudentReport(student_id);
+  await audit(req, 'AI_REPORT', 'ai', null, { student_id });
+  res.json(report);
+}));
+
+router.post('/lesson-plan', requireRole(...STAFF), asyncH(async (req, res) => {
+  const plan = await ai.generateLessonPlan(req.body || {});
+  await audit(req, 'AI_LESSON_PLAN', 'ai', null, { subject_id: req.body?.subject_id, topic: req.body?.topic });
+  res.json(plan);
+}));
+
+router.post('/exam', requireRole(...STAFF), asyncH(async (req, res) => {
+  const exam = await ai.generateExam(req.body || {});
+  await audit(req, 'AI_EXAM', 'ai', null, { subject_id: req.body?.subject_id, topic: req.body?.topic });
+  res.json(exam);
+}));
+
+router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), asyncH(async (req, res) => {
+  const { student_id } = req.body || {};
+  if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  const analysis = await ai.analyzeStudentRisk(student_id);
+  await audit(req, 'AI_ANALYZE', 'ai', null, { student_id });
+  res.json(analysis);
+}));
+
+router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res) => {
+  const { student_id } = req.body || {};
+  if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  const suggestion = await ai.getEnrollmentSuggestions(student_id);
+  await audit(req, 'AI_ENROLL_SUGGEST', 'ai', null, { student_id });
+  res.json(suggestion);
+}));
+
+module.exports = router;

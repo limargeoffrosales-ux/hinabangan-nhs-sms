@@ -7,6 +7,7 @@ import {
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
   Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award, BookMarked, Stethoscope,
+  Brain,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -52,6 +53,7 @@ const NAV = [
   { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
   { to: '/certifications', labelKey: 'nav.certifications', icon: Award },
   { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
+  { to: '/ai', labelKey: 'AI Tools', icon: Brain },
 ];
 
 const TOOL_NAV = [
