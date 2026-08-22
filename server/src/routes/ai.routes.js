@@ -11,7 +11,7 @@ const STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
 router.get('/status', asyncH(async (_req, res) => {
-  res.json({ enabled: ai.isEnabled(), model: process.env.AI_MODEL || 'gpt-4o' });
+  res.json(ai.getProviderInfo());
 }));
 
 router.post('/chat', requireRole(...STAFF, 'student', 'parent'), asyncH(async (req, res) => {

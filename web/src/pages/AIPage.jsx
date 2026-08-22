@@ -1,6 +1,6 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Bot } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner } from '../components/ui';
 
@@ -280,11 +280,19 @@ const TAB_COMPONENTS = { report: ReportCard, lesson: LessonPlan, exam: ExamBuild
 export default function AIPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState('report');
+  const [info, setInfo] = useState(null);
   const TabContent = TAB_COMPONENTS[tab];
+
+  useEffect(() => { api('/ai/status').then(setInfo).catch(() => {}); }, []);
 
   return (
     <>
-      <PageHead title="AI Tools" sub="AI-powered features for MeridianEd" />
+      <PageHead title="AI Tools" sub={info ? `${info.provider.toUpperCase()} · ${info.model}` : 'AI-powered features for MeridianEd'} />
+      {info && !info.enabled && (
+        <div className="err-banner" style={{ marginBottom: 12 }}>
+          <AlertCircle size={14} /> AI is not configured. Set <code>{info.provider === 'groq' ? 'GROQ_API_KEY' : info.provider === 'ollama' ? 'Start Ollama locally' : info.provider === 'hf' ? 'HF_API_KEY' : 'OPENAI_API_KEY'}</code> in your environment.
+        </div>
+      )}
       <div className="card-top" style={{ marginBottom: 0 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {TABS.map((tabItem) => (

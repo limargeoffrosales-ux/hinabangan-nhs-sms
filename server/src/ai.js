@@ -3,20 +3,52 @@ const { q, qa } = require('./db');
 
 let client = null;
 
+const PROVIDERS = {
+  openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o', keyEnv: 'OPENAI_API_KEY' },
+  groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.3-70b-versatile', keyEnv: 'GROQ_API_KEY' },
+  ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyEnv: '' },
+  hf:     { baseUrl: 'https://api-inference.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct', keyEnv: 'HF_API_KEY' },
+};
+
+function getProvider() {
+  return process.env.AI_PROVIDER || 'groq';
+}
+
 function getClient() {
-  if (!process.env.OPENAI_API_KEY) return null;
-  if (!client) client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const provider = getProvider();
+  const cfg = PROVIDERS[provider] || PROVIDERS.groq;
+  const apiKey = cfg.keyEnv ? process.env[cfg.keyEnv] : 'ollama';
+  if (!apiKey || apiKey === 'ollama' && provider !== 'ollama') return null;
+  if (!client) {
+    client = new OpenAI({ apiKey, baseURL: cfg.baseUrl });
+  }
   return client;
 }
 
-function isEnabled() { return !!process.env.OPENAI_API_KEY; }
-function model() { return process.env.AI_MODEL || 'gpt-4o'; }
+function isEnabled() {
+  const provider = getProvider();
+  const cfg = PROVIDERS[provider] || PROVIDERS.groq;
+  if (provider === 'ollama') return true;
+  return !!cfg.keyEnv && !!process.env[cfg.keyEnv];
+}
+
+function model() {
+  const provider = getProvider();
+  const cfg = PROVIDERS[provider] || PROVIDERS.groq;
+  return process.env.AI_MODEL || cfg.defaultModel;
+}
+
+function getProviderInfo() {
+  const provider = getProvider();
+  const cfg = PROVIDERS[provider] || PROVIDERS.groq;
+  return { provider, model: model(), enabled: isEnabled(), baseUrl: cfg.baseUrl };
+}
 
 const SYSTEM_PROMPT = 'You are MeridianEd AI, an educational assistant for Hinabangan National High School (Philippines). You help teachers, administrators, students, and parents with school-related tasks. You follow DepEd guidelines and the SHS curriculum. Be concise, professional, and helpful.';
 
 async function chat(messages, opts = {}) {
   const c = getClient();
-  if (!c) throw new Error('AI not configured. Set OPENAI_API_KEY.');
+  if (!c) throw new Error('AI not configured. Set GROQ_API_KEY (free) or AI_PROVIDER + provider key.');
   const res = await c.chat.completions.create({
     model: opts.model || model(),
     messages: [{ role: 'system', content: opts.system || SYSTEM_PROMPT }, ...messages],
@@ -153,5 +185,6 @@ async function chatMessage(messages, context) {
 
 module.exports = {
   isEnabled, chat, generateStudentReport, generateLessonPlan,
-  generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage
+  generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage,
+  getProviderInfo, PROVIDERS,
 };
