@@ -1,8 +1,10 @@
 ﻿import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Bot } from 'lucide-react';
+import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Bot, Printer } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner } from '../components/ui';
+import { renderSF9Card, esc, MONTH_NAMES, MONTH_NUMS, TERM_MAP, CORE_VALUES } from './DepedForms';
+import { printElementHtml } from '../lib/export';
 
 const TABS = [
   { id: 'report', label: 'Report Card', icon: FileText },
@@ -22,11 +24,28 @@ function Section({ title, children }) {
   );
 }
 
+function mergeConductData(sf9Data, aiResult) {
+  if (!aiResult || !aiResult.conduct) return sf9Data;
+  const merged = { ...sf9Data, conduct: { ...sf9Data.conduct } };
+  for (const cv of CORE_VALUES) {
+    const ai = aiResult.conduct[cv.key] || {};
+    for (let q = 1; q <= 3; q++) {
+      const val = ai[String(q)];
+      if (val && ['ao','so','ro','no'].includes(val.toLowerCase())) {
+        if (!merged.conduct[q]) merged.conduct[q] = { ...merged.conduct[q] };
+        merged.conduct[q][cv.key] = val.toLowerCase();
+      }
+    }
+  }
+  return merged;
+}
+
 function ReportCard() {
   const [studentId, setStudentId] = useState('');
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [sf9Data, setSf9Data] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -35,16 +54,27 @@ function ReportCard() {
 
   async function generate() {
     if (!studentId) return;
-    setLoading(true); setError(null); setResult(null);
+    setLoading(true); setError(null); setResult(null); setSf9Data(null);
     try {
-      setResult(await api('/ai/report', { method: 'POST', body: { student_id: Number(studentId) } }));
+      const [aiRes, sf9Res] = await Promise.all([
+        api('/ai/report', { method: 'POST', body: { student_id: Number(studentId) } }),
+        api(`/deped-forms/sf9/full?student_id=${studentId}`),
+      ]);
+      setResult(aiRes);
+      setSf9Data(sf9Res);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }
+
+  function print() {
+    if (!sf9Data) return;
+    const merged = mergeConductData(sf9Data, result);
+    printElementHtml(`SF9 - ${merged.student.last_name}`, renderSF9Card(merged, merged.student));
   }
 
   return (
     <div className="card">
       <h3 style={{ marginTop: 0 }}><FileText size={16} /> AI Report Card Generator</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Generate narrative student report cards with AI-powered analysis of grades, attendance, and conduct.</p>
+      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Generate SF9 Learner Progress Report Card with AI-powered conduct ratings and analysis.</p>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
         <label style={{ flex: 1 }}>Student
           <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
@@ -63,12 +93,26 @@ function ReportCard() {
               <span className={`badge badge-${result.risk_level === 'high' ? 'red' : result.risk_level === 'moderate' ? 'yellow' : 'green'}`}>{result.risk_level}</span>
             </div>
           )}
-          {result.summary && <Section title="Summary">{result.summary}</Section>}
-          {result.strengths && <Section title="Strengths">{result.strengths}</Section>}
-          {result.improvements && <Section title="Areas for Improvement">{result.improvements}</Section>}
-          {result.recommendations && <Section title="Recommendations">{result.recommendations}</Section>}
-          {result.interventions && <Section title="Interventions">{result.interventions}</Section>}
+          {result.conduct && (
+            <Section title="AI-Generated Conduct Ratings">
+              {CORE_VALUES.map(cv => (
+                <div key={cv.key} style={{ marginBottom: 6 }}>
+                  <strong>{cv.label}:</strong>{' '}
+                  {[1,2,3].map(q => `Q${q}`).map((t,i) => (
+                    <span key={t} style={{ marginRight: 8 }}><em>{t}</em>: {(result.conduct[cv.key] || {})[String(i+1)] || '—'}</span>
+                  ))}
+                </div>
+              ))}
+            </Section>
+          )}
+          {result.remarks && <Section title="Remarks">{typeof result.remarks === 'string' ? result.remarks : result.remarks.overall || JSON.stringify(result.remarks)}</Section>}
           {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
+          {sf9Data && (
+            <div style={{ marginTop: 12 }}>
+              <div id="sf9-preview" dangerouslySetInnerHTML={{ __html: renderSF9Card(mergeConductData(sf9Data, result), sf9Data.student) }} />
+              <button className="btn btn-primary" onClick={print} style={{ marginTop: 10 }}><Printer size={14} /> Print SF9 Card</button>
+            </div>
+          )}
         </div>
       )}
     </div>
