@@ -74,7 +74,7 @@ async function generateStudentReport(studentId) {
   const grades = await qa(
     `SELECT g.*, sub.title AS subject_title, sub.code AS subject_code
      FROM grades g LEFT JOIN subjects sub ON sub.id = g.subject_id
-     WHERE g.student_id = ? ORDER BY g.term, sub.title`, [studentId]
+      WHERE g.student_id = ? ORDER BY g.quarter, sub.title`, [studentId]
   );
   const attendance = await qa(
     `SELECT status, COUNT(*) AS n FROM attendance WHERE student_id = ? GROUP BY status`, [studentId]
@@ -85,7 +85,7 @@ async function generateStudentReport(studentId) {
       `SELECT incident_type, severity, status FROM student_conduct_records WHERE student_id = ?`, [studentId]
     );
   } catch { /* table may not exist yet */ }
-  const gradeList = grades.length ? grades.map(g => g.subject_title + ': ' + (g.computed_grade || 'N/A') + ' [' + (g.term || 'N/A') + ']').join('; ') : 'No grades recorded';
+  const gradeList = grades.length ? grades.map(g => g.subject_title + ': ' + (g.computed_grade || 'N/A') + ' [Q' + (g.quarter || 'N/A') + ']').join('; ') : 'No grades recorded';
   const attList = attendance.length ? attendance.map(a => a.status + ': ' + a.n).join(', ') : 'No attendance records';
   const condList = conduct.length ? conduct.map(c => c.incident_type + ' (' + c.severity + ') - ' + c.status).join('; ') : 'No conduct records';
 
@@ -128,9 +128,9 @@ async function analyzeStudentRisk(studentId) {
   const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
   if (!student) throw new Error('Student not found');
   const grades = await qa(
-    `SELECT g.computed_grade, g.term, sub.title FROM grades g
+    `SELECT g.computed_grade, g.quarter, sub.title FROM grades g
      LEFT JOIN subjects sub ON sub.id = g.subject_id
-     WHERE g.student_id = ? ORDER BY g.term, sub.title`, [studentId]
+     WHERE g.student_id = ? ORDER BY g.quarter, sub.title`, [studentId]
   );
   const attendance = await qa(
     `SELECT status, COUNT(*) AS n FROM attendance WHERE student_id = ? GROUP BY status`, [studentId]
@@ -189,8 +189,69 @@ async function chatMessage(messages, context) {
   return chat(messages, { system: systemPrompt, maxTokens: 1500 });
 }
 
+async function generateForm137(studentId) {
+  const student = await q(
+    `SELECT s.*, sec.name AS section_name, e.strand, e.school_year, e.grade_level
+     FROM students s
+     LEFT JOIN enrollments e ON e.student_id = s.id AND e.status = 'enrolled'
+     LEFT JOIN sections sec ON sec.id = e.section_id
+     WHERE s.id = ?`, [studentId]
+  );
+  if (!student) throw new Error('Student not found');
+  const allGrades = await qa(
+    `SELECT g.computed_grade, g.quarter, g.written_work, g.performance_task, g.quarterly_exam,
+            g.school_year, sub.title AS subject_title, sub.track, sub.category
+     FROM grades g LEFT JOIN subjects sub ON sub.id = g.subject_id
+     WHERE g.student_id = ? ORDER BY g.school_year, g.quarter, sub.title`, [studentId]
+  );
+  const attendance = await qa(
+    `SELECT school_year, status, COUNT(*) AS n
+     FROM attendance a
+     JOIN enrollments e ON e.student_id = a.student_id AND e.section_id = a.section_id
+     WHERE a.student_id = ?
+     GROUP BY school_year, status ORDER BY school_year`, [studentId]
+  );
+  let conduct = [];
+  try {
+    conduct = await qa(
+      `SELECT * FROM student_conduct_ratings WHERE student_id = ? ORDER BY school_year, term`, [studentId]
+    );
+  } catch {}
+  let incidents = [];
+  try {
+    incidents = await qa(
+      `SELECT incident_type, severity, status, incident_date
+       FROM student_conduct_records WHERE student_id = ? ORDER BY incident_date`, [studentId]
+    );
+  } catch {}
+
+  const years = [...new Set(allGrades.map(g => g.school_year))];
+  const gradeSummary = years.map(yr => {
+    const yrGrades = allGrades.filter(g => g.school_year === yr);
+    const qtrs = [...new Set(yrGrades.map(g => g.quarter))];
+    return yr + ': ' + qtrs.map(q => 'Q' + q + ' avg ' + (yrGrades.filter(g => g.quarter === q).reduce((s, g) => s + Number(g.computed_grade || 0), 0) / Math.max(1, yrGrades.filter(g => g.quarter === q).length)).toFixed(1)).join(', ');
+  }).join('; ');
+  const attSummary = attendance.length ? attendance.map(a => a.school_year + ' ' + a.status + ':' + a.n).join(', ') : 'No attendance records';
+  const conductSummary = conduct.length ? conduct.map(c => c.school_year + ' ' + c.term + ': ' + ['makadiyos','makatao','makakalikasan','makabansa'].map(v => v + '=' + (c[v] || 'N/A')).join(', ')).join('; ') : 'No conduct ratings';
+
+  const prompt = 'Generate an Individual Permanent Academic Record (Form 137) narrative summary for:\n' +
+    'Student: ' + student.first_name + ' ' + student.last_name + (student.middle_name ? ' ' + student.middle_name : '') + ', LRN: ' + (student.lrn || 'N/A') + '\n' +
+    'Grade Level: ' + (student.grade_level || 'N/A') + ', Strand: ' + (student.strand || student.track_strand || 'N/A') + ', Section: ' + (student.section_name || 'N/A') + '\n' +
+    'School Year: ' + (student.school_year || 'N/A') + '\n' +
+    'Sex: ' + (student.sex || 'N/A') + ', Birthdate: ' + (student.birthdate || 'N/A') + ', Address: ' + (student.address || 'N/A') + '\n\n' +
+    'Academic Record: ' + (gradeSummary || 'None') + '\n' +
+    'Attendance: ' + attSummary + '\n' +
+    'Conduct Ratings: ' + conductSummary + '\n' +
+    'Discipline Records: ' + (incidents.length ? incidents.length + ' incidents (' + incidents.map(i => i.severity).join(', ') + ')' : 'Clean record') + '\n\n' +
+    'Provide a comprehensive narrative suitable for Form 137 including:\n' +
+    '1) Personal information summary\n2) Academic performance narrative (all quarters/years)\n3) Attendance summary\n4) Character and conduct evaluation\n5) Special talents/achievements (if inferable)\n6) Recommendations for future educators\n' +
+    'Return JSON: personal_info, academic_narrative, attendance_summary, conduct_evaluation, talents_achievements, recommendations, overall_remark (Outstanding/Very Satisfactory/Satisfactory/Needs Improvement).';
+  const response = await chat([{ role: 'user', content: prompt }], { maxTokens: 2000 });
+  return safeParse(response);
+}
+
 module.exports = {
   isEnabled, chat, generateStudentReport, generateLessonPlan,
-  generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage,
+  generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage, generateForm137,
   getProviderInfo, PROVIDERS,
 };

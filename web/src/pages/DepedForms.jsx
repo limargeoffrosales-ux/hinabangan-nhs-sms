@@ -912,7 +912,7 @@ function renderSF9(data, info) {
 }
 
 function renderSF9Card(stud, enrollment, grades, att, sy, info, conduct) {
-  const quarterLabel = grades.length && grades[0].term ? grades[0].term : '____';
+  const quarterLabel = grades.length && grades[0].quarter ? 'Q' + grades[0].quarter : '____';
   const checkMark = (val, target) => val === target ? '\u2713' : '';
   const values = ['Maka-Diyos', 'Maka-Tao', 'Makakalikasan', 'Makabansa'];
   const conductKeys = ['makadiyos', 'makatao', 'makakalikasan', 'makabansa'];
@@ -1177,7 +1177,7 @@ function renderSOG(data, info) {
 
   const gradeMap = {};
   for (const g of grades) {
-    const key = `${g.student_id}_${g.subject_id}_${g.term}`;
+    const key = `${g.student_id}_${g.subject_id}_${g.quarter}`;
     gradeMap[key] = g;
   }
 
