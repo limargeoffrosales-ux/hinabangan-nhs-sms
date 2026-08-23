@@ -30,6 +30,7 @@ export default function Guidance() {
   const [filter, setFilter] = useState({ status: '', case_type: '' });
   const [selectedCase, setSelectedCase] = useState(null);
   const [caseDetail, setCaseDetail] = useState(null);
+  const [caseDetailLoading, setCaseDetailLoading] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -61,7 +62,8 @@ export default function Guidance() {
   }
 
   async function loadCaseDetail(id) {
-    try { const r = await api(`/guidance/cases/${id}`); setCaseDetail(r); } catch { setCaseDetail(null); }
+    setCaseDetailLoading(true);
+    try { const r = await api(`/guidance/cases/${id}`); setCaseDetail(r); } catch { setCaseDetail(null); setError('Failed to load case details'); } finally { setCaseDetailLoading(false); }
   }
 
   async function updateCaseStatus(id, status) {
@@ -167,7 +169,7 @@ export default function Guidance() {
                   </div>
                 ))}
               </div>
-            ) : <Spinner />}
+            ) : caseDetailLoading ? <Spinner /> : <div className="sub">Failed to load case details. <button className="btn btn-sm" onClick={() => loadCaseDetail(selectedCase)}>Retry</button></div>}
           </div>
         )}
       </div>

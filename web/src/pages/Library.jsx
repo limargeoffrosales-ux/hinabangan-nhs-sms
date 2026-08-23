@@ -181,7 +181,7 @@ export default function Library() {
               </select></label>
               <label>Publisher<input value={form.publisher} onChange={(e) => setForm((f) => ({ ...f, publisher: e.target.value }))} /></label>
               <label>Year<input type="number" value={form.year_published} onChange={(e) => setForm((f) => ({ ...f, year_published: e.target.value }))} /></label>
-              <label>Total Copies<input type="number" min="1" value={form.total_copies} onChange={(e) => setForm((f) => ({ ...f, total_copies: e.target.value, available_copies: e.target.value }))} /></label>
+              <label>Total Copies<input type="number" min="1" value={form.total_copies} onChange={(e) => setForm((f) => ({ ...f, total_copies: e.target.value }))} /></label>
               <label>Location<input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="e.g. Shelf A-3" /></label>
             </div>
             <div className="modal-actions">

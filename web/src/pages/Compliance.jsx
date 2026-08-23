@@ -57,7 +57,7 @@ export default function Compliance() {
   }, [data, statusFilter]);
 
   const complianceBadge = (r) => {
-    if (r.complied) return <span className="badge badge-green">Compiled</span>;
+    if (r.complied) return <span className="badge badge-green">Complied</span>;
     if (r.overdue) return <span className="badge badge-red">Overdue</span>;
     return <span className="badge badge-red">Not complied</span>;
   };
@@ -73,7 +73,7 @@ export default function Compliance() {
   }
 
   const kpis = [
-    { label: 'Overall compliance', value: data.overall + '%', icon: Gauge, color: 'var(--accent)' },
+    { label: 'Overall compliance', value: data.overall != null ? data.overall + '%' : '—', icon: Gauge, color: 'var(--accent)' },
     { label: 'Approved', value: data.kpis.approved, icon: CheckCircle2, color: 'var(--success)' },
     { label: 'Pending review', value: data.kpis.submitted + data.kpis.reviewed, icon: Clock4, color: 'var(--warn)' },
     { label: 'Returned for revision', value: data.kpis.returned, icon: Undo, color: 'var(--warn)' },
@@ -140,7 +140,7 @@ export default function Compliance() {
           <h3 style={{ margin: 0 }}>Submission compliance — every assigned task <span className="count-pill">{submissionRows.length}</span></h3>
           <select className="input" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">All statuses</option>
-            <option value="complied">Compiled</option>
+            <option value="complied">Complied</option>
             <option value="not complied">Not complied</option>
             <option value="overdue">Overdue</option>
             <option value="draft">Draft</option>

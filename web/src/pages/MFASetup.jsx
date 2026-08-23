@@ -117,7 +117,7 @@ export default function MFASetup() {
         </div>
       )}
 
-      {(!mfaEnabled || mfaEnabled) && step === 'verify' && (
+      {step === 'verify' && (
         <div className="card" style={{ maxWidth: 500 }}>
           <h3>Setup Two-Factor Authentication</h3>
           <p className="sub" style={{ marginTop: 0 }}>Scan this QR code with your authenticator app</p>

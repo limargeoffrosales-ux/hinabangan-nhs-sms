@@ -153,7 +153,7 @@ export default function Subjects() {
                   <td style={{ fontFamily: 'monospace' }}><strong>{s.code}</strong></td>
                   <td>{s.title}</td>
                   <td>{s.grade_level}</td>
-                  <td className="track-chip">{s.track.toUpperCase()}</td>
+                  <td className="track-chip">{(s.track || '').toUpperCase()}</td>
                   <td className="sub">{CATEGORIES.find((c) => c.value === s.category)?.label || '—'}</td>
                   <td><TermBadge term={s.term} /></td>
                   <td>{s.units}</td>

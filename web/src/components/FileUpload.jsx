@@ -17,7 +17,7 @@ export default function FileUpload({ folder = 'general', accept, onUpload, class
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await api(`/uploads/file?folder=${folder}`, { method: 'POST', body: form, raw: true });
+      const res = await api(`/uploads/file?folder=${folder}`, { method: 'POST', body: form });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
       onUpload?.(res);

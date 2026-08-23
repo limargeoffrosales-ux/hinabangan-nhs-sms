@@ -3,7 +3,7 @@ const path = require('path');
 const PORT = Number(process.env.PORT || 4000);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const WEB_DIR = process.env.WEB_DIR || path.join(__dirname, '..', '..', 'web', 'dist');
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('JWT_SECRET must be set in production'); })() : 'meridianed-dev-secret-change-me');
+const JWT_SECRET = process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })();
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'meridianed';
 const JWT_ISSUER = process.env.JWT_ISSUER || 'meridianed';
 const ACCESS_TTL = process.env.ACCESS_TTL || '15m';

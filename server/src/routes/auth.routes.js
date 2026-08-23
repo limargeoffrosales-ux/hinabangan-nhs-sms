@@ -103,7 +103,12 @@ router.post('/refresh', asyncH(async (req, res) => {
   if (!refreshToken) return res.status(400).json({ error: 'refreshToken is required' });
   const row = await q('SELECT rt.id AS token_id, rt.user_id, rt.expires_at, rt.revoked, u.id, u.username, u.name, u.role, u.status FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id WHERE rt.token_hash = ?',
     [hashToken(refreshToken)]);
-  if (!row || row.revoked) return res.status(401).json({ error: 'Invalid refresh token' });
+  if (!row) return res.status(401).json({ error: 'Invalid refresh token' });
+  if (row.revoked) {
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ? AND revoked = FALSE', [row.user_id]);
+    await logSecurityIncident('REFRESH_TOKEN_REUSE', 'high', req.ip, row.username, row.user_id, {});
+    return res.status(401).json({ error: 'Refresh token revoked (reuse detected)' });
+  }
   if (new Date(row.expires_at) < new Date()) return res.status(401).json({ error: 'Refresh token expired' });
   if (row.status !== 'active') return res.status(401).json({ error: 'Account disabled' });
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE id = ?', [row.token_id]);

@@ -30,7 +30,7 @@ export default function PortalPortfolio() {
     const enc = encodeURIComponent(sy);
     Promise.all([
       api(`/analytics/students/${studentId}?school_year=${enc}`),
-      api('/portal/my-immersion'),
+      api(`/portal/my-immersion?student_id=${studentId}`),
       api(`/attendance/student/${studentId}?school_year=${enc}`),
     ])
       .then(([a, i, att]) => { setAnalytics(a); setImmersion(i); setAttendance(att); })

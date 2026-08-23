@@ -73,7 +73,7 @@ export default function Lessons() {
         teaching_strategy: lesson.teaching_strategy || '',
         materials: lesson.materials || '',
         assessment_plan: lesson.assessment_plan || '',
-        competency_ids: lesson.competency_ids ? JSON.parse(lesson.competency_ids) : [],
+        competency_ids: (() => { try { return lesson.competency_ids ? JSON.parse(lesson.competency_ids) : []; } catch { return []; } })(),
         duration_minutes: lesson.duration_minutes || 60,
         scheduled_date: lesson.scheduled_date || '',
         status: lesson.status || 'draft',
@@ -247,9 +247,7 @@ export default function Lessons() {
                 {l.quarter && <span>Q{l.quarter}</span>}
                 {l.duration_minutes && <span><Clock size={12} /> {l.duration_minutes} min</span>}
                 {l.scheduled_date && <span>{l.scheduled_date}</span>}
-                {l.competency_ids && JSON.parse(l.competency_ids || '[]').length > 0 && (
-                  <span><CheckCircle size={12} /> {JSON.parse(l.competency_ids).length} competencies</span>
-                )}
+                {(() => { try { const ids = l.competency_ids ? JSON.parse(l.competency_ids) : []; return ids.length > 0 ? <span><CheckCircle size={12} /> {ids.length} competencies</span> : null; } catch { return null; } })()}
               </div>
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
