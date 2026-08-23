@@ -23,9 +23,14 @@ function Section({ title, children }) {
 
 function ReportCard() {
   const [studentId, setStudentId] = useState('');
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api('/students').then(r => setStudents(r.data || r.rows || r || [])).catch(() => {});
+  }, []);
 
   async function generate() {
     if (!studentId) return;
@@ -40,7 +45,12 @@ function ReportCard() {
       <h3 style={{ marginTop: 0 }}><FileText size={16} /> AI Report Card Generator</h3>
       <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Generate narrative student report cards with AI-powered analysis of grades, attendance, and conduct.</p>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
-        <label style={{ flex: 1 }}>Student ID <input className="input" type="number" value={studentId} onChange={(e) => setStudentId(e.target.value)} placeholder="Enter student ID" /></label>
+        <label style={{ flex: 1 }}>Student
+          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
+            <option value="">Select a student...</option>
+            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
+          </select>
+        </label>
         <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate</button>
       </div>
       {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
@@ -181,9 +191,14 @@ function ExamBuilder() {
 
 function StudentAnalytics() {
   const [studentId, setStudentId] = useState('');
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api('/students').then(r => setStudents(r.data || r.rows || r || [])).catch(() => {});
+  }, []);
 
   async function analyze() {
     if (!studentId) return;
@@ -198,7 +213,12 @@ function StudentAnalytics() {
       <h3 style={{ marginTop: 0 }}><BarChart3 size={16} /> AI Student Analytics & Interventions</h3>
       <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>AI-powered risk assessment with specific intervention plans for at-risk students.</p>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
-        <label style={{ flex: 1 }}>Student ID <input className="input" type="number" value={studentId} onChange={(e) => setStudentId(e.target.value)} placeholder="Enter student ID" /></label>
+        <label style={{ flex: 1 }}>Student
+          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
+            <option value="">Select a student...</option>
+            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
+          </select>
+        </label>
         <button className="btn btn-primary" onClick={analyze} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Analyze</button>
       </div>
       {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
@@ -234,9 +254,14 @@ function StudentAnalytics() {
 
 function EnrollmentSuggestions() {
   const [studentId, setStudentId] = useState('');
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api('/students').then(r => setStudents(r.data || r.rows || r || [])).catch(() => {});
+  }, []);
 
   async function suggest() {
     if (!studentId) return;
@@ -251,7 +276,12 @@ function EnrollmentSuggestions() {
       <h3 style={{ marginTop: 0 }}><GraduationCap size={16} /> AI Enrollment Suggestions</h3>
       <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>AI recommends the best strand, section, and academic support for each student.</p>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
-        <label style={{ flex: 1 }}>Student ID <input className="input" type="number" value={studentId} onChange={(e) => setStudentId(e.target.value)} placeholder="Enter student ID" /></label>
+        <label style={{ flex: 1 }}>Student
+          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
+            <option value="">Select a student...</option>
+            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
+          </select>
+        </label>
         <button className="btn btn-primary" onClick={suggest} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Get Suggestions</button>
       </div>
       {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
