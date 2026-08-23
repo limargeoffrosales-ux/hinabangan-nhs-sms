@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Download, Printer } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Download, Printer, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, ErrorBanner } from '../components/ui';
 import { printElementHtml, downloadBlob } from '../lib/export';
@@ -98,6 +98,9 @@ export default function DepedForms() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [conductOpen, setConductOpen] = useState(false);
+  const [conductRatings, setConductRatings] = useState({ makadiyos: '', makatao: '', makakalikasan: '', makabansa: '' });
+  const [conductSaving, setConductSaving] = useState(false);
 
   useEffect(() => {
     api('/deped-forms/school-info').then(r => {
@@ -161,6 +164,34 @@ export default function DepedForms() {
       api(`/deped-forms/student-id?student_id=${studentId}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     }
   }, [tab, sectionId, studentId, month, year, term, schoolYear, info.school_year]);
+
+  useEffect(() => {
+    if (data?.learner?.conduct) {
+      const c = data.learner.conduct;
+      setConductRatings({ makadiyos: c.makadiyos || '', makatao: c.makatao || '', makakalikasan: c.makakalikasan || '', makabansa: c.makabansa || '' });
+    } else {
+      setConductRatings({ makadiyos: '', makatao: '', makakalikasan: '', makabansa: '' });
+    }
+  }, [data]);
+
+  const saveConduct = useCallback(async () => {
+    if (!studentId || !term) return alert('Select a term (Q1–Q4) first.');
+    setConductSaving(true);
+    try {
+      await api('/deped-forms/sf9/conduct', {
+        method: 'PUT',
+        body: { student_id: Number(studentId), school_year: info.school_year || schoolYear || '', term, ...conductRatings }
+      });
+      setConductOpen(false);
+      const url = `/deped-forms/sf9?student_id=${studentId}`;
+      setLoading(true);
+      api(url).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
+    } catch (e) {
+      alert('Error saving conduct: ' + e.message);
+    } finally {
+      setConductSaving(false);
+    }
+  }, [studentId, term, conductRatings, info.school_year, schoolYear]);
 
   const form = FORMS.find(f => f.code === tab);
   const ctx = { sectionId, studentId, month, year, term, sections, students };
@@ -268,12 +299,62 @@ export default function DepedForms() {
               <Printer size={14} /> Print All Report Cards
             </button>
           )}
+          {tab === 'sf9' && studentId && (
+            <button className="btn" onClick={() => setConductOpen(true)}>
+              <Pencil size={14} /> Edit Conduct
+            </button>
+          )}
         </div>
       )}
 
       <div className="card" style={{ padding: 16, overflow: 'auto' }}>
         {loading ? null : <div dangerouslySetInnerHTML={{ __html: html }} />}
       </div>
+
+      {conductOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => !conductSaving && setConductOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 420, maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Conduct and Values Rating</h3>
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: '#666' }}>
+              {term ? `Term: ${term}` : 'Select a term first'} — {info.school_year || schoolYear || 'No school year'}
+            </p>
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '2px solid #ddd' }}>Value</th>
+                  {['always', 'often', 'sometimes', 'rarely'].map(v => (
+                    <th key={v} style={{ textAlign: 'center', padding: '6px 4px', borderBottom: '2px solid #ddd', textTransform: 'capitalize' }}>{v}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['makadiyos', 'Maka-Diyos'],
+                  ['makatao', 'Maka-Tao'],
+                  ['makakalikasan', 'Makakalikasan'],
+                  ['makabansa', 'Makabansa']
+                ].map(([key, label]) => (
+                  <tr key={key}>
+                    <td style={{ padding: '6px 4px', borderBottom: '1px solid #eee' }}>{label}</td>
+                    {['always', 'often', 'sometimes', 'rarely'].map(v => (
+                      <td key={v} style={{ textAlign: 'center', padding: '6px 4px', borderBottom: '1px solid #eee' }}>
+                        <input type="radio" name={`conduct-${key}`} value={v} checked={conductRatings[key] === v}
+                          onChange={() => setConductRatings(prev => ({ ...prev, [key]: v }))} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button className="btn" onClick={() => setConductOpen(false)} disabled={conductSaving}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveConduct} disabled={conductSaving || !term}>
+                {conductSaving ? 'Saving...' : 'Save Ratings'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
