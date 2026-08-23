@@ -1629,3 +1629,5 @@ function renderSID(data, info) {
   </div>
 </div>`;
 }
+
+export { renderSF9Card, esc, MONTH_NAMES, MONTH_NUMS, TERM_MAP, CORE_VALUES };

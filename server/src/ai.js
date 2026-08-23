@@ -89,7 +89,19 @@ async function generateStudentReport(studentId) {
   const attList = attendance.length ? attendance.map(a => a.status + ': ' + a.n).join(', ') : 'No attendance records';
   const condList = conduct.length ? conduct.map(c => c.incident_type + ' (' + c.severity + ') - ' + c.status).join('; ') : 'No conduct records';
 
-  const prompt = 'Generate a narrative student report card for: ' + student.first_name + ' ' + student.last_name + ', Grade ' + student.grade_level + ', Strand: ' + (student.track_strand || student.strand || 'N/A') + ', Section: ' + (student.section_name || 'N/A') + ', SY: ' + (student.school_year || 'N/A') + '. Grades: ' + gradeList + '. Attendance: ' + attList + '. Conduct: ' + condList + '. Provide: 1) Narrative summary 2) Strengths 3) Improvements 4) Recommendations 5) Interventions if at risk. Return JSON with keys: summary, strengths, improvements, recommendations, interventions, risk_level (low/moderate/high).';
+  const prompt = 'Generate an SF9 Learner Progress Report Card for:\n' +
+    'Student: ' + student.first_name + ' ' + student.last_name + ', LRN: ' + (student.lrn || 'N/A') + '\n' +
+    'Grade: ' + (student.grade_level || 'N/A') + ', Section: ' + (student.section_name || 'N/A') + '\n' +
+    'Strand: ' + (student.track_strand || student.strand || 'N/A') + ', School Year: ' + (student.school_year || 'N/A') + '\n\n' +
+    'Existing grades: ' + gradeList + '\n' +
+    'Attendance: ' + attList + '\n' +
+    'Discipline records: ' + condList + '\n\n' +
+    'Generate structured SF9 data. For conduct ratings, assess each core value (Maka-Diyos, Maka-Tao, Makakalikasan, Makabansa) for each term (1, 2, 3) using AO (Always Observed), SO (Sometimes Observed), RO (Rarely Observed), or NO (Not Observed). Base this on the student\'s grades, attendance, and conduct history.\n' +
+    'For remarks, provide brief per-subject remarks and an overall remark.\n\n' +
+    'Return JSON with keys:\n' +
+    '  conduct: { makadiyos: { "1": "ao", "2": "so", "3": "ao" }, makatao: {...}, makakalikasan: {...}, makabansa: {...} }\n' +
+    '  remarks: { subjects: { "Subject Name": "brief remark", ... }, overall: "overall remark for the term" }\n' +
+    '  risk_level: "low" or "moderate" or "high"';
   const response = await chat([{ role: 'user', content: prompt }], { maxTokens: 1500 });
   return safeParse(response);
 }
