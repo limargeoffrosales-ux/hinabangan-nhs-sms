@@ -5,7 +5,7 @@ let client = null;
 
 const PROVIDERS = {
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o', keyEnv: 'OPENAI_API_KEY' },
-  groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.3-70b-versatile', keyEnv: 'GROQ_API_KEY' },
+  groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.1-8b-instant', keyEnv: 'GROQ_API_KEY' },
   ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyEnv: '' },
   hf:     { baseUrl: 'https://api-inference.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct', keyEnv: 'HF_API_KEY' },
 };
@@ -205,11 +205,11 @@ async function generateForm137(studentId) {
      WHERE g.student_id = ? ORDER BY g.school_year, g.quarter, sub.title`, [studentId]
   );
   const attendance = await qa(
-    `SELECT school_year, status, COUNT(*) AS n
+    `SELECT e.school_year, a.status, COUNT(*) AS n
      FROM attendance a
      JOIN enrollments e ON e.student_id = a.student_id AND e.section_id = a.section_id
      WHERE a.student_id = ?
-     GROUP BY school_year, status ORDER BY school_year`, [studentId]
+     GROUP BY e.school_year, a.status ORDER BY e.school_year`, [studentId]
   );
   let conduct = [];
   try {
