@@ -334,6 +334,112 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   res.json({ learners });
 }));
 
+router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { student_id, section_id } = req.query;
+  if (!student_id && !section_id) return res.json({ learners: [] });
+  if (student_id) {
+    const student = await q('SELECT * FROM students WHERE id = ?', [student_id]);
+    if (!student) return res.json({ learner: null });
+    const enrollment = await q(
+      `SELECT e.*, sec.name as section_name, sec.grade_level
+       FROM enrollments e
+       JOIN sections sec ON sec.id = e.section_id
+       WHERE e.student_id = ?
+       ORDER BY e.enrolled_at DESC LIMIT 1`,
+      [student_id]
+    );
+    const sy = enrollment?.school_year || '';
+    const allGrades = await qa(
+      `SELECT g.*, sub.title as subject_name
+       FROM grades g
+       JOIN subjects sub ON sub.id = g.subject_id
+       WHERE g.student_id = $1::bigint
+       ORDER BY g.quarter, sub.title`,
+      [student_id]
+    );
+    const monthlyAttendance = await qa(
+      db.dialect === 'pg'
+        ? `SELECT EXTRACT(MONTH FROM a.date::timestamp) as month,
+                  EXTRACT(YEAR FROM a.date::timestamp) as year,
+                  COUNT(*) as total_days,
+                  SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+                  SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
+           FROM attendance a WHERE a.student_id = $1
+           GROUP BY EXTRACT(YEAR FROM a.date::timestamp), EXTRACT(MONTH FROM a.date::timestamp)
+           ORDER BY year, month`
+        : `SELECT CAST(strftime('%m', a.date) AS INTEGER) as month,
+                  CAST(strftime('%Y', a.date) AS INTEGER) as year,
+                  COUNT(*) as total_days,
+                  SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+                  SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
+           FROM attendance a WHERE a.student_id = ?
+           GROUP BY strftime('%Y-%m', a.date)
+           ORDER BY year, month`,
+      [student_id]
+    );
+    const allConduct = await qa(
+      'SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? ORDER BY term',
+      [student_id, sy]
+    );
+    return res.json({ learner: { student, enrollment, grades: allGrades, monthlyAttendance, conduct: allConduct } });
+  }
+  const learners = await qa(
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name, s.lrn
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     WHERE e.section_id = ?
+     ORDER BY s.last_name, s.first_name`,
+    [section_id]
+  );
+  const result = [];
+  for (const lr of learners) {
+    const student = await q('SELECT * FROM students WHERE id = ?', [lr.id]);
+    const enrollment = await q(
+      `SELECT e.*, sec.name as section_name, sec.grade_level
+       FROM enrollments e
+       JOIN sections sec ON sec.id = e.section_id
+       WHERE e.student_id = ? AND e.section_id = ?
+       ORDER BY e.enrolled_at DESC LIMIT 1`,
+      [lr.id, section_id]
+    );
+    const sy = enrollment?.school_year || '';
+    const allGrades = await qa(
+      `SELECT g.*, sub.title as subject_name
+       FROM grades g
+       JOIN subjects sub ON sub.id = g.subject_id
+       WHERE g.student_id = $1::bigint AND g.section_id = $2::bigint
+       ORDER BY g.quarter, sub.title`,
+      [lr.id, section_id]
+    );
+    const monthlyAttendance = await qa(
+      db.dialect === 'pg'
+        ? `SELECT EXTRACT(MONTH FROM a.date::timestamp) as month,
+                  EXTRACT(YEAR FROM a.date::timestamp) as year,
+                  COUNT(*) as total_days,
+                  SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+                  SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
+           FROM attendance a WHERE a.student_id = $1 AND a.section_id = $2
+           GROUP BY EXTRACT(YEAR FROM a.date::timestamp), EXTRACT(MONTH FROM a.date::timestamp)
+           ORDER BY year, month`
+        : `SELECT CAST(strftime('%m', a.date) AS INTEGER) as month,
+                  CAST(strftime('%Y', a.date) AS INTEGER) as year,
+                  COUNT(*) as total_days,
+                  SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+                  SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
+           FROM attendance a WHERE a.student_id = ? AND a.section_id = ?
+           GROUP BY strftime('%Y-%m', a.date)
+           ORDER BY year, month`,
+      [lr.id, section_id]
+    );
+    const allConduct = await qa(
+      'SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? ORDER BY term',
+      [lr.id, sy]
+    );
+    result.push({ student, enrollment, grades: allGrades, monthlyAttendance, conduct: allConduct });
+  }
+  res.json({ learners: result });
+}));
+
 router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, term, school_year } = req.query;
   if (!section_id) return res.json({ learners: [] });
@@ -534,7 +640,7 @@ router.get('/sf9/conduct/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, 
 router.put('/sf9/conduct', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id, school_year, term, makadiyos, makatao, makakalikasan, makabansa, remarks } = req.body;
   if (!student_id || !school_year || !term) return res.status(400).json({ error: 'student_id, school_year, term required' });
-  const valid = ['always', 'often', 'sometimes', 'rarely', null];
+  const valid = ['always', 'often', 'sometimes', 'rarely', 'ao', 'so', 'ro', 'no', null];
   for (const v of [makadiyos, makatao, makakalikasan, makabansa]) {
     if (!valid.includes(v)) return res.status(400).json({ error: 'Invalid conduct rating value' });
   }
