@@ -44,10 +44,17 @@ router.post('/report', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res)
     await audit(req, 'AI_REPORT', 'ai', null, { student_id });
     res.json(report);
   } catch (e) {
-    if (e.message.includes('AI not configured')) {
+    console.error('[AI_REPORT] Error:', e.message, e.status || '');
+    if (e.message.includes('AI not configured') || e.message.includes('GROQ_API_KEY')) {
       return res.status(503).json({ error: 'AI service not configured. Set GROQ_API_KEY in your environment variables.' });
     }
-    throw e;
+    if (e.status === 401 || e.status === 403) {
+      return res.status(503).json({ error: 'AI provider rejected the API key. Check GROQ_API_KEY value.' });
+    }
+    if (e.status === 429) {
+      return res.status(429).json({ error: 'AI rate limit exceeded. Try again in a moment.' });
+    }
+    return res.status(500).json({ error: 'AI report generation failed: ' + e.message });
   }
 }));
 

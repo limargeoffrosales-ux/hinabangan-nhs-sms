@@ -128,7 +128,7 @@ async function analyzeStudentRisk(studentId) {
   const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
   if (!student) throw new Error('Student not found');
   const grades = await qa(
-    `SELECT g.grade, g.term, sub.title FROM grades g
+    `SELECT g.computed_grade, g.term, sub.title FROM grades g
      LEFT JOIN subjects sub ON sub.id = g.subject_id
      WHERE g.student_id = ? ORDER BY g.term, sub.title`, [studentId]
   );
@@ -148,7 +148,7 @@ async function analyzeStudentRisk(studentId) {
   const lateCount = attendance.find(r => r.status === 'late')?.n || 0;
 
   const prompt = 'Analyze student at-risk status for: ' + student.first_name + ' ' + student.last_name + ', Grade ' + student.grade_level + '.\n' +
-    'Grades: ' + (grades.length ? grades.map(g => g.title + ': ' + g.grade).join(', ') : 'None') + '.\n' +
+    'Grades: ' + (grades.length ? grades.map(g => g.title + ': ' + g.computed_grade).join(', ') : 'None') + '.\n' +
     'Attendance: ' + totalAtt + ' total, ' + absentCount + ' absent, ' + lateCount + ' late.\n' +
     'Conduct: ' + (conduct.length ? conduct.length + ' records (' + conduct.map(c => c.severity).join(', ') + ')' : 'Clean record') + '.\n\n' +
     'Provide: 1) Risk assessment (low/moderate/high/critical) with reasoning 2) Contributing factors 3) Specific intervention plan with timeline 4) Recommended actions for teachers 5) Parent/guardian recommendations.\n' +
@@ -161,7 +161,7 @@ async function getEnrollmentSuggestions(studentId) {
   const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
   if (!student) throw new Error('Student not found');
   const grades = await qa(
-    `SELECT g.grade, sub.title, sub.track, sub.category
+    `SELECT g.computed_grade, sub.title, sub.track, sub.category
      FROM grades g LEFT JOIN subjects sub ON sub.id = g.subject_id
      WHERE g.student_id = ?`, [studentId]
   );
@@ -170,10 +170,10 @@ async function getEnrollmentSuggestions(studentId) {
       (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.id AND e.status = 'enrolled') AS enrolled_count
      FROM sections s WHERE s.status = 'active' ORDER BY s.grade_level, s.name`
   );
-  const avgGrade = grades.length ? (grades.reduce((a, g) => a + Number(g.grade || 0), 0) / grades.length).toFixed(2) : 'N/A';
+  const avgGrade = grades.length ? (grades.reduce((a, g) => a + Number(g.computed_grade || 0), 0) / grades.length).toFixed(2) : 'N/A';
 
   const prompt = 'Suggest enrollment for: ' + student.first_name + ' ' + student.last_name + ', Grade ' + student.grade_level + ', Track: ' + (student.track_strand || 'N/A') + '.\n' +
-    'Average grade: ' + avgGrade + '. Subjects: ' + (grades.length ? grades.map(g => g.title + ' (' + g.category + '): ' + g.grade).join('; ') : 'None') + '.\n' +
+    'Average grade: ' + avgGrade + '. Subjects: ' + (grades.length ? grades.map(g => g.title + ' (' + g.category + '): ' + g.computed_grade).join('; ') : 'None') + '.\n' +
     'Available sections: ' + sections.filter(s => s.grade_level === student.grade_level).map(s => s.name + ' [' + s.strand + '] (' + s.enrolled_count + '/' + s.capacity + ')').join('; ') + '.\n\n' +
     'Suggest: 1) Recommended strand/track with reasoning 2) Recommended section 3) Subject focus areas 4) Academic support needed 5) Whether the student should be in Aral Program.\n' +
     'Return JSON: recommended_strand, recommended_section_id, reasoning, focus_areas (array), support_needed (array), aral_eligible (boolean).';
