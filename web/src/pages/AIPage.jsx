@@ -66,9 +66,9 @@ function ReportCard() {
   }
 
   function print() {
-    if (!sf9Data) return;
-    const merged = mergeConductData(sf9Data, result);
-    printElementHtml(`SF9 - ${merged.student.last_name}`, renderSF9Card(merged, merged.student));
+    if (!sf9Data?.learner) return;
+    const lr = mergeConductData(sf9Data.learner, result);
+    printElementHtml(`SF9 - ${lr.student.last_name}`, renderSF9Card(lr.student, lr.enrollment, lr.grades || [], lr.monthlyAttendance || [], sf9Data.learner.enrollment?.school_year || '____-____', {}, lr.conduct || []));
   }
 
   return (
@@ -107,9 +107,9 @@ function ReportCard() {
           )}
           {result.remarks && <Section title="Remarks">{typeof result.remarks === 'string' ? result.remarks : result.remarks.overall || JSON.stringify(result.remarks)}</Section>}
           {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
-          {sf9Data && (
+          {sf9Data?.learner && (
             <div style={{ marginTop: 12 }}>
-              <div id="sf9-preview" dangerouslySetInnerHTML={{ __html: renderSF9Card(mergeConductData(sf9Data, result), sf9Data.student) }} />
+              {(() => { const lr = mergeConductData(sf9Data.learner, result); return <div id="sf9-preview" dangerouslySetInnerHTML={{ __html: renderSF9Card(lr.student, lr.enrollment, lr.grades || [], lr.monthlyAttendance || [], lr.enrollment?.school_year || '____-____', {}, lr.conduct || []) }} />; })()}
               <button className="btn btn-primary" onClick={print} style={{ marginTop: 10 }}><Printer size={14} /> Print SF9 Card</button>
             </div>
           )}
