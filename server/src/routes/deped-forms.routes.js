@@ -9,6 +9,12 @@ router.use(authenticate);
 
 const ADMIN_ONLY = ['super_admin', 'school_admin', 'registrar'];
 
+function termToQuarter(term) {
+  if (!term) return null;
+  const m = String(term).match(/(\d)/);
+  return m ? Number(m[1]) : null;
+}
+
 router.get('/school-info', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) => {
   const rows = await qa("SELECT key, value FROM app_settings WHERE key IN ('school_name','school_id','region','division','district','school_year')");
   const info = {};
@@ -165,12 +171,13 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY sub.title`,
     [section_id]
   );
-  const termCond = term ? 'AND g.term = $2::text' : '';
+  const qtr = termToQuarter(term);
+  const termCond = qtr ? 'AND g.quarter = $2::int' : '';
   const grades = await qa(
-    `SELECT g.student_id, g.subject_id, g.term, g.computed_grade, g.remarks
+    `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.remarks
      FROM grades g
      WHERE g.section_id = $1::bigint ${termCond}`,
-    [section_id, ...(term ? [term] : [])]
+    [section_id, ...(qtr ? [qtr] : [])]
   );
   res.json({ students, subjects, grades, section });
 }));
@@ -201,7 +208,7 @@ router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
          SUM(CASE WHEN g.computed_grade < 75 AND g.computed_grade >= 60 THEN 1 ELSE 0 END) as conditional,
          SUM(CASE WHEN g.computed_grade < 60 THEN 1 ELSE 0 END) as retained
        FROM grades g
-       WHERE g.section_id = ? AND g.term = 'Final'`,
+       WHERE g.section_id = ? AND g.quarter = (SELECT MAX(g2.quarter) FROM grades g2 WHERE g2.student_id = g.student_id AND g2.section_id = g.section_id)`,
       [sec.id]
     );
     const lwd = await qa(
@@ -286,14 +293,15 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        ORDER BY e.enrolled_at DESC LIMIT 1`,
       [student_id]
     );
-    const termCond = term ? 'AND g.term = $2::text' : '';
+    const qtr = termToQuarter(term);
+    const termCond = qtr ? 'AND g.quarter = $2::int' : '';
     const grades = await qa(
       `SELECT g.*, sub.title as subject_name
        FROM grades g
        JOIN subjects sub ON sub.id = g.subject_id
        WHERE g.student_id = $1::bigint ${termCond}
        ORDER BY sub.title`,
-      [student_id, ...(term ? [term] : [])]
+      [student_id, ...(qtr ? [qtr] : [])]
     );
     const attendance = await qa(
       `SELECT
@@ -350,14 +358,15 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
       [lr.id, section_id]
     );
     const sy = school_year || enrollment?.school_year || '';
-    const termCond = term ? 'AND g.term = $2::text' : '';
+    const qtr = termToQuarter(term);
+    const termCond = qtr ? 'AND g.quarter = $2::int' : '';
     const grades = await qa(
       `SELECT g.*, sub.title as subject_name
        FROM grades g
        JOIN subjects sub ON sub.id = g.subject_id
        WHERE g.student_id = $1::bigint AND g.section_id = $3::bigint ${termCond}
        ORDER BY sub.title`,
-      [lr.id, ...(term ? [term] : []), section_id]
+      [lr.id, ...(qtr ? [qtr] : []), section_id]
     );
     const attendance = await qa(
       `SELECT
@@ -446,7 +455,7 @@ router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      JOIN subjects sub ON sub.id = g.subject_id
      JOIN sections sec ON sec.id = g.section_id
      WHERE g.student_id = ?
-     ORDER BY g.term, sub.title`,
+     ORDER BY g.quarter, sub.title`,
     [student_id]
   );
   const allAttendance = await qa(
@@ -491,7 +500,7 @@ router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, 
   let grades = [];
   if (learnerIds.length) {
     grades = await qa(
-      `SELECT g.student_id, g.subject_id, g.term, g.computed_grade
+      `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade
        FROM grades g
        WHERE g.section_id = ?`,
       [section_id]

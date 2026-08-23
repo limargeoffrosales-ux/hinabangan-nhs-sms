@@ -86,4 +86,26 @@ router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), asyncH(asyn
   res.json(suggestion);
 }));
 
+router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), asyncH(async (req, res) => {
+  const { student_id } = req.body || {};
+  if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  try {
+    const report = await ai.generateForm137(student_id);
+    await audit(req, 'AI_FORM_137', 'ai', null, { student_id });
+    res.json(report);
+  } catch (e) {
+    console.error('[AI_FORM_137] Error:', e.message);
+    if (e.message.includes('AI not configured') || e.message.includes('GROQ_API_KEY')) {
+      return res.status(503).json({ error: 'AI service not configured.' });
+    }
+    if (e.status === 401 || e.status === 403) {
+      return res.status(503).json({ error: 'AI provider rejected the API key.' });
+    }
+    if (e.status === 429) {
+      return res.status(429).json({ error: 'AI rate limit exceeded. Try again in a moment.' });
+    }
+    return res.status(500).json({ error: 'Form 137 generation failed: ' + e.message });
+  }
+}));
+
 module.exports = router;

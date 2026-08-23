@@ -6,6 +6,7 @@ import { PageHead, Spinner } from '../components/ui';
 
 const TABS = [
   { id: 'report', label: 'Report Card', icon: FileText },
+  { id: 'form137', label: 'Form 137', icon: ClipboardCheck },
   { id: 'lesson', label: 'Lesson Plan', icon: BookOpen },
   { id: 'exam', label: 'Exam Builder', icon: ClipboardCheck },
   { id: 'analytics', label: 'Student Analytics', icon: BarChart3 },
@@ -67,6 +68,60 @@ function ReportCard() {
           {result.improvements && <Section title="Areas for Improvement">{result.improvements}</Section>}
           {result.recommendations && <Section title="Recommendations">{result.recommendations}</Section>}
           {result.interventions && <Section title="Interventions">{result.interventions}</Section>}
+          {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Form137() {
+  const [studentId, setStudentId] = useState('');
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api('/students').then(r => setStudents(r.data || r.rows || r || [])).catch(() => {});
+  }, []);
+
+  async function generate() {
+    if (!studentId) return;
+    setLoading(true); setError(null); setResult(null);
+    try {
+      setResult(await api('/ai/form-137', { method: 'POST', body: { student_id: Number(studentId) } }));
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }
+
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}><ClipboardCheck size={16} /> AI Form 137 — Individual Permanent Academic Record</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Generate a comprehensive permanent academic record narrative with AI analysis of all grades, attendance, and conduct across all school years.</p>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
+        <label style={{ flex: 1 }}>Student
+          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
+            <option value="">Select a student...</option>
+            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
+          </select>
+        </label>
+        <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Form 137</button>
+      </div>
+      {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
+      {result && (
+        <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, border: '1px solid var(--border, #e2e8f0)' }}>
+          {result.overall_remark && (
+            <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>Overall Remark:</span>
+              <span className={`badge badge-${result.overall_remark === 'Outstanding' ? 'green' : result.overall_remark === 'Needs Improvement' ? 'red' : 'yellow'}`}>{result.overall_remark}</span>
+            </div>
+          )}
+          {result.personal_info && <Section title="Personal Information">{result.personal_info}</Section>}
+          {result.academic_narrative && <Section title="Academic Performance">{result.academic_narrative}</Section>}
+          {result.attendance_summary && <Section title="Attendance Summary">{result.attendance_summary}</Section>}
+          {result.conduct_evaluation && <Section title="Character & Conduct">{result.conduct_evaluation}</Section>}
+          {result.talents_achievements && <Section title="Special Talents & Achievements">{result.talents_achievements}</Section>}
+          {result.recommendations && <Section title="Recommendations">{result.recommendations}</Section>}
           {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
         </div>
       )}
@@ -305,7 +360,7 @@ function EnrollmentSuggestions() {
   );
 }
 
-const TAB_COMPONENTS = { report: ReportCard, lesson: LessonPlan, exam: ExamBuilder, analytics: StudentAnalytics, enroll: EnrollmentSuggestions };
+const TAB_COMPONENTS = { report: ReportCard, form137: Form137, lesson: LessonPlan, exam: ExamBuilder, analytics: StudentAnalytics, enroll: EnrollmentSuggestions };
 
 export default function AIPage() {
   const { t } = useTranslation();
