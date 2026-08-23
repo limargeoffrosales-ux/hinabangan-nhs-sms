@@ -14,7 +14,7 @@ const STATUS_BADGE = {
 const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
 function complianceOf(s) {
-  if (['submitted', 'reviewed', 'approved'].includes(s.status)) return { label: 'Compiled', cls: 'badge-green' };
+  if (['submitted', 'reviewed', 'approved'].includes(s.status)) return { label: 'Complied', cls: 'badge-green' };
   if (s.due_date && s.due_date < new Date().toISOString().slice(0, 10) && s.status !== 'returned') return { label: 'Overdue', cls: 'badge-red' };
   return { label: 'Not complied', cls: 'badge-red' };
 }

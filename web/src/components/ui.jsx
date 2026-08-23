@@ -5,7 +5,9 @@ export function Badge({ status }) {
     present: 'badge-green', active: 'badge-green', enrolled: 'badge-green', PASSED: 'badge-green', ok: 'badge-green',
     absent: 'badge-red', FAILED: 'badge-red', dropped: 'badge-red', disabled: 'badge-red',
     late: 'badge-yellow', normal: 'badge-blue', excused: 'badge-blue', transferred: 'badge-blue', high: 'badge-blue', aral: 'badge-blue',
-    urgent: 'badge-red',
+    urgent: 'badge-red', inactive: 'badge-red', on_leave: 'badge-yellow',
+    green: 'badge-green', red: 'badge-red', yellow: 'badge-yellow', blue: 'badge-blue', gray: 'badge-gray',
+    'badge-green': 'badge-green', 'badge-red': 'badge-red', 'badge-yellow': 'badge-yellow', 'badge-blue': 'badge-blue', 'badge-gray': 'badge-gray',
   };
   const cls = map[status] || 'badge-gray';
   return <span className={`badge ${cls}`} role="status">{String(status).toUpperCase()}</span>;

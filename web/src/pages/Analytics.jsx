@@ -436,7 +436,7 @@ export default function Analytics() {
               {/* KPI Cards */}
               <div className="kpi-grid" style={{ marginBottom: 24 }}>
                 <KPICard label={t('analytics.overallAvg')} value={compMastery?.overall?.overall_avg ?? '—'} icon={Target} color="var(--accent)" sub={`${compMastery?.overall?.total_competencies ?? 0} competencies`} />
-                <KPICard label={t('analytics.masteryRate')} value={compMastery?.overall?.mastered != null ? `${Math.round(compMastery.overall.mastered / (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) * 100)}%` : '—'} icon={GraduationCap} color="var(--accent-2)" sub={`${compMastery?.overall?.mastered ?? 0} mastered`} />
+                <KPICard label={t('analytics.masteryRate')} value={compMastery?.overall?.mastered != null && (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) > 0 ? `${Math.round(compMastery.overall.mastered / (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) * 100)}%` : '—'} icon={GraduationCap} color="var(--accent-2)" sub={`${compMastery?.overall?.mastered ?? 0} mastered`} />
                 <KPICard label={t('analytics.riskStudents')} value={riskSummary.high ?? '—'} icon={AlertTriangle} color="var(--danger)" sub={`${riskSummary.medium ?? 0} medium · ${riskSummary.low ?? 0} low`} />
                 <KPICard label={t('analytics.aiInsights')} value={aiInsights?.insights?.filter((i) => i.ai_ready).length ?? 0} icon={Brain} color="#A78BFA" sub={`${aiInsights?.insights?.filter((i) => !i.ai_ready).length ?? 0} coming soon`} />
               </div>
@@ -572,7 +572,7 @@ export default function Analytics() {
                             </td>
                             <td><Badge status={r.risk_level === 'high' ? 'FAILED' : r.risk_level === 'medium' ? 'PENDING' : 'ENROLLED'} /></td>
                             <td style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                              {r.factors.length ? r.factors.map((f) => f.factor).join(', ') : '—'}
+                              {r.factors?.length ? r.factors.map((f) => f.factor).join(', ') : '—'}
                             </td>
                           </tr>
                         ))}

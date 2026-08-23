@@ -21,7 +21,7 @@ const FORMS = [
 ];
 
 function esc(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function formHeaderHtml(info, formCode, formTitle) {
@@ -634,8 +634,8 @@ ${students.length ? students.map(st => {
       <td class="c">${esc(condition)}</td>
       <td class="c">${esc(b.isbn || '')}</td>
       <td class="c">${b.status === 'returned' ? 'Returned' : 'Issued'}</td>
-      <td class="c">${esc(st.sex === 'M' || st.sex === 'Male' ? '' : '')}</td>
-      <td class="c">${esc(st.sex === 'F' || st.sex === 'Female' ? '' : '')}</td>
+      <td class="c">${esc(st.sex === 'M' || st.sex === 'Male' ? '\u2713' : '')}</td>
+      <td class="c">${esc(st.sex === 'F' || st.sex === 'Female' ? '\u2713' : '')}</td>
       <td class="c">1</td>
     </tr>`;
   }).join('');

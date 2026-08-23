@@ -269,7 +269,7 @@ async function seed() {
 
   const studentIds = [];
   for (let i = 0; i < 20; i++) {
-    const lrn = '1362' + String(8000000000 + i * 137 + 421).padStart(8, '0');
+    const lrn = '136' + String(900000000 + i * 137 + 421).padStart(9, '0');
     const id = await qi(
       `INSERT INTO students (lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status)
        VALUES (?, ?, ?, ?, NULL, ?, ?, 'Roman Catholic', 'Brgy. San Isidro, Testville', ?, ?, ?, 'Parent', 'Grade 11', ?, 'enrolled')`,
@@ -279,8 +279,8 @@ async function seed() {
     studentIds.push(id);
     const secId = sectionFor[i];
     const enrId = await qi(
-      'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, secId, '2026-2027', 'Grade 11', strands[i], 'enrolled', '2025-06-02']);
+      'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, status, term, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, secId, '2026-2027', 'Grade 11', strands[i], 'enrolled', 'all', '2025-06-02']);
     const sidx = secId === sectionIds[0] ? 0 : (secId === sectionIds[1] ? 1 : 2);
     const subjectPool = subjectPools[sidx].map((i) => subjectIds[i]);
     for (const subjId of subjectPool) {
@@ -351,8 +351,8 @@ async function seed() {
       const late = (sid * 5 + d) % 13 === 0;
       const status = miss ? 'absent' : (late ? 'late' : 'present');
       await qi(
-        'INSERT INTO attendance (student_id, section_id, date, status, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [sid, studentSection[sid] || null, ds, status, status !== 'present' ? 'seed data' : null, 1]);
+        'INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [sid, studentSection[sid] || null, ds, status, 'AM', status !== 'present' ? 'seed data' : null, 1]);
     }
   }
 

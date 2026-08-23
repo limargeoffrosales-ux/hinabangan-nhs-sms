@@ -44,6 +44,9 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
   if (req.user.role === 'school_admin' && role === 'super_admin') {
     return res.status(403).json({ error: 'Cannot assign super_admin role' });
   }
+  if (user.role === 'super_admin' && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only super_admin can modify another super_admin' });
+  }
   if (password) {
     if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -82,8 +85,9 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
   const hash = await bcrypt.hash(String(password), 10);
   let reset = 0;
   for (const uid of user_ids) {
-    const user = await q('SELECT id, username FROM users WHERE id = ?', [Number(uid)]);
+    const user = await q('SELECT id, username, role FROM users WHERE id = ?', [Number(uid)]);
     if (!user) continue;
+    if (user.role === 'super_admin' && req.user.role !== 'super_admin') continue;
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
     await qi(
       'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',

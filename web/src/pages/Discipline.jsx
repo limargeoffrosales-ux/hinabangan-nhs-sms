@@ -344,8 +344,8 @@ export default function Discipline() {
                   </select>
                 </div>
                 <label>Description</label>
-                <textarea rows={3} value={sel.description || ''} placeholder="No description recorded"
-                  onChange={(e) => updateSel({ description: e.target.value })} />
+                <textarea rows={3} defaultValue={sel.description || ''} placeholder="No description recorded"
+                  onBlur={(e) => { if (e.target.value !== (sel.description || '')) updateSel({ description: e.target.value }); }} />
                 <div className="sub">
                   Reported by {sel.reported_by_name || '—'} · logged {sel.created_at?.slice(0, 10)} · open {sel.days_open} day(s)
                 </div>

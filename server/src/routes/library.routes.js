@@ -82,14 +82,20 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Book not found' });
   const b = req.body || {};
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
+  let totalCopies = f('total_copies', row.total_copies);
+  let availableCopies = f('available_copies', row.available_copies);
+  if (b.total_copies !== undefined && Number(b.total_copies) !== row.total_copies) {
+    const delta = Number(b.total_copies) - row.total_copies;
+    availableCopies = Math.max(0, Math.min(totalCopies, row.available_copies + delta));
+  }
   await qr(
     `UPDATE library_books SET title=?, author=?, isbn=?, category=?, publisher=?,
       year_published=?, total_copies=?, available_copies=?, location=?, status=?,
       updated_at=${nowSql()} WHERE id=?`,
     [f('title', row.title), f('author', row.author), f('isbn', row.isbn),
       f('category', row.category), f('publisher', row.publisher),
-      f('year_published', row.year_published), f('total_copies', row.total_copies),
-      f('available_copies', row.available_copies), f('location', row.location),
+      f('year_published', row.year_published), totalCopies,
+      availableCopies, f('location', row.location),
       f('status', row.status), row.id]
   );
   await audit(req, 'UPDATE_BOOK', 'library_books', row.id);

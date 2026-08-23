@@ -167,6 +167,15 @@ const aiRoutes = require('./routes/ai.routes');
   });
   app.use('/api/v1/uploads', uploadLimiter);
 
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'AI request limit reached. Please try again in a minute.' },
+  });
+  app.use('/api/v1/ai', aiLimiter);
+
   app.get('/api/v1/health', async (req, res) => {
     const health = { ok: true, service: 'meridianed', dialect: db.dialect, uptime: Math.floor(process.uptime()) };
     try {

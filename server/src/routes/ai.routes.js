@@ -2,6 +2,7 @@
 const { q, qa } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { ensureTeacherSeesStudent } = require('../scope');
 const ai = require('../ai');
 
 const router = express.Router();
@@ -39,6 +40,10 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), asyncH(async (r
 router.post('/report', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  if (['teacher', 'guidance'].includes(req.user.role)) {
+    const chk = await ensureTeacherSeesStudent(req.user, student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   try {
     const report = await ai.generateStudentReport(student_id);
     await audit(req, 'AI_REPORT', 'ai', null, { student_id });
@@ -73,6 +78,10 @@ router.post('/exam', requireRole(...STAFF), asyncH(async (req, res) => {
 router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  if (['teacher', 'guidance'].includes(req.user.role)) {
+    const chk = await ensureTeacherSeesStudent(req.user, student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const analysis = await ai.analyzeStudentRisk(student_id);
   await audit(req, 'AI_ANALYZE', 'ai', null, { student_id });
   res.json(analysis);
@@ -81,6 +90,10 @@ router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), asyncH(asy
 router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  if (req.user.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const suggestion = await ai.getEnrollmentSuggestions(student_id);
   await audit(req, 'AI_ENROLL_SUGGEST', 'ai', null, { student_id });
   res.json(suggestion);
@@ -89,6 +102,10 @@ router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), asyncH(asyn
 router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  if (req.user.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   try {
     const report = await ai.generateForm137(student_id);
     await audit(req, 'AI_FORM_137', 'ai', null, { student_id });

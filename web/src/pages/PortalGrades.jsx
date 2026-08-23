@@ -55,8 +55,8 @@ export default function PortalGrades() {
           </div>
           <div><label>School year</label><input value={sy} onChange={(e) => setSy(e.target.value)} /></div>
           <div><label>Quarter</label>
-            <select value={term} onChange={(e) => setTerm(e.target.value)}>
-              <option value="1">Quarter 1</option><option value="2">Quarter 2</option><option value="3">Quarter 3</option>
+              <select value={term} onChange={(e) => setTerm(e.target.value)}>
+              <option value="1">Quarter 1</option><option value="2">Quarter 2</option><option value="3">Quarter 3</option><option value="4">Quarter 4</option>
             </select>
           </div>
           <button className="btn btn-primary" onClick={load} disabled={loading || !studentId}>Load</button>

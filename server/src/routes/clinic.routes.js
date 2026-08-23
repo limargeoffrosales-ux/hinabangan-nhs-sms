@@ -29,10 +29,13 @@ router.get('/visits', requireRole(...WRITE), asyncH(async (req, res) => {
 /* ── Visit summary ─────────────────────────────────── */
 router.get('/visits/summary', requireRole(...WRITE), asyncH(async (req, res) => {
   const { date } = req.query;
-  const dateFilter = date ? `WHERE DATE(visit_date) = '${date}'` : '';
-  const total = await q(`SELECT COUNT(*) AS count FROM clinic_visits ${dateFilter}`);
-  const byOutcome = await qa(`SELECT outcome, COUNT(*) AS count FROM clinic_visits ${dateFilter} GROUP BY outcome`);
-  const byComplaint = await qa(`SELECT complaint, COUNT(*) AS count FROM clinic_visits ${dateFilter} GROUP BY complaint ORDER BY count DESC LIMIT 10`);
+  const where = [];
+  const params = [];
+  if (date) { where.push('DATE(visit_date) = ?'); params.push(date); }
+  const clause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const total = await q(`SELECT COUNT(*) AS count FROM clinic_visits ${clause}`, params);
+  const byOutcome = await qa(`SELECT outcome, COUNT(*) AS count FROM clinic_visits ${clause} GROUP BY outcome`, params);
+  const byComplaint = await qa(`SELECT complaint, COUNT(*) AS count FROM clinic_visits ${clause} GROUP BY complaint ORDER BY count DESC LIMIT 10`, params);
   res.json({ total: total.count, by_outcome: byOutcome, top_complaints: byComplaint });
 }));
 

@@ -83,7 +83,7 @@ export default function Interventions() {
     setBusy(true);
     try {
       const r = await api('/interventions/ai/parent-notice', { method: 'POST', body: { student_id: p.student_id, reason: p.progress_notes || `the ongoing ${p.category} intervention` } });
-      setNotice({ ...r.body, meta: p });
+      setNotice({ text: r.body || r.text || '', meta: p });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -206,9 +206,9 @@ export default function Interventions() {
 
       {notice && (
         <Modal title="AI parent notification draft" sub={`For ${notice.meta.first_name} ${notice.meta.last_name}`} onClose={() => setNotice(null)} wide>
-          <textarea className="doc-editor" rows={16} value={notice} readOnly />
+          <textarea className="doc-editor" rows={16} value={notice.text} readOnly />
           <div className="doc-export">
-            <button className="btn btn-primary btn-sm" onClick={() => downloadDoc('Parent Notice', notice, 'parent-notice.doc')}>Download (.doc)</button>
+            <button className="btn btn-primary btn-sm" onClick={() => downloadDoc('Parent Notice', notice.text, 'parent-notice.doc')}>Download (.doc)</button>
             <button className="btn btn-sm" onClick={() => setNotice(null)}>Close</button>
           </div>
         </Modal>

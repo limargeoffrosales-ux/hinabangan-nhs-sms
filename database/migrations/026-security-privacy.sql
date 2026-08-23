@@ -18,7 +18,7 @@ INSERT INTO data_retention_policies (entity, retention_days, description) VALUES
   ('attendance', 1825, 'Attendance records — retained for 5 years (DepEd requirement)'),
   ('grades', 1825, 'Grade records — retained for 5 years'),
   ('consent_responses', 3650, 'Consent signatures — retained for 10 years (legal hold)'),
-  ('notification_logs', 90, 'Notification delivery logs — 90 days'),
+  ('notifications', 90, 'Notification delivery logs — 90 days'),
   ('refresh_tokens', 30, 'Session refresh tokens — 30 days')
 ON CONFLICT (entity) DO NOTHING;
 
