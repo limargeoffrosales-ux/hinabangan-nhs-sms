@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Bot, Printer } from 'lucide-react';
+import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Bot, Printer, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner } from '../components/ui';
 import { renderSF9Card, esc, MONTH_NAMES, MONTH_NUMS, TERM_MAP, CORE_VALUES } from './DepedForms';
@@ -47,6 +47,7 @@ function ReportCard() {
   const [result, setResult] = useState(null);
   const [sf9Data, setSf9Data] = useState(null);
   const [error, setError] = useState(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   useEffect(() => {
     api('/students').then(r => setStudents(r.data || r.rows || r || [])).catch(() => {});
@@ -54,7 +55,7 @@ function ReportCard() {
 
   async function generate() {
     if (!studentId) return;
-    setLoading(true); setError(null); setResult(null); setSf9Data(null);
+    setLoading(true); setError(null); setResult(null); setSf9Data(null); setShowAnalysis(false);
     try {
       const [aiRes, sf9Res] = await Promise.all([
         api('/ai/report', { method: 'POST', body: { student_id: Number(studentId) } }),
@@ -65,54 +66,106 @@ function ReportCard() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }
 
+  const learner = sf9Data?.learner;
+  const merged = learner ? mergeConductData(learner, result) : null;
+  const sf9Html = merged ? renderSF9Card(merged.student, merged.enrollment, merged.grades || [], merged.monthlyAttendance || [], merged.enrollment?.school_year || '____-____', {}, merged.conduct || []) : '';
+
   function print() {
-    if (!sf9Data?.learner) return;
-    const lr = mergeConductData(sf9Data.learner, result);
-    printElementHtml(`SF9 - ${lr.student.last_name}`, renderSF9Card(lr.student, lr.enrollment, lr.grades || [], lr.monthlyAttendance || [], sf9Data.learner.enrollment?.school_year || '____-____', {}, lr.conduct || []));
+    if (!sf9Html) return;
+    printElementHtml(`SF9 - ${merged.student.last_name}, ${merged.student.first_name}`, sf9Html, { paper: 'legal' });
   }
 
   return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}><FileText size={16} /> AI Report Card Generator</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Generate SF9 Learner Progress Report Card with AI-powered conduct ratings and analysis.</p>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
-        <label style={{ flex: 1 }}>Student
-          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
-            <option value="">Select a student...</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
-          </select>
-        </label>
-        <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate</button>
+    <div>
+      {/* Student selector */}
+      <div className="card">
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ flex: 1, minWidth: 250 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #6b7280)' }}>Select Student</span>
+            <select className="input" value={studentId} onChange={e => setStudentId(e.target.value)}>
+              <option value="">Choose a student...</option>
+              {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.grade_level || '—'})</option>)}
+            </select>
+          </label>
+          <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId} style={{ height: 38 }}>
+            {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Report Card
+          </button>
+        </div>
       </div>
-      {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
-      {result && (
-        <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.risk_level && (
-            <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>Risk Level:</span>
-              <span className={`badge badge-${result.risk_level === 'high' ? 'red' : result.risk_level === 'moderate' ? 'yellow' : 'green'}`}>{result.risk_level}</span>
+
+      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
+
+      {/* SF9 Card Preview — the main output */}
+      {merged && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16 }}>
+                <FileText size={16} /> SF9 — Learner's Progress Report Card
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-dim, #6b7280)' }}>
+                {merged.student.first_name} {merged.student.last_name} · LRN {merged.student.lrn || '—'} · {merged.enrollment?.grade_level || '—'} {merged.enrollment?.section_name ? `— ${merged.enrollment.section_name}` : ''}
+              </p>
             </div>
-          )}
-          {result.conduct && (
-            <Section title="AI-Generated Conduct Ratings">
-              {CORE_VALUES.map(cv => (
-                <div key={cv.key} style={{ marginBottom: 6 }}>
-                  <strong>{cv.label}:</strong>{' '}
-                  {[1,2,3].map(q => `Q${q}`).map((t,i) => (
-                    <span key={t} style={{ marginRight: 8 }}><em>{t}</em>: {(result.conduct[cv.key] || {})[String(i+1)] || '—'}</span>
-                  ))}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {result && (
+                <button className="btn btn-sm" onClick={() => setShowAnalysis(!showAnalysis)}>
+                  {showAnalysis ? <ChevronDown size={14} /> : <ChevronRight size={14} />} AI Analysis
+                </button>
+              )}
+              <button className="btn btn-primary btn-sm" onClick={print}>
+                <Printer size={14} /> Print SF9
+              </button>
+            </div>
+          </div>
+          <div style={{ background: '#fff', border: '1px solid var(--border, #e2e8f0)', borderRadius: 10, overflow: 'hidden' }}>
+            <div id="sf9-preview" style={{ padding: 8, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: sf9Html }} />
+          </div>
+        </div>
+      )}
+
+      {/* AI Analysis — collapsible */}
+      {result && showAnalysis && (
+        <div style={{ marginTop: 12 }}>
+          <div className="card" style={{ borderLeft: '3px solid var(--accent, #1e3a5f)' }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Brain size={14} /> AI-Generated Analysis
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+              {result.risk_level && (
+                <div style={{ padding: 10, borderRadius: 8, background: result.risk_level === 'high' ? '#fef2f2' : result.risk_level === 'moderate' ? '#fffbeb' : '#f0fdf4', border: '1px solid var(--border, #e2e8f0)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #6b7280)', marginBottom: 4 }}>Risk Level</div>
+                  <span className={`badge badge-${result.risk_level === 'high' ? 'red' : result.risk_level === 'moderate' ? 'yellow' : 'green'}`}>{result.risk_level}</span>
                 </div>
-              ))}
-            </Section>
-          )}
-          {result.remarks && <Section title="Remarks">{typeof result.remarks === 'string' ? result.remarks : result.remarks.overall || JSON.stringify(result.remarks)}</Section>}
-          {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
-          {sf9Data?.learner && (
-            <div style={{ marginTop: 12 }}>
-              {(() => { const lr = mergeConductData(sf9Data.learner, result); return <div id="sf9-preview" dangerouslySetInnerHTML={{ __html: renderSF9Card(lr.student, lr.enrollment, lr.grades || [], lr.monthlyAttendance || [], lr.enrollment?.school_year || '____-____', {}, lr.conduct || []) }} />; })()}
-              <button className="btn btn-primary" onClick={print} style={{ marginTop: 10 }}><Printer size={14} /> Print SF9 Card</button>
+              )}
+              {result.conduct && (
+                <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg, #f8fafc)', border: '1px solid var(--border, #e2e8f0)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #6b7280)', marginBottom: 4 }}>Conduct Summary</div>
+                  <div style={{ fontSize: 12 }}>
+                    {CORE_VALUES.map(cv => {
+                      const ratings = result.conduct[cv.key] || {};
+                      const vals = [1,2,3].map(q => ratings[String(q)]?.toUpperCase()).filter(Boolean);
+                      return vals.length ? <span key={cv.key} style={{ marginRight: 6 }}>{cv.label.split('-')[1]?.trim() || cv.label}: {vals.join(', ')}</span> : null;
+                    })}
+                  </div>
+                </div>
+              )}
+              {result.remarks && (
+                <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg, #f8fafc)', border: '1px solid var(--border, #e2e8f0)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #6b7280)', marginBottom: 4 }}>Overall Remarks</div>
+                  <div style={{ fontSize: 12 }}>{typeof result.remarks === 'string' ? result.remarks : result.remarks.overall || '—'}</div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !merged && (
+        <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-dim, #6b7280)' }}>
+          <FileText size={40} strokeWidth={1} style={{ opacity: 0.3, marginBottom: 12 }} />
+          <div style={{ fontSize: 14 }}>Select a student and click Generate to create an SF9 Report Card with AI-powered conduct ratings.</div>
         </div>
       )}
     </div>
@@ -138,35 +191,127 @@ function Form137() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }
 
-  return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}><ClipboardCheck size={16} /> AI Form 137 — Individual Permanent Academic Record</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Generate a comprehensive permanent academic record narrative with AI analysis of all grades, attendance, and conduct across all school years.</p>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
-        <label style={{ flex: 1 }}>Student
-          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
-            <option value="">Select a student...</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
-          </select>
-        </label>
-        <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Form 137</button>
+  function printForm137() {
+    if (!result) return;
+    const student = students.find(s => String(s.id) === String(studentId));
+    const name = student ? `${student.last_name}, ${student.first_name}` : '';
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Form 137 - ${esc(name)}</title>
+      <style>
+        @page { size: legal portrait; margin: 0.5in 0.6in; }
+        body { font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.5; color: #000; margin: 0; }
+        h1 { font-size: 13pt; text-align: center; margin: 0 0 4pt; text-transform: uppercase; letter-spacing: 1pt; }
+        h2 { font-size: 11pt; margin: 14pt 0 6pt; padding-bottom: 3pt; border-bottom: 2px solid #000; text-transform: uppercase; }
+        h3 { font-size: 10.5pt; margin: 10pt 0 4pt; color: #333; }
+        p { margin: 4pt 0; text-align: justify; }
+        .header { text-align: center; border-bottom: 3px double #000; padding-bottom: 8pt; margin-bottom: 12pt; }
+        .header .dep-ed { font-size: 10pt; letter-spacing: 2pt; }
+        .header .school { font-size: 12pt; font-weight: bold; margin: 4pt 0; }
+        .header .form-title { font-size: 14pt; font-weight: bold; margin: 6pt 0 2pt; text-transform: uppercase; }
+        .header .form-sub { font-size: 10pt; }
+        .section { margin-bottom: 10pt; }
+        .footer { margin-top: 24pt; border-top: 1px solid #999; padding-top: 6pt; font-size: 9pt; color: #666; text-align: center; }
+        ul { margin: 4pt 0; padding-left: 18pt; }
+        li { margin-bottom: 3pt; }
+      </style></head><body>
+      <div class="header">
+        <div class="dep-ed">DEPARTMENT OF EDUCATION</div>
+        <div class="school">Hinabangan National High School</div>
+        <div class="form-title">Form 137</div>
+        <div class="form-sub">Individual Permanent Academic Record</div>
       </div>
-      {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
+      ${result.personal_info ? `<div class="section"><h2>Personal Information</h2><p>${result.personal_info}</p></div>` : ''}
+      ${result.academic_narrative ? `<div class="section"><h2>Academic Performance</h2><p>${result.academic_narrative}</p></div>` : ''}
+      ${result.attendance_summary ? `<div class="section"><h2>Attendance Summary</h2><p>${result.attendance_summary}</p></div>` : ''}
+      ${result.conduct_evaluation ? `<div class="section"><h2>Character &amp; Conduct</h2><p>${result.conduct_evaluation}</p></div>` : ''}
+      ${result.talents_achievements ? `<div class="section"><h2>Special Talents &amp; Achievements</h2><p>${result.talents_achievements}</p></div>` : ''}
+      ${result.recommendations ? `<div class="section"><h2>Recommendations</h2><p>${result.recommendations}</p></div>` : ''}
+      <div class="footer">Generated by MeridianEd AI · ${new Date().toLocaleDateString()}</div>
+      </body></html>`;
+    printElementHtml(`Form 137 - ${name}`, html, { paper: 'legal' });
+  }
+
+  return (
+    <div>
+      {/* Student selector */}
+      <div className="card">
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ flex: 1, minWidth: 250 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #6b7280)' }}>Select Student</span>
+            <select className="input" value={studentId} onChange={e => setStudentId(e.target.value)}>
+              <option value="">Choose a student...</option>
+              {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.grade_level || '—'})</option>)}
+            </select>
+          </label>
+          <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId} style={{ height: 38 }}>
+            {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Form 137
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
+
+      {/* Form 137 Preview */}
       {result && (
-        <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.overall_remark && (
-            <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>Overall Remark:</span>
-              <span className={`badge badge-${result.overall_remark === 'Outstanding' ? 'green' : result.overall_remark === 'Needs Improvement' ? 'red' : 'yellow'}`}>{result.overall_remark}</span>
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16 }}>
+                <ClipboardCheck size={16} /> Form 137 — Individual Permanent Academic Record
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-dim, #6b7280)' }}>
+                AI-generated narrative based on complete academic history
+              </p>
             </div>
-          )}
-          {result.personal_info && <Section title="Personal Information">{result.personal_info}</Section>}
-          {result.academic_narrative && <Section title="Academic Performance">{result.academic_narrative}</Section>}
-          {result.attendance_summary && <Section title="Attendance Summary">{result.attendance_summary}</Section>}
-          {result.conduct_evaluation && <Section title="Character & Conduct">{result.conduct_evaluation}</Section>}
-          {result.talents_achievements && <Section title="Special Talents & Achievements">{result.talents_achievements}</Section>}
-          {result.recommendations && <Section title="Recommendations">{result.recommendations}</Section>}
-          {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
+            <button className="btn btn-primary btn-sm" onClick={printForm137}>
+              <Printer size={14} /> Print Form 137
+            </button>
+          </div>
+
+          {/* Document preview */}
+          <div style={{ background: '#fff', border: '1px solid var(--border, #e2e8f0)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '20px 28px', maxWidth: 800, margin: '0 auto' }}>
+              {/* Document header */}
+              <div style={{ textAlign: 'center', borderBottom: '3px double #000', paddingBottom: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 10, letterSpacing: 3, color: '#666' }}>DEPARTMENT OF EDUCATION</div>
+                <div style={{ fontSize: 13, fontWeight: 700, margin: '4px 0' }}>Hinabangan National High School</div>
+                <div style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, margin: '8px 0 2px' }}>Form 137</div>
+                <div style={{ fontSize: 10.5, color: '#444' }}>Individual Permanent Academic Record</div>
+              </div>
+
+              {result.overall_remark && (
+                <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 6, background: result.overall_remark === 'Outstanding' ? '#f0fdf4' : result.overall_remark === 'Needs Improvement' ? '#fef2f2' : '#fffbeb', border: '1px solid var(--border, #e2e8f0)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>Overall Assessment: </span>
+                  <span className={`badge badge-${result.overall_remark === 'Outstanding' ? 'green' : result.overall_remark === 'Needs Improvement' ? 'red' : 'yellow'}`}>{result.overall_remark}</span>
+                </div>
+              )}
+
+              {[
+                { title: 'Personal Information', content: result.personal_info },
+                { title: 'Academic Performance', content: result.academic_narrative },
+                { title: 'Attendance Summary', content: result.attendance_summary },
+                { title: 'Character & Conduct', content: result.conduct_evaluation },
+                { title: 'Special Talents & Achievements', content: result.talents_achievements },
+                { title: 'Recommendations', content: result.recommendations },
+              ].filter(s => s.content).map((section, i) => (
+                <div key={i} style={{ marginBottom: 14 }}>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, paddingBottom: 3, borderBottom: '1px solid #ccc', color: 'var(--accent, #1e3a5f)' }}>{section.title}</h4>
+                  <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: 'var(--text, #1a1a1a)', textAlign: 'justify' }}>{section.content}</p>
+                </div>
+              ))}
+
+              <div style={{ marginTop: 20, paddingTop: 10, borderTop: '1px solid #ddd', fontSize: 9, color: '#999', textAlign: 'center' }}>
+                Generated by MeridianEd AI · {new Date().toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !result && (
+        <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-dim, #6b7280)' }}>
+          <ClipboardCheck size={40} strokeWidth={1} style={{ opacity: 0.3, marginBottom: 12 }} />
+          <div style={{ fontSize: 14 }}>Select a student and click Generate to create a Form 137 with AI-powered academic analysis.</div>
         </div>
       )}
     </div>
