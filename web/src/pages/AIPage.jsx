@@ -72,7 +72,7 @@ function ReportCard() {
 
   function print() {
     if (!sf9Html) return;
-    printElementHtml(`SF9 - ${merged.student.last_name}, ${merged.student.first_name}`, sf9Html, { paper: 'legal' });
+    printElementHtml(`SF9 - ${merged.student.last_name}, ${merged.student.first_name}`, sf9Html, { paper: 'legal', orientation: 'landscape' });
   }
 
   return (
