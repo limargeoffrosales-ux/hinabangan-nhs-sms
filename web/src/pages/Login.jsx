@@ -20,13 +20,6 @@ const FEATURES = [
   { icon: FileText, key: 'featForms' },
 ];
 
-const ROLE_OPTIONS = [
-  { value: 'admin', key: 'roleAdmin' },
-  { value: 'teacher', key: 'roleTeacher' },
-  { value: 'student', key: 'roleStudent' },
-  { value: 'parent', key: 'roleParent' },
-];
-
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -36,7 +29,6 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [serverOpen, setServerOpen] = useState(false);
   const [serverBase, setServerBase] = useState(getStoredApiBase());
-  const [role, setRole] = useState('admin');
   const [showRequest, setShowRequest] = useState(false);
   const formRef = useRef(null);
 
@@ -108,20 +100,6 @@ export default function Login() {
               <ErrorBanner error={error} />
             </div>
             <form onSubmit={onSubmit} ref={formRef} className="login-form">
-              <label htmlFor="login-role">{t('login.roleLabel')}</label>
-              <div className="login-role-selector">
-                {ROLE_OPTIONS.map((r) => (
-                  <button
-                    key={r.value}
-                    type="button"
-                    className={`login-role-btn ${role === r.value ? 'active' : ''}`}
-                    onClick={() => setRole(r.value)}
-                  >
-                    {t(`login.${r.key}`)}
-                  </button>
-                ))}
-              </div>
-
               <label htmlFor="login-username">{t('login.username')}</label>
               <input
                 id="login-username"

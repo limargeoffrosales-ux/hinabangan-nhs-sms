@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { q, qa, qi, qr } = require('../db');
-const { authenticate, requireRole, ROLES, isAdminRole } = require('../auth');
+const { authenticate, requireRole, ROLES, isAdminRole, clearUserCache } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const router = express.Router();
@@ -57,6 +57,7 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
   }
   await qr('UPDATE users SET name = ?, role = ?, email = ?, phone = ?, status = ? WHERE id = ?',
     [name ?? user.name, role ?? user.role, email ?? user.email, phone ?? user.phone, status ?? user.status, user.id]);
+  clearUserCache(user.id);
   await audit(req, 'UPDATE_USER', 'users', user.id, { role, status, password: !!password });
   res.json({ ok: true });
 }));
@@ -66,6 +67,7 @@ router.delete('/:id', requireRole('super_admin'), asyncH(async (req, res) => {
   const user = await q('SELECT * FROM users WHERE id = ?', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
   await qr('DELETE FROM users WHERE id = ?', [user.id]);
+  clearUserCache(user.id);
   await audit(req, 'DELETE_USER', 'users', user.id, { username: user.username });
   res.json({ ok: true });
 }));
@@ -89,6 +91,7 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
     if (!user) continue;
     if (user.role === 'super_admin' && req.user.role !== 'super_admin') continue;
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
+    clearUserCache(user.id);
     await qi(
       'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
       [user.id, req.user.id, 'bulk_reset', req.ip]);

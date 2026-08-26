@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
-const { authenticate, requireRole } = require('../auth');
+const { authenticate, requireRole, clearUserCache } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const router = express.Router();
@@ -132,6 +132,7 @@ router.post('/role-reviews/:userId/suspend', requireRole('super_admin', 'school_
   }
   const newStatus = user.status === 'suspended' ? 'active' : 'suspended';
   await qr('UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newStatus, user.id]);
+  clearUserCache(user.id);
   if (newStatus === 'suspended') {
     await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ? AND revoked = FALSE', [user.id]);
   }
@@ -146,6 +147,7 @@ router.post('/role-reviews/:userId/restore', requireRole('super_admin', 'school_
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.status !== 'suspended') return res.status(400).json({ error: 'User is not suspended' });
   await qr('UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['active', user.id]);
+  clearUserCache(user.id);
   await audit(req, 'USER_RESTORE', 'users', user.id, {
     username: user.username, role: user.role, previous_status: user.status,
   });

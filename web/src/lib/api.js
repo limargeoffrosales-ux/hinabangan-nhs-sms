@@ -19,8 +19,6 @@ export function getStoredApiBase() {
 }
 
 let refreshPromise = null;
-let refreshRetries = 0;
-const MAX_REFRESH_RETRIES = 2;
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -76,25 +74,14 @@ export async function api(path, { method = 'GET', body, auth = true, timeoutMs =
       signal: controller.signal,
     });
   if (res.status === 401 && auth) {
-    if (refreshRetries >= MAX_REFRESH_RETRIES) {
-      refreshRetries = 0;
-      clearSession();
-      notifyUnauthorized();
-      const err = new Error('Session expired — please sign in again');
-      err.status = 401;
-      throw err;
-    }
-    refreshRetries++;
     const ok = await tryRefresh();
     if (ok) return api(path, { method, body, auth, timeoutMs });
-    refreshRetries = 0;
     clearSession();
     notifyUnauthorized();
     const err = new Error('Session expired — please sign in again');
     err.status = 401;
     throw err;
   }
-  refreshRetries = 0;
   const text = await res.text();
   let data;
   try { data = text ? JSON.parse(text) : {}; }

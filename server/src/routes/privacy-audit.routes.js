@@ -1,6 +1,6 @@
 const express = require('express');
 const { q, qa, qr, dialect } = require('../db');
-const { authenticate, requireRole } = require('../auth');
+const { authenticate, requireRole, clearUserCache } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const router = express.Router();
@@ -124,6 +124,7 @@ router.post('/role-reviews/:userId/suspend', requireRole('super_admin', 'school_
 
   const newStatus = user.status === 'suspended' ? 'active' : 'suspended';
   await qr('UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newStatus, user.id]);
+  clearUserCache(user.id);
 
   // Revoke all active refresh tokens if suspending
   if (newStatus === 'suspended') {
