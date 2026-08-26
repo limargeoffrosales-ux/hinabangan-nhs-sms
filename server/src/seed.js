@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { q, qa, qi, qr, init, close } = require('./db');
 const { REPORT_TYPES } = require('./report-types');
+const logger = require('./logger');
 
 const GROUP_WORKFLOWS = {
   'Daily Attendance': ['registrar,assistant_principal', 'principal'],
@@ -55,7 +56,7 @@ async function seedReportTypes() {
       await qi('INSERT INTO submission_workflows (report_type_id, review_roles, approve_roles) VALUES (?, ?, ?)', [id, review, approve]);
     }
   }
-  console.log(`+ report taxonomy: ${REPORT_TYPES.length} types with approval workflows`);
+  logger.info({ count: REPORT_TYPES.length }, '+ report taxonomy: types with approval workflows');
 }
 
 async function seed() {
@@ -91,25 +92,25 @@ async function seed() {
   for (const [username, name, role, email] of users) {
     const exists = await q('SELECT id FROM users WHERE username = ?', [username]);
     if (exists) {
-      console.log(`= user ${username} already exists (keeping existing password)`);
+      logger.info({ user: username }, '= user already exists (keeping existing password)');
       continue;
     }
     const pw = crypto.randomBytes(12).toString('base64url');
     await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
       [username, await bcrypt.hash(pw, 10), name, role, email || null, 'active']);
-    console.log(`+ user ${username} (${role}) / password: ${pw}`);
+    logger.info({ user: username, role }, '+ user created');
     accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }
   for (const [username, name, role] of staff) {
     const exists = await q('SELECT id FROM users WHERE username = ?', [username]);
     if (exists) {
-      console.log(`= user ${username} already exists (keeping existing password)`);
+      logger.info({ user: username }, '= user already exists (keeping existing password)');
       continue;
     }
     const pw = crypto.randomBytes(12).toString('base64url');
     await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
       [username, await bcrypt.hash(pw, 10), name, role, `${username}@hinabangan-nhs.edu.ph`, 'active']);
-    console.log(`+ user ${username} (${role}) / password: ${pw}`);
+    logger.info({ user: username, role }, '+ user created');
     accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }
   if (accounts.length) {
@@ -117,19 +118,19 @@ async function seed() {
       require('path').join(__dirname, '..', '..', 'accounts.txt'),
       'Hinabangan National High School - Generated Account Credentials\n' +
       'username | password | role | name\n' + accounts.join('\n') + '\n', 'utf8');
-    console.log(`+ ${accounts.length} new account(s) written to accounts.txt`);
+    logger.info({ count: accounts.length }, '+ new accounts written to accounts.txt');
   } else {
-    console.log('= all accounts already exist — nothing new to write.');
+    logger.info('= all accounts already exist — nothing new to write.');
   }
 
   const hasStudents = await qa('SELECT COUNT(*) AS n FROM students');
   if (process.env.DEMO_SEED !== '1') {
-    console.log('= DEMO_SEED not set — demo data skipped (report types, users and staff accounts are still ensured).');
+    logger.info('= DEMO_SEED not set — demo data skipped (report types, users and staff accounts are still ensured).');
     if (require.main === module) await close();
     return;
   }
   if (Number(hasStudents[0].n) > 0) {
-    console.log('= Demo data already present — kept as-is (no reset; user data preserved).');
+    logger.info('= Demo data already present — kept as-is (no reset; user data preserved).');
     if (require.main === module) await close();
     return;
   }
@@ -363,7 +364,7 @@ async function seed() {
   await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
     ['Teachers: DLL submission reminder', 'Daily Lesson Logs for the current week must be submitted to the principal office every Friday before 5 PM.', 'teachers', 'normal', 1]);
 
-  console.log('Seed complete: 22 accounts (1 superadmin, 1 admin, 20 staff), 8 teachers, 79 subjects (MATATAG JHS + Strengthened SHS), 6 sections, 30 students, grades, attendance, assignments.');
+  logger.info('Seed complete: 22 accounts, 8 teachers, 79 subjects, 6 sections, 30 students, grades, attendance, assignments.');
   await seedAiModules();
   if (require.main === module) await close();
 }
@@ -371,7 +372,7 @@ async function seed() {
 async function seedAiModules() {
   const existing = await q('SELECT COUNT(*) AS n FROM research_projects');
   if (Number(existing.n) > 0) {
-    console.log('= AI module seed data already present (kept).');
+    logger.info('= AI module seed data already present (kept).');
     return;
   }
   const students = await qa('SELECT id, first_name, last_name FROM students ORDER BY id');
@@ -550,14 +551,14 @@ async function seedAiModules() {
       JSON.stringify({ average_difficulty: 0.52, interpretation: 'Overall: test difficulty is appropriate.', poor_items: 1,
         results: [{ item_no: 1, difficulty: 0.55, discrimination: 0.30, difficulty_level: 'Average', discrimination_level: 'Good' }] })]);
 
-  console.log('+ AI modules seeded: research, PHIL-IRI/numeracy records, interventions, question bank, rubrics, TOS, item analysis.');
+  logger.info('+ AI modules seeded: research, PHIL-IRI/numeracy records, interventions, question bank, rubrics, TOS, item analysis.');
 }
 
 module.exports = { seed };
 
 if (require.main === module) {
   seed().catch(async (err) => {
-    console.error('Seed failed:', err);
+    logger.error({ err }, 'Seed failed:');
     await close();
     process.exit(1);
   });

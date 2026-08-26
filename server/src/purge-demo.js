@@ -1,7 +1,8 @@
 const { q, qa, qr } = require('./db');
+const logger = require('./logger');
 
 function log(label, n) {
-  console.log(`PURGE: ${label}: ${n} row(s) removed`);
+  logger.info({ table: label, removed: n }, 'PURGE: rows removed');
 }
 
 const DEMO_ANNOUNCEMENTS = [
@@ -38,12 +39,12 @@ async function countWhere(selectSql, params) {
 
 async function purgeDemo() {
   if (process.env.PURGE_DEMO !== '1') {
-    console.log('PURGE: skipped (set PURGE_DEMO=1 to remove demo data on boot)');
+    logger.info('PURGE: skipped (set PURGE_DEMO=1 to remove demo data on boot)');
     return;
   }
   const already = await q('SELECT value FROM system_flags WHERE key = ?', ['purged_demo']);
   if (already) {
-    console.log('PURGE: demo data already purged (one-shot) — skipping.');
+    logger.info('PURGE: demo data already purged (one-shot) — skipping.');
     return;
   }
 
@@ -100,10 +101,10 @@ async function purgeDemo() {
   log('sections', await countAndDel('sections', `id IN (${sIn})`, []));
   log('teachers', await countAndDel('teachers', `id IN (${inClause(teacherIds)})`, []));
   log('students', await countAndDel('students', `id IN (${sid})`, []));
-  console.log('PURGE: subjects kept — the SHS curriculum catalog is preserved (migration-managed).');
+  logger.info('PURGE: subjects kept — the SHS curriculum catalog is preserved (migration-managed).');
 
   await mark('1');
-  console.log('PURGE: demo data removed. System is now production-ready (one-shot flag saved).');
+  logger.info('PURGE: demo data removed. System is now production-ready (one-shot flag saved).');
 }
 
 module.exports = { purgeDemo };

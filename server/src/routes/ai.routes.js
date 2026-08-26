@@ -4,6 +4,7 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent } = require('../scope');
 const { userRateLimit } = require('../middleware/rate-limit');
+const logger = require('../logger');
 const ai = require('../ai');
 
 const router = express.Router();
@@ -52,7 +53,7 @@ router.post('/report', requireRole(...ADMIN, 'teacher'), aiUserLimiter, asyncH(a
     await audit(req, 'AI_REPORT', 'ai', null, { student_id });
     res.json(report);
   } catch (e) {
-    console.error('[AI_REPORT] Error:', e.message, e.status || '');
+    logger.error({ student_id, err: e.message }, '[AI_REPORT] Error:');
     if (e.message.includes('AI not configured') || e.message.includes('GROQ_API_KEY')) {
       return res.status(503).json({ error: 'AI service not configured. Set GROQ_API_KEY in your environment variables.' });
     }
@@ -114,7 +115,7 @@ router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), aiUserLi
     await audit(req, 'AI_FORM_137', 'ai', null, { student_id });
     res.json(report);
   } catch (e) {
-    console.error('[AI_FORM_137] Error:', e.message);
+    logger.error({ student_id, err: e.message }, '[AI_FORM_137] Error:');
     if (e.message.includes('AI not configured') || e.message.includes('GROQ_API_KEY')) {
       return res.status(503).json({ error: 'AI service not configured.' });
     }
