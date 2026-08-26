@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
@@ -64,25 +64,27 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!section) return res.status(404).json({ error: 'Section not found' });
   const valid = ['present', 'absent', 'late', 'excused', 'half_day'];
   let n = 0;
-  for (const r of b.records) {
-    if (!r.student_id || !valid.includes(r.status)) continue;
-    const sess = r.session || null;
-    const existing = await q(
-      sess
-        ? 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?'
-        : 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NULL',
-      [r.student_id, b.date, sess]
-    );
-    if (existing) {
-      await qr('UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ? WHERE id = ?',
-        [r.status, sess, r.remarks || null, req.user.id, existing.id]);
-    } else {
-      await qi(
-        'INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [r.student_id, b.section_id, b.date, r.status, sess, r.remarks || null, req.user.id]);
+  await tx(async (conn) => {
+    for (const r of b.records) {
+      if (!r.student_id || !valid.includes(r.status)) continue;
+      const sess = r.session || null;
+      const existing = await conn.get(
+        sess
+          ? 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?'
+          : 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NULL',
+        [r.student_id, b.date, sess]
+      );
+      if (existing) {
+        await conn.run('UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ? WHERE id = ?',
+          [r.status, sess, r.remarks || null, req.user.id, existing.id]);
+      } else {
+        await conn.runId(
+          'INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [r.student_id, b.section_id, b.date, r.status, sess, r.remarks || null, req.user.id]);
+      }
+      n++;
     }
-    n++;
-  }
+  });
   await audit(req, 'ATTENDANCE_BULK', 'attendance', b.section_id, { date: b.date, records: n });
   fireAttendanceAlerts(b.records, b.date);
   res.json({ ok: true, recorded: n });
