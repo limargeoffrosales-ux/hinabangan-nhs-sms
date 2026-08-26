@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Award, Plus, Pencil, Trash2, Filter, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react';
+import { Award, Plus, Pencil, Trash2, Filter } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner } from '../components/ui';

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, ClipboardCheck, NotebookPen } from 'lucide-react';
+import { Plus, Pencil, Trash2, ClipboardCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Empty, ErrorBanner, Spinner, Modal } from '../components/ui';
 

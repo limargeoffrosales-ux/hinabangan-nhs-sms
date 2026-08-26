@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Check, Loader2 } from 'lucide-react';
+import { Upload, Check, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 export default function FileUpload({ folder = 'general', accept, onUpload, className, label, compact }) {

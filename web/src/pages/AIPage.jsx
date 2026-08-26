@@ -1,9 +1,9 @@
 ﻿import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Bot, Printer, ChevronDown, ChevronRight } from 'lucide-react';
+import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Printer, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Spinner } from '../components/ui';
-import { renderSF9Card, esc, MONTH_NAMES, MONTH_NUMS, TERM_MAP, CORE_VALUES } from './DepedForms';
+import { PageHead } from '../components/ui';
+import { renderSF9Card, esc, CORE_VALUES } from './DepedForms';
 import { printElementHtml } from '../lib/export';
 
 const TABS = [
