@@ -9,11 +9,5 @@
   "scripts": {
     "build": "cd web && npm ci && npm run build && cd ../server && npm ci",
     "start": "cd server && npm start"
-  },
-  "dependencies": {
-    "@sentry/node": "^10.70.0",
-    "openai": "^7.5.0",
-    "pino": "^10.3.1",
-    "pino-http": "^11.0.0"
   }
 }

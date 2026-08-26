@@ -13,6 +13,7 @@
 
 const nodemailer = require('nodemailer');
 const { q, qa, qi, qr, nowSql } = require('./db');
+const logger = require('./logger');
 const {
   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, NOTIFY_EMAIL_MODE,
   SMS_PROVIDER_URL, SMS_PROVIDER_TOKEN, SMS_SENDER, NOTIFY_EMAIL_ENABLED, NOTIFY_SMS_ENABLED,
@@ -394,7 +395,7 @@ async function sweep() {
       [MAX_ATTEMPTS, SWEEP_LIMIT]);
     for (const row of rows) await attemptSend(row);
   } catch (err) {
-    console.error('NOTIFY_SWEEP failed:', err.message);
+    logger.error({ err: err.message }, 'NOTIFY_SWEEP failed:');
   }
 }
 

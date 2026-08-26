@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { q, qi, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
+const logger = require('../logger');
 
 const router = Router();
 
@@ -29,7 +30,7 @@ router.post('/register', authenticate, async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error('push register error:', err);
+    logger.error({ err: err.message }, 'push register error:');
     res.status(500).json({ error: 'Failed to register device' });
   }
 });
@@ -46,7 +47,7 @@ router.post('/unregister', authenticate, async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error('push unregister error:', err);
+    logger.error({ err: err.message }, 'push unregister error:');
     res.status(500).json({ error: 'Failed to unregister device' });
   }
 });
@@ -98,7 +99,7 @@ router.post('/send', authenticate, requireRole('super_admin', 'school_admin', 'p
 
     res.json({ ok: true, ...results });
   } catch (err) {
-    console.error('push send error:', err);
+    logger.error({ err: err.message }, 'push send error:');
     res.status(500).json({ error: 'Failed to send push notification' });
   }
 });

@@ -11,8 +11,7 @@ const pino = require('pino');
 const db = require('./db');
 const { PORT, WEB_DIR, isAllowedOrigin } = require('./config');
 
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
-module.exports.logger = logger;
+const logger = require('./logger');
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 const studentsRoutes = require('./routes/students.routes');
@@ -57,7 +56,7 @@ const aiRoutes = require('./routes/ai.routes');
 
 (async () => {
   if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-    console.error('FATAL: JWT_SECRET must be set in production.');
+    logger.fatal('JWT_SECRET must be set in production.');
     process.exit(1);
   }
   await db.init();
@@ -66,7 +65,7 @@ const aiRoutes = require('./routes/ai.routes');
   if (process.env.SEED_ON_BOOT === '1') {
     const { seed } = require('./seed');
     await seed();
-    console.log('SEED_ON_BOOT: report types, demo + staff accounts ensured (idempotent)');
+    logger.info('SEED_ON_BOOT: report types, demo + staff accounts ensured (idempotent)');
   }
   const { purgeDemo } = require('./purge-demo');
   await purgeDemo();
@@ -80,9 +79,9 @@ const aiRoutes = require('./routes/ai.routes');
           'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
           [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
         );
-        console.log('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
+        logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
       } else {
-        console.log('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
+        logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
       }
     }
   }

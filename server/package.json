@@ -7,7 +7,10 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/index.js",
     "dev": "node --watch --env-file-if-exists=.env src/index.js",
-    "seed": "node --env-file-if-exists=.env src/seed.js"
+    "seed": "node --env-file-if-exists=.env src/seed.js",
+    "backup": "node scripts/backup.js",
+    "backup:list": "node scripts/backup.js --list",
+    "backup:cleanup": "node scripts/backup.js --cleanup"
   },
   "engines": {
     "node": ">=22.5.0"
