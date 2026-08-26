@@ -2,6 +2,7 @@
 const { q, qa } = require('./db');
 
 let client = null;
+let clientProvider = null;
 
 const PROVIDERS = {
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o', keyEnv: 'OPENAI_API_KEY' },
@@ -16,9 +17,13 @@ function getProvider() {
 
 function getClient() {
   const provider = getProvider();
+  if (provider !== clientProvider) {
+    client = null;
+    clientProvider = provider;
+  }
   const cfg = PROVIDERS[provider] || PROVIDERS.groq;
   const apiKey = cfg.keyEnv ? process.env[cfg.keyEnv] : 'ollama';
-  if (!apiKey || apiKey === 'ollama' && provider !== 'ollama') return null;
+  if (!apiKey || (apiKey === 'ollama' && provider !== 'ollama')) return null;
   if (!client) {
     client = new OpenAI({ apiKey, baseURL: cfg.baseUrl });
   }
