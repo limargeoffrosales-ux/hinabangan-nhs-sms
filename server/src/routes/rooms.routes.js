@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { paginate } = require('../pagination');
 
 const router = express.Router();
 router.use(authenticate);
@@ -17,7 +18,11 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (req.query.active === '1') { where.push('active = TRUE'); }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY building, floor, code';
-  res.json({ data: await qa(sql, params) });
+  if (req.query.page || req.query.limit) {
+    res.json(await paginate(sql, params, req.query, { defaultLimit: 100 }));
+  } else {
+    res.json({ data: await qa(sql, params) });
+  }
 }));
 
 router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
