@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, Check, Loader2 } from 'lucide-react';
+import { getApiBase } from '../lib/api';
 
 export default function FileUpload({ folder = 'general', accept, onUpload, className, label, compact }) {
   const [uploading, setUploading] = useState(false);
@@ -20,7 +21,7 @@ export default function FileUpload({ folder = 'general', accept, onUpload, class
       form.append('file', file);
       const res = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `/api/v1/uploads/file?folder=${folder}`);
+        xhr.open('POST', `${getApiBase()}/uploads/file?folder=${folder}`);
         const token = localStorage.getItem('meridianed_token');
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.upload.onprogress = (ev) => {
