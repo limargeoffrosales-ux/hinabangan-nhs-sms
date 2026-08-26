@@ -1081,8 +1081,17 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
   .topbar h1 { font-size: 13px; letter-spacing: 0; }
   .topbar { gap: 8px; }
   .icon-btn { width: 38px; height: 38px; }
-  .grid-2 { grid-template-columns: 1fr; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .page-head .sub { font-size: 12.5px; }
+  .card { padding: 14px; border-radius: 12px; }
+  table { font-size: 11px; display: block; overflow-x: auto; white-space: nowrap; }
+  .modal-content { width: 95vw !important; max-height: 90vh; }
+  .btn { padding: 7px 12px; font-size: 12.5px; }
+  .input, select.input { font-size: 13px; padding: 7px 10px; }
+  .badge { font-size: 10px; padding: 2px 6px; }
+  .err-banner { font-size: 12px; padding: 8px 10px; }
+  .kpi { min-width: 120px; }
+  .kpi-mini { min-width: 60px; }
   .theme-pop {
     left: 50%;
     right: auto;
