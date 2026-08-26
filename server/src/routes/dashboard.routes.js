@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa, qi, qr } = db;
+const { q, qa, qi, qr, tx } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, page, audit } = require('../utils');
 
@@ -430,19 +430,22 @@ router.post('/aral-sessions', requireRole(...WRITE, 'teacher', 'guidance'), asyn
   const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
   if (!section) return res.status(404).json({ error: 'Section not found' });
   const sy = b.school_year || '2026-2027';
-  const sesId = await qi(
-    `INSERT INTO aral_sessions (school_year, section_id, subject_area, session_date, session_no, tutor, remarks, recorded_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [sy, b.section_id, area, b.session_date, b.session_no || null, b.tutor || null, b.remarks || null, req.user.id]);
+  let sesId;
   let recorded = 0;
   const valid = ['present', 'absent', 'excused'];
-  for (const r of (b.attendance || [])) {
-    if (!r.student_id || !valid.includes(r.status)) continue;
-    await qr(
-      'INSERT INTO aral_session_attendance (session_id, student_id, status, remarks) VALUES (?, ?, ?, ?)',
-      [sesId, r.student_id, r.status, r.remarks || null]);
-    recorded++;
-  }
+  await tx(async (conn) => {
+    sesId = await conn.runId(
+      `INSERT INTO aral_sessions (school_year, section_id, subject_area, session_date, session_no, tutor, remarks, recorded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sy, b.section_id, area, b.session_date, b.session_no || null, b.tutor || null, b.remarks || null, req.user.id]);
+    for (const r of (b.attendance || [])) {
+      if (!r.student_id || !valid.includes(r.status)) continue;
+      await conn.run(
+        'INSERT INTO aral_session_attendance (session_id, student_id, status, remarks) VALUES (?, ?, ?, ?)',
+        [sesId, r.student_id, r.status, r.remarks || null]);
+      recorded++;
+    }
+  });
   await audit(req, 'ARAL_SESSION', 'aral_sessions', sesId, { section_id: b.section_id, subject_area: area, session_date: b.session_date, recorded });
   res.status(201).json({ id: sesId, recorded });
 }));
