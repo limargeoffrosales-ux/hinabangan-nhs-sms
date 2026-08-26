@@ -13,7 +13,7 @@ const FORMS = [
   { code: 'sf6', label: 'SF6', title: 'Summarized Promotion', orient: 'landscape' },
   { code: 'sf7', label: 'SF7', title: 'Personnel Assignment', orient: 'landscape' },
   { code: 'sf8', label: 'SF8', title: 'Health & Nutrition', orient: 'landscape' },
-  { code: 'sf9', label: 'SF9', title: 'Report Card', orient: 'portrait' },
+  { code: 'sf9', label: 'SF9', title: 'Report Card', orient: 'landscape' },
   { code: 'sf10', label: 'SF10', title: 'Permanent Record', orient: 'portrait' },
   { code: 'sog', label: 'SOG', title: 'Summary of Grades', orient: 'landscape' },
   { code: 'sas', label: 'SAS', title: 'Attendance Summary', orient: 'landscape' },
@@ -66,8 +66,8 @@ async function batchPrintSF9(sectionId, info) {
     const learners = res.learners || [];
     if (!learners.length) return alert('No learners found for this section.');
     const cards = learners.map(lr => renderSF9Card(lr.student, lr.enrollment, lr.grades, lr.monthlyAttendance || [], info.school_year || '____-____', info, lr.conduct || []));
-    const css = `@page{size:legal portrait;margin:0.3in}body{font-family:'Times New Roman',serif;font-size:10pt;line-height:1.2;color:#000;margin:0;padding:0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:2pt 3pt;font-size:7.5pt;vertical-align:top}.center{text-align:center}.c{text-align:center}.b{font-weight:bold}.small{font-size:7pt}.sig{width:100%;border:none}.sig td{border:none;text-align:center;font-size:9pt;padding:8pt 3pt 0}.sf9-page{page-break-after:always;width:100%}.sf9-page:last-child{page-break-after:auto}.sf9-front{display:flex;gap:8pt}.sf9-back{display:flex;gap:8pt}.sf9-left{flex:0 0 42%}.sf9-right{flex:1}.sf9-bl{flex:0 0 55%}.sf9-br{flex:1}`;
-    const full = `<!doctype html><html><head><meta charset="utf-8"><title>SF9 - Report Cards - Batch</title><style>${css}</style></head><body>${cards.map(c => `<div class="sf9-page">${c}</div>`).join('\n')}</body></html>`;
+    const css = `@page{size:legal landscape;margin:0.3in}body{font-family:'Times New Roman',serif;font-size:10pt;line-height:1.2;color:#000;margin:0;padding:0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:2pt 3pt;font-size:7.5pt;vertical-align:top}.center{text-align:center}.c{text-align:center}.b{font-weight:bold}.small{font-size:7pt}.sig{width:100%;border:none}.sig td{border:none;text-align:center;font-size:9pt;padding:8pt 3pt 0}.sf9-page{page-break-after:always;width:100%;height:100vh;display:flex}.sf9-page:last-child{page-break-after:auto}`;
+    const full = `<!doctype html><html><head><meta charset="utf-8"><title>SF9 - Report Cards - Batch</title><style>${css}</style></head><body>${cards.join('\n')}</body></html>`;
     const w = window.open('', '_blank');
     w.document.write(full);
     w.document.close();
@@ -961,22 +961,22 @@ function renderSF9Card(stud, enrollment, grades, monthlyAttendance, sy, info, co
     }
     const genAvg = termGrades.length ? (termGrades.reduce((s, g) => s + (Number(g.computed_grade) || 0), 0) / termGrades.length).toFixed(1) : '';
     return `
-    <div style="font-size:7.5pt;font-weight:bold;margin:4pt 0 2pt;">${TERM_MAP[termNum] || 'Term ' + termNum}</div>
-    <table style="font-size:7pt;width:100%;">
+    <div style="font-size:8pt;font-weight:bold;margin:3pt 0 2pt;">${TERM_MAP[termNum] || 'Term ' + termNum}</div>
+    <table style="font-size:7.5pt;width:100%;">
     <thead><tr>
-      <th style="text-align:left;min-width:90pt;padding:2pt 3pt;font-size:7pt;">Subject</th>
-      <th style="width:30pt;padding:2pt 3pt;font-size:7pt;">Grade</th>
-      <th style="width:35pt;padding:2pt 3pt;font-size:7pt;">Remarks</th>
+      <th style="text-align:left;min-width:120pt;padding:2pt 3pt;font-size:7.5pt;">Subject</th>
+      <th style="width:35pt;padding:2pt 3pt;font-size:7.5pt;">Grade</th>
+      <th style="width:40pt;padding:2pt 3pt;font-size:7.5pt;">Remarks</th>
     </tr></thead>
     <tbody>
     ${allSubjects.length ? allSubjects.map(g => {
-      if (g._subheader) return `<tr><td colspan="3" style="font-weight:bold;padding:2pt 3pt;border-top:1px solid #000;border-bottom:1px solid #000;font-size:7pt;">${esc(g._subheader)}</td></tr>`;
+      if (g._subheader) return `<tr><td colspan="3" style="font-weight:bold;padding:2pt 3pt;border-top:1px solid #000;border-bottom:1px solid #000;font-size:7.5pt;">${esc(g._subheader)}</td></tr>`;
       const finalGrade = Number(g.computed_grade) || 0;
       const remark = finalGrade >= 75 ? 'Passed' : finalGrade > 0 ? 'Failed' : '';
       return `<tr>
-        <td style="padding:1pt 3pt;">${esc(g.subject_name)}</td>
-        <td class="c" style="padding:1pt 3pt;"><strong>${finalGrade ? finalGrade.toFixed(1) : ''}</strong></td>
-        <td class="c" style="padding:1pt 3pt;">${remark}</td>
+        <td style="padding:1.5pt 3pt;">${esc(g.subject_name)}</td>
+        <td class="c" style="padding:1.5pt 3pt;"><strong>${finalGrade ? finalGrade.toFixed(1) : ''}</strong></td>
+        <td class="c" style="padding:1.5pt 3pt;">${remark}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="3" class="c" style="padding:4pt;">&nbsp;</td></tr>'}
     <tr style="font-style:italic;">
@@ -988,87 +988,106 @@ function renderSF9Card(stud, enrollment, grades, monthlyAttendance, sy, info, co
   }
 
   const front = `
-<div class="sf9-front">
-  <div class="sf9-left" style="font-size:7pt;">
-    <div style="text-align:center;font-weight:bold;font-size:8pt;margin-bottom:3pt;">ATTENDANCE RECORD</div>
-    <table style="font-size:6.5pt;width:100%;">
+<div class="sf9-page" style="display:flex;gap:0;height:100%;">
+
+  <!-- PAGE 1 LEFT: ATTENDANCE RECORD -->
+  <div style="flex:0 0 48%;border-right:1px solid #999;padding:0 8pt 0 0;">
+    <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">ATTENDANCE RECORD</div>
+    <table style="font-size:7.5pt;width:100%;">
     <thead><tr>
-      <th style="width:22pt;padding:1pt;font-size:6pt;writing-mode:vertical-lr;text-orientation:mixed;">&nbsp;</th>
-      ${MONTH_NAMES.map(m => `<th style="width:16pt;padding:1pt;font-size:5.5pt;writing-mode:vertical-lr;text-orientation:mixed;">${m}</th>`).join('')}
-      <th style="width:16pt;padding:1pt;font-size:6pt;font-weight:bold;">TOTAL</th>
+      <th style="width:30pt;padding:2pt;font-size:7pt;writing-mode:vertical-lr;text-orientation:mixed;">&nbsp;</th>
+      ${MONTH_NAMES.map(m => `<th style="width:18pt;padding:1.5pt;font-size:6.5pt;writing-mode:vertical-lr;text-orientation:mixed;">${m}</th>`).join('')}
+      <th style="width:20pt;padding:1.5pt;font-size:7pt;font-weight:bold;">TOTAL</th>
     </tr></thead>
     <tbody>
-      <tr><td style="padding:1pt;font-size:6pt;font-weight:bold;">No. of School Days</td>${MONTH_NUMS.map(m => `<td class="c" style="padding:1pt;">${attByMonth[m]?.total_days || ''}</td>`).join('')}<td class="c" style="padding:1pt;font-weight:bold;">${totalDays || ''}</td></tr>
-      <tr><td style="padding:1pt;font-size:6pt;font-weight:bold;">No. of Days Present</td>${MONTH_NUMS.map(m => `<td class="c" style="padding:1pt;">${attByMonth[m]?.days_present || ''}</td>`).join('')}<td class="c" style="padding:1pt;font-weight:bold;">${totalPresent || ''}</td></tr>
-      <tr><td style="padding:1pt;font-size:6pt;font-weight:bold;">No. of Days Absent</td>${MONTH_NUMS.map(m => `<td class="c" style="padding:1pt;">${attByMonth[m]?.days_absent || ''}</td>`).join('')}<td class="c" style="padding:1pt;font-weight:bold;">${totalAbsent || ''}</td></tr>
+      <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of School Days</td>${MONTH_NUMS.map(m => `<td class="c" style="padding:1.5pt;">${attByMonth[m]?.total_days || ''}</td>`).join('')}<td class="c" style="padding:1.5pt;font-weight:bold;">${totalDays || ''}</td></tr>
+      <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of Days Present</td>${MONTH_NUMS.map(m => `<td class="c" style="padding:1.5pt;">${attByMonth[m]?.days_present || ''}</td>`).join('')}<td class="c" style="padding:1.5pt;font-weight:bold;">${totalPresent || ''}</td></tr>
+      <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of Days Absent</td>${MONTH_NUMS.map(m => `<td class="c" style="padding:1.5pt;">${attByMonth[m]?.days_absent || ''}</td>`).join('')}<td class="c" style="padding:1.5pt;font-weight:bold;">${totalAbsent || ''}</td></tr>
     </tbody></table>
-    <div style="margin-top:6pt;font-size:7pt;font-weight:bold;">PARENT / GUARDIAN'S SIGNATURE</div>
-    <div style="margin-top:3pt;font-size:7pt;">1st Term ___________________________________</div>
-    <div style="margin-top:2pt;font-size:7pt;">2nd Term ___________________________________</div>
-    <div style="margin-top:2pt;font-size:7pt;">3rd Term ___________________________________</div>
-    <div style="margin-top:8pt;font-size:7pt;font-weight:bold;">Certificate of Transfer</div>
-    <div style="margin-top:3pt;font-size:7pt;">Admitted to Grade: ____ Section: ____________</div>
-    <div style="margin-top:2pt;font-size:7pt;">Eligibility for Admission to Grade: ____________</div>
-    <div style="margin-top:3pt;font-size:7pt;">Approved:</div>
-    <div style="display:flex;gap:20pt;margin-top:8pt;font-size:7pt;">
-      <div style="text-align:center;">________________________________<br/>Principal</div>
-      <div style="text-align:center;">________________________________<br/>Teacher</div>
+
+    <div style="margin-top:10pt;font-size:8pt;font-weight:bold;">PARENT / GUARDIAN'S SIGNATURE OVER LEARNER'S PROGRESS REPORT CARD</div>
+    <div style="margin-top:6pt;font-size:7.5pt;">1st Term ___________________________________</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">2nd Term ___________________________________</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">3rd Term ___________________________________</div>
+
+    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Certificate of Transfer</div>
+    <div style="margin-top:4pt;font-size:7.5pt;line-height:1.6;">
+      Admitted to Grade: ____ Section: ____________<br/>
+      Eligibility for Admission to Grade: ____________
     </div>
-    <div style="margin-top:10pt;font-size:7pt;font-weight:bold;">Cancellation of Eligibility to Transfer</div>
-    <div style="margin-top:3pt;font-size:7pt;">Admitted in: ________________________________</div>
-    <div style="margin-top:2pt;font-size:7pt;">Date: ____________________</div>
-    <div style="margin-top:8pt;font-size:7pt;text-align:center;">________________________________<br/>Principal</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">Approved:</div>
+    <div style="display:flex;gap:20pt;margin-top:10pt;font-size:7.5pt;">
+      <div style="text-align:center;flex:1;">________________________________<br/>Principal</div>
+      <div style="text-align:center;flex:1;">________________________________<br/>Teacher</div>
+    </div>
+
+    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Cancellation of Eligibility to Transfer</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">
+      Admitted in: ________________________________<br/>
+      Date: ____________________
+    </div>
+    <div style="margin-top:10pt;font-size:7.5pt;text-align:center;">________________________________<br/>Principal</div>
   </div>
-  <div class="sf9-right" style="font-size:7.5pt;">
-    <div style="text-align:center;margin-bottom:4pt;">
-      <div style="font-size:7.5pt;font-weight:bold;">Republic of the Philippines</div>
-      <div style="font-size:7pt;">DEPARTMENT OF EDUCATION</div>
-      <div style="font-size:7pt;">${esc(info.region || 'Region ____')}</div>
-      <div style="font-size:7pt;">${esc(info.division || 'Division ____')}</div>
-      <div style="font-size:7pt;">${esc(info.school_name || 'School ____')}</div>
+
+  <!-- PAGE 1 RIGHT: LEARNER'S PROGRESS REPORT CARD -->
+  <div style="flex:1;padding:0 0 0 8pt;">
+    <div style="text-align:center;margin-bottom:5pt;">
+      <div style="font-size:8.5pt;font-weight:bold;">Republic of the Philippines</div>
+      <div style="font-size:8pt;">DEPARTMENT OF EDUCATION</div>
+      <div style="font-size:7.5pt;">${esc(info.region || 'Region ____')}</div>
+      <div style="font-size:7.5pt;">${esc(info.division || 'Division ____')}</div>
+      <div style="font-size:7.5pt;">${esc(info.district || 'District ____')}</div>
+      <div style="font-size:8.5pt;font-weight:bold;margin-top:4pt;">${esc(info.school_name || 'School ____')}</div>
+      <div style="font-size:7.5pt;">School ID: ${esc(info.school_id || '______')}</div>
     </div>
-    <div style="text-align:right;font-size:7pt;margin-bottom:2pt;"><strong>LRN:</strong> ${esc(stud.lrn || '______________')}</div>
-    <div style="text-align:center;font-size:10pt;font-weight:bold;margin:6pt 0;border:1.5px solid #000;padding:3pt;">LEARNER'S PROGRESS REPORT CARD</div>
-    <table style="font-size:7.5pt;width:100%;margin:4pt 0;">
-      <tr><td style="border:none;width:20%;padding:2pt;"><strong>Name:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">${esc(stud.last_name)}, ${esc(stud.first_name)}${stud.extension_name ? ', ' + esc(stud.extension_name) : ''}${stud.middle_name ? ', ' + esc(stud.middle_name) : ''}</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>Age:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">${esc(String(stud.age || '____'))} &nbsp;&nbsp;&nbsp; <strong>Sex:</strong> ${esc(stud.sex || '____')}</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>Grade:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">${gradeLevel} &nbsp;&nbsp;&nbsp; <strong>Section:</strong> ${sectionName}</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>Curriculum:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">K to 12 / MATATAG</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>School Year:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">${esc(sy)}</td></tr>
-      ${trackCluster ? `<tr><td style="border:none;padding:2pt;"><strong>Track/Cluster:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">${trackCluster}</td></tr>` : ''}
+    <div style="text-align:right;font-size:8pt;margin-bottom:3pt;"><strong>LRN:</strong> ${esc(stud.lrn || '______________')}</div>
+    <div style="text-align:center;font-size:11pt;font-weight:bold;margin:8pt 0;border:2px solid #000;padding:4pt;">LEARNER'S PROGRESS REPORT CARD</div>
+    <table style="font-size:8.5pt;width:100%;margin:6pt 0;">
+      <tr><td style="border:none;width:22%;padding:3pt;"><strong>Name:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">${esc(stud.last_name)}, ${esc(stud.first_name)}${stud.extension_name ? ', ' + esc(stud.extension_name) : ''}${stud.middle_name ? ', ' + esc(stud.middle_name) : ''}</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>Age:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">${esc(String(stud.age || '____'))} &nbsp;&nbsp;&nbsp; <strong>Sex:</strong> ${esc(stud.sex || '____')}</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>Grade:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">${gradeLevel} &nbsp;&nbsp;&nbsp; <strong>Section:</strong> ${sectionName}</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>Curriculum:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">K to 12 / MATATAG</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>School Year:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">${esc(sy)}</td></tr>
+      ${trackCluster ? `<tr><td style="border:none;padding:3pt;"><strong>Track/Cluster:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">${trackCluster}</td></tr>` : ''}
     </table>
-    <div style="font-size:7pt;margin:6pt 0;line-height:1.35;">
+    <div style="font-size:8pt;margin:10pt 0;line-height:1.5;">
       Dear Parent,<br/>
       With the K to 12 Curriculum, the Learner Progress Report Card shows how your child is performing in school.
       The enclosed report card provides information on your child's grades in the different learning areas,
       conduct/behavior and attendance. In case you need further explanation or clarification on your child's grades,
       please do not hesitate to get in touch with the class adviser/principal.
     </div>
-    <div style="margin-top:12pt;text-align:right;font-size:7.5pt;">
+    <div style="margin-top:16pt;text-align:right;font-size:8.5pt;">
       <div>________________________________</div>
       <div><strong>${principalName || '______________________'}</strong></div>
       <div>Principal / Teacher</div>
     </div>
   </div>
-</div>`;
+
+</div>`; // end front
 
   const back = `
-<div class="sf9-back">
-  <div class="sf9-bl" style="font-size:7.5pt;">
-    ${availableTerms.length ? availableTerms.map(q => gradesTableHtml(q, gradesByQuarter[q])).join('<div style="border-bottom:1px solid #aaa;margin:4pt 0;"></div>') : '<div style="margin:8pt;text-align:center;">No grade data available.</div>'}
+<div class="sf9-page" style="display:flex;gap:0;height:100%;">
+
+  <!-- PAGE 2 LEFT: GRADES -->
+  <div style="flex:0 0 52%;border-right:1px solid #999;padding:0 8pt 0 0;">
+    <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">LEARNER'S GRADES</div>
+    ${availableTerms.length ? availableTerms.map(q => gradesTableHtml(q, gradesByQuarter[q])).join('<div style="border-bottom:1px solid #aaa;margin:3pt 0;"></div>') : '<div style="margin:8pt;text-align:center;">No grade data available.</div>'}
   </div>
-  <div class="sf9-br" style="font-size:7pt;">
-    <div style="text-align:center;font-weight:bold;font-size:8pt;margin-bottom:4pt;">REPORT ON LEARNER'S OBSERVED VALUES</div>
-    <table style="font-size:6.5pt;width:100%;">
+
+  <!-- PAGE 2 RIGHT: OBSERVED VALUES -->
+  <div style="flex:1;padding:0 0 0 8pt;">
+    <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">REPORT ON LEARNER'S OBSERVED VALUES</div>
+    <table style="font-size:7pt;width:100%;">
     <thead><tr>
-      <th style="width:52pt;padding:2pt;font-size:6.5pt;text-align:left;">Core Values</th>
-      <th style="padding:2pt;font-size:6.5pt;text-align:left;">Behavior Statements</th>
-      <th colspan="3" style="padding:2pt;font-size:6.5pt;text-align:center;">Term</th>
+      <th style="width:60pt;padding:2pt;font-size:7pt;text-align:left;">Core Values</th>
+      <th style="padding:2pt;font-size:7pt;text-align:left;">Behavior Statements</th>
+      <th colspan="3" style="padding:2pt;font-size:7pt;text-align:center;">Term</th>
     </tr><tr>
       <th style="padding:1pt;"></th><th style="padding:1pt;"></th>
-      <th style="width:18pt;padding:1pt;font-size:6pt;text-align:center;">1</th>
-      <th style="width:18pt;padding:1pt;font-size:6pt;text-align:center;">2</th>
-      <th style="width:18pt;padding:1pt;font-size:6pt;text-align:center;">3</th>
+      <th style="width:20pt;padding:1pt;font-size:6.5pt;text-align:center;">1</th>
+      <th style="width:20pt;padding:1pt;font-size:6.5pt;text-align:center;">2</th>
+      <th style="width:20pt;padding:1pt;font-size:6.5pt;text-align:center;">3</th>
     </tr></thead>
     <tbody>
     ${CORE_VALUES.map(cv => {
@@ -1079,60 +1098,63 @@ function renderSF9Card(stud, enrollment, grades, monthlyAttendance, sy, info, co
         const term3 = bi === 0 ? (conductByTerm['3']?.[cv.key] || '') : '';
         rows.push(`<tr>
           ${bi === 0 ? `<td rowspan="${cv.behaviors.length}" style="padding:2pt;font-weight:bold;vertical-align:top;border-bottom:1px solid #aaa;">${esc(cv.label)}</td>` : ''}
-          <td style="padding:1pt 2pt;font-size:6.5pt;border-bottom:1px solid #eee;">${esc(bh)}</td>
-          <td class="c" style="padding:1pt;border-bottom:1px solid #eee;font-size:7pt;">${esc(term1)}</td>
-          <td class="c" style="padding:1pt;border-bottom:1px solid #eee;font-size:7pt;">${esc(term2)}</td>
-          <td class="c" style="padding:1pt;border-bottom:1px solid #eee;font-size:7pt;">${esc(term3)}</td>
+          <td style="padding:1.5pt 2pt;font-size:7pt;border-bottom:1px solid #eee;">${esc(bh)}</td>
+          <td class="c" style="padding:1.5pt;border-bottom:1px solid #eee;font-size:7.5pt;">${esc(term1)}</td>
+          <td class="c" style="padding:1.5pt;border-bottom:1px solid #eee;font-size:7.5pt;">${esc(term2)}</td>
+          <td class="c" style="padding:1.5pt;border-bottom:1px solid #eee;font-size:7.5pt;">${esc(term3)}</td>
         </tr>`);
       });
       return rows.join('');
     }).join('')}
     </tbody></table>
-    <div style="margin-top:5pt;font-weight:bold;font-size:7.5pt;">Observed Values</div>
-    <table style="font-size:6.5pt;width:60%;margin-top:2pt;">
+
+    <div style="margin-top:8pt;font-weight:bold;font-size:8pt;">Observed Values</div>
+    <table style="font-size:7pt;width:50%;margin-top:3pt;">
     <tbody>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">AO</td><td style="padding:1pt 3pt;border:1px solid #000;">Always Observed</td></tr>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">SO</td><td style="padding:1pt 3pt;border:1px solid #000;">Sometimes Observed</td></tr>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">RO</td><td style="padding:1pt 3pt;border:1px solid #000;">Rarely Observed</td></tr>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">NO</td><td style="padding:1pt 3pt;border:1px solid #000;">Not Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">AO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Always Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">SO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Sometimes Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">RO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Rarely Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">NO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Not Observed</td></tr>
     </tbody></table>
-    <div style="margin-top:6pt;font-weight:bold;font-size:7.5pt;">Learner Progress and Achievement</div>
-    <table style="font-size:6.5pt;width:100%;margin-top:2pt;">
+
+    <div style="margin-top:8pt;font-weight:bold;font-size:8pt;">Learner Progress and Achievement</div>
+    <table style="font-size:7pt;width:100%;margin-top:3pt;">
     <thead><tr>
-      <th style="padding:2pt;font-size:6.5pt;text-align:left;border:1px solid #000;">Descriptors</th>
-      <th style="padding:2pt;font-size:6.5pt;text-align:center;border:1px solid #000;">Grading Scale</th>
-      <th style="padding:2pt;font-size:6.5pt;text-align:center;border:1px solid #000;">Remarks</th>
+      <th style="padding:2pt;font-size:7pt;text-align:left;border:1px solid #000;">Descriptors</th>
+      <th style="padding:2pt;font-size:7pt;text-align:center;border:1px solid #000;">Grading Scale</th>
+      <th style="padding:2pt;font-size:7pt;text-align:center;border:1px solid #000;">Remarks</th>
     </tr></thead>
     <tbody>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Outstanding</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">90-100</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Very Satisfactory</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">85-89</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Satisfactory</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">80-84</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Fairly Satisfactory</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">75-79</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Did Not Meet Expectation</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Below 75</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Failed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Outstanding</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">90-100</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Very Satisfactory</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">85-89</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Satisfactory</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">80-84</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Fairly Satisfactory</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">75-79</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Did Not Meet Expectation</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Below 75</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Failed</td></tr>
     </tbody></table>
   </div>
-</div>`;
+
+</div>`; // end back
 
   return front + '\n<div style="page-break-after:always;"></div>\n' + back;
 }
 
 
 function renderSF9Blank(info) {
-  const emptyMonthCells = MONTH_NUMS.map(() => '<td class="c" style="padding:1pt;">&nbsp;</td>').join('');
+  const emptyMonthCells = MONTH_NUMS.map(() => '<td class="c" style="padding:1.5pt;">&nbsp;</td>').join('');
   function blankGradesTable(termLabel) {
     const subjects = ['Filipino','English','Mathematics','Science','Araling Panlipunan'];
     return `
-    <div style="font-size:7.5pt;font-weight:bold;margin:4pt 0 2pt;">${termLabel}</div>
-    <table style="font-size:7pt;width:100%;">
+    <div style="font-size:8pt;font-weight:bold;margin:3pt 0 2pt;">${termLabel}</div>
+    <table style="font-size:7.5pt;width:100%;">
     <thead><tr>
-      <th style="text-align:left;min-width:90pt;padding:2pt 3pt;font-size:7pt;">Subject</th>
-      <th style="width:30pt;padding:2pt 3pt;font-size:7pt;">Grade</th>
-      <th style="width:35pt;padding:2pt 3pt;font-size:7pt;">Remarks</th>
+      <th style="text-align:left;min-width:120pt;padding:2pt 3pt;font-size:7.5pt;">Subject</th>
+      <th style="width:35pt;padding:2pt 3pt;font-size:7.5pt;">Grade</th>
+      <th style="width:40pt;padding:2pt 3pt;font-size:7.5pt;">Remarks</th>
     </tr></thead>
     <tbody>
-    ${subjects.map(s => `<tr><td style="padding:1pt 3pt;">${s}</td><td class="c" style="padding:1pt 3pt;"></td><td class="c" style="padding:1pt 3pt;"></td></tr>`).join('')}
+    ${subjects.map(s => `<tr><td style="padding:1.5pt 3pt;">${s}</td><td class="c" style="padding:1.5pt 3pt;"></td><td class="c" style="padding:1.5pt 3pt;"></td></tr>`).join('')}
     <tr><td colspan="2" style="font-weight:bold;padding:2pt 3pt;border-top:1px solid #000;">Applied and Specialized Subjects</td><td style="border-top:1px solid #000;"></td></tr>
-    <tr><td style="padding:1pt 3pt;">Araling Panlipunan (AP)</td><td class="c" style="padding:1pt 3pt;"></td><td class="c" style="padding:1pt 3pt;"></td></tr>
+    <tr><td style="padding:1.5pt 3pt;">Araling Panlipunan (AP)</td><td class="c" style="padding:1.5pt 3pt;"></td><td class="c" style="padding:1.5pt 3pt;"></td></tr>
     <tr style="font-style:italic;">
       <td style="padding:2pt 3pt;border-top:1.5px solid #000;">General Average for the Term</td>
       <td class="c" style="padding:2pt 3pt;border-top:1.5px solid #000;"><strong></strong></td>
@@ -1142,91 +1164,110 @@ function renderSF9Blank(info) {
   }
 
   const front = `
-<div class="sf9-front">
-  <div class="sf9-left" style="font-size:7pt;">
-    <div style="text-align:center;font-weight:bold;font-size:8pt;margin-bottom:3pt;">ATTENDANCE RECORD</div>
-    <table style="font-size:6.5pt;width:100%;">
+<div class="sf9-page" style="display:flex;gap:0;height:100%;">
+
+  <!-- PAGE 1 LEFT: ATTENDANCE RECORD -->
+  <div style="flex:0 0 48%;border-right:1px solid #999;padding:0 8pt 0 0;">
+    <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">ATTENDANCE RECORD</div>
+    <table style="font-size:7.5pt;width:100%;">
     <thead><tr>
-      <th style="width:22pt;padding:1pt;font-size:6pt;writing-mode:vertical-lr;text-orientation:mixed;">&nbsp;</th>
-      ${MONTH_NAMES.map(m => `<th style="width:16pt;padding:1pt;font-size:5.5pt;writing-mode:vertical-lr;text-orientation:mixed;">${m}</th>`).join('')}
-      <th style="width:16pt;padding:1pt;font-size:6pt;font-weight:bold;">TOTAL</th>
+      <th style="width:30pt;padding:2pt;font-size:7pt;writing-mode:vertical-lr;text-orientation:mixed;">&nbsp;</th>
+      ${MONTH_NAMES.map(m => `<th style="width:18pt;padding:1.5pt;font-size:6.5pt;writing-mode:vertical-lr;text-orientation:mixed;">${m}</th>`).join('')}
+      <th style="width:20pt;padding:1.5pt;font-size:7pt;font-weight:bold;">TOTAL</th>
     </tr></thead>
     <tbody>
-      <tr><td style="padding:1pt;font-size:6pt;font-weight:bold;">No. of School Days</td>${emptyMonthCells}<td class="c" style="padding:1pt;"></td></tr>
-      <tr><td style="padding:1pt;font-size:6pt;font-weight:bold;">No. of Days Present</td>${emptyMonthCells}<td class="c" style="padding:1pt;"></td></tr>
-      <tr><td style="padding:1pt;font-size:6pt;font-weight:bold;">No. of Days Absent</td>${emptyMonthCells}<td class="c" style="padding:1pt;"></td></tr>
+      <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of School Days</td>${emptyMonthCells}<td class="c" style="padding:1.5pt;"></td></tr>
+      <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of Days Present</td>${emptyMonthCells}<td class="c" style="padding:1.5pt;"></td></tr>
+      <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of Days Absent</td>${emptyMonthCells}<td class="c" style="padding:1.5pt;"></td></tr>
     </tbody></table>
-    <div style="margin-top:6pt;font-size:7pt;font-weight:bold;">PARENT / GUARDIAN'S SIGNATURE</div>
-    <div style="margin-top:3pt;font-size:7pt;">1st Term ___________________________________</div>
-    <div style="margin-top:2pt;font-size:7pt;">2nd Term ___________________________________</div>
-    <div style="margin-top:2pt;font-size:7pt;">3rd Term ___________________________________</div>
-    <div style="margin-top:8pt;font-size:7pt;font-weight:bold;">Certificate of Transfer</div>
-    <div style="margin-top:3pt;font-size:7pt;">Admitted to Grade: ____ Section: ____________</div>
-    <div style="margin-top:2pt;font-size:7pt;">Eligibility for Admission to Grade: ____________</div>
-    <div style="margin-top:3pt;font-size:7pt;">Approved:</div>
-    <div style="display:flex;gap:20pt;margin-top:8pt;font-size:7pt;">
-      <div style="text-align:center;">________________________________<br/>Principal</div>
-      <div style="text-align:center;">________________________________<br/>Teacher</div>
+
+    <div style="margin-top:10pt;font-size:8pt;font-weight:bold;">PARENT / GUARDIAN'S SIGNATURE OVER LEARNER'S PROGRESS REPORT CARD</div>
+    <div style="margin-top:6pt;font-size:7.5pt;">1st Term ___________________________________</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">2nd Term ___________________________________</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">3rd Term ___________________________________</div>
+
+    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Certificate of Transfer</div>
+    <div style="margin-top:4pt;font-size:7.5pt;line-height:1.6;">
+      Admitted to Grade: ____ Section: ____________<br/>
+      Eligibility for Admission to Grade: ____________
     </div>
-    <div style="margin-top:10pt;font-size:7pt;font-weight:bold;">Cancellation of Eligibility to Transfer</div>
-    <div style="margin-top:3pt;font-size:7pt;">Admitted in: ________________________________</div>
-    <div style="margin-top:2pt;font-size:7pt;">Date: ____________________</div>
-    <div style="margin-top:8pt;font-size:7pt;text-align:center;">________________________________<br/>Principal</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">Approved:</div>
+    <div style="display:flex;gap:20pt;margin-top:10pt;font-size:7.5pt;">
+      <div style="text-align:center;flex:1;">________________________________<br/>Principal</div>
+      <div style="text-align:center;flex:1;">________________________________<br/>Teacher</div>
+    </div>
+
+    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Cancellation of Eligibility to Transfer</div>
+    <div style="margin-top:4pt;font-size:7.5pt;">
+      Admitted in: ________________________________<br/>
+      Date: ____________________
+    </div>
+    <div style="margin-top:10pt;font-size:7.5pt;text-align:center;">________________________________<br/>Principal</div>
   </div>
-  <div class="sf9-right" style="font-size:7.5pt;">
-    <div style="text-align:center;margin-bottom:4pt;">
-      <div style="font-size:7.5pt;font-weight:bold;">Republic of the Philippines</div>
-      <div style="font-size:7pt;">DEPARTMENT OF EDUCATION</div>
-      <div style="font-size:7pt;">${esc(info.region || 'Region ____')}</div>
-      <div style="font-size:7pt;">${esc(info.division || 'Division ____')}</div>
-      <div style="font-size:7pt;">${esc(info.school_name || 'School ____')}</div>
+
+  <!-- PAGE 1 RIGHT: LEARNER'S PROGRESS REPORT CARD -->
+  <div style="flex:1;padding:0 0 0 8pt;">
+    <div style="text-align:center;margin-bottom:5pt;">
+      <div style="font-size:8.5pt;font-weight:bold;">Republic of the Philippines</div>
+      <div style="font-size:8pt;">DEPARTMENT OF EDUCATION</div>
+      <div style="font-size:7.5pt;">${esc(info.region || 'Region ____')}</div>
+      <div style="font-size:7.5pt;">${esc(info.division || 'Division ____')}</div>
+      <div style="font-size:7.5pt;">${esc(info.district || 'District ____')}</div>
+      <div style="font-size:8.5pt;font-weight:bold;margin-top:4pt;">${esc(info.school_name || 'School ____')}</div>
+      <div style="font-size:7.5pt;">School ID: ${esc(info.school_id || '______')}</div>
     </div>
-    <div style="text-align:right;font-size:7pt;margin-bottom:2pt;"><strong>LRN:</strong> ______________</div>
-    <div style="text-align:center;font-size:10pt;font-weight:bold;margin:6pt 0;border:1.5px solid #000;padding:3pt;">LEARNER'S PROGRESS REPORT CARD</div>
-    <table style="font-size:7.5pt;width:100%;margin:4pt 0;">
-      <tr><td style="border:none;width:20%;padding:2pt;"><strong>Name:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">____________________________</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>Age:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">____ &nbsp;&nbsp;&nbsp; <strong>Sex:</strong> ____</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>Grade:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">____ &nbsp;&nbsp;&nbsp; <strong>Section:</strong> ____________</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>Curriculum:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">K to 12 / MATATAG</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>School Year:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;">____-____</td></tr>
-      <tr><td style="border:none;padding:2pt;"><strong>Track/Cluster:</strong></td><td style="border:none;padding:2pt;border-bottom:1px solid #000;"></td></tr>
+    <div style="text-align:right;font-size:8pt;margin-bottom:3pt;"><strong>LRN:</strong> ______________</div>
+    <div style="text-align:center;font-size:11pt;font-weight:bold;margin:8pt 0;border:2px solid #000;padding:4pt;">LEARNER'S PROGRESS REPORT CARD</div>
+    <table style="font-size:8.5pt;width:100%;margin:6pt 0;">
+      <tr><td style="border:none;width:22%;padding:3pt;"><strong>Name:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">____________________________</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>Age:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">____ &nbsp;&nbsp;&nbsp; <strong>Sex:</strong> ____</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>Grade:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">____ &nbsp;&nbsp;&nbsp; <strong>Section:</strong> ____________</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>Curriculum:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">K to 12 / MATATAG</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>School Year:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;">____-____</td></tr>
+      <tr><td style="border:none;padding:3pt;"><strong>Track/Cluster:</strong></td><td style="border:none;padding:3pt;border-bottom:1px solid #000;"></td></tr>
     </table>
-    <div style="font-size:7pt;margin:6pt 0;line-height:1.35;">
+    <div style="font-size:8pt;margin:10pt 0;line-height:1.5;">
       Dear Parent,<br/>
       With the K to 12 Curriculum, the Learner Progress Report Card shows how your child is performing in school.
       The enclosed report card provides information on your child's grades in the different learning areas,
       conduct/behavior and attendance. In case you need further explanation or clarification on your child's grades,
       please do not hesitate to get in touch with the class adviser/principal.
     </div>
-    <div style="margin-top:12pt;text-align:right;font-size:7.5pt;">
+    <div style="margin-top:16pt;text-align:right;font-size:8.5pt;">
       <div>________________________________</div>
       <div><strong>______________________</strong></div>
       <div>Principal / Teacher</div>
     </div>
   </div>
+
 </div>`;
 
   const back = `
-<div class="sf9-back">
-  <div class="sf9-bl" style="font-size:7.5pt;">
+<div class="sf9-page" style="display:flex;gap:0;height:100%;">
+
+  <!-- PAGE 2 LEFT: GRADES -->
+  <div style="flex:0 0 52%;border-right:1px solid #999;padding:0 8pt 0 0;">
+    <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">LEARNER'S GRADES</div>
     ${blankGradesTable('First Term')}
-    <div style="border-bottom:1px solid #aaa;margin:4pt 0;"></div>
+    <div style="border-bottom:1px solid #aaa;margin:3pt 0;"></div>
     ${blankGradesTable('Second Term')}
-    <div style="border-bottom:1px solid #aaa;margin:4pt 0;"></div>
+    <div style="border-bottom:1px solid #aaa;margin:3pt 0;"></div>
     ${blankGradesTable('Third Term')}
   </div>
-  <div class="sf9-br" style="font-size:7pt;">
-    <div style="text-align:center;font-weight:bold;font-size:8pt;margin-bottom:4pt;">REPORT ON LEARNER'S OBSERVED VALUES</div>
-    <table style="font-size:6.5pt;width:100%;">
+
+  <!-- PAGE 2 RIGHT: OBSERVED VALUES -->
+  <div style="flex:1;padding:0 0 0 8pt;">
+    <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">REPORT ON LEARNER'S OBSERVED VALUES</div>
+    <table style="font-size:7pt;width:100%;">
     <thead><tr>
-      <th style="width:52pt;padding:2pt;font-size:6.5pt;text-align:left;">Core Values</th>
-      <th style="padding:2pt;font-size:6.5pt;text-align:left;">Behavior Statements</th>
-      <th colspan="3" style="padding:2pt;font-size:6.5pt;text-align:center;">Term</th>
+      <th style="width:60pt;padding:2pt;font-size:7pt;text-align:left;">Core Values</th>
+      <th style="padding:2pt;font-size:7pt;text-align:left;">Behavior Statements</th>
+      <th colspan="3" style="padding:2pt;font-size:7pt;text-align:center;">Term</th>
     </tr><tr>
       <th style="padding:1pt;"></th><th style="padding:1pt;"></th>
-      <th style="width:18pt;padding:1pt;font-size:6pt;text-align:center;">1</th>
-      <th style="width:18pt;padding:1pt;font-size:6pt;text-align:center;">2</th>
-      <th style="width:18pt;padding:1pt;font-size:6pt;text-align:center;">3</th>
+      <th style="width:20pt;padding:1pt;font-size:6.5pt;text-align:center;">1</th>
+      <th style="width:20pt;padding:1pt;font-size:6.5pt;text-align:center;">2</th>
+      <th style="width:20pt;padding:1pt;font-size:6.5pt;text-align:center;">3</th>
     </tr></thead>
     <tbody>
     ${CORE_VALUES.map(cv => {
@@ -1234,38 +1275,41 @@ function renderSF9Blank(info) {
       cv.behaviors.forEach((bh, bi) => {
         rows.push(`<tr>
           ${bi === 0 ? `<td rowspan="${cv.behaviors.length}" style="padding:2pt;font-weight:bold;vertical-align:top;border-bottom:1px solid #aaa;">${esc(cv.label)}</td>` : ''}
-          <td style="padding:1pt 2pt;font-size:6.5pt;border-bottom:1px solid #eee;">${esc(bh)}</td>
-          <td class="c" style="padding:1pt;border-bottom:1px solid #eee;font-size:7pt;">&nbsp;</td>
-          <td class="c" style="padding:1pt;border-bottom:1px solid #eee;font-size:7pt;">&nbsp;</td>
-          <td class="c" style="padding:1pt;border-bottom:1px solid #eee;font-size:7pt;">&nbsp;</td>
+          <td style="padding:1.5pt 2pt;font-size:7pt;border-bottom:1px solid #eee;">${esc(bh)}</td>
+          <td class="c" style="padding:1.5pt;border-bottom:1px solid #eee;font-size:7.5pt;">&nbsp;</td>
+          <td class="c" style="padding:1.5pt;border-bottom:1px solid #eee;font-size:7.5pt;">&nbsp;</td>
+          <td class="c" style="padding:1.5pt;border-bottom:1px solid #eee;font-size:7.5pt;">&nbsp;</td>
         </tr>`);
       });
       return rows.join('');
     }).join('')}
     </tbody></table>
-    <div style="margin-top:5pt;font-weight:bold;font-size:7.5pt;">Observed Values</div>
-    <table style="font-size:6.5pt;width:60%;margin-top:2pt;">
+
+    <div style="margin-top:8pt;font-weight:bold;font-size:8pt;">Observed Values</div>
+    <table style="font-size:7pt;width:50%;margin-top:3pt;">
     <tbody>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">AO</td><td style="padding:1pt 3pt;border:1px solid #000;">Always Observed</td></tr>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">SO</td><td style="padding:1pt 3pt;border:1px solid #000;">Sometimes Observed</td></tr>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">RO</td><td style="padding:1pt 3pt;border:1px solid #000;">Rarely Observed</td></tr>
-      <tr><td style="padding:1pt 3pt;font-weight:bold;border:1px solid #000;">NO</td><td style="padding:1pt 3pt;border:1px solid #000;">Not Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">AO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Always Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">SO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Sometimes Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">RO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Rarely Observed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;font-weight:bold;border:1px solid #000;">NO</td><td style="padding:1.5pt 4pt;border:1px solid #000;">Not Observed</td></tr>
     </tbody></table>
-    <div style="margin-top:6pt;font-weight:bold;font-size:7.5pt;">Learner Progress and Achievement</div>
-    <table style="font-size:6.5pt;width:100%;margin-top:2pt;">
+
+    <div style="margin-top:8pt;font-weight:bold;font-size:8pt;">Learner Progress and Achievement</div>
+    <table style="font-size:7pt;width:100%;margin-top:3pt;">
     <thead><tr>
-      <th style="padding:2pt;font-size:6.5pt;text-align:left;border:1px solid #000;">Descriptors</th>
-      <th style="padding:2pt;font-size:6.5pt;text-align:center;border:1px solid #000;">Grading Scale</th>
-      <th style="padding:2pt;font-size:6.5pt;text-align:center;border:1px solid #000;">Remarks</th>
+      <th style="padding:2pt;font-size:7pt;text-align:left;border:1px solid #000;">Descriptors</th>
+      <th style="padding:2pt;font-size:7pt;text-align:center;border:1px solid #000;">Grading Scale</th>
+      <th style="padding:2pt;font-size:7pt;text-align:center;border:1px solid #000;">Remarks</th>
     </tr></thead>
     <tbody>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Outstanding</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">90-100</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Very Satisfactory</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">85-89</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Satisfactory</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">80-84</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Fairly Satisfactory</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">75-79</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Passed</td></tr>
-      <tr><td style="padding:1pt 3pt;border:1px solid #000;">Did Not Meet Expectation</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Below 75</td><td class="c" style="padding:1pt 3pt;border:1px solid #000;">Failed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Outstanding</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">90-100</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Very Satisfactory</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">85-89</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Satisfactory</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">80-84</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Fairly Satisfactory</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">75-79</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Passed</td></tr>
+      <tr><td style="padding:1.5pt 4pt;border:1px solid #000;">Did Not Meet Expectation</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Below 75</td><td class="c" style="padding:1.5pt 4pt;border:1px solid #000;">Failed</td></tr>
     </tbody></table>
   </div>
+
 </div>`;
 
   return front + '\n<div style="page-break-after:always;"></div>\n' + back;
