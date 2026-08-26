@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Award, ExternalLink } from 'lucide-react';
+import { Award } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth } from '../lib/auth';
 import { PageHead, Spinner, Empty } from '../components/ui';
 
 const STATUS_COLORS = { active: 'badge-green', expired: 'badge-red', pending: 'badge-yellow' };
@@ -10,7 +9,6 @@ const TYPE_COLORS = { NCII: 'badge-blue', TESDA: 'badge-purple', OTHER: 'badge-g
 
 export default function PortalCertifications() {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 

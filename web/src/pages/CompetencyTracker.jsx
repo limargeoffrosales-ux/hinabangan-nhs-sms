@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Target, BarChart3, Users, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Target, BarChart3, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell } from 'recharts';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge, ErrorBanner } from '../components/ui';

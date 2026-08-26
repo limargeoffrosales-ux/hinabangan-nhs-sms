@@ -72,12 +72,12 @@ const aiRoutes = require('./routes/ai.routes');
   await purgeDemo();
   if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
     const bcrypt = require('bcryptjs');
-    const row = await db.q('SELECT id, password_hash FROM users WHERE username = ?', ['superadmin']);
-    if (row) {
+    const row = await db.q('SELECT id, password_hash, password_changed_at FROM users WHERE username = ?', ['superadmin']);
+    if (row && !row.password_changed_at) {
       const isLegacy = await bcrypt.compare('REDACTED', row.password_hash);
       if (isLegacy) {
         await db.qr(
-          'UPDATE users SET password_hash = ? WHERE id = ?',
+          'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
           [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
         );
         console.log('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');

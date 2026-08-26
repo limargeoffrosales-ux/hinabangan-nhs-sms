@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Pencil, Trash2, KeyRound, UsersRound } from 'lucide-react';
+import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { useAuth } from '../lib/auth';

@@ -113,7 +113,7 @@ async function generateLessonPlan(params) {
   if (subject_id) {
     const sub = await q('SELECT * FROM subjects WHERE id = ?', [subject_id]);
     if (sub) subjectInfo = 'Subject: ' + sub.title + ' (' + sub.code + '), Units: ' + sub.units;
-    competencies = await qa('SELECT * FROM subject_competencies WHERE subject_id = ?', [subject_id]);
+    try { competencies = await qa('SELECT * FROM subject_competencies WHERE subject_id = ?', [subject_id]); } catch { /* table may not exist */ }
   }
   const compList = competencies.length ? competencies.map(c => '- ' + c.title + ': ' + (c.description || '')).join('\n') : 'Align to standard DepEd competencies';
   const prompt = 'Create a Detailed Lesson Plan (DLL) for Hinabangan NHS:\n' + subjectInfo + '\nGrade: ' + (grade_level || 'N/A') + ', Strand: ' + (strand || 'N/A') + ', Topic: ' + (topic || 'Teacher to determine') + ', Duration: ' + (duration_minutes || 60) + ' min' + (week ? ', Week: ' + week : '') + '.\nCompetencies:\n' + compList + '\n\nDepEd DLL Format: 1) Learning Competencies 2) Content 3) Learning Resources 4) Procedures (a. Review b. Purpose c. Examples d. New concepts e. Practice f. Evaluate g. Remediation) 5) Reflection.\nReturn JSON: competencies, content, learning_resources, procedures (object a-g), reflection, remarks.';
@@ -128,7 +128,7 @@ async function generateExam(params) {
   if (subject_id) {
     const sub = await q('SELECT * FROM subjects WHERE id = ?', [subject_id]);
     if (sub) subjectInfo = 'Subject: ' + sub.title + ' (' + sub.code + ')';
-    competencies = await qa('SELECT * FROM subject_competencies WHERE subject_id = ?', [subject_id]);
+    try { competencies = await qa('SELECT * FROM subject_competencies WHERE subject_id = ?', [subject_id]); } catch { /* table may not exist */ }
   }
   const compList = competencies.length ? competencies.map(c => '- ' + c.title).join('\n') : 'Standard competencies';
   const prompt = 'Create ' + (exam_type || 'assessment') + ' for Hinabangan NHS:\n' + subjectInfo + '\nGrade: ' + (grade_level || 'N/A') + ', Topic: ' + (topic || 'General') + ', Items: ' + (num_items || 20) + ', Difficulty: ' + (difficulty_mix || '40 easy, 40 moderate, 20 difficult') + '.\nCompetencies:\n' + compList + '\n\nCreate TOS with cognitive levels (Remember, Understand, Apply, Analyze, Evaluate, Create), multiple choice items with 4 options, answer key, difficulty tags.\nReturn JSON: tos (array of {objective, difficulty, count, percentage}), items (array of {question, options: [a,b,c,d], answer, difficulty, objective}).';

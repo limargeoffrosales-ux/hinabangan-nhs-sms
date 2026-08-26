@@ -40,19 +40,34 @@ export function downloadDoc(title, bodyText, filename) {
 }
 
 export function printHtml(title, bodyText) {
-  const w = window.open('', '_blank', 'width=850,height=1000');
-  if (!w) return alert('Please allow pop-ups to print the document.');
-  w.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title>
+  const fullHtml = `<!doctype html><html><head><title>${escapeHtml(title)}</title>
     <style>
       body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; margin: 0.8in; color: #000; }
       h3, h4 { font-family: 'Arial', sans-serif; }
       table { border-collapse: collapse; width: 100%; }
       td, th { border: 1px solid #000; padding: 4pt; font-size: 11pt; }
       pre { font-family: 'Times New Roman', serif; white-space: pre-wrap; }
-    </style></head><body><pre>${escapeHtml(bodyText)}</pre></body></html>`);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 300);
+    </style></head><body><pre>${escapeHtml(bodyText)}</pre></body></html>`;
+  const w = window.open('', '_blank', 'width=850,height=1000');
+  if (w) {
+    w.document.write(fullHtml);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+    return;
+  }
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open();
+  doc.write(fullHtml);
+  doc.close();
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  }, 300);
 }
 
 function formCss(orientation, paper) {
@@ -76,12 +91,27 @@ function formCss(orientation, paper) {
 }
 
 export function printElementHtml(title, html, opts = {}) {
+  const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+    <style>${formCss(opts.orientation, opts.paper)}</style></head><body>${html}</body></html>`;
   const w = window.open('', '_blank', 'width=1000,height=1000');
-  if (!w) return alert('Please allow pop-ups to print.');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
-    <style>${formCss(opts.orientation, opts.paper)}</style></head><body>${html}</body></html>`);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 300);
+  if (w) {
+    w.document.write(fullHtml);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+    return;
+  }
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open();
+  doc.write(fullHtml);
+  doc.close();
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  }, 300);
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart, Plus, Pencil, Trash2, Filter, Pill, Thermometer, Stethoscope } from 'lucide-react';
+import { Plus, Pencil, Trash2, Filter, Pill, Stethoscope } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Modal, ErrorBanner } from '../components/ui';

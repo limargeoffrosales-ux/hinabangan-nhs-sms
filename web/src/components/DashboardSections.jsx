@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target, GitBranch, Clock } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { Empty, Spinner, Modal } from './ui';
+import { Spinner, Modal } from './ui';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];

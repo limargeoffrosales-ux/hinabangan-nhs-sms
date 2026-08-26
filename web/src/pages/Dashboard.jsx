@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Users, UserCog, Layers, BookOpen, CalendarCheck, Megaphone, Activity, CheckCircle2, Wand2, ShieldAlert } from 'lucide-react';
+import { Users, UserCog, Layers, CalendarCheck, Megaphone, Activity, Wand2, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
