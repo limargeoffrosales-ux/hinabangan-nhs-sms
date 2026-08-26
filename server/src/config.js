@@ -52,7 +52,7 @@ const ALLOWED_ORIGINS = [
 ];
 
 function isAllowedOrigin(origin) {
-  if (!origin) return true;
+  if (!origin) return false;
   for (const rule of ALLOWED_ORIGINS) {
     if (rule instanceof RegExp ? rule.test(origin) : rule === origin) return true;
   }

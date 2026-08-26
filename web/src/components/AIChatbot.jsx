@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
 import { api } from '../lib/api';
 
+const CHAT_KEY = 'meridianed_ai_chat';
+const MAX_STORED = 100;
+
 const QUICK_PROMPTS = [
   'How do I check student grades?',
   'Explain the grading system',
@@ -10,16 +13,30 @@ const QUICK_PROMPTS = [
   'What is the attendance policy?',
 ];
 
+function loadMessages() {
+  try {
+    const raw = localStorage.getItem(CHAT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(-MAX_STORED) : [];
+  } catch { return []; }
+}
+
+function saveMessages(msgs) {
+  try { localStorage.setItem(CHAT_KEY, JSON.stringify(msgs.slice(-MAX_STORED))); } catch {}
+}
+
 export default function AIChatbot() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(loadMessages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const bottomRef = useRef(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { saveMessages(messages); }, [messages]);
 
   useEffect(() => {
     if (open) {
@@ -73,9 +90,16 @@ export default function AIChatbot() {
         }}>
           <div style={{
             padding: '14px 18px', background: 'var(--accent, #1e3a5f)', color: '#fff',
-            fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8,
+            fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <Bot size={18} /> MeridianEd AI Assistant
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Bot size={18} /> MeridianEd AI Assistant</span>
+            {messages.length > 0 && (
+              <button
+                onClick={() => { setMessages([]); localStorage.removeItem(CHAT_KEY); }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}
+                title="Clear conversation"
+              >Clear</button>
+            )}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 14, minHeight: 280, maxHeight: 360 }}>

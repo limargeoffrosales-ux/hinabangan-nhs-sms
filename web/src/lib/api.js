@@ -38,8 +38,16 @@ export function setSession(token, refreshToken, user) {
 
 export function getStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem('meridianed_user') || 'null');
+    const raw = localStorage.getItem('meridianed_user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !parsed.id || !parsed.role || !parsed.username) {
+      localStorage.removeItem('meridianed_user');
+      return null;
+    }
+    return parsed;
   } catch {
+    localStorage.removeItem('meridianed_user');
     return null;
   }
 }
