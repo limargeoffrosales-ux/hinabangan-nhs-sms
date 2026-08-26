@@ -3,10 +3,13 @@ const { q, qa } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent } = require('../scope');
+const { userRateLimit } = require('../middleware/rate-limit');
 const ai = require('../ai');
 
 const router = express.Router();
 router.use(authenticate);
+
+const aiUserLimiter = userRateLimit({ windowMs: 60_000, limit: 10, message: { error: 'AI request limit reached. Try again in a minute.' } });
 
 const STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
@@ -15,7 +18,7 @@ router.get('/status', asyncH(async (_req, res) => {
   res.json(ai.getProviderInfo());
 }));
 
-router.post('/chat', requireRole(...STAFF, 'student', 'parent'), asyncH(async (req, res) => {
+router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, asyncH(async (req, res) => {
   const { messages, context } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages array required' });
@@ -37,7 +40,7 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), asyncH(async (r
   }
 }));
 
-router.post('/report', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res) => {
+router.post('/report', requireRole(...ADMIN, 'teacher'), aiUserLimiter, asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
   if (['teacher', 'guidance'].includes(req.user.role)) {
@@ -63,19 +66,19 @@ router.post('/report', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res)
   }
 }));
 
-router.post('/lesson-plan', requireRole(...STAFF), asyncH(async (req, res) => {
+router.post('/lesson-plan', requireRole(...STAFF), aiUserLimiter, asyncH(async (req, res) => {
   const plan = await ai.generateLessonPlan(req.body || {});
   await audit(req, 'AI_LESSON_PLAN', 'ai', null, { subject_id: req.body?.subject_id, topic: req.body?.topic });
   res.json(plan);
 }));
 
-router.post('/exam', requireRole(...STAFF), asyncH(async (req, res) => {
+router.post('/exam', requireRole(...STAFF), aiUserLimiter, asyncH(async (req, res) => {
   const exam = await ai.generateExam(req.body || {});
   await audit(req, 'AI_EXAM', 'ai', null, { subject_id: req.body?.subject_id, topic: req.body?.topic });
   res.json(exam);
 }));
 
-router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), asyncH(async (req, res) => {
+router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), aiUserLimiter, asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
   if (['teacher', 'guidance'].includes(req.user.role)) {
@@ -87,7 +90,7 @@ router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), asyncH(asy
   res.json(analysis);
 }));
 
-router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), asyncH(async (req, res) => {
+router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), aiUserLimiter, asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
   if (req.user.role === 'teacher') {
@@ -99,7 +102,7 @@ router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), asyncH(asyn
   res.json(suggestion);
 }));
 
-router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), asyncH(async (req, res) => {
+router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), aiUserLimiter, asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
   if (req.user.role === 'teacher') {
