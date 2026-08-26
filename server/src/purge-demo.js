@@ -37,6 +37,10 @@ async function countWhere(selectSql, params) {
 }
 
 async function purgeDemo() {
+  if (process.env.PURGE_DEMO !== '1') {
+    console.log('PURGE: skipped (set PURGE_DEMO=1 to remove demo data on boot)');
+    return;
+  }
   const already = await q('SELECT value FROM system_flags WHERE key = ?', ['purged_demo']);
   if (already) {
     console.log('PURGE: demo data already purged (one-shot) — skipping.');
