@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr, bool } = require('../db');
+const { q, qa, qi, qr, bool, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesSection, ensureTeacherSeesStudent } = require('../scope');
@@ -22,9 +22,10 @@ function normTerm(t) {
 
 async function saveSubjects(conn, enrollmentId, subjectIds) {
   const ids = Array.isArray(subjectIds) ? [...new Set(subjectIds.map(Number).filter(Boolean))] : [];
-  await qr('DELETE FROM enrollment_subjects WHERE enrollment_id = ?', [enrollmentId]);
+  const c = conn || { run: qr, runId: qi };
+  await c.run('DELETE FROM enrollment_subjects WHERE enrollment_id = ?', [enrollmentId]);
   for (const sid of ids) {
-    await qi('INSERT INTO enrollment_subjects (enrollment_id, subject_id) VALUES (?, ?)', [enrollmentId, sid]);
+    await c.runId('INSERT INTO enrollment_subjects (enrollment_id, subject_id) VALUES (?, ?)', [enrollmentId, sid]);
   }
   return ids.length;
 }
@@ -67,11 +68,14 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     term ? [b.student_id, b.school_year, term] : [b.student_id, b.school_year]);
   if (existing) return res.status(409).json({ error: `Student already enrolled for ${b.school_year}${term ? ` (${term} term)` : ''}` });
   const isAral = bool(b.is_aral);
-  const id = await qi(
-    'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [b.student_id, b.section_id, b.school_year, b.grade_level, b.strand || null, term, isAral, b.status || 'enrolled', b.enrolled_at || null]);
-  await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [b.grade_level, b.status || 'enrolled', b.student_id]);
-  const subjects = await saveSubjects(null, id, b.subject_ids);
+  let id;
+  const subjects = await tx(async (conn) => {
+    id = await conn.runId(
+      'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [b.student_id, b.section_id, b.school_year, b.grade_level, b.strand || null, term, isAral, b.status || 'enrolled', b.enrolled_at || null]);
+    await conn.run('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [b.grade_level, b.status || 'enrolled', b.student_id]);
+    return await saveSubjects(conn, id, b.subject_ids);
+  });
   await audit(req, 'ENROLL_STUDENT', 'enrollments', id, { student_id: b.student_id, section_id: b.section_id, school_year: b.school_year, term, is_aral: isAral, subjects });
   res.status(201).json({ id });
 }));
@@ -109,9 +113,11 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     term ? [row.student_id, row.school_year, term, row.id] : [row.student_id, row.school_year, row.id]);
   if (dup) return res.status(409).json({ error: 'Another enrollment already exists for this student, school year and term' });
   const isAral = bool(b.is_aral !== undefined ? b.is_aral : row.is_aral);
-  await qr('UPDATE enrollments SET section_id = ?, status = ?, strand = ?, term = ?, is_aral = ?, enrolled_at = ? WHERE id = ?',
-    [f('section_id', row.section_id), f('status', row.status), f('strand', row.strand), term, isAral, f('enrolled_at', row.enrolled_at), row.id]);
-  if (b.subject_ids !== undefined) await saveSubjects(null, row.id, b.subject_ids);
+  await tx(async (conn) => {
+    await conn.run('UPDATE enrollments SET section_id = ?, status = ?, strand = ?, term = ?, is_aral = ?, enrolled_at = ? WHERE id = ?',
+      [f('section_id', row.section_id), f('status', row.status), f('strand', row.strand), term, isAral, f('enrolled_at', row.enrolled_at), row.id]);
+    if (b.subject_ids !== undefined) await saveSubjects(conn, row.id, b.subject_ids);
+  });
   await audit(req, 'UPDATE_ENROLLMENT', 'enrollments', row.id, { status: b.status, term, is_aral: isAral });
   res.json({ ok: true });
 }));

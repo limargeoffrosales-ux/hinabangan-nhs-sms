@@ -168,6 +168,8 @@ export default function Students() {
 
   async function save(e) {
     e.preventDefault();
+    if (!form.last_name?.trim()) { setError(t('students.lastNameRequired', 'Last name is required')); return; }
+    if (!form.first_name?.trim()) { setError(t('students.firstNameRequired', 'First name is required')); return; }
     setSaving(true);
     setError(null);
     try {

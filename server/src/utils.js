@@ -16,7 +16,7 @@ function asyncH(fn) {
 }
 
 function page(req) {
-  const limit = Math.min(Number(req.query.limit || 50), 200);
+  const limit = Math.max(Math.min(Number(req.query.limit || 50), 200), 1);
   const offset = Math.max(Number(req.query.offset || 0), 0);
   return { limit, offset };
 }

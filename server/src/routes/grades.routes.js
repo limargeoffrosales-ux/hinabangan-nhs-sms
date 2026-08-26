@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { GRADE_WEIGHTS } = require('../config');
@@ -116,26 +116,28 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
   const scale = await getScaleForSubject(b.subject_id);
   const passing = Number(scale.passing_grade);
   let n = 0;
-  for (const r of b.rows) {
-    if (!r.student_id) continue;
-    const w = r.written_work != null && r.written_work !== '' ? Number(r.written_work) : null;
-    const p = r.performance_task != null && r.performance_task !== '' ? Number(r.performance_task) : null;
-    const qe = r.quarterly_exam != null && r.quarterly_exam !== '' ? Number(r.quarterly_exam) : null;
-    if ([w, p, qe].some((v) => v != null && (v < 0 || v > 100))) continue;
-    const grade = compute(w, p, qe, scale.weights);
-    const remarks = grade != null ? (grade >= passing ? 'PASSED' : 'FAILED') : null;
-    const existing = await q(
-      'SELECT id FROM grades WHERE student_id = ? AND subject_id = ? AND school_year = ? AND quarter = ?',
-      [r.student_id, b.subject_id, b.school_year, period]);
-    if (existing) {
-      await qr('UPDATE grades SET written_work = ?, performance_task = ?, quarterly_exam = ?, computed_grade = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [w, p, qe, grade, remarks, existing.id]);
-    } else {
-      await qi('INSERT INTO grades (student_id, subject_id, section_id, school_year, quarter, written_work, performance_task, quarterly_exam, computed_grade, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [r.student_id, b.subject_id, b.section_id, b.school_year, period, w, p, qe, grade, remarks]);
+  await tx(async (conn) => {
+    for (const r of b.rows) {
+      if (!r.student_id) continue;
+      const w = r.written_work != null && r.written_work !== '' ? Number(r.written_work) : null;
+      const p = r.performance_task != null && r.performance_task !== '' ? Number(r.performance_task) : null;
+      const qe = r.quarterly_exam != null && r.quarterly_exam !== '' ? Number(r.quarterly_exam) : null;
+      if ([w, p, qe].some((v) => v != null && (v < 0 || v > 100))) continue;
+      const grade = compute(w, p, qe, scale.weights);
+      const remarks = grade != null ? (grade >= passing ? 'PASSED' : 'FAILED') : null;
+      const existing = await conn.get(
+        'SELECT id FROM grades WHERE student_id = ? AND subject_id = ? AND school_year = ? AND quarter = ?',
+        [r.student_id, b.subject_id, b.school_year, period]);
+      if (existing) {
+        await conn.run('UPDATE grades SET written_work = ?, performance_task = ?, quarterly_exam = ?, computed_grade = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [w, p, qe, grade, remarks, existing.id]);
+      } else {
+        await conn.runId('INSERT INTO grades (student_id, subject_id, section_id, school_year, quarter, written_work, performance_task, quarterly_exam, computed_grade, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [r.student_id, b.subject_id, b.section_id, b.school_year, period, w, p, qe, grade, remarks]);
+      }
+      n++;
     }
-    n++;
-  }
+  });
   await audit(req, 'GRADES_SAVE', 'grades', null, { section_id: b.section_id, subject_id: b.subject_id, term: period, rows: n, scale: scale.code });
   notifyEvent('grade_posted', {
     section_id: b.section_id,

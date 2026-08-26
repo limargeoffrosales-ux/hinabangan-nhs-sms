@@ -69,6 +69,8 @@ export default function Teachers() {
 
   async function save(e) {
     e.preventDefault();
+    if (!form.last_name?.trim()) { setError(t('teachers.lastNameRequired', 'Last name is required')); return; }
+    if (!form.first_name?.trim()) { setError(t('teachers.firstNameRequired', 'First name is required')); return; }
     setError(null);
     try {
       if (editing) await api(`/teachers/${editing}`, { method: 'PATCH', body: form });
