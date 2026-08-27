@@ -1,5 +1,6 @@
 const express = require('express');
 const { q, qa, qi, qr } = require('../db');
+const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page, logAccess } = require('../utils');
 const { teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
@@ -90,7 +91,14 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT id, lrn FROM students WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
-  await qr('DELETE FROM students WHERE id = ?', [row.id]);
+  await db.tx(async (conn) => {
+    await conn.qr('DELETE FROM grades WHERE student_id = ?', [row.id]);
+    await conn.qr('DELETE FROM attendance WHERE student_id = ?', [row.id]);
+    await conn.qr('DELETE FROM enrollments WHERE student_id = ?', [row.id]);
+    await conn.qr('DELETE FROM parent_students WHERE student_id = ?', [row.id]);
+    await conn.qr('DELETE FROM student_conduct_ratings WHERE student_id = ?', [row.id]);
+    await conn.qr('DELETE FROM students WHERE id = ?', [row.id]);
+  });
   await audit(req, 'DELETE_STUDENT', 'students', row.id, { lrn: row.lrn });
   res.json({ ok: true });
 }));

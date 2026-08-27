@@ -1,5 +1,6 @@
 const express = require('express');
 const { q, qa, qi, qr, nowSql } = require('../db');
+const db = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit, esc } = require('../utils');
 
@@ -127,7 +128,10 @@ router.delete('/:id', requireRole(...ADMIN_ROLES, 'teacher', 'guidance'), asyncH
   if (row.recorded_by !== req.user.id && !isAdminRole(req.user.role)) {
     return res.status(403).json({ error: 'Only the recorder or an admin can delete' });
   }
-  await qr('DELETE FROM intervention_plans WHERE id = ?', [row.id]);
+  await db.tx(async (conn) => {
+    await conn.qr('DELETE FROM intervention_contacts WHERE plan_id = ?', [row.id]);
+    await conn.qr('DELETE FROM intervention_plans WHERE id = ?', [row.id]);
+  });
   res.json({ ok: true });
 }));
 

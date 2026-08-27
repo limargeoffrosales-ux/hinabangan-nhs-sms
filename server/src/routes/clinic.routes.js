@@ -78,7 +78,10 @@ router.post('/visits', requireRole(...WRITE), asyncH(async (req, res) => {
 router.delete('/visits/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT id FROM clinic_visits WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Visit not found' });
-  await qr('DELETE FROM clinic_visits WHERE id = ?', [row.id]);
+  await db.tx(async (conn) => {
+    await conn.qr('DELETE FROM medicine_dispenses WHERE visit_id = ?', [row.id]);
+    await conn.qr('DELETE FROM clinic_visits WHERE id = ?', [row.id]);
+  });
   await audit(req, 'DELETE_CLINIC_VISIT', 'clinic_visits', row.id);
   res.json({ ok: true });
 }));
@@ -144,17 +147,20 @@ router.delete('/medicines/:id', requireRole(...WRITE), asyncH(async (req, res) =
 router.post('/dispense', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.medicine_id || !b.quantity) return res.status(400).json({ error: 'medicine_id and quantity required' });
-  const med = await q('SELECT * FROM clinic_medicines WHERE id = ?', [b.medicine_id]);
-  if (!med) return res.status(404).json({ error: 'Medicine not found' });
-  if (med.quantity < b.quantity) return res.status(400).json({ error: 'Insufficient stock' });
-  const id = await qi(
-    `INSERT INTO medicine_dispenses (medicine_id, visit_id, quantity, dispensed_to, dispensed_by, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [b.medicine_id, b.visit_id || null, b.quantity, b.dispensed_to || null, req.user.id, b.notes || null]
-  );
-  const newQty = med.quantity - b.quantity;
-  await qr('UPDATE clinic_medicines SET quantity = ?, status = ? WHERE id = ?',
-    [newQty, newQty <= 0 ? 'depleted' : 'active', med.id]);
+  const id = await db.tx(async (conn) => {
+    const med = await conn.q('SELECT * FROM clinic_medicines WHERE id = ?', [b.medicine_id]);
+    if (!med) throw Object.assign(new Error('Medicine not found'), { status: 404 });
+    if (med.quantity < b.quantity) throw Object.assign(new Error('Insufficient stock'), { status: 400 });
+    const dispenseId = await conn.qi(
+      `INSERT INTO medicine_dispenses (medicine_id, visit_id, quantity, dispensed_to, dispensed_by, notes)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [b.medicine_id, b.visit_id || null, b.quantity, b.dispensed_to || null, req.user.id, b.notes || null]
+    );
+    const newQty = med.quantity - b.quantity;
+    await conn.qr('UPDATE clinic_medicines SET quantity = ?, status = ? WHERE id = ?',
+      [newQty, newQty <= 0 ? 'depleted' : 'active', med.id]);
+    return dispenseId;
+  });
   await audit(req, 'DISPENSE_MEDICINE', 'medicine_dispenses', id);
   res.status(201).json({ id });
 }));

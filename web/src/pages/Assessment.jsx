@@ -3,6 +3,7 @@ import { Plus, Trash2, Calculator, ClipboardList, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
 import { downloadDoc } from '../lib/export';
+import { CURRENT_SCHOOL_YEAR } from '../lib/constants';
 
 const TABS = ['Question Bank', 'Rubrics & TOS', 'Item Analysis'];
 
@@ -21,7 +22,7 @@ export default function Assessment() {
 
   const [tosForm, setTosForm] = useState({ title: '', subject_id: '', quarter: 1, rows: [{ competency: '', items: 1, type: 'mcq' }] });
 
-  const [iaForm, setIaForm] = useState({ title: '', subject_id: '', school_year: '2025-2026', learners: 30, items: [{ competency: '', correct_upper: '', correct_lower: '' }] });
+  const [iaForm, setIaForm] = useState({ title: '', subject_id: '', school_year: CURRENT_SCHOOL_YEAR, learners: 30, items: [{ competency: '', correct_upper: '', correct_lower: '' }] });
   const [iaResult, setIaResult] = useState(null);
 
   async function load() {

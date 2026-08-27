@@ -3,6 +3,7 @@ const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const jwt = require('jsonwebtoken');
 const { q, qi, qr } = require('../db');
+const db = require('../db');
 const { JWT_SECRET } = require('../config');
 const { authenticate, signAccess } = require('../auth');
 const { asyncH, audit } = require('../utils');
@@ -11,24 +12,22 @@ const router = express.Router();
 router.use(authenticate);
 
 const MFA_TEMP_TTL = '5m';
-
-const mfaAttempts = new Map();
 const MFA_MAX_ATTEMPTS = 5;
-const MFA_WINDOW_MS = 5 * 60 * 1000;
+const MFA_WINDOW_MINUTES = 5;
 
-function checkMfaRateLimit(key) {
-  const now = Date.now();
-  const record = mfaAttempts.get(key);
-  if (!record || now - record.start > MFA_WINDOW_MS) {
-    mfaAttempts.set(key, { start: now, count: 1 });
-    return true;
-  }
-  record.count++;
-  if (record.count > MFA_MAX_ATTEMPTS) {
-    mfaAttempts.delete(key);
-    return false;
-  }
-  return true;
+async function checkMfaRateLimit(userId) {
+  const row = await q(
+    'SELECT COUNT(*) AS cnt FROM audit_logs WHERE user_id = ? AND action = ? AND created_at > datetime(\'now\', \'-' + MFA_WINDOW_MINUTES + ' minutes\')',
+    [userId, 'MFA_VERIFY_FAILED']
+  );
+  return (row?.cnt || 0) < MFA_MAX_ATTEMPTS;
+}
+
+async function recordMfaFailure(userId) {
+  await qi(
+    'INSERT INTO audit_logs (user_id, username, action, entity, entity_id, ip) VALUES (?, ?, ?, ?, ?, ?)',
+    [userId, null, 'MFA_VERIFY_FAILED', 'auth', String(userId), '']
+  );
 }
 
 // POST /mfa/setup — generate TOTP secret and return otpauth URL + QR code data URL
@@ -122,8 +121,8 @@ router.post('/verify', asyncH(async (req, res) => {
     return res.status(400).json({ error: 'This token is not a pending MFA token' });
   }
 
-  const rateKey = `mfa:${payload.sub}`;
-  if (!checkMfaRateLimit(rateKey)) {
+  const allowed = await checkMfaRateLimit(payload.sub);
+  if (!allowed) {
     await audit(req, 'MFA_RATE_LIMITED', 'auth', payload.sub, {});
     return res.status(429).json({ error: 'Too many MFA attempts. Try again later.' });
   }
@@ -144,6 +143,7 @@ router.post('/verify', asyncH(async (req, res) => {
   });
 
   if (!verified) {
+    await recordMfaFailure(user.id);
     await audit(req, 'MFA_VERIFY_FAILED', 'auth', user.id, { username: user.username });
     return res.status(401).json({ error: 'Invalid TOTP code' });
   }
