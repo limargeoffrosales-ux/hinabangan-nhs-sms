@@ -69,6 +69,18 @@ export function Modal({ title, sub, onClose, children, wide }) {
   );
 }
 
+export function ConfirmModal({ message, onConfirm, onCancel, danger }) {
+  return (
+    <Modal title="Confirm" onClose={onCancel}>
+      <p style={{ fontSize: 14, marginBottom: 16 }}>{message}</p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button className="btn" onClick={onCancel}>Cancel</button>
+        <button className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`} onClick={onConfirm}>{danger ? 'Delete' : 'Confirm'}</button>
+      </div>
+    </Modal>
+  );
+}
+
 export function initials(name = '') {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }

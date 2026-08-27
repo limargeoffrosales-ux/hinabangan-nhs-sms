@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Calculator, ClipboardList, Star } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 import { downloadDoc } from '../lib/export';
 import { CURRENT_SCHOOL_YEAR } from '../lib/constants';
+import { useToast } from '../components/Toast';
 
 const TABS = ['Question Bank', 'Rubrics & TOS', 'Item Analysis'];
 
 export default function Assessment() {
+  const { toast } = useToast();
   const [tab, setTab] = useState(TABS[0]);
   const [questions, setQuestions] = useState(null);
   const [rubrics, setRubrics] = useState(null);
@@ -24,6 +26,7 @@ export default function Assessment() {
 
   const [iaForm, setIaForm] = useState({ title: '', subject_id: '', school_year: CURRENT_SCHOOL_YEAR, learners: 30, items: [{ competency: '', correct_upper: '', correct_lower: '' }] });
   const [iaResult, setIaResult] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     try {
@@ -46,7 +49,7 @@ export default function Assessment() {
   useEffect(() => { load(); }, []);
 
   async function saveQuestion() {
-    if (!qForm.question) return alert('Question is required');
+    if (!qForm.question) return toast.error('Question is required');
     setBusy(true);
     try {
       await api('/assessment/questions', { method: 'POST', body: qForm });
@@ -60,13 +63,11 @@ export default function Assessment() {
   }
 
   async function delQuestion(id) {
-    if (!confirm('Delete this question?')) return;
-    await api(`/assessment/questions/${id}`, { method: 'DELETE' });
-    await load();
+    setConfirmAction({ message: 'Delete this question?', action: async () => { await api(`/assessment/questions/${id}`, { method: 'DELETE' }); await load(); } });
   }
 
   async function saveTos() {
-    if (!tosForm.title) return alert('Title is required');
+    if (!tosForm.title) return toast.error('Title is required');
     setBusy(true);
     try {
       await api('/assessment/tos', { method: 'POST', body: { ...tosForm, rows: undefined, data: tosForm.rows.map((r) => ({ competency: r.competency, items: Number(r.items) || 0, type: r.type })) } });
@@ -80,19 +81,15 @@ export default function Assessment() {
   }
 
   async function delTos(id) {
-    if (!confirm('Delete this TOS?')) return;
-    await api(`/assessment/tos/${id}`, { method: 'DELETE' });
-    await load();
+    setConfirmAction({ message: 'Delete this TOS?', action: async () => { await api(`/assessment/tos/${id}`, { method: 'DELETE' }); await load(); } });
   }
 
   async function delRubric(id) {
-    if (!confirm('Delete this rubric?')) return;
-    await api(`/assessment/rubrics/${id}`, { method: 'DELETE' });
-    await load();
+    setConfirmAction({ message: 'Delete this rubric?', action: async () => { await api(`/assessment/rubrics/${id}`, { method: 'DELETE' }); await load(); } });
   }
 
   async function runAnalysis() {
-    if (iaForm.items.some((i) => i.correct_upper === '' || i.correct_lower === '')) return alert('Fill all correct-count fields');
+    if (iaForm.items.some((i) => i.correct_upper === '' || i.correct_lower === '')) return toast.error('Fill all correct-count fields');
     setBusy(true);
     try {
       const r = await api('/assessment/item-analysis', { method: 'POST', body: { learners: Number(iaForm.learners), items: iaForm.items.map((i) => ({ competency: i.competency, correct_upper: Number(i.correct_upper), correct_lower: Number(i.correct_lower) })) } });
@@ -105,7 +102,7 @@ export default function Assessment() {
   }
 
   async function saveAnalysis() {
-    if (!iaForm.title) return alert('Title is required');
+    if (!iaForm.title) return toast.error('Title is required');
     const data = { items: iaForm.items };
     await api('/assessment/analyses', { method: 'POST', body: { title: iaForm.title, subject_id: iaForm.subject_id || null, school_year: iaForm.school_year, learners: Number(iaForm.learners), total_items: iaForm.items.length, data, computed: iaResult } });
     await load();
@@ -339,6 +336,7 @@ export default function Assessment() {
           </div>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

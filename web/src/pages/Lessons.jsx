@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BookOpen, Plus, Pencil, Trash2, Filter, Clock, CheckCircle, FileText, X, Send, Eye, Copy, RotateCcw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner } from '../components/ui';
+import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
 const REVIEWERS = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
@@ -36,6 +36,7 @@ export default function Lessons() {
   const [showReview, setShowReview] = useState(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -110,13 +111,14 @@ export default function Lessons() {
   }
 
   async function remove(id) {
-    if (!confirm('Delete this lesson plan?')) return;
-    try {
-      await api(`/lessons/${id}`, { method: 'DELETE' });
-      setRows((r) => r.filter((x) => x.id !== id));
-    } catch (e2) {
-      setError(e2.message);
-    }
+    setConfirmAction({ message: 'Delete this lesson plan?', action: async () => {
+      try {
+        await api(`/lessons/${id}`, { method: 'DELETE' });
+        setRows((r) => r.filter((x) => x.id !== id));
+      } catch (e2) {
+        setError(e2.message);
+      }
+    } });
   }
 
   async function submitLesson(id) {
@@ -391,6 +393,7 @@ export default function Lessons() {
           </div>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

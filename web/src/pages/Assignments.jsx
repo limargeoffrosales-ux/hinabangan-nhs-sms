@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, ClipboardCheck } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Empty, ErrorBanner, Spinner, Modal } from '../components/ui';
+import { PageHead, Empty, ErrorBanner, Spinner, Modal, ConfirmModal } from '../components/ui';
 
 const KINDS = ['homework', 'classwork', 'quiz', 'activity', 'performance_task', 'project'];
 
@@ -65,6 +65,7 @@ export default function Assignments() {
   const [roster, setRoster] = useState(null);
   const [gradeBusy, setGradeBusy] = useState(false);
   const [competencies, setCompetencies] = useState([]);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function loadClasses() {
     setLoading(true);
@@ -161,13 +162,14 @@ export default function Assignments() {
   }
 
   async function removeAssignment(a) {
-    if (!window.confirm(`Delete "${a.title}"? This removes all student submissions.`)) return;
-    try {
-      await api(`/assignments/${a.id}`, { method: 'DELETE' });
-      await loadAssignments();
-    } catch (err) {
-      setError(err.message);
-    }
+    setConfirmAction({ message: `Delete "${a.title}"? This removes all student submissions.`, action: async () => {
+      try {
+        await api(`/assignments/${a.id}`, { method: 'DELETE' });
+        await loadAssignments();
+      } catch (err) {
+        setError(err.message);
+      }
+    } });
   }
 
   async function openGrading(a) {
@@ -397,6 +399,7 @@ export default function Assignments() {
           )}
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

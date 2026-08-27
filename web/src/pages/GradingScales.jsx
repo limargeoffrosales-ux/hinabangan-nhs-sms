@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Download, RefreshCw, Trash2, Star } from 'lucide-react';
 import { api, getToken, getApiBase } from '../lib/api';
 import { downloadBlob } from '../lib/export';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
 const TYPE_LABELS = { numeric: 'Numeric', letter: 'Letter', gpa: 'GPA', ib: 'IB', cambridge: 'Cambridge', custom: 'Custom' };
 const TYPE_OPTIONS = ['numeric', 'letter', 'gpa', 'ib', 'cambridge', 'custom'];
@@ -31,6 +31,7 @@ export default function GradingScales() {
   const [trScale, setTrScale] = useState('');
   const [trFormat, setTrFormat] = useState('pdf');
   const [trLoading, setTrLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -113,11 +114,12 @@ export default function GradingScales() {
   }
 
   async function removeScale(id) {
-    if (!window.confirm('Delete this grading scale?')) return;
-    try {
-      await api(`/grading/scales/${id}`, { method: 'DELETE' });
-      load();
-    } catch (err) { setError(err.message); }
+    setConfirmAction({ message: 'Delete this grading scale?', action: async () => {
+      try {
+        await api(`/grading/scales/${id}`, { method: 'DELETE' });
+        load();
+      } catch (err) { setError(err.message); }
+    } });
   }
 
   async function runConvert(e) {
@@ -354,6 +356,7 @@ export default function GradingScales() {
           )}
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

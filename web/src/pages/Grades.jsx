@@ -4,12 +4,14 @@ import { Save, FileText, Target, Printer, Copy } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { printElementHtml } from '../lib/export';
+import { useToast } from '../components/Toast';
 
 const TERMS = [1, 2, 3];
 const LEVEL_COLORS = { Advanced: '#2FD6A0', Proficient: '#4D96FF', 'Approaching Proficiency': '#F5B942', Developing: '#FB7185', Beginning: '#F2555A' };
 
 export default function Grades() {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [schoolYear, setSchoolYear] = useState('2026-2027');
@@ -83,7 +85,7 @@ export default function Grades() {
       await api('/competency-tracker/scores/batch', {
         method: 'POST', body: { scores: scoreArr, school_year: schoolYear, quarter: term, subject_id: subjectId, section_id: sectionId },
       });
-      alert(`Saved ${scoreArr.length} competency scores.`);
+      toast.success(`Saved ${scoreArr.length} competency scores.`);
       loadCompetencies();
     } catch (e) { setError(e.message); } finally { setCompSaving(false); }
   }
@@ -108,7 +110,7 @@ export default function Grades() {
         method: 'POST',
         body: { section_id: Number(sectionId), subject_id: Number(subjectId), school_year: schoolYear, term, rows: payload },
       });
-      alert(`Saved grades for ${res.saved} student(s).`);
+      toast.success(`Saved grades for ${res.saved} student(s).`);
       loadClass();
     } catch (e) {
       setError(e.message);

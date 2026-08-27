@@ -18,7 +18,7 @@ async function init() {
     const connUrl = new URL(process.env.DATABASE_URL);
     const sslMode = connUrl.searchParams.get('sslmode');
     const useSsl = sslMode === 'disable' ? false : { rejectUnauthorized: false };
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl });
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl, max: 20, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 });
     driver = {
       params: pgParams,
       run: (sql, p) => pool.query(pgParams(sql), p || []).then((r) => ({ changes: r.rowCount })),

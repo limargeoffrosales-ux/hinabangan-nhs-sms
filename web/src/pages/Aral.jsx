@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, ClipboardList, Target, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
@@ -42,6 +42,7 @@ export default function Aral() {
   const [aralForm, setAralForm] = useState({ student_id: '', term: '' });
   const [aralBusy, setAralBusy] = useState(false);
   const [aralMsg, setAralMsg] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
     let dead = false;
@@ -153,14 +154,15 @@ export default function Aral() {
   }
 
   async function unenrollAral(enrollmentId) {
-    if (!confirm('Remove this learner from the ARAL Program?')) return;
-    setError(null);
-    try {
-      await api('/dashboard/aral-unenroll', { method: 'POST', body: { enrollment_id: enrollmentId } });
-      setReloadTick((t) => t + 1);
-    } catch (err) {
-      setError(err.message);
-    }
+    setConfirmAction({ message: 'Remove this learner from the ARAL Program?', action: async () => {
+      setError(null);
+      try {
+        await api('/dashboard/aral-unenroll', { method: 'POST', body: { enrollment_id: enrollmentId } });
+        setReloadTick((t) => t + 1);
+      } catch (err) {
+        setError(err.message);
+      }
+    } });
   }
 
   if (loading && !data) return <Spinner />;
@@ -408,6 +410,7 @@ export default function Aral() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

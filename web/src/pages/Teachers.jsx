@@ -4,7 +4,7 @@ import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, TEACHER_POSITIONS, TEACHER_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
 const EMPTY_FORM = {
   employee_no: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: '',
@@ -24,6 +24,7 @@ export default function Teachers() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -83,9 +84,7 @@ export default function Teachers() {
   }
 
   async function remove(teacher) {
-    if (!confirm(t('teachers.removeConfirm'))) return;
-    await api(`/teachers/${teacher.id}`, { method: 'DELETE' });
-    load();
+    setConfirmAction({ message: t('teachers.removeConfirm'), action: async () => { await api(`/teachers/${teacher.id}`, { method: 'DELETE' }); load(); } });
   }
 
   const field = (k, opts = {}) => (
@@ -206,6 +205,7 @@ export default function Teachers() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
 const EMPTY_FORM = {
   lrn: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: 'Male',
@@ -41,6 +41,7 @@ export default function Students() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState(null);
   const photoInputRef = useRef(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function loadAccounts(id) {
     setAccountsLoading(true);
@@ -85,13 +86,14 @@ export default function Students() {
   }
 
   async function unlinkStudentAccount() {
-    if (!confirm(t('students.unlinkConfirm'))) return;
-    try {
-      await api(`/students/${accountsRow.id}/account`, { method: 'PUT', body: { user_id: null } });
-      await loadAccounts(accountsRow.id);
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ message: t('students.unlinkConfirm'), action: async () => {
+      try {
+        await api(`/students/${accountsRow.id}/account`, { method: 'PUT', body: { user_id: null } });
+        await loadAccounts(accountsRow.id);
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   async function linkParent(userId) {
@@ -106,13 +108,14 @@ export default function Students() {
   }
 
   async function unlinkParent(userId) {
-    if (!confirm(t('students.removeParentConfirm'))) return;
-    try {
-      await api(`/students/${accountsRow.id}/parents/${userId}`, { method: 'DELETE' });
-      await loadAccounts(accountsRow.id);
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ message: t('students.removeParentConfirm'), action: async () => {
+      try {
+        await api(`/students/${accountsRow.id}/parents/${userId}`, { method: 'DELETE' });
+        await loadAccounts(accountsRow.id);
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   async function load() {
@@ -188,9 +191,7 @@ export default function Students() {
   }
 
   async function remove(s) {
-    if (!confirm(t('students.deleteConfirm') + ` ${s.first_name} ${s.last_name}?`)) return;
-    await api(`/students/${s.id}`, { method: 'DELETE' });
-    load();
+    setConfirmAction({ message: t('students.deleteConfirm') + ` ${s.first_name} ${s.last_name}?`, action: async () => { await api(`/students/${s.id}`, { method: 'DELETE' }); load(); } });
   }
 
   const field = (k, opts = {}) => {
@@ -430,6 +431,7 @@ export default function Students() {
           )}
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

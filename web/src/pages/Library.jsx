@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BookOpen, Plus, Pencil, Trash2, Filter, BookMarked, ArrowDownToLine, ArrowUpFromLine, Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'librarian'];
 const EMPTY_BOOK = { title: '', author: '', isbn: '', category: '', publisher: '', year_published: '', total_copies: 1, available_copies: 1, location: '', status: 'active' };
@@ -27,6 +27,7 @@ export default function Library() {
   const [filter, setFilter] = useState({ category: '', status: '' });
   const [search, setSearch] = useState('');
   const [borrowFilter, setBorrowFilter] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -58,8 +59,9 @@ export default function Library() {
   }
 
   async function removeBook(id) {
-    if (!confirm('Delete this book?')) return;
-    try { await api(`/library/${id}`, { method: 'DELETE' }); setBooks((r) => r.filter((x) => x.id !== id)); } catch (e2) { setError(e2.message); }
+    setConfirmAction({ message: 'Delete this book?', action: async () => {
+      try { await api(`/library/${id}`, { method: 'DELETE' }); setBooks((r) => r.filter((x) => x.id !== id)); } catch (e2) { setError(e2.message); }
+    } });
   }
 
   async function borrowBook(e) {
@@ -208,6 +210,7 @@ export default function Library() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

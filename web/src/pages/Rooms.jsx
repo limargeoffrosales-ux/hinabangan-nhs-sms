@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, DoorOpen } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
 const ROOM_TYPES = [
   { value: 'classroom', label: 'Classroom', badgeColor: 'blue' },
@@ -34,6 +34,7 @@ export default function Rooms() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -81,9 +82,7 @@ export default function Rooms() {
   }
 
   async function remove(r) {
-    if (!confirm(t('rooms.deleteConfirm', { name: r.name }))) return;
-    await api(`/rooms/${r.id}`, { method: 'DELETE' });
-    load();
+    setConfirmAction({ message: t('rooms.deleteConfirm', { name: r.name }), action: async () => { await api(`/rooms/${r.id}`, { method: 'DELETE' }); load(); } });
   }
 
   const filtered = rows.filter((r) => {
@@ -196,6 +195,7 @@ export default function Rooms() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

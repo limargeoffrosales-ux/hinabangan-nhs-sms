@@ -67,3 +67,18 @@ export const TEACHER_POSITIONS = [
   'Administrative Officer III',
   'Administrative Aide',
 ];
+
+export const ADMIN_ROLES = ['super_admin', 'school_admin'];
+export const CAN_MANAGE_STUDENTS = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+export const CAN_WRITE_STUDENTS = [...CAN_MANAGE_STUDENTS, 'teacher', 'guidance'];
+export const CAN_MANAGE_GRADES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+export const CAN_WRITE_GRADES = [...CAN_MANAGE_GRADES, 'teacher'];
+export const CAN_MANAGE_ATTENDANCE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
+export const CAN_WRITE_ATTENDANCE = [...CAN_MANAGE_ATTENDANCE, 'teacher'];
+export const CAN_MANAGE_USERS = ['super_admin', 'school_admin'];
+export const CAN_VIEW_ANALYTICS = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
+export const CAN_MANAGE_GUIDANCE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];
+export const CAN_MANAGE_CLINIC = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'nurse'];
+export const CAN_MANAGE_LIBRARY = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'librarian'];
+export const CAN_MANAGE_REPORTS = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+export const MAX_INPUT_LENGTH = 1000;

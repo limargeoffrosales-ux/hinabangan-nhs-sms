@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { PageHead, Spinner, ErrorBanner } from '../components/ui';
 import { printElementHtml, downloadBlob } from '../lib/export';
 import DOMPurify from 'dompurify';
+import { useToast } from '../components/Toast';
 
 const FORMS = [
   { code: 'sf1', label: 'SF1', title: 'School Register', orient: 'landscape' },
@@ -61,11 +62,11 @@ function printForm(code, title, html, orient) {
   printElementHtml(`${code.toUpperCase()} - ${title}`, html, { orientation: orient, paper: 'legal' });
 }
 
-async function batchPrintSF9(sectionId, info) {
+async function batchPrintSF9(sectionId, info, toast) {
   try {
     const res = await api(`/deped-forms/sf9/full?section_id=${sectionId}`);
     const learners = res.learners || [];
-    if (!learners.length) return alert('No learners found for this section.');
+    if (!learners.length) return toast.error('No learners found for this section.');
     const cards = learners.map(lr => renderSF9Card(lr.student, lr.enrollment, lr.grades, lr.monthlyAttendance || [], info.school_year || '____-____', info, lr.conduct || []));
     const css = `@page{size:legal landscape;margin:0.3in}body{font-family:'Times New Roman',serif;font-size:10pt;line-height:1.2;color:#000;margin:0;padding:0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:2pt 3pt;font-size:7.5pt;vertical-align:top}.center{text-align:center}.c{text-align:center}.b{font-weight:bold}.small{font-size:7pt}.sig{width:100%;border:none}.sig td{border:none;text-align:center;font-size:9pt;padding:8pt 3pt 0}.sf9-page{page-break-after:always;width:100%;height:100vh;display:flex}.sf9-page:last-child{page-break-after:auto}`;
     const full = `<!doctype html><html><head><meta charset="utf-8"><title>SF9 - Report Cards - Batch</title><style>${css}</style></head><body>${cards.join('\n')}</body></html>`;
@@ -74,7 +75,7 @@ async function batchPrintSF9(sectionId, info) {
     w.document.close();
     setTimeout(() => w.print(), 500);
   } catch (e) {
-    alert('Error loading batch report cards: ' + e.message);
+    toast.error('Error loading batch report cards: ' + e.message);
   }
 }
 
@@ -86,6 +87,7 @@ function downloadBlankForm(code, title, html, orient, info) {
 }
 
 export default function DepedForms() {
+  const { toast } = useToast();
   const [tab, setTab] = useState('sf1');
   const [info, setInfo] = useState({});
   const [sections, setSections] = useState([]);
@@ -179,7 +181,7 @@ export default function DepedForms() {
   }, [data]);
 
   const saveConduct = useCallback(async () => {
-    if (!studentId || !term) return alert('Select a term (Q1–Q4) first.');
+    if (!studentId || !term) return toast.error('Select a term (Q1–Q4) first.');
     setConductSaving(true);
     try {
       await api('/deped-forms/sf9/conduct', {
@@ -191,7 +193,7 @@ export default function DepedForms() {
       setLoading(true);
       api(url).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     } catch (e) {
-      alert('Error saving conduct: ' + e.message);
+      toast.error('Error saving conduct: ' + e.message);
     } finally {
       setConductSaving(false);
     }
@@ -299,7 +301,7 @@ export default function DepedForms() {
             </button>
           )}
           {tab === 'sf9' && sectionId && !studentId && (
-            <button className="btn btn-primary" onClick={() => batchPrintSF9(sectionId, info)}>
+            <button className="btn btn-primary"               onClick={() => batchPrintSF9(sectionId, info, toast)}>
               <Printer size={14} /> Print All Report Cards
             </button>
           )}

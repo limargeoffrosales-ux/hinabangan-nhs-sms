@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, ClipboardPenLine, Eye, CheckCircle2, FilePlus2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 const TYPES = [
@@ -75,6 +75,7 @@ export default function Discipline() {
   const [saving, setSaving] = useState(false);
 
   const [actionForm, setActionForm] = useState({ action_type: 'warning', action_date: today(), notes: '' });
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -173,14 +174,15 @@ export default function Discipline() {
   }
 
   async function removeRecord(r) {
-    if (!confirm(`Delete the conduct record for ${r.student_name}? This cannot be undone.`)) return;
-    try {
-      await api(`/conduct/${r.id}`, { method: 'DELETE' });
-      setSel(null);
-      load();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ message: `Delete the conduct record for ${r.student_name}? This cannot be undone.`, action: async () => {
+      try {
+        await api(`/conduct/${r.id}`, { method: 'DELETE' });
+        setSel(null);
+        load();
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   const summaryChips = [
@@ -405,6 +407,7 @@ export default function Discipline() {
           )}
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }
