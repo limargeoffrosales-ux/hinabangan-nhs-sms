@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Filter } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];
 const CASE_TYPES = ['behavioral', 'academic', 'personal', 'career', 'bullying', 'substance', 'other'];
@@ -31,6 +31,7 @@ export default function Guidance() {
   const [selectedCase, setSelectedCase] = useState(null);
   const [caseDetail, setCaseDetail] = useState(null);
   const [caseDetailLoading, setCaseDetailLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -70,7 +71,15 @@ export default function Guidance() {
     try { await api(`/guidance/cases/${id}`, { method: 'PATCH', body: { status } }); await loadData(); if (selectedCase === id) loadCaseDetail(id); } catch (e2) { setError(e2.message); }
   }
 
-  async function removeCase(id) { if (!confirm('Delete case?')) return; try { await api(`/guidance/cases/${id}`, { method: 'DELETE' }); setCases((r) => r.filter((x) => x.id !== id)); if (selectedCase === id) { setSelectedCase(null); setCaseDetail(null); } } catch (e2) { setError(e2.message); } }
+  async function removeCase(id) {
+    setConfirmAction({ message: 'Delete case?', action: async () => {
+      try {
+        await api(`/guidance/cases/${id}`, { method: 'DELETE' });
+        setCases((r) => r.filter((x) => x.id !== id));
+        if (selectedCase === id) { setSelectedCase(null); setCaseDetail(null); }
+      } catch (e2) { setError(e2.message); }
+    } });
+  }
 
   const filtered = cases.filter((c) =>
     (!filter.status || c.status === filter.status) && (!filter.case_type || c.case_type === filter.case_type)
@@ -213,6 +222,7 @@ export default function Guidance() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Award, Plus, Pencil, Trash2, Filter } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner } from '../components/ui';
+import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
 
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const TYPES = ['NCII', 'TESDA', 'OTHER'];
@@ -30,6 +30,7 @@ export default function Certifications() {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState({ type: '', status: '' });
   const [search, setSearch] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -95,13 +96,14 @@ export default function Certifications() {
   }
 
   async function remove(id) {
-    if (!confirm('Delete this certification record?')) return;
-    try {
-      await api(`/certifications/${id}`, { method: 'DELETE' });
-      setRows((r) => r.filter((x) => x.id !== id));
-    } catch (e2) {
-      setError(e2.message);
-    }
+    setConfirmAction({ message: 'Delete this certification record?', action: async () => {
+      try {
+        await api(`/certifications/${id}`, { method: 'DELETE' });
+        setRows((r) => r.filter((x) => x.id !== id));
+      } catch (e2) {
+        setError(e2.message);
+      }
+    } });
   }
 
   const filtered = rows.filter((r) =>
@@ -260,6 +262,7 @@ export default function Certifications() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

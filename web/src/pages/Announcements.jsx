@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 export default function Announcements() {
@@ -14,6 +14,7 @@ export default function Announcements() {
   const [form, setForm] = useState({ title: '', body: '', audience: 'all', priority: 'normal' });
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const canWrite = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'].includes(user?.role);
 
@@ -62,9 +63,7 @@ export default function Announcements() {
   }
 
   async function remove(a) {
-    if (!confirm(t('announcements.deleteConfirm', { title: a.title }))) return;
-    await api(`/announcements/${a.id}`, { method: 'DELETE' });
-    load();
+    setConfirmAction({ message: t('announcements.deleteConfirm', { title: a.title }), action: async () => { await api(`/announcements/${a.id}`, { method: 'DELETE' }); load(); } });
   }
 
   const canDelete = ['super_admin', 'school_admin', 'principal', 'assistant_principal'].includes(user?.role);
@@ -137,6 +136,7 @@ export default function Announcements() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

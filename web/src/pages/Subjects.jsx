@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
 const TERM_LABELS = { first: 'First Term', second: 'Second Term', third: 'Third Term', all: 'All Terms' };
 const TERM_OPTIONS = [
@@ -51,6 +51,7 @@ export default function Subjects() {
   const [showModal, setShowModal] = useState(false);
   const [gradeFilter, setGradeFilter] = useState('');
   const [termFilter, setTermFilter] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -101,9 +102,7 @@ export default function Subjects() {
   }
 
   async function remove(s) {
-    if (!confirm(t('subjects.deleteConfirm', { code: s.code }))) return;
-    await api(`/subjects/${s.id}`, { method: 'DELETE' });
-    load();
+    setConfirmAction({ message: t('subjects.deleteConfirm', { code: s.code }), action: async () => { await api(`/subjects/${s.id}`, { method: 'DELETE' }); load(); } });
   }
 
   async function toggleOffered(s) {
@@ -231,6 +230,7 @@ export default function Subjects() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Shield, Download, Trash2, AlertTriangle, CheckCircle2, XCircle, Eye, Users, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 import { useAuth, can } from '../lib/auth';
 
 const TABS = [
@@ -48,6 +48,7 @@ export default function Privacy() {
   const [roleLoading, setRoleLoading] = useState(true);
 
   const [exportBusy, setExportBusy] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function loadPolicies() {
     setPoliciesLoading(true);
@@ -210,25 +211,27 @@ export default function Privacy() {
   }
 
   async function approveErase(req) {
-    if (!confirm('This will permanently erase student PII. Continue?')) return;
-    setError(null);
-    try {
-      await api(`/privacy/erasure-requests/${req.id}/approve`, { method: 'POST' });
-      loadErasure();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ message: 'This will permanently erase student PII. Continue?', action: async () => {
+      setError(null);
+      try {
+        await api(`/privacy/erasure-requests/${req.id}/approve`, { method: 'POST' });
+        loadErasure();
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   async function suspendUser(u) {
-    if (!confirm(`Suspend user ${u.username}?`)) return;
-    setError(null);
-    try {
-      await api(`/privacy/role-reviews/${u.id}/suspend`, { method: 'POST' });
-      loadRoles();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ message: `Suspend user ${u.username}?`, action: async () => {
+      setError(null);
+      try {
+        await api(`/privacy/role-reviews/${u.id}/suspend`, { method: 'POST' });
+        loadRoles();
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   async function restoreUser(u) {
@@ -547,6 +550,7 @@ export default function Privacy() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

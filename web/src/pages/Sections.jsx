@@ -4,7 +4,7 @@ import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SHS_TRACKS, SECTION_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
 const EMPTY_FORM = { name: '', grade_level: 'Grade 11', strand: '', adviser_teacher_id: '', room: '', capacity: 40, school_year: '2026-2027', status: 'active' };
 
@@ -20,6 +20,7 @@ export default function Sections() {
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [roster, setRoster] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -68,9 +69,7 @@ export default function Sections() {
   }
 
   async function remove(s) {
-    if (!confirm(t('sections.deleteConfirm', { name: s.name, year: s.school_year }))) return;
-    await api(`/sections/${s.id}`, { method: 'DELETE' });
-    load();
+    setConfirmAction({ message: t('sections.deleteConfirm', { name: s.name, year: s.school_year }), action: async () => { await api(`/sections/${s.id}`, { method: 'DELETE' }); load(); } });
   }
 
   async function showRoster(s) {
@@ -193,6 +192,7 @@ export default function Sections() {
           )}
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

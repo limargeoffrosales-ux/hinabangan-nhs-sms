@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, BookOpen, Layers, GraduationCap } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
 const TABS = ['Tracks & Strands', 'Competencies', 'Subject Mapping'];
 const GRADE_LEVELS = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
@@ -60,6 +60,7 @@ export default function Curriculum() {
 
   const [mapModal, setMapModal] = useState(false);
   const [mapForm, setMapForm] = useState(EMPTY_MAPPING);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function loadTracks() {
     try {
@@ -143,9 +144,7 @@ export default function Curriculum() {
   }
 
   async function removeTrack(tr) {
-    if (!confirm(t('cur.deleteTrackConfirm', { name: tr.name }))) return;
-    await api(`/curriculum/tracks/${tr.id}`, { method: 'DELETE' });
-    await loadTracks();
+    setConfirmAction({ message: t('cur.deleteTrackConfirm', { name: tr.name }), action: async () => { await api(`/curriculum/tracks/${tr.id}`, { method: 'DELETE' }); await loadTracks(); } });
   }
 
   function openCreateStrand(trackId) {
@@ -172,11 +171,12 @@ export default function Curriculum() {
   }
 
   async function removeStrand(s) {
-    if (!confirm(t('cur.deleteStrandConfirm', { name: s.name }))) return;
-    try {
-      await api(`/curriculum/strands/${s.id}`, { method: 'DELETE' });
-      await loadTracks();
-    } catch (e2) { setError(e2.message); }
+    setConfirmAction({ message: t('cur.deleteStrandConfirm', { name: s.name }), action: async () => {
+      try {
+        await api(`/curriculum/strands/${s.id}`, { method: 'DELETE' });
+        await loadTracks();
+      } catch (e2) { setError(e2.message); }
+    } });
   }
 
   function openCreateComp() {
@@ -204,11 +204,12 @@ export default function Curriculum() {
   }
 
   async function removeComp(c) {
-    if (!confirm(t('cur.deleteCompConfirm', { title: c.title }))) return;
-    try {
-      await api(`/curriculum/competencies/${c.id}`, { method: 'DELETE' });
-      await loadCompetencies();
-    } catch (e2) { setError(e2.message); }
+    setConfirmAction({ message: t('cur.deleteCompConfirm', { title: c.title }), action: async () => {
+      try {
+        await api(`/curriculum/competencies/${c.id}`, { method: 'DELETE' });
+        await loadCompetencies();
+      } catch (e2) { setError(e2.message); }
+    } });
   }
 
   async function saveMapping(e) {
@@ -223,11 +224,12 @@ export default function Curriculum() {
   }
 
   async function removeMapping(m) {
-    if (!confirm(t('cur.deleteMappingConfirm'))) return;
-    try {
-      await api(`/curriculum/subject-competencies/${m.id}`, { method: 'DELETE' });
-      await loadMappings();
-    } catch (e2) { setError(e2.message); }
+    setConfirmAction({ message: t('cur.deleteMappingConfirm'), action: async () => {
+      try {
+        await api(`/curriculum/subject-competencies/${m.id}`, { method: 'DELETE' });
+        await loadMappings();
+      } catch (e2) { setError(e2.message); }
+    } });
   }
 
   const strandName = (id) => allStrands.find((s) => s.id === id)?.name || '—';
@@ -563,6 +565,7 @@ export default function Curriculum() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

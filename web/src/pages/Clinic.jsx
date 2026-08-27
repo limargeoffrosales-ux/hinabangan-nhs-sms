@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Filter, Pill, Stethoscope } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'nurse'];
 const OUTCOMES = ['treated', 'referred', 'sent_home', 'monitoring'];
@@ -30,6 +30,7 @@ export default function Clinic() {
   const [saving, setSaving] = useState(false);
   const [dateFilter, setDateFilter] = useState('');
   const [students, setStudents] = useState([]);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -72,8 +73,12 @@ export default function Clinic() {
     } catch (e2) { setError(e2.message); } finally { setSaving(false); }
   }
 
-  async function removeVisit(id) { if (!confirm('Delete?')) return; try { await api(`/clinic/visits/${id}`, { method: 'DELETE' }); await loadData(); } catch (e2) { setError(e2.message); } }
-  async function removeMed(id) { if (!confirm('Delete?')) return; try { await api(`/clinic/medicines/${id}`, { method: 'DELETE' }); await loadData(); } catch (e2) { setError(e2.message); } }
+  async function removeVisit(id) {
+    setConfirmAction({ message: 'Delete?', action: async () => { try { await api(`/clinic/visits/${id}`, { method: 'DELETE' }); await loadData(); } catch (e2) { setError(e2.message); } } });
+  }
+  async function removeMed(id) {
+    setConfirmAction({ message: 'Delete?', action: async () => { try { await api(`/clinic/medicines/${id}`, { method: 'DELETE' }); await loadData(); } catch (e2) { setError(e2.message); } } });
+  }
 
   const filteredVisits = dateFilter ? visits.filter((v) => v.visit_date?.slice(0, 10) === dateFilter) : visits;
 
@@ -222,6 +227,7 @@ export default function Clinic() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

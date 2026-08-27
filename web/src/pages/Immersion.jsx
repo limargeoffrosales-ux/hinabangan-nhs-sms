@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Briefcase, BadgeCheck, Plus, Trash2, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Empty, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const PROGRAMS = ['EIM', 'CSS', 'Garment Artisanry', 'Academic'];
@@ -25,6 +25,7 @@ export default function Immersion() {
   const [modal, setModal] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     setError(null);
@@ -82,13 +83,14 @@ export default function Immersion() {
   }
 
   async function remove(id) {
-    if (!window.confirm('Delete this record?')) return;
-    try {
-      await api(`/${tab}/${id}`, { method: 'DELETE' });
-      await load();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ message: 'Delete this record?', action: async () => {
+      try {
+        await api(`/${tab}/${id}`, { method: 'DELETE' });
+        await load();
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   const isImmersion = tab === 'immersion';
@@ -214,6 +216,7 @@ export default function Immersion() {
           </div>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </>
   );
 }

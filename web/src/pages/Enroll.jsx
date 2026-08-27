@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { SHS_TRACKS, ENROLLMENT_STATUSES } from '../lib/constants';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge } from '../components/ui';
+import { useToast } from '../components/Toast';
 
 const CATEGORIES = [
   { cat: 'core', label: 'Core Subjects' },
@@ -86,6 +87,7 @@ function CheckGroup({ label, items, selectedSubjects, toggleSubject, toggleGroup
 }
 
 export default function Enroll() {
+  const { toast } = useToast();
   const [students, setStudents] = useState([]);
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -186,7 +188,7 @@ export default function Enroll() {
       };
       if (!isShs) delete body.term;
       await api('/enrollments', { method: 'POST', body });
-      alert('Student enrolled successfully.');
+      toast.success('Student enrolled successfully.');
       setForm((f) => ({ ...f, student_id: '', section_id: '', is_aral: false }));
       setSelectedSubjects([]);
     } catch (e2) {

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Plus, AlertTriangle, Users, FileText, PhoneCall } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 import { downloadDoc } from '../lib/export';
+import { useToast } from '../components/Toast';
 
 const CATEGORIES = [
   ['academic_recovery', 'Academic Recovery'],
@@ -21,6 +22,7 @@ const RISK_CLASS = { High: 'badge-red', Moderate: 'badge-yellow', Low: 'badge-bl
 const blank = { student_id: '', title: '', category: 'academic_recovery', strategy: '', frequency: '', start_date: '', end_date: '', status: 'active', progress_notes: '' };
 
 export default function Interventions() {
+  const { toast } = useToast();
   const [plans, setPlans] = useState(null);
   const [atRisk, setAtRisk] = useState(null);
   const [stats, setStats] = useState(null);
@@ -30,6 +32,7 @@ export default function Interventions() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [students, setStudents] = useState([]);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   async function load() {
     try {
@@ -54,7 +57,7 @@ export default function Interventions() {
   }, [modal, students.length]);
 
   async function save() {
-    if (!form.student_id || !form.title) return alert('Select a learner and give the plan a title');
+    if (!form.student_id || !form.title) return toast.error('Select a learner and give the plan a title');
     setBusy(true);
     try {
       await api('/interventions', { method: 'POST', body: form });
@@ -74,9 +77,7 @@ export default function Interventions() {
   }
 
   async function remove(p) {
-    if (!confirm('Delete this intervention plan?')) return;
-    await api(`/interventions/${p.id}`, { method: 'DELETE' });
-    await load();
+    setConfirmAction({ message: 'Delete this intervention plan?', action: async () => { await api(`/interventions/${p.id}`, { method: 'DELETE' }); await load(); } });
   }
 
   async function parentNotice(p) {
@@ -213,6 +214,7 @@ export default function Interventions() {
           </div>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }

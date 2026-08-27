@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 import { useAuth } from '../lib/auth';
+import { useToast } from '../components/Toast';
 
 const EMPTY_FORM = { username: '', password: '', name: '', role: 'teacher', email: '', phone: '' };
 
 export default function Users() {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -21,6 +23,7 @@ export default function Users() {
   const [selected, setSelected] = useState(new Set());
   const [bulkReset, setBulkReset] = useState(false);
   const [bulkPassword, setBulkPassword] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const isAdmin = ['super_admin', 'school_admin'].includes(user?.role);
   const isSuperAdmin = user?.role === 'super_admin';
@@ -73,13 +76,14 @@ export default function Users() {
   }
 
   async function remove(u) {
-    if (!confirm(t('users.deleteConfirm', { username: u.username }))) return;
-    try {
-      await api(`/users/${u.id}`, { method: 'DELETE' });
-      load();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ message: t('users.deleteConfirm', { username: u.username }), action: async () => {
+      try {
+        await api(`/users/${u.id}`, { method: 'DELETE' });
+        load();
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   function toggleSelect(id) {
@@ -110,7 +114,7 @@ export default function Users() {
       setBulkReset(false);
       setBulkPassword('');
       setSelected(new Set());
-      alert(`${res.reset} ${t('users.passwordsReset')}`);
+      toast.success(`${res.reset} ${t('users.passwordsReset')}`);
       load();
     } catch (e2) {
       setError(e2.message);
@@ -254,6 +258,7 @@ export default function Users() {
           </form>
         </Modal>
       )}
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
 
     </>
   );

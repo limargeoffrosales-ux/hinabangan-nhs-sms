@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Save, CheckCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { useToast } from '../components/Toast';
 
 const STATUSES = ['present', 'late', 'absent', 'excused'];
 
 export default function Attendance() {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -69,7 +71,7 @@ export default function Attendance() {
           records: roster.map((r) => ({ student_id: r.id, status: r.status, remarks: r.remarks || null })),
         },
       });
-      alert(`Attendance saved for ${res.recorded} learner(s).`);
+      toast.success(`Attendance saved for ${res.recorded} learner(s).`);
       load();
     } catch (e) {
       setError(e.message);
