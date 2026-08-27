@@ -104,25 +104,26 @@ router.get('/utilization', requireRole(...WRITE), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year;
   if (!schoolYear) return res.status(400).json({ error: 'school_year is required' });
   const rooms = await qa('SELECT * FROM rooms ORDER BY code');
-  const stats = [];
-  for (const room of rooms) {
-    const [row] = await qa(
-      `SELECT COUNT(*) AS entries
-       FROM schedule_entries
-       WHERE room_id = ? AND school_year = ?`,
-      [room.id, schoolYear]
-    );
-    const totalSlots = 5 * 10;
-    const used = row.entries || 0;
-    stats.push({
+  const counts = await qa(
+    `SELECT room_id, COUNT(*) AS entries
+     FROM schedule_entries
+     WHERE school_year = ?
+     GROUP BY room_id`,
+    [schoolYear]
+  );
+  const countMap = new Map(counts.map((c) => [String(c.room_id), Number(c.entries)]));
+  const totalSlots = 5 * 10;
+  const stats = rooms.map((room) => {
+    const used = countMap.get(String(room.id)) || 0;
+    return {
       room_id: room.id,
       code: room.code,
       name: room.name,
       entries_per_week: used,
       total_weekly_slots: totalSlots,
       utilization_pct: totalSlots > 0 ? Math.round((used / totalSlots) * 10000) / 100 : 0,
-    });
-  }
+    };
+  });
   res.json({ data: stats });
 }));
 

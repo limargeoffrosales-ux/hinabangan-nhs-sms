@@ -37,7 +37,7 @@ export default function Interventions() {
   async function load() {
     try {
       const [p, a, s] = await Promise.all([
-        api('/interventions'),
+        api('/interventions?limit=500'),
         api('/interventions/at-risk'),
         api('/interventions/stats'),
       ]);

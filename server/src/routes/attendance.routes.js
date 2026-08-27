@@ -34,6 +34,9 @@ function summarizeAttendance(rows) {
 
 router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { section_id, date } = req.query;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 50), 500);
+  const offset = (page - 1) * limit;
   let sql = 'SELECT a.*, s.first_name, s.last_name, s.lrn FROM attendance a JOIN students s ON s.id = a.student_id';
   const params = [];
   const where = [];
@@ -49,10 +52,10 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
       where.push('0 = 1');
     }
   }
-  if (where.length) sql += ' WHERE ' + where.join(' AND ');
-  sql += ' ORDER BY a.date DESC, s.last_name';
-  const rows = await qa(sql, params);
-  res.json({ data: rows });
+  const whereClause = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  const total = Number((await q(`SELECT COUNT(*) AS total FROM attendance a${whereClause}`, params)).total || 0);
+  const rows = await qa(`${sql}${whereClause} ORDER BY a.date DESC, s.last_name LIMIT ? OFFSET ?`, [...params, limit, offset]);
+  res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
 }));
 
 router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {

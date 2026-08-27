@@ -3,6 +3,7 @@ const { q, qa, qi, qr, nowSql } = require('../db');
 const db = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit, esc } = require('../utils');
+const { paginate } = require('../pagination');
 
 const router = express.Router();
 router.use(authenticate);
@@ -21,22 +22,30 @@ function withStudent(row, ctx) {
 
 router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { status, student_id } = req.query;
-  let sql = `SELECT p.*, s.first_name, s.last_name, s.grade_level, sec.name AS section_name, u.name AS recorder_name
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 25), 500);
+  const offset = (page - 1) * limit;
+  const sy = req.query.school_year || '2025-2026';
+  const baseSql = `SELECT p.*, s.first_name, s.last_name, s.grade_level, sec.name AS section_name, u.name AS recorder_name
              FROM intervention_plans p
              JOIN students s ON s.id = p.student_id
              LEFT JOIN sections sec ON sec.id = (SELECT section_id FROM enrollments e WHERE e.student_id = p.student_id AND e.school_year = ?)
              LEFT JOIN users u ON u.id = p.recorded_by`;
-  const params = [req.query.school_year || '2025-2026'];
   const where = [];
+  const params = [sy];
   if (status) { where.push('p.status = ?'); params.push(status); }
   if (student_id) { where.push('p.student_id = ?'); params.push(student_id); }
-  if (where.length) sql += ' WHERE ' + where.join(' AND ');
-  sql += ' ORDER BY p.updated_at DESC';
-  const rows = await qa(sql, params);
-  for (const r of rows) {
-    r.contacts = await qa('SELECT * FROM intervention_contacts WHERE plan_id = ? ORDER BY contact_date DESC', [r.id]);
-  }
-  res.json({ data: rows, categories: CATEGORIES });
+  const whereClause = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  const totalResult = await q(`SELECT COUNT(*) AS total FROM intervention_plans p${whereClause}`, where.length ? params.slice(1) : []);
+  const total = Number(totalResult?.total || 0);
+  const rows = await qa(`${baseSql}${whereClause} ORDER BY p.updated_at DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
+  const contacts = rows.length ? await qa(
+    `SELECT * FROM intervention_contacts WHERE plan_id IN (${rows.map(() => '?').join(',')}) ORDER BY contact_date DESC`,
+    rows.map((r) => r.id)) : [];
+  const contactsByPlan = {};
+  for (const c of contacts) (contactsByPlan[c.plan_id] = contactsByPlan[c.plan_id] || []).push(c);
+  for (const r of rows) r.contacts = contactsByPlan[r.id] || [];
+  res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit), categories: CATEGORIES });
 }));
 
 router.get('/stats', requireRole(...WRITE), asyncH(async (req, res) => {

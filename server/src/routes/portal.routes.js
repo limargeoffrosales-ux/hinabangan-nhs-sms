@@ -3,7 +3,7 @@ const { q, qa } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 const { linkedStudentIds } = require('../scope');
-const { studentSummary, round2 } = require('../grading/analytics');
+const { finalsForStudents, round2 } = require('../grading/analytics');
 
 const router = express.Router();
 router.use(authenticate);
@@ -11,44 +11,78 @@ const PORTAL = ['student', 'parent'];
 
 const STUDENT_FIELDS = 'id, lrn, first_name, middle_name, last_name, suffix, grade_level, track_strand, status';
 
-async function loadStudentRow(id) {
-  return q(`SELECT ${STUDENT_FIELDS} FROM students WHERE id = ?`, [id]);
+async function loadStudentRows(ids) {
+  if (!ids || !ids.length) return new Map();
+  const rows = await qa(`SELECT ${STUDENT_FIELDS} FROM students WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+  return new Map(rows.map((r) => [Number(r.id), r]));
 }
 
-async function loadSection(id, schoolYear) {
-  return q(
-    `SELECT sec.id AS section_id, sec.name AS section_name, sec.grade_level
-     FROM enrollments e JOIN sections sec ON sec.id = e.section_id
-     WHERE e.student_id = ? AND e.school_year = ? AND e.status = 'enrolled' LIMIT 1`,
-    [id, schoolYear]);
-}
-
-async function attendanceSummary(id, schoolYear) {
+async function loadCurrentSections(ids) {
+  const map = new Map();
+  if (!ids || !ids.length) return map;
   const rows = await qa(
-    'SELECT status FROM attendance WHERE student_id = ? AND substr(CAST(date AS TEXT), 1, 4) = ?',
-    [id, String(schoolYear).slice(0, 4)]);
-  const counts = { present: 0, absent: 0, late: 0, excused: 0 };
-  for (const a of rows) counts[a.status] = (counts[a.status] || 0) + 1;
-  const total = rows.length;
-  const rate = total ? round2(((counts.present + counts.late) / total) * 100) : null;
-  return { counts, total, rate };
+    `SELECT e.student_id, sec.id AS section_id, sec.name AS section_name,
+            sec.grade_level, e.school_year
+     FROM enrollments e JOIN sections sec ON sec.id = e.section_id
+     JOIN (
+       SELECT student_id, MAX(school_year) AS sy FROM enrollments
+       WHERE student_id IN (${ids.map(() => '?').join(',')}) AND status = 'enrolled'
+       GROUP BY student_id
+     ) latest ON latest.student_id = e.student_id AND latest.sy = e.school_year
+     WHERE e.student_id IN (${ids.map(() => '?').join(',')}) AND e.status = 'enrolled'`,
+    [...ids, ...ids]);
+  for (const r of rows) map.set(Number(r.student_id), r);
+  return map;
+}
+
+async function loadStuSections(ids, schoolYear) {
+  const map = new Map();
+  if (!ids || !ids.length) return map;
+  const rows = await qa(
+    `SELECT e.student_id, sec.id AS section_id, sec.name AS section_name, sec.grade_level
+     FROM enrollments e JOIN sections sec ON sec.id = e.section_id
+     WHERE e.student_id IN (${ids.map(() => '?').join(',')}) AND e.school_year = ? AND e.status = 'enrolled'`,
+    [...ids, schoolYear]);
+  for (const r of rows) map.set(Number(r.student_id), r);
+  return map;
+}
+
+// Attendance summary for all students at once (single GROUP BY query).
+async function attendanceSummaries(ids, schoolYear) {
+  const map = new Map();
+  if (!ids || !ids.length) return map;
+  const rows = await qa(
+    `SELECT student_id, status, COUNT(*) AS n
+     FROM attendance
+     WHERE student_id IN (${ids.map(() => '?').join(',')}) AND substr(CAST(date AS TEXT), 1, 4) = ?
+     GROUP BY student_id, status`,
+    [...ids, String(schoolYear).slice(0, 4)]);
+  for (const id of ids) map.set(Number(id), { counts: { present: 0, absent: 0, late: 0, excused: 0 }, total: 0, rate: null });
+  for (const r of rows) {
+    const sid = Number(r.student_id);
+    const entry = map.get(sid);
+    if (!entry) continue;
+    entry.counts[r.status] = (entry.counts[r.status] || 0) + Number(r.n);
+    entry.total += Number(r.n);
+  }
+  for (const [sid, entry] of map) {
+    if (entry.total) entry.rate = round2(((entry.counts.present + entry.counts.late) / entry.total) * 100);
+  }
+  return map;
 }
 
 // GET /me — portal user identity + linked students (with current section).
 router.get('/me', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const students = [];
-  for (const id of ids) {
-    const st = await loadStudentRow(id);
-    if (!st) continue;
-    const enr = await q(
-      `SELECT sec.id AS section_id, sec.name AS section_name, e.school_year
-       FROM enrollments e JOIN sections sec ON sec.id = e.section_id
-       WHERE e.student_id = ? AND e.status = 'enrolled'
-       ORDER BY e.school_year DESC LIMIT 1`,
-      [id]);
-    students.push({ ...st, section: enr || null });
-  }
+  const stMap = await loadStudentRows(ids);
+  const secMap = await loadCurrentSections(ids);
+  const students = ids
+    .filter((id) => stMap.has(Number(id)))
+    .map((id) => {
+      const idNum = Number(id);
+      const enr = secMap.get(idNum);
+      return { ...stMap.get(idNum), section: enr ? { section_id: enr.section_id, section_name: enr.section_name, school_year: enr.school_year } : null };
+    });
   res.json({
     user: { id: req.user.id, username: req.user.username, name: req.user.name, role: req.user.role },
     students,
@@ -65,23 +99,28 @@ router.get('/overview', requireRole(...PORTAL), asyncH(async (req, res) => {
      FROM announcements a LEFT JOIN users u ON u.id = a.author_id
      ORDER BY a.created_at DESC LIMIT 3`);
   const ids = await linkedStudentIds(req.user);
-  const students = [];
-  for (const id of ids) {
-    const st = await loadStudentRow(id);
-    if (!st) continue;
-    const section = await loadSection(id, school_year);
-    const summary = await studentSummary(id, school_year);
-    const attendance = await attendanceSummary(id, school_year);
-    students.push({
-      ...st,
-      section,
-      gwa: summary.gwa,
-      gpa: summary.gpa,
-      weighted_gpa: summary.weighted_gpa,
-      credits: { earned: summary.credits_earned, total: summary.credits_total },
-      attendance,
+  const [stMap, secMap, sumMap, attMap] = await Promise.all([
+    loadStudentRows(ids),
+    loadStuSections(ids, school_year),
+    finalsForStudents(ids, school_year),
+    attendanceSummaries(ids, school_year),
+  ]);
+  const students = ids
+    .filter((id) => stMap.has(Number(id)))
+    .map((id) => {
+      const idNum = Number(id);
+      const section = secMap.get(idNum) || null;
+      const summary = sumMap.get(idNum) || {};
+      return {
+        ...stMap.get(idNum),
+        section: section ? { section_id: section.section_id, section_name: section.section_name, section_grade_level: section.grade_level } : null,
+        gwa: summary.gwa,
+        gpa: summary.gpa,
+        weighted_gpa: summary.weighted_gpa,
+        credits: { earned: summary.credits_earned, total: summary.credits_total },
+        attendance: attMap.get(idNum) || { counts: { present: 0, absent: 0, late: 0, excused: 0 }, total: 0, rate: null },
+      };
     });
-  }
   res.json({ school_year, announcements, students });
 }));
 

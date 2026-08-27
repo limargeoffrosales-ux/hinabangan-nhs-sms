@@ -209,43 +209,67 @@ router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       : `SELECT id, name, grade_level FROM sections sec WHERE 1=1 ${school_year ? 'AND sec.school_year = ?' : ''} ORDER BY grade_level, name`,
     school_year ? [school_year] : []
   );
-  const result = [];
-  for (const sec of sections) {
-    const enrollments = await qa(
-      `SELECT e.status, COUNT(*) as cnt
+  const sectionIds = sections.map((s) => s.id);
+  const marks = sectionIds.map(() => '?').join(',');
+  const [enrollRows, gradeRows, lwdRows] = await Promise.all(sectionIds.length ? [
+    qa(
+      `SELECT e.section_id, e.status, COUNT(*) AS cnt
        FROM enrollments e
-       WHERE e.section_id = ?
-       GROUP BY e.status`,
-      [sec.id]
-    );
-    const enrolled = enrollments.find(r => r.status === 'enrolled')?.cnt || 0;
-    const transferred_out = enrollments.find(r => r.status === 'transferred_out')?.cnt || 0;
-    const dropped = enrollments.find(r => r.status === 'dropped')?.cnt || 0;
-    const grades = await qa(
-      `SELECT
-         COUNT(*) as total,
-         SUM(CASE WHEN g.computed_grade >= 75 THEN 1 ELSE 0 END) as promoted,
-         SUM(CASE WHEN g.computed_grade < 75 AND g.computed_grade >= 60 THEN 1 ELSE 0 END) as conditional,
-         SUM(CASE WHEN g.computed_grade < 60 THEN 1 ELSE 0 END) as retained
-       FROM grades g
-       WHERE g.section_id = ? AND g.quarter = (SELECT MAX(g2.quarter) FROM grades g2 WHERE g2.student_id = g.student_id AND g2.section_id = g.section_id)`,
-      [sec.id]
-    );
-    const lwd = await qa(
-      `SELECT COUNT(*) as cnt FROM students s
+       WHERE e.section_id IN (${marks})
+       GROUP BY e.section_id, e.status`,
+      sectionIds
+    ),
+    qa(
+      db.dialect === 'pg'
+        ? `SELECT g.section_id,
+              COUNT(*) AS total,
+              SUM(CASE WHEN g.computed_grade >= 75 THEN 1 ELSE 0 END) AS promoted,
+              SUM(CASE WHEN g.computed_grade < 75 AND g.computed_grade >= 60 THEN 1 ELSE 0 END) AS conditional,
+              SUM(CASE WHEN g.computed_grade < 60 THEN 1 ELSE 0 END) AS retained
+           FROM grades g
+           WHERE g.section_id IN (${marks})
+             AND g.quarter = (SELECT MAX(g2.quarter) FROM grades g2 WHERE g2.student_id = g.student_id AND g2.section_id = g.section_id)
+           GROUP BY g.section_id`
+        : `SELECT g.section_id,
+              COUNT(*) AS total,
+              SUM(CASE WHEN g.computed_grade >= 75 THEN 1 ELSE 0 END) AS promoted,
+              SUM(CASE WHEN g.computed_grade < 75 AND g.computed_grade >= 60 THEN 1 ELSE 0 END) AS conditional,
+              SUM(CASE WHEN g.computed_grade < 60 THEN 1 ELSE 0 END) AS retained
+           FROM grades g
+           WHERE g.section_id IN (${marks})
+             AND g.quarter = (SELECT MAX(g2.quarter) FROM grades g2 WHERE g2.student_id = g.student_id AND g2.section_id = g.section_id)
+           GROUP BY g.section_id`,
+      sectionIds
+    ),
+    qa(
+      `SELECT e.section_id, COUNT(*) AS cnt FROM students s
        JOIN enrollments e ON e.student_id = s.id
-       WHERE e.section_id = ? AND (s.indigenous_people = 'Yes' OR s.special_needs IS NOT NULL AND s.special_needs != '')`,
-      [sec.id]
-    );
-    result.push({
-      section: sec,
-      enrolled,
-      transferred_out,
-      dropped,
-      lwd_count: Number(lwd[0]?.cnt || 0),
-      promotion: grades[0] || { total: 0, promoted: 0, conditional: 0, retained: 0 },
-    });
+       WHERE e.section_id IN (${marks})
+         AND (s.indigenous_people = 'Yes' OR (s.special_needs IS NOT NULL AND s.special_needs != ''))
+       GROUP BY e.section_id`,
+      sectionIds
+    ),
+  ] : [[], [], []]);
+  const enrollMap = new Map();
+  for (const r of enrollRows) {
+    const key = String(r.section_id);
+    if (!enrollMap.has(key)) enrollMap.set(key, {});
+    enrollMap.get(key)[r.status] = Number(r.cnt);
   }
+  const gradeMap = new Map(gradeRows.map((g) => [String(g.section_id), g]));
+  const lwdMap = new Map(lwdRows.map((l) => [String(l.section_id), Number(l.cnt)]));
+  const result = sections.map((sec) => {
+    const en = enrollMap.get(String(sec.id)) || {};
+    const grades = gradeMap.get(String(sec.id)) || { total: 0, promoted: 0, conditional: 0, retained: 0 };
+    return {
+      section: sec,
+      enrolled: en.enrolled || 0,
+      transferred_out: en.transferred_out || 0,
+      dropped: en.dropped || 0,
+      lwd_count: lwdMap.get(String(sec.id)) || 0,
+      promotion: grades,
+    };
+  });
   res.json(result);
 }));
 
@@ -445,52 +469,80 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY s.last_name, s.first_name`,
     [section_id]
   );
-  const result = [];
-  for (const lr of learners) {
-    const student = await q('SELECT * FROM students WHERE id = ?', [lr.id]);
-    const enrollment = await q(
+  const ids = learners.map((lr) => lr.id);
+  const marks = ids.map(() => '?').join(',');
+  const [studentRows, enrollRows, gradeRows, attRows, conductRows] = await Promise.all(ids.length ? [
+    qa(`SELECT * FROM students WHERE id IN (${marks})`, ids),
+    qa(
       `SELECT e.*, sec.name as section_name, sec.grade_level
        FROM enrollments e
        JOIN sections sec ON sec.id = e.section_id
-       WHERE e.student_id = ? AND e.section_id = ?
-       ORDER BY e.enrolled_at DESC LIMIT 1`,
-      [lr.id, section_id]
-    );
-    const sy = enrollment?.school_year || '';
-    const allGrades = await qa(
-      `SELECT g.*, sub.title as subject_name
-       FROM grades g
-       JOIN subjects sub ON sub.id = g.subject_id
-       WHERE g.student_id = ? AND g.section_id = ?
-       ORDER BY g.quarter, sub.title`,
-      [lr.id, section_id]
-    );
-    const monthlyAttendance = await qa(
+       WHERE e.student_id IN (${marks}) AND e.section_id = ?`,
+      [...ids, section_id]
+    ),
+    qa(
       db.dialect === 'pg'
-        ? `SELECT EXTRACT(MONTH FROM a.date::timestamp) as month,
+        ? `SELECT g.*, sub.title as subject_name
+           FROM grades g
+           JOIN subjects sub ON sub.id = g.subject_id
+           WHERE g.student_id = ANY($1::bigint[]) AND g.section_id = $2
+           ORDER BY g.quarter, sub.title`
+        : `SELECT g.*, sub.title as subject_name
+           FROM grades g
+           JOIN subjects sub ON sub.id = g.subject_id
+           WHERE g.student_id IN (${marks}) AND g.section_id = ?
+           ORDER BY g.quarter, sub.title`,
+      db.dialect === 'pg' ? [ids, section_id] : [...ids, section_id]
+    ),
+    qa(
+      db.dialect === 'pg'
+        ? `SELECT a.student_id,
+                  EXTRACT(MONTH FROM a.date::timestamp) as month,
                   EXTRACT(YEAR FROM a.date::timestamp) as year,
                   COUNT(*) as total_days,
                   SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
                   SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
-           FROM attendance a WHERE a.student_id = $1 AND a.section_id = $2
-           GROUP BY EXTRACT(YEAR FROM a.date::timestamp), EXTRACT(MONTH FROM a.date::timestamp)
-           ORDER BY year, month`
-        : `SELECT CAST(strftime('%m', a.date) AS INTEGER) as month,
+           FROM attendance a WHERE a.student_id = ANY($1::bigint[]) AND a.section_id = $2
+           GROUP BY a.student_id, EXTRACT(YEAR FROM a.date::timestamp), EXTRACT(MONTH FROM a.date::timestamp)
+           ORDER BY a.student_id, year, month`
+        : `SELECT a.student_id,
+                  CAST(strftime('%m', a.date) AS INTEGER) as month,
                   CAST(strftime('%Y', a.date) AS INTEGER) as year,
                   COUNT(*) as total_days,
                   SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
                   SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
-           FROM attendance a WHERE a.student_id = ? AND a.section_id = ?
-           GROUP BY strftime('%Y-%m', a.date)
-           ORDER BY year, month`,
-      [lr.id, section_id]
-    );
-    const allConduct = await qa(
-      'SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? ORDER BY term',
-      [lr.id, sy]
-    );
-    result.push({ student, enrollment, grades: allGrades, monthlyAttendance, conduct: allConduct });
+           FROM attendance a WHERE a.student_id IN (${marks}) AND a.section_id = ?
+           GROUP BY a.student_id, strftime('%Y-%m', a.date)
+           ORDER BY a.student_id, year, month`,
+      db.dialect === 'pg' ? [ids, section_id] : [...ids, section_id]
+    ),
+    qa(
+      db.dialect === 'pg'
+        ? `SELECT * FROM student_conduct_ratings WHERE student_id = ANY($1::bigint[]) ORDER BY student_id, school_year, term`
+        : `SELECT * FROM student_conduct_ratings WHERE student_id IN (${marks}) ORDER BY student_id, school_year, term`,
+      ids
+    ),
+  ] : [[], [], [], [], []]);
+  const stMap = new Map(studentRows.map((r) => [String(r.id), r]));
+  const enrIdMap = new Map();
+  for (const e of enrollRows) {
+    const sid = String(e.student_id);
+    if (!enrIdMap.has(sid) || (e.enrolled_at || '') > (enrIdMap.get(sid).enrolled_at || '')) enrIdMap.set(sid, e);
   }
+  const gradeById = {};
+  for (const g of gradeRows) (gradeById[String(g.student_id)] = gradeById[String(g.student_id)] || []).push(g);
+  const attById = {};
+  for (const a of attRows) (attById[String(a.student_id)] = attById[String(a.student_id)] || []).push(a);
+  const conductById = {};
+  for (const c of conductRows) (conductById[String(c.student_id)] = conductById[String(c.student_id)] || []).push(c);
+  const result = learners.map((lr) => {
+    const sid = String(lr.id);
+    const enrollment = enrIdMap.get(sid) || null;
+    const sy = enrollment?.school_year || '';
+    const monthlyAttendance = attById[sid]?.sort((a, b) => (a.year - b.year) || (a.month - b.month)) || [];
+    const conduct = (conductById[sid] || []).filter((c) => c.school_year === sy);
+    return { student: stMap.get(sid) || null, enrollment, grades: gradeById[sid] || [], monthlyAttendance, conduct };
+  });
   res.json({ learners: result });
 }));
 
@@ -505,53 +557,86 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
      ORDER BY s.last_name, s.first_name`,
     [section_id]
   );
-  const result = [];
-  for (const lr of learners) {
-    const student = await q('SELECT * FROM students WHERE id = ?', [lr.id]);
-    const enrollment = await q(
+  const ids = learners.map((lr) => lr.id);
+  const marks = ids.map(() => '?').join(',');
+  const qtr = termToQuarter(term);
+  const [studentRows, enrollRows, gradeRows, attRows, conductRows] = await Promise.all(ids.length ? [
+    qa(`SELECT * FROM students WHERE id IN (${marks})`, ids),
+    qa(
       `SELECT e.*, sec.name as section_name, sec.grade_level, u.name as adviser_name
        FROM enrollments e
        JOIN sections sec ON sec.id = e.section_id
        LEFT JOIN users u ON u.id = sec.adviser_user_id
-       WHERE e.student_id = ? AND e.section_id = ?
-       ORDER BY e.enrolled_at DESC LIMIT 1`,
-      [lr.id, section_id]
-    );
-    const sy = school_year || enrollment?.school_year || '';
-    const qtr = termToQuarter(term);
-    const grades = await qa(
+       WHERE e.student_id IN (${marks}) AND e.section_id = ?`,
+      [...ids, section_id]
+    ),
+    qa(
       db.dialect === 'pg'
         ? `SELECT g.*, sub.title as subject_name
            FROM grades g
            JOIN subjects sub ON sub.id = g.subject_id
-           WHERE g.student_id = $1::bigint AND g.section_id = $3::bigint ${qtr ? 'AND g.quarter = $2::int' : ''}
-           ORDER BY sub.title`
+           WHERE g.student_id = ANY($1::bigint[]) AND g.section_id = $2::bigint ${qtr ? 'AND g.quarter = $3::int' : ''}
+           ORDER BY g.student_id, sub.title`
         : `SELECT g.*, sub.title as subject_name
            FROM grades g
            JOIN subjects sub ON sub.id = g.subject_id
-           WHERE g.student_id = ? AND g.section_id = ? ${qtr ? 'AND g.quarter = ?' : ''}
-           ORDER BY sub.title`,
-      [lr.id, ...(qtr ? [qtr] : []), section_id]
-    );
-    const attendance = await qa(
-      `SELECT
-         COUNT(*) as total_days,
-         SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
-         SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent,
-         SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as days_late
-       FROM attendance a
-       WHERE a.student_id = ? AND a.section_id = ?`,
-      [lr.id, section_id]
-    );
-    const daysEnrolled = await q(
-      `SELECT COUNT(*) as days_enrolled FROM attendance a WHERE a.student_id = ? AND a.section_id = ?`,
-      [lr.id, section_id]
-    );
-    const conduct = term
-      ? (await q('SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? AND term = ?', [lr.id, sy, term])) || null
-      : null;
-    result.push({ student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0, conduct });
+           WHERE g.student_id IN (${marks}) AND g.section_id = ? ${qtr ? 'AND g.quarter = ?' : ''}
+           ORDER BY g.student_id, sub.title`,
+      db.dialect === 'pg'
+        ? [ids, section_id, ...(qtr ? [qtr] : [])]
+        : [...ids, section_id, ...(qtr ? [qtr] : [])]
+    ),
+    qa(
+      db.dialect === 'pg'
+        ? `SELECT a.student_id,
+                  COUNT(*) as total_days,
+                  SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+                  SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent,
+                  SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as days_late
+           FROM attendance a
+           WHERE a.student_id = ANY($1::bigint[]) AND a.section_id = $2
+           GROUP BY a.student_id`
+        : `SELECT a.student_id,
+                  COUNT(*) as total_days,
+                  SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+                  SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent,
+                  SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as days_late
+           FROM attendance a
+           WHERE a.student_id IN (${marks}) AND a.section_id = ?
+           GROUP BY a.student_id`,
+      db.dialect === 'pg' ? [ids, section_id] : [...ids, section_id]
+    ),
+    term
+      ? qa(
+          db.dialect === 'pg'
+            ? `SELECT * FROM student_conduct_ratings WHERE student_id = ANY($1::bigint[]) AND term = $2`
+            : `SELECT * FROM student_conduct_ratings WHERE student_id IN (${marks}) AND term = ?`,
+          db.dialect === 'pg' ? [ids, term] : [...ids, term]
+        )
+      : Promise.resolve([]),
+  ] : [[], [], [], [], []]);
+  const stMap = new Map(studentRows.map((r) => [String(r.id), r]));
+  const enrIdMap = new Map();
+  for (const e of enrollRows) {
+    const sid = String(e.student_id);
+    if (!enrIdMap.has(sid) || (e.enrolled_at || '') > (enrIdMap.get(sid).enrolled_at || '')) enrIdMap.set(sid, e);
   }
+  const gradeById = {};
+  for (const g of gradeRows) (gradeById[String(g.student_id)] = gradeById[String(g.student_id)] || []).push(g);
+  const attById = new Map(attRows.map((a) => [String(a.student_id), a]));
+  const conductById = {};
+  for (const c of conductRows) (conductById[String(c.student_id)] = conductById[String(c.student_id)] || []).push(c);
+  const result = learners.map((lr) => {
+    const sid = String(lr.id);
+    const enrollment = enrIdMap.get(sid) || null;
+    const sy = school_year || enrollment?.school_year || '';
+    const grades = gradeById[sid] || [];
+    const attendance = attById.get(sid) || null;
+    const daysEnrolled = Number(attendance?.total_days || 0);
+    const conductRows = conductById[sid] || [];
+    const conduct = conductRows.find((c) => c.school_year === sy) || conductRows[0] || null;
+    return { student: stMap.get(sid) || null, enrollment, grades, attendance, days_enrolled: daysEnrolled, conduct };
+  });
   res.json({ learners: result });
 }));
 

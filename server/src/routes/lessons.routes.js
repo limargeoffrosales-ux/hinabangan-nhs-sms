@@ -25,6 +25,9 @@ router.get('/summary/stats', requireRole(...WRITE), asyncH(async (req, res) => {
 /* ── List lessons ────────────────────────────────────── */
 router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const { subject_id, section_id, school_year, quarter, teacher_id, status } = req.query;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 50), 500);
+  const offset = (page - 1) * limit;
   let sql = `
     SELECT l.*, s.code AS subject_code, s.title AS subject_title,
            sec.name AS section_name, sec.grade_level,
@@ -54,9 +57,11 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
       where.push('0 = 1');
     }
   }
-  if (where.length) sql += ' WHERE ' + where.join(' AND ');
-  sql += ' ORDER BY l.scheduled_date DESC, l.created_at DESC';
-  res.json({ data: await qa(sql, params) });
+  const whereClause = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  const total = Number((await q(`SELECT COUNT(*) AS total FROM lessons l${whereClause}`, params)).total || 0);
+  sql += `${whereClause} ORDER BY l.scheduled_date DESC, l.created_at DESC LIMIT ? OFFSET ?`;
+  const rows = await qa(sql, [...params, limit, offset]);
+  res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
 }));
 
 /* ── Get single lesson ──────────────────────────────── */
