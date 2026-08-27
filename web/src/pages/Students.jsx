@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
@@ -118,7 +118,7 @@ export default function Students() {
     } });
   }
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -129,12 +129,12 @@ export default function Students() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [query]);
 
   useEffect(() => {
     const timer = setTimeout(load, 250);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, load]);
 
   function openCreate() {
     setForm(EMPTY_FORM);

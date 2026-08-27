@@ -16,7 +16,7 @@ export default function Attendance() {
   const [sectionId, setSectionId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [roster, setRoster] = useState([]);
-  const [saved, setSaved] = useState(null);
+  const [, setSaved] = useState(null);
 
   useEffect(() => {
     (async () => {

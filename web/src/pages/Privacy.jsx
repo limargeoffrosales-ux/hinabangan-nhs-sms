@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Shield, Download, Trash2, AlertTriangle, CheckCircle2, XCircle, Eye, Users, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Shield, Download, Trash2, AlertTriangle, CheckCircle2, XCircle, Eye, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 import { useAuth, can } from '../lib/auth';
@@ -50,7 +50,7 @@ export default function Privacy() {
   const [exportBusy, setExportBusy] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function loadPolicies() {
+  const loadPolicies = useCallback(async () => {
     setPoliciesLoading(true);
     setError(null);
     try {
@@ -61,9 +61,9 @@ export default function Privacy() {
     } finally {
       setPoliciesLoading(false);
     }
-  }
+  }, []);
 
-  async function loadErasure() {
+  const loadErasure = useCallback(async () => {
     setErasureLoading(true);
     setError(null);
     try {
@@ -74,9 +74,9 @@ export default function Privacy() {
     } finally {
       setErasureLoading(false);
     }
-  }
+  }, []);
 
-  async function loadAudit() {
+  const loadAudit = useCallback(async () => {
     setAuditLoading(true);
     setError(null);
     try {
@@ -91,9 +91,9 @@ export default function Privacy() {
     } finally {
       setAuditLoading(false);
     }
-  }
+  }, [auditPage, auditFilter]);
 
-  async function loadRoles() {
+  const loadRoles = useCallback(async () => {
     setRoleLoading(true);
     setError(null);
     try {
@@ -104,18 +104,18 @@ export default function Privacy() {
     } finally {
       setRoleLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (tab === 'retention') loadPolicies();
     if (tab === 'erasure') loadErasure();
     if (tab === 'audit') loadAudit();
     if (tab === 'roles') loadRoles();
-  }, [tab]);
+  }, [tab, loadPolicies, loadErasure, loadAudit, loadRoles]);
 
   useEffect(() => {
     if (tab === 'audit') loadAudit();
-  }, [auditPage, auditFilter]);
+  }, [tab, auditPage, auditFilter, loadAudit]);
 
   async function purgeNow(policy) {
     setPurgeBusy(policy.id);

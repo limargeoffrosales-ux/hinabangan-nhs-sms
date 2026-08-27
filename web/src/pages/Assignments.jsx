@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Plus, Pencil, Trash2, ClipboardCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Empty, ErrorBanner, Spinner, Modal, ConfirmModal } from '../components/ui';
@@ -67,7 +67,7 @@ export default function Assignments() {
   const [competencies, setCompetencies] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function loadClasses() {
+  const loadClasses = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -79,9 +79,9 @@ export default function Assignments() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [schoolYear, classId]);
 
-  async function loadAssignments() {
+  const loadAssignments = useCallback(async () => {
     if (!classId) return;
     setLoading(true);
     setError(null);
@@ -93,10 +93,10 @@ export default function Assignments() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [classId]);
 
-  useEffect(() => { loadClasses(); }, [schoolYear]);
-  useEffect(() => { loadAssignments(); }, [classId]);
+  useEffect(() => { loadClasses(); }, [loadClasses]);
+  useEffect(() => { loadAssignments(); }, [loadAssignments]);
 
   async function loadCompetenciesForClass() {
     if (!classId) { setCompetencies([]); return; }
@@ -340,15 +340,6 @@ export default function Assignments() {
                 <tbody>
                   {roster.data.map((s) => {
                     const has = !!s.submission_id;
-                    const rubricScores = has && active && Array.isArray(active.rubric)
-                      ? active.rubric.map((c) => {
-                          const saved = (() => {
-                            try { return JSON.parse(s.rubric_scores || '[]'); } catch { return []; }
-                          })();
-                          const hit = saved.find((x) => x.criterion === c.criterion);
-                          return { criterion: c.criterion, points: c.points, score: hit ? hit.score : '' };
-                        })
-                      : null;
                     return (
                       <tr key={s.student_id}>
                         <td>{s.last_name}, {s.first_name}</td>

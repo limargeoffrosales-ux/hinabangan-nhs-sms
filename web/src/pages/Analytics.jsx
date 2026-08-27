@@ -1,12 +1,12 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts';
-import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, GitBranch, Brain, Shield, Zap, Target } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Spinner, Empty, Badge, Modal } from '../components/ui';
+import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
 

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Briefcase, BadgeCheck, Plus, Trash2, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Empty, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
+import { PageHead, Empty, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const PROGRAMS = ['EIM', 'CSS', 'Garment Artisanry', 'Academic'];
@@ -27,7 +27,7 @@ export default function Immersion() {
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(null);
     try {
       const path = tab === 'immersion' ? '/immersion?limit=200' : '/jdvp?limit=200';
@@ -37,9 +37,9 @@ export default function Immersion() {
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, [tab]);
 
-  useEffect(() => { load(); }, [tab]);
+  useEffect(() => { load(); }, [load]);
 
   function openAdd() { setForm(emptyForm()); setEditId(null); setModal(true); }
   function openEdit(r) {

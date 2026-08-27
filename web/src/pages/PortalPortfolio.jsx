@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
@@ -8,7 +8,7 @@ import { fmt } from '../lib/utils';
 export default function PortalPortfolio() {
   const { t } = useTranslation();
   const { students, loading: meLoading, error: meError } = useLinkedStudents();
-  const [studentId, setStudentId] = useState('');
+  const [studentId, setStudentId] = useState(() => students[0] ? String(students[0].id) : '');
   const [sy, setSy] = useState('2026-2027');
   const [analytics, setAnalytics] = useState(null);
   const [immersion, setImmersion] = useState(null);
@@ -16,11 +16,7 @@ export default function PortalPortfolio() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (students.length && !studentId) setStudentId(String(students[0].id));
-  }, [students]);
-
-  function load() {
+  const load = useCallback(() => {
     if (!studentId) return;
     setLoading(true);
     setError(null);
@@ -36,11 +32,9 @@ export default function PortalPortfolio() {
       .then(([a, i, att]) => { setAnalytics(a); setImmersion(i); setAttendance(att); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    if (students.length && studentId) load();
   }, [studentId, sy]);
+
+  useEffect(() => { load(); }, [load]);
 
   if (meLoading) return <Spinner />;
   if (!students.length) {

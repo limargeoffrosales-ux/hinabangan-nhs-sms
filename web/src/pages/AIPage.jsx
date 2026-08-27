@@ -1,5 +1,4 @@
 ﻿import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Printer, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead } from '../components/ui';
@@ -553,7 +552,6 @@ function EnrollmentSuggestions() {
 const TAB_COMPONENTS = { report: ReportCard, form137: Form137, lesson: LessonPlan, exam: ExamBuilder, analytics: StudentAnalytics, enroll: EnrollmentSuggestions };
 
 export default function AIPage() {
-  const { t } = useTranslation();
   const [tab, setTab] = useState('report');
   const [info, setInfo] = useState(null);
   const TabContent = TAB_COMPONENTS[tab];

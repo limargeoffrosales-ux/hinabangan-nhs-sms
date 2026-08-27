@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Plus, Pencil, Trash2, Filter, Pill, Stethoscope } from 'lucide-react';
+import { Plus, Pencil, Trash2, Pill, Stethoscope } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
@@ -29,7 +28,7 @@ export default function Clinic() {
   const [dispenseForm, setDispenseForm] = useState({ quantity: 1, visit_id: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [dateFilter, setDateFilter] = useState('');
-  const [students, setStudents] = useState([]);
+  const [, setStudents] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => { loadData(); }, []);

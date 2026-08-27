@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Target, BarChart3, Users } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
 import { api } from '../lib/api';
-import { PageHead, Spinner, Empty, Badge, ErrorBanner } from '../components/ui';
+import { PageHead, Spinner, Empty, ErrorBanner } from '../components/ui';
 
 const LEVEL_COLORS = { Advanced: '#2FD6A0', Proficient: '#4D96FF', 'Approaching Proficiency': '#F5B942', Developing: '#FB7185', Beginning: '#F2555A' };
 const LEVELS = ['Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced'];

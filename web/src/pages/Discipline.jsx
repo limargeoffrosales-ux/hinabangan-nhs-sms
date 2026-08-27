@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Plus, Trash2, ClipboardPenLine, Eye, CheckCircle2, FilePlus2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
@@ -71,7 +71,7 @@ export default function Discipline() {
   const [createForm, setCreateForm] = useState({
     student_id: '', incident_type: 'call_slip', incident_date: today(), severity: 'minor', description: '',
   });
-  const [saveMsg, setSaveMsg] = useState(null);
+  const [, setSaveMsg] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const [actionForm, setActionForm] = useState({ action_type: 'warning', action_date: today(), notes: '' });
@@ -86,7 +86,7 @@ export default function Discipline() {
     return p.toString();
   }, [filters]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -98,9 +98,9 @@ export default function Discipline() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [qs]);
 
-  useEffect(() => { load(); }, [qs]);
+  useEffect(() => { load(); }, [load]);
 
   async function loadStudents() {
     try {

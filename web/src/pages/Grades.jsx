@@ -7,7 +7,6 @@ import { printElementHtml } from '../lib/export';
 import { useToast } from '../components/Toast';
 
 const TERMS = [1, 2, 3];
-const LEVEL_COLORS = { Advanced: '#2FD6A0', Proficient: '#4D96FF', 'Approaching Proficiency': '#F5B942', Developing: '#FB7185', Beginning: '#F2555A' };
 
 export default function Grades() {
   const { t } = useTranslation();

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { CalendarRange, Plus, RefreshCw, Trash2, Pencil, TriangleAlert, CheckCircle2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const DURATIONS = [60, 90, 120];
@@ -26,7 +26,7 @@ export default function Programs() {
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState(null);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setError(null);
     try {
       const [sec, sub, tea, asg, sched, conf] = await Promise.all([
@@ -46,9 +46,9 @@ export default function Programs() {
     } catch (err) {
       setError(err.message);
     }
-  }
+  }, [schoolYear]);
 
-  useEffect(() => { loadAll(); }, [schoolYear]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   async function generate() {
     setBusy(true);
@@ -108,9 +108,6 @@ export default function Programs() {
     for (const c of conflicts) { set.add(`${c.section}|${c.subject}|${c.day}|${c.time}`); }
     return set;
   }, [conflicts]);
-
-  const secName = (id) => sections.find((s) => String(s.id) === id)?.name || '—';
-  const teaName = (id) => teachers.find((t) => String(t.id) === id)?.first_name + ' ' + teachers.find((t) => String(t.id) === id)?.last_name || '—';
 
   return (
     <div>

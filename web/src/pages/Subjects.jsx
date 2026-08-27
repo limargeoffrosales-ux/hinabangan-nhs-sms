@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -53,7 +53,7 @@ export default function Subjects() {
   const [termFilter, setTermFilter] = useState('');
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const qs = new URLSearchParams({ limit: '300' });
@@ -67,9 +67,9 @@ export default function Subjects() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [gradeFilter, termFilter]);
 
-  useEffect(() => { load(); }, [gradeFilter, termFilter]);
+  useEffect(() => { load(); }, [load]);
 
   function openCreate() {
     setForm(EMPTY_FORM);

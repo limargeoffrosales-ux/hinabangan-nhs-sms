@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
+import { useState, useCallback, useMemo, createContext, useContext } from 'react';
 
 const ToastContext = createContext(null);
 
