@@ -84,12 +84,12 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
   if (!password || String(password).length < 12) {
     return res.status(400).json({ error: 'Password must be at least 12 characters' });
   }
-  const hash = await bcrypt.hash(String(password), 10);
   let reset = 0;
   for (const uid of user_ids) {
     const user = await q('SELECT id, username, role FROM users WHERE id = ?', [Number(uid)]);
     if (!user) continue;
     if (user.role === 'super_admin' && req.user.role !== 'super_admin') continue;
+    const hash = await bcrypt.hash(String(password), 10);
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
     clearUserCache(user.id);
     await qi(

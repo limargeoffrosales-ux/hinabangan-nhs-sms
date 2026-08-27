@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
 import FileUpload from '../components/FileUpload';
+import { CURRENT_SCHOOL_YEAR, SCHOOL_YEARS } from '../lib/constants';
 
 const ADMIN = ['super_admin', 'school_admin'];
 const FREQS = ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'periodic'];
@@ -11,7 +12,6 @@ const STATUS_BADGE = {
   draft: 'badge-gray', submitted: 'badge-blue', reviewed: 'badge-yellow',
   approved: 'badge-green', returned: 'badge-red',
 };
-const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
 function complianceOf(s) {
   if (['submitted', 'reviewed', 'approved'].includes(s.status)) return { label: 'Complied', cls: 'badge-green' };

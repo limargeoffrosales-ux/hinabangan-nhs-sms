@@ -1,6 +1,7 @@
 const TOKEN_KEY = 'meridianed_token';
 const REFRESH_KEY = 'meridianed_refresh';
 const BASE_KEY = 'meridianed_api_base';
+const USER_KEY = 'meridianed_user';
 const UNAUTHORIZED_EVENT = 'meridianed:unauthorized';
 
 export function getApiBase() {
@@ -21,39 +22,39 @@ export function getStoredApiBase() {
 let refreshPromise = null;
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem(REFRESH_KEY);
+  return sessionStorage.getItem(REFRESH_KEY);
 }
 
 export function setSession(token, refreshToken, user) {
-  localStorage.setItem(TOKEN_KEY, token);
-  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
-  if (user) localStorage.setItem('meridianed_user', JSON.stringify(user));
+  sessionStorage.setItem(TOKEN_KEY, token);
+  if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
+  if (user) sessionStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 export function getStoredUser() {
   try {
-    const raw = localStorage.getItem('meridianed_user');
+    const raw = sessionStorage.getItem(USER_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || !parsed.id || !parsed.role || !parsed.username) {
-      localStorage.removeItem('meridianed_user');
+      sessionStorage.removeItem(USER_KEY);
       return null;
     }
     return parsed;
   } catch {
-    localStorage.removeItem('meridianed_user');
+    sessionStorage.removeItem(USER_KEY);
     return null;
   }
 }
 
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-  localStorage.removeItem('meridianed_user');
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_KEY);
+  sessionStorage.removeItem(USER_KEY);
 }
 
 export function notifyUnauthorized() {

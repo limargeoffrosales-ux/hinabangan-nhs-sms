@@ -3,6 +3,7 @@ import { Download, Printer, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, ErrorBanner } from '../components/ui';
 import { printElementHtml, downloadBlob } from '../lib/export';
+import DOMPurify from 'dompurify';
 
 const FORMS = [
   { code: 'sf1', label: 'SF1', title: 'School Register', orient: 'landscape' },
@@ -311,7 +312,7 @@ export default function DepedForms() {
       )}
 
       <div className="card" style={{ padding: 16, overflow: 'auto' }}>
-        {loading ? null : <div dangerouslySetInnerHTML={{ __html: html }} />}
+        {loading ? null : <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) }} />}
       </div>
 
       {conductOpen && (

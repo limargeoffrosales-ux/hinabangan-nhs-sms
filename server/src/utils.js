@@ -1,4 +1,5 @@
 const { qi } = require('./db');
+const logger = require('./logger');
 
 async function audit(req, action, entity, entityId, details) {
   try {
@@ -8,7 +9,9 @@ async function audit(req, action, entity, entityId, details) {
         action, entity, entityId != null ? String(entityId) : null,
         details ? JSON.stringify(details) : null, req.ip]
     );
-  } catch {}
+  } catch (err) {
+    logger.error({ err, action, entity }, 'Audit log write failed');
+  }
 }
 
 function asyncH(fn) {
@@ -44,7 +47,9 @@ async function logAccess(req, studentId, action = 'STUDENT_VIEW') {
       `INSERT INTO data_access_logs (user_id, username, student_id, action, ip) VALUES (?, ?, ?, ?, ?)`,
       [req.user.id, req.user.username, studentId, action, ip]
     );
-  } catch {}
+  } catch (err) {
+    logger.error({ err, studentId, action }, 'Access log write failed');
+  }
 }
 
 function safeJsonParse(str, fallback = null) {

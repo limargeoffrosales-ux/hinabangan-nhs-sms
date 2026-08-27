@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { PageHead } from '../components/ui';
 import { renderSF9Card, esc, CORE_VALUES } from './DepedForms';
 import { printElementHtml } from '../lib/export';
+import DOMPurify from 'dompurify';
 
 const TABS = [
   { id: 'report', label: 'Report Card', icon: FileText },
@@ -119,7 +120,7 @@ function ReportCard() {
             </div>
           </div>
           <div style={{ background: '#fff', border: '1px solid var(--border, #e2e8f0)', borderRadius: 10, overflow: 'hidden' }}>
-            <div id="sf9-preview" style={{ padding: 8, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: sf9Html }} />
+            <div id="sf9-preview" style={{ padding: 8, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(sf9Html, { USE_PROFILES: { html: true } }) }} />
           </div>
         </div>
       )}

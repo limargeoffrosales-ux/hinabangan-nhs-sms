@@ -111,7 +111,10 @@ router.post('/cases/:id/sessions', requireRole(...WRITE), asyncH(async (req, res
 router.delete('/cases/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT id FROM guidance_cases WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Case not found' });
-  await qr('DELETE FROM guidance_cases WHERE id = ?', [row.id]);
+  await db.tx(async (conn) => {
+    await conn.qr('DELETE FROM guidance_sessions WHERE case_id = ?', [row.id]);
+    await conn.qr('DELETE FROM guidance_cases WHERE id = ?', [row.id]);
+  });
   await audit(req, 'DELETE_GUIDANCE_CASE', 'guidance_cases', row.id);
   res.json({ ok: true });
 }));

@@ -106,39 +106,47 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT id FROM library_books WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Book not found' });
-  await qr('DELETE FROM library_books WHERE id = ?', [row.id]);
+  await db.tx(async (conn) => {
+    await conn.qr('DELETE FROM book_borrows WHERE book_id = ?', [row.id]);
+    await conn.qr('DELETE FROM library_books WHERE id = ?', [row.id]);
+  });
   await audit(req, 'DELETE_BOOK', 'library_books', row.id);
   res.json({ ok: true });
 }));
 
 /* ── Borrow book ───────────────────────────────────── */
 router.post('/:id/borrow', requireRole(...WRITE), asyncH(async (req, res) => {
-  const book = await q('SELECT * FROM library_books WHERE id = ?', [req.params.id]);
-  if (!book) return res.status(404).json({ error: 'Book not found' });
-  if (book.available_copies <= 0) return res.status(400).json({ error: 'No copies available' });
   const b = req.body || {};
   if (!b.borrower_type || !b.borrower_id) return res.status(400).json({ error: 'borrower_type and borrower_id required' });
-  const id = await qi(
-    `INSERT INTO book_borrows (book_id, borrower_type, borrower_id, borrowed_by, borrow_date, due_date, notes)
-     VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?)`,
-    [book.id, b.borrower_type, b.borrower_id, req.user.id, b.due_date || null, b.notes || null]
-  );
-  await qr('UPDATE library_books SET available_copies = available_copies - 1 WHERE id = ?', [book.id]);
-  await audit(req, 'BORROW_BOOK', 'book_borrows', id, { book_id: book.id });
+  const id = await db.tx(async (conn) => {
+    const book = await conn.q('SELECT * FROM library_books WHERE id = ?', [req.params.id]);
+    if (!book) throw Object.assign(new Error('Book not found'), { status: 404 });
+    if (book.available_copies <= 0) throw Object.assign(new Error('No copies available'), { status: 400 });
+    const borrowId = await conn.qi(
+      `INSERT INTO book_borrows (book_id, borrower_type, borrower_id, borrowed_by, borrow_date, due_date, notes)
+       VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?)`,
+      [book.id, b.borrower_type, b.borrower_id, req.user.id, b.due_date || null, b.notes || null]
+    );
+    await conn.qr('UPDATE library_books SET available_copies = available_copies - 1 WHERE id = ?', [book.id]);
+    return borrowId;
+  });
+  await audit(req, 'BORROW_BOOK', 'book_borrows', id, { book_id: Number(req.params.id) });
   res.status(201).json({ id });
 }));
 
 /* ── Return book ───────────────────────────────────── */
 router.post('/borrows/:id/return', requireRole(...WRITE), asyncH(async (req, res) => {
-  const borrow = await q('SELECT * FROM book_borrows WHERE id = ?', [req.params.id]);
-  if (!borrow) return res.status(404).json({ error: 'Borrow record not found' });
-  if (borrow.status === 'returned') return res.status(400).json({ error: 'Already returned' });
-  await qr(
-    `UPDATE book_borrows SET status = 'returned', returned_date = CURRENT_DATE WHERE id = ?`,
-    [borrow.id]
-  );
-  await qr('UPDATE library_books SET available_copies = available_copies + 1 WHERE id = ?', [borrow.book_id]);
-  await audit(req, 'RETURN_BOOK', 'book_borrows', borrow.id);
+  await db.tx(async (conn) => {
+    const borrow = await conn.q('SELECT * FROM book_borrows WHERE id = ?', [req.params.id]);
+    if (!borrow) throw Object.assign(new Error('Borrow record not found'), { status: 404 });
+    if (borrow.status === 'returned') throw Object.assign(new Error('Already returned'), { status: 400 });
+    await conn.qr(
+      `UPDATE book_borrows SET status = 'returned', returned_date = CURRENT_DATE WHERE id = ?`,
+      [borrow.id]
+    );
+    await conn.qr('UPDATE library_books SET available_copies = available_copies + 1 WHERE id = ?', [borrow.book_id]);
+  });
+  await audit(req, 'RETURN_BOOK', 'book_borrows', Number(req.params.id));
   res.json({ ok: true });
 }));
 

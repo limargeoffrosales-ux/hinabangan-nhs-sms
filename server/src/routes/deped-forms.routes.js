@@ -54,15 +54,25 @@ router.get('/sf4', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const m = Number(month || (new Date().getMonth() + 1));
   const y = Number(year || new Date().getFullYear());
   const enrollments = await qa(
-    `SELECT e.*, s.first_name, s.last_name, s.sex,
-            CASE
-              WHEN e.enrolled_at IS NOT NULL AND EXTRACT(MONTH FROM e.enrolled_at::timestamp) = $2::int
-                AND EXTRACT(YEAR FROM e.enrolled_at::timestamp) = $3::int THEN 'new'
-              ELSE 'old'
-            END AS enrollment_type
-     FROM enrollments e
-     JOIN students s ON s.id = e.student_id
-     WHERE e.section_id = $1::bigint`,
+    db.dialect === 'pg'
+      ? `SELECT e.*, s.first_name, s.last_name, s.sex,
+              CASE
+                WHEN e.enrolled_at IS NOT NULL AND EXTRACT(MONTH FROM e.enrolled_at::timestamp) = $2::int
+                  AND EXTRACT(YEAR FROM e.enrolled_at::timestamp) = $3::int THEN 'new'
+                ELSE 'old'
+              END AS enrollment_type
+       FROM enrollments e
+       JOIN students s ON s.id = e.student_id
+       WHERE e.section_id = $1::bigint`
+      : `SELECT e.*, s.first_name, s.last_name, s.sex,
+              CASE
+                WHEN e.enrolled_at IS NOT NULL AND CAST(strftime('%m', e.enrolled_at) AS INTEGER) = ?
+                  AND CAST(strftime('%Y', e.enrolled_at) AS INTEGER) = ? THEN 'new'
+                ELSE 'old'
+              END AS enrollment_type
+       FROM enrollments e
+       JOIN students s ON s.id = e.student_id
+       WHERE e.section_id = ?`,
     [Number(section_id), m, y]
   );
   const movements = await qa(
@@ -113,11 +123,17 @@ router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
   const syCond = school_year ? 'AND e.school_year = $2::text' : '';
   const students = await qa(
-    `SELECT s.*, e.strand, e.enrolled_at
-     FROM students s
-     JOIN enrollments e ON e.student_id = s.id
-     WHERE e.section_id = $1::bigint ${syCond}
-     ORDER BY s.last_name, s.first_name`,
+    db.dialect === 'pg'
+      ? `SELECT s.*, e.strand, e.enrolled_at
+         FROM students s
+         JOIN enrollments e ON e.student_id = s.id
+         WHERE e.section_id = $1::bigint ${school_year ? 'AND e.school_year = $2::text' : ''}
+         ORDER BY s.last_name, s.first_name`
+      : `SELECT s.*, e.strand, e.enrolled_at
+         FROM students s
+         JOIN enrollments e ON e.student_id = s.id
+         WHERE e.section_id = ? ${school_year ? 'AND e.school_year = ?' : ''}
+         ORDER BY s.last_name, s.first_name`,
     [section_id, ...(school_year ? [school_year] : [])]
   );
   res.json({ students, section });
@@ -172,11 +188,14 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
     [section_id]
   );
   const qtr = termToQuarter(term);
-  const termCond = qtr ? 'AND g.quarter = $2::int' : '';
   const grades = await qa(
-    `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.remarks
-     FROM grades g
-     WHERE g.section_id = $1::bigint ${termCond}`,
+    db.dialect === 'pg'
+      ? `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.remarks
+         FROM grades g
+         WHERE g.section_id = $1::bigint ${qtr ? 'AND g.quarter = $2::int' : ''}`
+      : `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.remarks
+         FROM grades g
+         WHERE g.section_id = ? ${qtr ? 'AND g.quarter = ?' : ''}`,
     [section_id, ...(qtr ? [qtr] : [])]
   );
   res.json({ students, subjects, grades, section });
@@ -184,9 +203,10 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { school_year } = req.query;
-  const syCond = school_year ? 'AND sec.school_year = $1::text' : '';
   const sections = await qa(
-    `SELECT id, name, grade_level FROM sections sec WHERE 1=1 ${syCond} ORDER BY grade_level, name`,
+    db.dialect === 'pg'
+      ? `SELECT id, name, grade_level FROM sections sec WHERE 1=1 ${school_year ? 'AND sec.school_year = $1::text' : ''} ORDER BY grade_level, name`
+      : `SELECT id, name, grade_level FROM sections sec WHERE 1=1 ${school_year ? 'AND sec.school_year = ?' : ''} ORDER BY grade_level, name`,
     school_year ? [school_year] : []
   );
   const result = [];
@@ -231,27 +251,46 @@ router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { school_year } = req.query;
+  const sy = school_year || null;
   const teachers = await qa(
-    `SELECT t.*, u.name as user_name,
-            (SELECT sec.name FROM sections sec
-             WHERE sec.adviser_teacher_id = t.id
-               AND (sec.school_year = $1::text OR $1::text IS NULL)
-             LIMIT 1) as advisory_class
-     FROM teachers t
-     LEFT JOIN users u ON u.id = t.user_id
-     WHERE t.status = 'active'
-     ORDER BY u.name`,
-    [school_year || null]
+    db.dialect === 'pg'
+      ? `SELECT t.*, u.name as user_name,
+              (SELECT sec.name FROM sections sec
+               WHERE sec.adviser_teacher_id = t.id
+                 AND (sec.school_year = $1::text OR $1::text IS NULL)
+               LIMIT 1) as advisory_class
+       FROM teachers t
+       LEFT JOIN users u ON u.id = t.user_id
+       WHERE t.status = 'active'
+       ORDER BY u.name`
+      : `SELECT t.*, u.name as user_name,
+              (SELECT sec.name FROM sections sec
+               WHERE sec.adviser_teacher_id = t.id
+                 AND (sec.school_year = ? OR ? IS NULL)
+               LIMIT 1) as advisory_class
+       FROM teachers t
+       LEFT JOIN users u ON u.id = t.user_id
+       WHERE t.status = 'active'
+       ORDER BY u.name`,
+    [sy, sy]
   );
   const assignments = await qa(
-    `SELECT ca.teacher_id, sub.title as subject_name, sec.name as section_name, sec.grade_level,
-            ca.room, ca.meetings_per_week, ca.duration_minutes as minutes_per_day
-     FROM class_assignments ca
-     JOIN subjects sub ON sub.id = ca.subject_id
-     JOIN sections sec ON sec.id = ca.section_id
-     WHERE (ca.school_year = $1::text OR $1::text IS NULL)
-     ORDER BY ca.teacher_id, sub.title`,
-    [school_year || null]
+    db.dialect === 'pg'
+      ? `SELECT ca.teacher_id, sub.title as subject_name, sec.name as section_name, sec.grade_level,
+              ca.room, ca.meetings_per_week, ca.duration_minutes as minutes_per_day
+       FROM class_assignments ca
+       JOIN subjects sub ON sub.id = ca.subject_id
+       JOIN sections sec ON sec.id = ca.section_id
+       WHERE (ca.school_year = $1::text OR $1::text IS NULL)
+       ORDER BY ca.teacher_id, sub.title`
+      : `SELECT ca.teacher_id, sub.title as subject_name, sec.name as section_name, sec.grade_level,
+              ca.room, ca.meetings_per_week, ca.duration_minutes as minutes_per_day
+       FROM class_assignments ca
+       JOIN subjects sub ON sub.id = ca.subject_id
+       JOIN sections sec ON sec.id = ca.section_id
+       WHERE (ca.school_year = ? OR ? IS NULL)
+       ORDER BY ca.teacher_id, sub.title`,
+    [sy, sy]
   );
   const byTeacher = {};
   for (const a of assignments) {
@@ -265,16 +304,26 @@ router.get('/sf8', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, school_year } = req.query;
   if (!section_id) return res.json({ students: [], section: null });
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const sy = school_year || null;
   const students = await qa(
-    `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex,
-            sh.height_cm, sh.weight_kg, sh.bmi, sh.nutritional_status, sh.cct
-     FROM students s
-     JOIN enrollments e ON e.student_id = s.id
-     LEFT JOIN student_health sh ON sh.student_id = s.id
-       AND (sh.school_year = $1::text OR $1::text IS NULL)
-     WHERE e.section_id = $2::bigint
-     ORDER BY s.last_name, s.first_name`,
-    [school_year || null, section_id]
+    db.dialect === 'pg'
+      ? `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex,
+              sh.height_cm, sh.weight_kg, sh.bmi, sh.nutritional_status, sh.cct
+       FROM students s
+       JOIN enrollments e ON e.student_id = s.id
+       LEFT JOIN student_health sh ON sh.student_id = s.id
+         AND (sh.school_year = $1::text OR $1::text IS NULL)
+       WHERE e.section_id = $2::bigint
+       ORDER BY s.last_name, s.first_name`
+      : `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex,
+              sh.height_cm, sh.weight_kg, sh.bmi, sh.nutritional_status, sh.cct
+       FROM students s
+       JOIN enrollments e ON e.student_id = s.id
+       LEFT JOIN student_health sh ON sh.student_id = s.id
+         AND (sh.school_year = ? OR ? IS NULL)
+       WHERE e.section_id = ?
+       ORDER BY s.last_name, s.first_name`,
+    [sy, sy, section_id]
   );
   res.json({ students, section });
 }));
@@ -294,13 +343,18 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       [student_id]
     );
     const qtr = termToQuarter(term);
-    const termCond = qtr ? 'AND g.quarter = $2::int' : '';
     const grades = await qa(
-      `SELECT g.*, sub.title as subject_name
-       FROM grades g
-       JOIN subjects sub ON sub.id = g.subject_id
-       WHERE g.student_id = $1::bigint ${termCond}
-       ORDER BY sub.title`,
+      db.dialect === 'pg'
+        ? `SELECT g.*, sub.title as subject_name
+           FROM grades g
+           JOIN subjects sub ON sub.id = g.subject_id
+           WHERE g.student_id = $1::bigint ${qtr ? 'AND g.quarter = $2::int' : ''}
+           ORDER BY sub.title`
+        : `SELECT g.*, sub.title as subject_name
+           FROM grades g
+           JOIN subjects sub ON sub.id = g.subject_id
+           WHERE g.student_id = ? ${qtr ? 'AND g.quarter = ?' : ''}
+           ORDER BY sub.title`,
       [student_id, ...(qtr ? [qtr] : [])]
     );
     const attendance = await qa(
@@ -353,7 +407,7 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       `SELECT g.*, sub.title as subject_name
        FROM grades g
        JOIN subjects sub ON sub.id = g.subject_id
-       WHERE g.student_id = $1::bigint
+       WHERE g.student_id = ?
        ORDER BY g.quarter, sub.title`,
       [student_id]
     );
@@ -407,7 +461,7 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       `SELECT g.*, sub.title as subject_name
        FROM grades g
        JOIN subjects sub ON sub.id = g.subject_id
-       WHERE g.student_id = $1::bigint AND g.section_id = $2::bigint
+       WHERE g.student_id = ? AND g.section_id = ?
        ORDER BY g.quarter, sub.title`,
       [lr.id, section_id]
     );
@@ -465,13 +519,18 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
     );
     const sy = school_year || enrollment?.school_year || '';
     const qtr = termToQuarter(term);
-    const termCond = qtr ? 'AND g.quarter = $2::int' : '';
     const grades = await qa(
-      `SELECT g.*, sub.title as subject_name
-       FROM grades g
-       JOIN subjects sub ON sub.id = g.subject_id
-       WHERE g.student_id = $1::bigint AND g.section_id = $3::bigint ${termCond}
-       ORDER BY sub.title`,
+      db.dialect === 'pg'
+        ? `SELECT g.*, sub.title as subject_name
+           FROM grades g
+           JOIN subjects sub ON sub.id = g.subject_id
+           WHERE g.student_id = $1::bigint AND g.section_id = $3::bigint ${qtr ? 'AND g.quarter = $2::int' : ''}
+           ORDER BY sub.title`
+        : `SELECT g.*, sub.title as subject_name
+           FROM grades g
+           JOIN subjects sub ON sub.id = g.subject_id
+           WHERE g.student_id = ? AND g.section_id = ? ${qtr ? 'AND g.quarter = ?' : ''}
+           ORDER BY sub.title`,
       [lr.id, ...(qtr ? [qtr] : []), section_id]
     );
     const attendance = await qa(
@@ -507,22 +566,20 @@ router.get('/attendance-summary', requireRole(...ADMIN_ONLY), asyncH(async (req,
      ORDER BY s.last_name, s.first_name`,
     [section_id]
   );
-  const dateCond = start_date && end_date
-    ? 'AND a.date BETWEEN $2::date AND $3::date'
-    : '';
+  const hasDates = start_date && end_date;
   const attendance = await qa(
     db.dialect === 'pg'
       ? `SELECT a.student_id, EXTRACT(MONTH FROM a.date::timestamp) as month,
                 EXTRACT(YEAR FROM a.date::timestamp) as year,
                 a.status
          FROM attendance a
-         WHERE a.section_id = $1::int ${dateCond}`
+         WHERE a.section_id = $1::int ${hasDates ? 'AND a.date BETWEEN $2::date AND $3::date' : ''}`
       : `SELECT a.student_id, CAST(strftime('%m', a.date) AS INTEGER) as month,
                 CAST(strftime('%Y', a.date) AS INTEGER) as year,
                 a.status
          FROM attendance a
-         WHERE a.section_id = ? ${dateCond}`,
-    section_id ? [Number(section_id), ...(start_date && end_date ? [start_date, end_date] : [])] : []
+         WHERE a.section_id = ? ${hasDates ? 'AND a.date BETWEEN ? AND ?' : ''}`,
+    section_id ? [Number(section_id), ...(hasDates ? [start_date, end_date] : [])] : []
   );
   res.json({ students, attendance });
 }));

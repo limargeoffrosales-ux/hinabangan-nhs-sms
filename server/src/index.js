@@ -69,11 +69,12 @@ const aiRoutes = require('./routes/ai.routes');
   }
   const { purgeDemo } = require('./purge-demo');
   await purgeDemo();
+  const LEGACY_DEFAULT = process.env.LEGACY_SUPERADMIN_PASSWORD || '';
   if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
     const bcrypt = require('bcryptjs');
     const row = await db.q('SELECT id, password_hash, password_changed_at FROM users WHERE username = ?', ['superadmin']);
-    if (row && !row.password_changed_at) {
-      const isLegacy = await bcrypt.compare('REDACTED', row.password_hash);
+    if (row && !row.password_changed_at && LEGACY_DEFAULT) {
+      const isLegacy = await bcrypt.compare(LEGACY_DEFAULT, row.password_hash);
       if (isLegacy) {
         await db.qr(
           'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
@@ -262,9 +263,9 @@ const aiRoutes = require('./routes/ai.routes');
     if (process.env.SENTRY_DSN) Sentry.captureException(err);
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
     const status = err.status || 500;
-    const message = status === 500 && process.env.NODE_ENV === 'production'
+    const message = status === 500
       ? 'Internal server error'
-      : (err.message || 'Internal server error');
+      : (err.message || 'Request failed');
     res.status(status).json({ error: message });
   });
 

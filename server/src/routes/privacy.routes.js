@@ -42,11 +42,8 @@ async function runPurge(policy, req) {
   if (!table) return { error: `Unknown entity: ${policy.entity}` };
 
   const days = Number(policy.retention_days) || 365;
-  const cutoffParam = db.dialect === 'pg'
-    ? `(now() - interval '${days} days')`
-    : `datetime('now', '-${days} days')`;
-
-  const result = await qr(`DELETE FROM ${table} WHERE created_at < ${cutoffParam}`);
+  const daysInt = Math.max(1, Math.floor(days));
+  const result = await qr(`DELETE FROM ${table} WHERE created_at < ${db.dialect === 'pg' ? `(now() - ($1 || ' days')::interval)` : `datetime('now', '-' || ? || ' days')`}`, [String(daysInt)]);
   const deletedCount = result.changes || 0;
 
   await qr(
