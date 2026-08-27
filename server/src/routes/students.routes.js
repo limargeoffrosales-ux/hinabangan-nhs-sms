@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit, page, logAccess } = require('../utils');
+const { asyncH, audit, page, logAccess, maskPII } = require('../utils');
 const { teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
 
 const router = express.Router();
@@ -52,6 +52,9 @@ router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => 
   }
   logAccess(req, row.id);
   row.enrollments = await qa('SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id WHERE e.student_id = ? ORDER BY e.school_year DESC', [row.id]);
+  if (req.role === 'teacher') {
+    maskPII(row, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']);
+  }
   res.json(row);
 }));
 

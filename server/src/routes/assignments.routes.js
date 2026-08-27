@@ -73,9 +73,12 @@ router.get('/classes', requireRole(...STAFF), asyncH(async (req, res) => {
   res.json({ data: await qa(sql, params) });
 }));
 
-// GET /assignments?class_assignment_id=&school_year= — list with per-assignment stats.
+// GET /assignments?class_assignment_id=&school_year=&page=&limit= — list with per-assignment stats.
 router.get('/', requireRole(...STAFF), asyncH(async (req, res) => {
   const { class_assignment_id, school_year } = req.query;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 25), 100);
+  const offset = (page - 1) * limit;
   const where = [];
   const params = [];
   if (class_assignment_id) { where.push('a.class_assignment_id = ?'); params.push(class_assignment_id); }
@@ -86,7 +89,9 @@ router.get('/', requireRole(...STAFF), asyncH(async (req, res) => {
     where.push('a.teacher_id = ?');
     params.push(t.id);
   }
-  const sql = `SELECT a.*, s.name AS section_name, sub.code AS subject_code, sub.title AS subject_title,
+  const whereClause = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  const total = Number((await q(`SELECT COUNT(*) AS total FROM assignments a${whereClause}`, params)).total || 0);
+  const joinSql = `SELECT a.*, s.name AS section_name, sub.code AS subject_code, sub.title AS subject_title,
                       c.code AS competency_code, c.title AS competency_title,
                       (SELECT COUNT(*) FROM enrollments e
                         WHERE e.section_id = ca.section_id AND e.school_year = a.school_year AND e.status = 'enrolled') AS student_count,
@@ -97,11 +102,12 @@ router.get('/', requireRole(...STAFF), asyncH(async (req, res) => {
                JOIN sections s ON s.id = ca.section_id
                JOIN subjects sub ON sub.id = ca.subject_id
                LEFT JOIN competencies c ON c.id = a.competency_id
-               ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-               ORDER BY a.due_date IS NULL, a.due_date DESC, a.created_at DESC`;
-  const rows = await qa(sql, params);
+               ${whereClause}
+               ORDER BY a.due_date IS NULL, a.due_date DESC, a.created_at DESC
+               LIMIT ? OFFSET ?`;
+  const rows = await qa(joinSql, [...params, limit, offset]);
   for (const r of rows) r.rubric = parseJson(r.rubric, null);
-  res.json({ data: rows });
+  res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
 }));
 
 // POST /assignments — create an assignment for one class.

@@ -34,7 +34,7 @@ export default function Attendance() {
     setLoading(true);
     setError(null);
     try {
-      const existing = await api(`/attendance?section_id=${sectionId}&date=${date}`);
+      const existing = await api(`/attendance?section_id=${sectionId}&date=${date}&limit=500`);
       const byStudent = {};
       for (const r of existing.data) byStudent[r.student_id] = r;
       const rosterRes = await api(`/sections/${sectionId}/students`);

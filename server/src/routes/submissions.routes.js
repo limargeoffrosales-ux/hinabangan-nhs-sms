@@ -235,7 +235,11 @@ router.get('/', requireRole('super_admin', 'school_admin', 'principal', 'assista
       usable.push(r);
     }
   }
-  res.json({ data: usable });
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 25), 100);
+  const offset = (page - 1) * limit;
+  const total = usable.length;
+  res.json({ data: usable.slice(offset, offset + limit), total, page, limit, totalPages: Math.ceil(total / limit) });
 }));
 
 router.post('/', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {

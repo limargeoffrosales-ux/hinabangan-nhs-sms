@@ -86,7 +86,7 @@ export default function Assignments() {
     setLoading(true);
     setError(null);
     try {
-      const d = await api(`/assignments?class_assignment_id=${classId}`);
+      const d = await api(`/assignments?class_assignment_id=${classId}&limit=500`);
       setAssignments(d.data || []);
     } catch (e) {
       setError(e.message);

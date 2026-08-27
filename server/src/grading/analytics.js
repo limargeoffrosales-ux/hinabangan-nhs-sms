@@ -155,6 +155,50 @@ async function studentSummary(studentId, schoolYear) {
   return summarizeSubjects(subjects);
 }
 
+// Batch finals for multiple students in one query (avoids N+1 in portal/dashboard).
+// Returns Map: studentId -> { summary, subjects }.
+async function finalsForStudents(studentIds, schoolYear) {
+  const result = new Map();
+  if (!studentIds || !studentIds.length) return result;
+  const ids = [...new Set(studentIds.map(Number))];
+  const marks = ids.map(() => '?').join(',');
+  const rows = await qa(
+    `SELECT g.student_id, g.subject_id, su.code, su.title, su.units,
+            ROUND(AVG(g.computed_grade), 2) AS final
+     FROM grades g JOIN subjects su ON su.id = g.subject_id
+     WHERE g.student_id IN (${marks}) AND g.school_year = ? AND g.computed_grade IS NOT NULL
+     GROUP BY g.student_id, g.subject_id ORDER BY su.code`,
+    [...ids, schoolYear]);
+  const byStudent = {};
+  for (const r of rows) {
+    const sid = Number(r.student_id);
+    (byStudent[sid] = byStudent[sid] || []).push(r);
+  }
+  for (const sid of ids) {
+    const out = [];
+    const scaleCache = {};
+    for (const r of byStudent[sid] || []) {
+      const scale = scaleCache[r.subject_id] || (scaleCache[r.subject_id] = await getScaleForSubject(r.subject_id));
+      const converted = convertGrade(r.final, scale);
+      out.push({
+        subject_id: Number(r.subject_id),
+        code: r.code,
+        title: r.title,
+        units: Number(r.units || 0),
+        final: Number(r.final),
+        letter: converted ? converted.letter : null,
+        points: converted ? converted.points : null,
+        proficiency: converted ? converted.proficiency : null,
+        passed: converted ? converted.passed : null,
+        scale: scale ? scale.code : null,
+        scale_credits_pass_only: scale ? !!scale.credits_pass_only : false,
+      });
+    }
+    result.set(sid, summarizeSubjects(out));
+  }
+  return result;
+}
+
 module.exports = {
   HONOR_DEFAULTS,
   DESIGNATIONS,
@@ -166,4 +210,5 @@ module.exports = {
   honorDesignation,
   assignRanks,
   studentSummary,
+  finalsForStudents,
 };
