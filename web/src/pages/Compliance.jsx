@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Gauge, TriangleAlert, Clock4, CheckCircle2, FileWarning, Undo } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Empty, ErrorBanner } from '../components/ui';
+import { PageHead, ErrorBanner } from '../components/ui';
 
 const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
@@ -30,7 +30,7 @@ export default function Compliance() {
     approved: 'badge-green', returned: 'badge-red',
   };
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(null);
     try {
       const res = await api(`/submissions/compliance?school_year=${encodeURIComponent(sy)}`);
@@ -38,9 +38,9 @@ export default function Compliance() {
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, [sy]);
 
-  useEffect(() => { load(); }, [sy]);
+  useEffect(() => { load(); }, [load]);
 
   const teachers = useMemo(() => (data?.teachers || []).slice().sort((a, b) => a.percent - b.percent), [data]);
 

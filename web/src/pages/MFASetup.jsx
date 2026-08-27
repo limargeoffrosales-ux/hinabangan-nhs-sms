@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react';
 import { Lock, CheckCircle2, Shield } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, ErrorBanner, Spinner } from '../components/ui';
-import { useAuth } from '../lib/auth';
 
 export default function MFASetup() {
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [mfaEnabled, setMfaEnabled] = useState(false);

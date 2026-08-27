@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -26,7 +26,7 @@ export default function Teachers() {
   const [showModal, setShowModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const q = query ? `?q=${encodeURIComponent(query)}` : '';
@@ -38,12 +38,12 @@ export default function Teachers() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [query]);
 
   useEffect(() => {
     const timer = setTimeout(load, 250);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, load]);
 
   useEffect(() => {
     if (!canLink) return;

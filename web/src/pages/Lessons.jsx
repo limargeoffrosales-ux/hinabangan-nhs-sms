@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Plus, Pencil, Trash2, Filter, Clock, CheckCircle, FileText, X, Send, Eye, Copy, RotateCcw } from 'lucide-react';
+import { BookOpen, Plus, Filter, Clock, CheckCircle, Send, Eye, Copy, RotateCcw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
 const REVIEWERS = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
@@ -108,17 +108,6 @@ export default function Lessons() {
     } finally {
       setSaving(false);
     }
-  }
-
-  async function remove(id) {
-    setConfirmAction({ message: 'Delete this lesson plan?', action: async () => {
-      try {
-        await api(`/lessons/${id}`, { method: 'DELETE' });
-        setRows((r) => r.filter((x) => x.id !== id));
-      } catch (e2) {
-        setError(e2.message);
-      }
-    } });
   }
 
   async function submitLesson(id) {

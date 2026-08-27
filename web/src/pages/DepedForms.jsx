@@ -111,7 +111,7 @@ export default function DepedForms() {
       if (!schoolYear && r.school_year) setSchoolYear(r.school_year);
     }).catch(() => {});
     api('/sections').then(r => setSections(r.data || r.rows || [])).catch(() => {});
-  }, []);
+  }, [schoolYear]);
 
   useEffect(() => {
     if (sectionId) {
@@ -178,7 +178,7 @@ export default function DepedForms() {
     } else {
       setConductRatings({ makadiyos: '', makatao: '', makakalikasan: '', makabansa: '' });
     }
-  }, [data]);
+  }, [data, term]);
 
   const saveConduct = useCallback(async () => {
     if (!studentId || !term) return toast.error('Select a term (Q1–Q4) first.');
@@ -197,7 +197,7 @@ export default function DepedForms() {
     } finally {
       setConductSaving(false);
     }
-  }, [studentId, term, conductRatings, info.school_year, schoolYear]);
+  }, [studentId, term, conductRatings, info.school_year, schoolYear, toast]);
 
   const form = FORMS.find(f => f.code === tab);
   const ctx = { sectionId, studentId, month, year, term, sections, students };
@@ -842,7 +842,7 @@ function renderSF8(data, info) {
   const students = data?.students || [];
   const section = data?.section;
   const sy = info.school_year || '____-____';
-  function whoBmiStatus(bmi, age) {
+  function whoBmiStatus(bmi, _age) {
     if (!bmi) return '';
     const b = Number(bmi);
     if (b < 18.5) return 'UW';
@@ -1622,7 +1622,6 @@ ${students.length ? students.map((st, idx) => {
     <td class="c">${m.late || ''}</td>
     <td class="c"><strong>${pct}%</strong></td>
     ${monthKeys.map(key => {
-      const mm = months[key];
       const sp = att.filter(a => a.student_id === st.id && `${a.year}-${String(a.month).padStart(2, '0')}` === key);
       return `<td class="c">${sp.filter(a => a.status === 'present').length || ''}</td>
              <td class="c">${sp.filter(a => a.status === 'absent').length || ''}</td>

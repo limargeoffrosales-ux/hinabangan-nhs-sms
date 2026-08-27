@@ -1,5 +1,4 @@
 ﻿import { useState, useRef, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -27,7 +26,6 @@ function saveMessages(msgs) {
 }
 
 export default function AIChatbot() {
-  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(loadMessages);
   const [input, setInput] = useState('');

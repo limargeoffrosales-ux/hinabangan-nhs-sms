@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Pencil, Trash2, BookOpen, Layers, GraduationCap } from 'lucide-react';
+import { Plus, Pencil, Trash2, Layers } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
@@ -62,16 +62,16 @@ export default function Curriculum() {
   const [mapForm, setMapForm] = useState(EMPTY_MAPPING);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function loadTracks() {
+  const loadTracks = useCallback(async () => {
     try {
       const res = await api('/curriculum/tracks?limit=300');
       setTracks(res.data);
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, []);
 
-  async function loadCompetencies() {
+  const loadCompetencies = useCallback(async () => {
     try {
       const qs = new URLSearchParams({ limit: '500' });
       if (compTrackFilter) qs.set('track_id', compTrackFilter);
@@ -84,18 +84,18 @@ export default function Curriculum() {
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, [compTrackFilter, compStrandFilter, compGradeFilter, compQuarterFilter, compTypeFilter]);
 
-  async function loadSubjects() {
+  const loadSubjects = useCallback(async () => {
     try {
       const res = await api('/subjects?limit=300');
       setSubjects(res.data);
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, []);
 
-  async function loadMappings() {
+  const loadMappings = useCallback(async () => {
     if (!mapSubjectId) { setMappings([]); return; }
     try {
       const res = await api(`/curriculum/subject-competencies?subject_id=${mapSubjectId}`);
@@ -103,9 +103,9 @@ export default function Curriculum() {
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, [mapSubjectId]);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -115,11 +115,11 @@ export default function Curriculum() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [loadTracks, loadSubjects]);
 
-  useEffect(() => { loadAll(); }, []);
-  useEffect(() => { if (tab === 'Competencies') loadCompetencies(); }, [tab, compTrackFilter, compStrandFilter, compGradeFilter, compQuarterFilter, compTypeFilter]);
-  useEffect(() => { if (tab === 'Subject Mapping') { loadSubjects(); loadMappings(); } }, [tab, mapSubjectId]);
+  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { if (tab === 'Competencies') loadCompetencies(); }, [tab, compTrackFilter, compStrandFilter, compGradeFilter, compQuarterFilter, compTypeFilter, loadCompetencies]);
+  useEffect(() => { if (tab === 'Subject Mapping') { loadSubjects(); loadMappings(); } }, [tab, mapSubjectId, loadSubjects, loadMappings]);
 
   const allStrands = tracks.flatMap((t) => (t.strands || []).map((s) => ({ ...s, track_name: t.name, track_code: t.code })));
   const filteredStrands = compTrackFilter ? allStrands.filter((s) => String(s.track_id) === String(compTrackFilter)) : allStrands;
@@ -233,11 +233,6 @@ export default function Curriculum() {
   }
 
   const strandName = (id) => allStrands.find((s) => s.id === id)?.name || '—';
-  const trackName = (id) => tracks.find((t) => t.id === id)?.name || '—';
-
-  const availableCompetencies = compStrandFilter
-    ? competencies.filter((c) => String(c.strand_id) === String(compStrandFilter))
-    : competencies;
 
   return (
     <>

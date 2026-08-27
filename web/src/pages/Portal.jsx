@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { RefreshCw, Megaphone, CalendarDays, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
@@ -16,7 +16,7 @@ export default function Portal() {
   const [teachers, setTeachers] = useState([]);
   const [weekly, setWeekly] = useState([]);
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
     Promise.all([
@@ -27,11 +27,11 @@ export default function Portal() {
       .then(([ov, tc, ws]) => { setData(ov); setTeachers(tc.data); setWeekly(ws.data); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }
+  }, [sy]);
 
   useEffect(() => {
     if (me) load();
-  }, [me, sy]);
+  }, [me, sy, load]);
 
   if (meLoading) return <Spinner />;
 

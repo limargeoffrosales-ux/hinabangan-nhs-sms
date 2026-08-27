@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Award, Plus, Pencil, Trash2, Filter } from 'lucide-react';
+import { Plus, Pencil, Trash2, Filter } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Badge, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
 
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const TYPES = ['NCII', 'TESDA', 'OTHER'];
@@ -16,7 +15,6 @@ const EMPTY_FORM = {
 };
 
 export default function Certifications() {
-  const { t } = useTranslation();
   const { user } = useAuth();
   const isAdmin = can(user?.role, ...ADMIN);
   const [rows, setRows] = useState([]);

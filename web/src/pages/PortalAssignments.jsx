@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Send } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
@@ -28,7 +28,7 @@ function dueLabel(a) {
 
 export default function PortalAssignments() {
   const { students, loading: meLoading, error: meError } = useLinkedStudents();
-  const [studentId, setStudentId] = useState('');
+  const [studentId, setStudentId] = useState(() => students[0] ? String(students[0].id) : '');
   const [sy, setSy] = useState('2026-2027');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -37,11 +37,7 @@ export default function PortalAssignments() {
   const [drafts, setDrafts] = useState({});
   const [busyId, setBusyId] = useState(null);
 
-  useEffect(() => {
-    if (students.length && !studentId) setStudentId(String(students[0].id));
-  }, [students]);
-
-  function load() {
+  const load = useCallback(() => {
     if (!studentId) return;
     setLoading(true);
     setError(null);
@@ -49,11 +45,9 @@ export default function PortalAssignments() {
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    if (students.length && studentId) load();
   }, [studentId, sy]);
+
+  useEffect(() => { load(); }, [load]);
 
   async function submit(a) {
     const d = drafts[a.id] || {};

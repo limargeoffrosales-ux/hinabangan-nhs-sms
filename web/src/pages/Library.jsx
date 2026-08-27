@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { BookOpen, Plus, Pencil, Trash2, Filter, BookMarked, ArrowDownToLine, ArrowUpFromLine, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Filter, BookMarked, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
@@ -9,7 +8,6 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 const EMPTY_BOOK = { title: '', author: '', isbn: '', category: '', publisher: '', year_published: '', total_copies: 1, available_copies: 1, location: '', status: 'active' };
 
 export default function Library() {
-  const { t } = useTranslation();
   const { user } = useAuth();
   const isAdmin = can(user?.role, ...WRITE);
   const [books, setBooks] = useState([]);

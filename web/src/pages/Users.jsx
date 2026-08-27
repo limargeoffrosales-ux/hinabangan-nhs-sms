@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { api } from '../lib/api';
@@ -26,9 +26,8 @@ export default function Users() {
   const [confirmAction, setConfirmAction] = useState(null);
 
   const isAdmin = ['super_admin', 'school_admin'].includes(user?.role);
-  const isSuperAdmin = user?.role === 'super_admin';
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true);
     try {
@@ -41,9 +40,9 @@ export default function Users() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [isAdmin]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function openCreate() {
     setForm(EMPTY_FORM);

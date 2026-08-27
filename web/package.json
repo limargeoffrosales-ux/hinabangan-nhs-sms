@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint src",
     "cap:sync": "cap sync",
     "cap:android": "cap sync android && cap open android",
     "cap:ios": "cap sync ios && cap open ios",
@@ -35,6 +36,10 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-unused-imports": "^3.2.0",
     "sharp": "^0.35.3",
     "typescript": "^7.0.2",
     "vite": "^6.1.0"

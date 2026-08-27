@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Mail, MessageSquare, RefreshCw, Pencil, Send } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
@@ -11,7 +11,6 @@ const EVENTS = {
   grade_posted: 'Grades posted',
   test: 'Test message',
 };
-const EVENT_KEYS = Object.keys(EVENTS);
 const TOKENS = ['{{name}}', '{{title}}', '{{subject}}', '{{section}}', '{{due_date}}', '{{points}}', '{{score}}', '{{total}}', '{{student}}', '{{status}}', '{{date}}', '{{term}}', '{{school_year}}', '{{school}}'];
 
 export default function Notifications() {
@@ -30,7 +29,7 @@ export default function Notifications() {
   const [blastBusy, setBlastBusy] = useState(false);
   const [blastResult, setBlastResult] = useState(null);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const [s, t, l] = await Promise.all([
@@ -48,9 +47,9 @@ export default function Notifications() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filter]);
 
-  useEffect(() => { loadAll(); }, [filter]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   async function toggle(key, value) {
     setBusy(true);

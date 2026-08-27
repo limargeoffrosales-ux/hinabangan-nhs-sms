@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useEffect, useState, useCallback } from 'react';
 import { Award } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty } from '../components/ui';
@@ -8,13 +7,14 @@ const STATUS_COLORS = { active: 'badge-green', expired: 'badge-red', pending: 'b
 const TYPE_COLORS = { NCII: 'badge-blue', TESDA: 'badge-purple', OTHER: 'badge-gray' };
 
 export default function PortalCertifications() {
-  const { t } = useTranslation();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api('/portal/certifications').then((r) => setRows(r.data || [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   if (loading) return <Spinner />;
 

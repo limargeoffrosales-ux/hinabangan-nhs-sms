@@ -1,17 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList, Paperclip } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
 import FileUpload from '../components/FileUpload';
-import { CURRENT_SCHOOL_YEAR, SCHOOL_YEARS } from '../lib/constants';
+import { SCHOOL_YEARS } from '../lib/constants';
 
 const ADMIN = ['super_admin', 'school_admin'];
 const FREQS = ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'periodic'];
-const STATUS_BADGE = {
-  draft: 'badge-gray', submitted: 'badge-blue', reviewed: 'badge-yellow',
-  approved: 'badge-green', returned: 'badge-red',
-};
 
 function complianceOf(s) {
   if (['submitted', 'reviewed', 'approved'].includes(s.status)) return { label: 'Complied', cls: 'badge-green' };
@@ -48,7 +44,7 @@ export default function Submissions() {
   const [modal, setModal] = useState(null);
   const [queue, setQueue] = useState([]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(null);
     try {
       const [t, submissions] = await Promise.all([
@@ -63,9 +59,9 @@ export default function Submissions() {
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, [user?.id]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const shown = useMemo(() => {
     let out = rows;
@@ -233,7 +229,6 @@ function AssignModal({ types, onClose, onSaved, onNotice }) {
   }, []);
 
   const staff = users.filter((u) => !['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'].includes(u.role));
-  const type = types.find((t) => String(t.id) === typeId);
 
   function pickType(id) {
     setTypeId(id);
