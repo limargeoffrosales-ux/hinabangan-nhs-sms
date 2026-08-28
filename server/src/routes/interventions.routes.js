@@ -4,6 +4,8 @@ const db = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit, esc } = require('../utils');
 const { paginate } = require('../pagination');
+const { getCurrentSchoolYear } = require('../schoolYear');
+const { ensureTeacherSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -25,7 +27,7 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 25), 500);
   const offset = (page - 1) * limit;
-  const sy = req.query.school_year || '2025-2026';
+  const sy = req.query.school_year || await getCurrentSchoolYear();
   const baseSql = `SELECT p.*, s.first_name, s.last_name, s.grade_level, sec.name AS section_name, u.name AS recorder_name
              FROM intervention_plans p
              JOIN students s ON s.id = p.student_id
@@ -49,36 +51,43 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
 }));
 
 router.get('/stats', requireRole(...WRITE), asyncH(async (req, res) => {
-  const byCat = await qa('SELECT category, COUNT(*) AS n FROM intervention_plans GROUP BY category');
-  const byStatus = await qa('SELECT status, COUNT(*) AS n FROM intervention_plans GROUP BY status');
+  const sy = req.query.school_year || await getCurrentSchoolYear();
+  const byCat = await qa('SELECT category, COUNT(*) AS n FROM intervention_plans WHERE school_year = ? GROUP BY category', [sy]);
+  const byStatus = await qa('SELECT status, COUNT(*) AS n FROM intervention_plans WHERE school_year = ? GROUP BY status', [sy]);
   res.json({
     by_category: byCat, by_status: byStatus,
-    active: Number((await q("SELECT COUNT(*) AS n FROM intervention_plans WHERE status = 'active'")).n),
-    total: Number((await q('SELECT COUNT(*) AS n FROM intervention_plans')).n),
+    active: Number((await q("SELECT COUNT(*) AS n FROM intervention_plans WHERE status = 'active' AND school_year = ?", [sy])).n),
+    total: Number((await q('SELECT COUNT(*) AS n FROM intervention_plans WHERE school_year = ?', [sy])).n),
   });
 }));
 
 router.get('/at-risk', requireRole(...WRITE), asyncH(async (req, res) => {
-  const sy = req.query.school_year || '2025-2026';
-  const gradeRows = await qa(
-    `SELECT g.student_id, s.first_name, s.last_name, s.grade_level, sec.name AS section_name, s.sex,
-            AVG(g.computed_grade) AS avg_grade
-     FROM grades g JOIN students s ON s.id = g.student_id
-     LEFT JOIN sections sec ON sec.id = g.section_id
-      WHERE g.school_year = ? GROUP BY g.student_id, s.first_name, s.last_name, s.grade_level, s.sex, sec.name`, [sy]);
-  const att = await qa(
-    `SELECT student_id, SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absents, COUNT(*) AS days
-     FROM attendance GROUP BY student_id`);
+  const sy = req.query.school_year || await getCurrentSchoolYear();
+
+  // Batch all independent queries in parallel
+  const [gradeRows, att, readLast, existing] = await Promise.all([
+    qa(
+      `SELECT g.student_id, s.first_name, s.last_name, s.grade_level, sec.name AS section_name, s.sex,
+              AVG(g.computed_grade) AS avg_grade
+       FROM grades g JOIN students s ON s.id = g.student_id
+       LEFT JOIN sections sec ON sec.id = g.section_id
+       WHERE g.school_year = ? GROUP BY g.student_id, s.first_name, s.last_name, s.grade_level, s.sex, sec.name`, [sy]),
+    qa(
+      `SELECT student_id, SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absents, COUNT(*) AS days
+       FROM attendance GROUP BY student_id`),
+    qa(
+      `SELECT la.student_id, la.level FROM learner_assessments la
+       WHERE la.kind = 'reading' AND la.level IS NOT NULL
+         AND la.id = (SELECT MAX(l2.id) FROM learner_assessments l2 WHERE l2.student_id = la.student_id AND l2.kind = 'reading')`),
+    qa('SELECT DISTINCT student_id FROM intervention_plans'),
+  ]);
+
   const attMap = {};
   for (const a of att) attMap[a.student_id] = { absents: Number(a.absents || 0), days: Number(a.days || 0) };
-  const readLast = await qa(
-    `SELECT la.student_id, la.level FROM learner_assessments la
-     WHERE la.kind = 'reading' AND la.level IS NOT NULL
-       AND la.id = (SELECT MAX(l2.id) FROM learner_assessments l2 WHERE l2.student_id = la.student_id AND l2.kind = 'reading')`);
   const readMap = {};
   for (const r of readLast) readMap[r.student_id] = r.level;
-  const existing = await qa('SELECT DISTINCT student_id FROM intervention_plans');
   const existingSet = new Set(existing.map((e) => e.student_id));
+
   const out = gradeRows.map((g) => {
     const a = attMap[g.student_id] || { absents: 0, days: 0 };
     const attRate = a.days ? Math.round(((a.days - a.absents) / a.days) * 100) : 100;
@@ -107,6 +116,13 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!b.student_id || !b.title) return res.status(400).json({ error: 'student_id and title are required' });
   const student = await q('SELECT * FROM students WHERE id = ?', [b.student_id]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
+
+  // Teacher scope check: teachers can only create interventions for students in their classes
+  if (req.user.role === 'teacher') {
+    const scopeCheck = await ensureTeacherSeesStudent(req.user, b.student_id);
+    if (!scopeCheck.ok) return res.status(403).json({ error: scopeCheck.reason });
+  }
+
   const id = await qi(
     `INSERT INTO intervention_plans (student_id, title, category, strategy, frequency, start_date, end_date, status, progress_notes, recorded_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -120,6 +136,13 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM intervention_plans WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Plan not found' });
+
+  // Teacher scope check: teachers can only update interventions for students in their classes
+  if (req.user.role === 'teacher') {
+    const scopeCheck = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!scopeCheck.ok) return res.status(403).json({ error: scopeCheck.reason });
+  }
+
   const b = req.body || {};
   const f = (k) => b[k] !== undefined ? b[k] : row[k];
   await qr(
@@ -134,6 +157,13 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 router.delete('/:id', requireRole(...ADMIN_ROLES, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM intervention_plans WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Plan not found' });
+
+  // Teacher scope check: teachers can only delete interventions for students in their classes
+  if (req.user.role === 'teacher') {
+    const scopeCheck = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!scopeCheck.ok) return res.status(403).json({ error: scopeCheck.reason });
+  }
+
   if (row.recorded_by !== req.user.id && !isAdminRole(req.user.role)) {
     return res.status(403).json({ error: 'Only the recorder or an admin can delete' });
   }
@@ -147,6 +177,13 @@ router.delete('/:id', requireRole(...ADMIN_ROLES, 'teacher', 'guidance'), asyncH
 router.post('/:id/contacts', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM intervention_plans WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Plan not found' });
+
+  // Teacher scope check: teachers can only add contacts for students in their classes
+  if (req.user.role === 'teacher') {
+    const scopeCheck = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!scopeCheck.ok) return res.status(403).json({ error: scopeCheck.reason });
+  }
+
   const b = req.body || {};
   if (!b.contact_date) return res.status(400).json({ error: 'contact_date is required' });
   const id = await qi(

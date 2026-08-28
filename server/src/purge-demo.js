@@ -1,12 +1,19 @@
 const { q, qa, qr } = require('./db');
 const logger = require('./logger');
+const { getCurrentSchoolYear } = require('./schoolYear');
 
 function log(label, n) {
   logger.info({ table: label, removed: n }, 'PURGE: rows removed');
 }
 
-const DEMO_ANNOUNCEMENTS = [
-  'Welcome to School Year 2025-2026',
+let DEMO_SCHOOL_YEAR = null;
+
+async function initDemoSchoolYear() {
+  DEMO_SCHOOL_YEAR = await getCurrentSchoolYear();
+}
+
+const DEMO_ANNOUNCEMENTS = () => [
+  `Welcome to School Year ${DEMO_SCHOOL_YEAR || '2026-2027'}`,
   'First Quarter Examinations',
   'Teachers: DLL submission reminder',
 ];
@@ -42,6 +49,7 @@ async function purgeDemo() {
     logger.info('PURGE: skipped (set PURGE_DEMO=1 to remove demo data on boot)');
     return;
   }
+  await initDemoSchoolYear();
   const already = await q('SELECT value FROM system_flags WHERE key = ?', ['purged_demo']);
   if (already) {
     logger.info('PURGE: demo data already purged (one-shot) — skipping.');
@@ -84,7 +92,7 @@ async function purgeDemo() {
   const teacherIds = await countWhere('SELECT id FROM teachers WHERE employee_no IN (?,?,?,?,?,?,?,?)', DEMO_TEACHERS);
   log('demo teachers', teacherIds.length);
   const sectionIds = await countWhere(
-    'SELECT id FROM sections WHERE name IN (?,?,?,?,?,?) AND school_year = ?', [...DEMO_SECTIONS, '2025-2026']);
+    'SELECT id FROM sections WHERE name IN (?,?,?,?,?,?) AND school_year = ?', [...DEMO_SECTIONS, DEMO_SCHOOL_YEAR]);
   log('demo sections', sectionIds.length);
 
   const sIn = inClause(sectionIds);
