@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { getCurrentSchoolYear } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
@@ -19,7 +20,7 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
              FROM learner_assessments l
              JOIN students s ON s.id = l.student_id
              LEFT JOIN sections sec ON sec.id = (SELECT section_id FROM enrollments e WHERE e.student_id = l.student_id AND e.school_year = ?)`;
-  const params = [req.query.school_year || '2025-2026'];
+  const params = [req.query.school_year || await getCurrentSchoolYear()];
   const where = [];
   if (kind) { where.push('l.kind = ?'); params.push(kind); }
   if (student_id) { where.push('l.student_id = ?'); params.push(student_id); }
@@ -30,6 +31,7 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
 }));
 
 router.get('/students', requireRole(...WRITE), asyncH(async (req, res) => {
+  const sy = req.query.school_year || await getCurrentSchoolYear();
   const rows = await qa(
     `SELECT s.id, s.first_name, s.last_name, s.grade_level, s.sex, sec.name AS section_name,
             (SELECT level FROM learner_assessments la WHERE la.student_id = s.id AND la.kind = 'reading' AND la.level IS NOT NULL ORDER BY la.id DESC LIMIT 1) AS reading_level,
@@ -40,7 +42,7 @@ router.get('/students', requireRole(...WRITE), asyncH(async (req, res) => {
      LEFT JOIN enrollments e ON e.student_id = s.id AND e.school_year = ?
      LEFT JOIN sections sec ON sec.id = e.section_id
      ORDER BY s.last_name`,
-    [req.query.school_year || '2025-2026']);
+    [sy]);
   const out = rows.map((r) => {
     const lvl = LEVEL_ORDER[r.reading_level] || null;
     return {

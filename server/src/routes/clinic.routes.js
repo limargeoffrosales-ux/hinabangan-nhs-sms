@@ -3,9 +3,17 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql, dialect } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { getCurrentSchoolYear, getDaysFromNowParam } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
+
+// Nurse scope note: School nurses serve the entire school population.
+// Clinic/health access is intentionally school-wide (not section-scoped)
+// because health records must be accessible to any nurse regardless of
+// student's section/grade. This differs from teacher-scoped modules.
+// If a per-grade/section nurse assignment model is added in the future,
+// scope checks can be added here.
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'nurse'];
 
 /* ── List visits ────────────────────────────────────── */
@@ -99,10 +107,8 @@ router.get('/medicines', requireRole(...WRITE), asyncH(async (req, res) => {
 router.get('/medicines/summary', requireRole(...WRITE), asyncH(async (req, res) => {
   const total = await q('SELECT COUNT(*) AS count, COALESCE(SUM(quantity),0) AS total_qty FROM clinic_medicines WHERE status = \'active\'');
   const low = await q('SELECT COUNT(*) AS count FROM clinic_medicines WHERE quantity <= 5 AND status = \'active\'');
-  const expiringSql = dialect === 'pg'
-    ? `SELECT COUNT(*) AS count FROM clinic_medicines WHERE expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE + INTERVAL '30 days' AND status = 'active'`
-    : `SELECT COUNT(*) AS count FROM clinic_medicines WHERE expiry_date IS NOT NULL AND expiry_date <= date('now', '+30 days') AND status = 'active'`;
-  const expiring = await q(expiringSql);
+  const thirtyDaysFromNow = getDaysFromNowParam(30);
+  const expiring = await q('SELECT COUNT(*) AS count FROM clinic_medicines WHERE expiry_date IS NOT NULL AND expiry_date <= ? AND status = \'active\'', [thirtyDaysFromNow]);
   res.json({ total: total.count, total_qty: total.total_qty, low_stock: low.count, expiring_soon: expiring.count });
 }));
 

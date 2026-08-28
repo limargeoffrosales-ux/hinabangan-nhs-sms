@@ -3,6 +3,7 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { getCurrentSchoolYear } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
@@ -10,7 +11,7 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 
 /* ── List cases ─────────────────────────────────────── */
 router.get('/cases', requireRole(...WRITE), asyncH(async (req, res) => {
-  const { status, case_type, student_id } = req.query;
+  const { status, case_type, student_id, school_year } = req.query;
   let sql = `SELECT gc.*,
     st.first_name || ' ' || st.last_name AS student_name, st.grade_level,
     sec.name AS section_name,
@@ -27,6 +28,7 @@ router.get('/cases', requireRole(...WRITE), asyncH(async (req, res) => {
   if (status) { where.push('gc.status = ?'); params.push(status); }
   if (case_type) { where.push('gc.case_type = ?'); params.push(case_type); }
   if (student_id) { where.push('gc.student_id = ?'); params.push(student_id); }
+  if (school_year) { where.push('gc.school_year = ?'); params.push(school_year); }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY gc.opened_at DESC';
   res.json({ data: await qa(sql, params) });
@@ -34,10 +36,11 @@ router.get('/cases', requireRole(...WRITE), asyncH(async (req, res) => {
 
 /* ── Case summary ──────────────────────────────────── */
 router.get('/cases/summary', requireRole(...WRITE), asyncH(async (req, res) => {
-  const total = await q('SELECT COUNT(*) AS count FROM guidance_cases');
-  const byStatus = await qa('SELECT status, COUNT(*) AS count FROM guidance_cases GROUP BY status');
-  const byType = await qa('SELECT case_type, COUNT(*) AS count FROM guidance_cases GROUP BY case_type');
-  const byPriority = await qa('SELECT priority, COUNT(*) AS count FROM guidance_cases GROUP BY priority');
+  const sy = req.query.school_year || await getCurrentSchoolYear();
+  const total = await q('SELECT COUNT(*) AS count FROM guidance_cases WHERE school_year = ?', [sy]);
+  const byStatus = await qa('SELECT status, COUNT(*) AS count FROM guidance_cases WHERE school_year = ? GROUP BY status', [sy]);
+  const byType = await qa('SELECT case_type, COUNT(*) AS count FROM guidance_cases WHERE school_year = ? GROUP BY case_type', [sy]);
+  const byPriority = await qa('SELECT priority, COUNT(*) AS count FROM guidance_cases WHERE school_year = ? GROUP BY priority', [sy]);
   res.json({ total: total.count, by_status: byStatus, by_type: byType, by_priority: byPriority });
 }));
 

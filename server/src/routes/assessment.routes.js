@@ -2,11 +2,20 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit, safeJsonParse } = require('../utils');
+const { getCurrentSchoolYear } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
 
 const WRITE = [...ADMIN_ROLES, 'teacher'];
+
+function safeJsonParseWithFallback(json) {
+  try {
+    return safeJsonParse(json);
+  } catch {
+    return [];
+  }
+}
 
 router.get('/questions', requireRole(...WRITE), asyncH(async (req, res) => {
   const { subject_id, qtype, competency } = req.query;
@@ -20,7 +29,7 @@ router.get('/questions', requireRole(...WRITE), asyncH(async (req, res) => {
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY qb.id DESC LIMIT 300';
   const rows = await qa(sql, params);
-  res.json({ data: rows.map((r) => ({ ...r, options: safeJsonParse(r.options) })) });
+  res.json({ data: rows.map((r) => ({ ...r, options: safeJsonParseWithFallback(r.options) })) });
 }));
 
 router.post('/questions', requireRole(...WRITE), asyncH(async (req, res) => {
@@ -138,10 +147,11 @@ router.post('/analyses', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!b.title || !b.data) return res.status(400).json({ error: 'title and data are required' });
   const total_items = Number(b.total_items) || (b.data.items ? b.data.items.length : 0);
   const learners = Number(b.learners) || 0;
+  const sy = b.school_year || await getCurrentSchoolYear();
   const id = await qi(
     `INSERT INTO item_analyses (user_id, title, school_year, subject_id, total_items, learners, data, computed)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.user.id, b.title, b.school_year || '2025-2026', b.subject_id || null,
+    [req.user.id, b.title, sy, b.subject_id || null,
       total_items, learners, JSON.stringify(b.data), b.computed ? JSON.stringify(b.computed) : null]);
   await audit(req, 'ADD_ITEM_ANALYSIS', 'item_analyses', id);
   res.status(201).json({ id });
