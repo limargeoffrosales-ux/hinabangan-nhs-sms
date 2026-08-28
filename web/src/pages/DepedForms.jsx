@@ -991,10 +991,10 @@ function renderSF9Card(stud, enrollment, grades, monthlyAttendance, sy, info, co
   }
 
   const front = `
-<div class="sf9-page" style="display:flex;gap:0;height:100%;">
+<div class="sf9-page" style="display:flex;gap:0;height:100%;padding:8pt;">
 
   <!-- PAGE 1 LEFT: ATTENDANCE RECORD -->
-  <div style="flex:0 0 48%;border-right:1px solid #999;padding:0 8pt 0 0;">
+  <div style="flex:0 0 50%;border-right:1px solid #999;padding:0 10pt 0 0;display:flex;flex-direction:column;height:100%;">
     <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">ATTENDANCE RECORD</div>
     <table style="font-size:7.5pt;width:100%;">
     <thead><tr>
@@ -1008,28 +1008,33 @@ function renderSF9Card(stud, enrollment, grades, monthlyAttendance, sy, info, co
       <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of Days Absent</td>${MONTH_NUMS.map(m => `<td class="c" style="padding:1.5pt;">${attByMonth[m]?.days_absent || ''}</td>`).join('')}<td class="c" style="padding:1.5pt;font-weight:bold;">${totalAbsent || ''}</td></tr>
     </tbody></table>
 
-    <div style="margin-top:10pt;font-size:8pt;font-weight:bold;">PARENT / GUARDIAN'S SIGNATURE OVER LEARNER'S PROGRESS REPORT CARD</div>
-    <div style="margin-top:6pt;font-size:7.5pt;">1st Term ___________________________________</div>
-    <div style="margin-top:4pt;font-size:7.5pt;">2nd Term ___________________________________</div>
-    <div style="margin-top:4pt;font-size:7.5pt;">3rd Term ___________________________________</div>
+    <!-- SIGNATURE & CERTIFICATE SECTION - CENTER LEFT -->
+    <div style="margin-top:12pt;padding:0 10pt;width:100%;">
+      <div style="font-size:8pt;font-weight:bold;text-align:center;margin-bottom:6pt;">PARENT / GUARDIAN'S SIGNATURE OVER LEARNER'S PROGRESS REPORT CARD</div>
+      <table style="width:100%;font-size:7.5pt;border-collapse:collapse;">
+        <tr><td style="padding:4pt 0;border-bottom:1px solid #000;">1st Term</td><td style="padding:4pt 0;border-bottom:1px solid #000;text-align:center;">________________________________</td></tr>
+        <tr><td style="padding:4pt 0;border-bottom:1px solid #000;">2nd Term</td><td style="padding:4pt 0;border-bottom:1px solid #000;text-align:center;">________________________________</td></tr>
+        <tr><td style="padding:4pt 0;border-bottom:1px solid #000;">3rd Term</td><td style="padding:4pt 0;border-bottom:1px solid #000;text-align:center;">________________________________</td></tr>
+      </table>
 
-    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Certificate of Transfer</div>
-    <div style="margin-top:4pt;font-size:7.5pt;line-height:1.6;">
-      Admitted to Grade: ____ Section: ____________<br/>
-      Eligibility for Admission to Grade: ____________
-    </div>
-    <div style="margin-top:4pt;font-size:7.5pt;">Approved:</div>
-    <div style="display:flex;gap:20pt;margin-top:10pt;font-size:7.5pt;">
-      <div style="text-align:center;flex:1;">________________________________<br/>Principal</div>
-      <div style="text-align:center;flex:1;">________________________________<br/>Teacher</div>
-    </div>
+      <div style="margin-top:10pt;font-size:8pt;font-weight:bold;text-decoration:underline;text-align:center;">Certificate of Transfer</div>
+      <table style="width:100%;font-size:7.5pt;border-collapse:collapse;margin-top:4pt;">
+        <tr><td style="padding:3pt 0;">Admitted to Grade:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;width:30pt;">____</td><td style="padding:3pt 0;">Section:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;">____________</td></tr>
+        <tr><td colspan="4" style="padding:3pt 0;">Eligibility for Admission to Grade: <span style="border-bottom:1px solid #000;margin-left:4pt;padding:0 20pt;">____________</span></td></tr>
+      </table>
+      <div style="margin-top:6pt;font-size:7.5pt;">Approved:</div>
+      <div style="display:flex;gap:30pt;margin-top:8pt;font-size:7.5pt;">
+        <div style="text-align:center;flex:1;">________________________________<br/>School Head</div>
+        <div style="text-align:center;flex:1;">________________________________<br/>Teacher</div>
+      </div>
 
-    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Cancellation of Eligibility to Transfer</div>
-    <div style="margin-top:4pt;font-size:7.5pt;">
-      Admitted in: ________________________________<br/>
-      Date: ____________________
+      <div style="margin-top:10pt;font-size:8pt;font-weight:bold;text-decoration:underline;text-align:center;">Cancellation of Eligibility to Transfer</div>
+      <table style="width:100%;font-size:7.5pt;border-collapse:collapse;margin-top:4pt;">
+        <tr><td style="padding:3pt 0;">Admitted in:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;">________________________________</td></tr>
+        <tr><td style="padding:3pt 0;">Date:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;width:80pt;">________________</td></tr>
+      </table>
+      <div style="margin-top:8pt;font-size:7.5pt;text-align:center;">________________________________<br/>School Head</div>
     </div>
-    <div style="margin-top:10pt;font-size:7.5pt;text-align:center;">________________________________<br/>Principal</div>
   </div>
 
   <!-- PAGE 1 RIGHT: LEARNER'S PROGRESS REPORT CARD -->
@@ -1167,10 +1172,10 @@ function renderSF9Blank(info) {
   }
 
   const front = `
-<div class="sf9-page" style="display:flex;gap:0;height:100%;">
+<div class="sf9-page" style="display:flex;gap:0;height:100%;padding:8pt;">
 
   <!-- PAGE 1 LEFT: ATTENDANCE RECORD -->
-  <div style="flex:0 0 48%;border-right:1px solid #999;padding:0 8pt 0 0;">
+  <div style="flex:0 0 50%;border-right:1px solid #999;padding:0 10pt 0 0;display:flex;flex-direction:column;height:100%;">
     <div style="text-align:center;font-weight:bold;font-size:9pt;margin-bottom:4pt;text-decoration:underline;">ATTENDANCE RECORD</div>
     <table style="font-size:7.5pt;width:100%;">
     <thead><tr>
@@ -1184,28 +1189,33 @@ function renderSF9Blank(info) {
       <tr><td style="padding:2pt;font-size:7pt;font-weight:bold;">No. of Days Absent</td>${emptyMonthCells}<td class="c" style="padding:1.5pt;"></td></tr>
     </tbody></table>
 
-    <div style="margin-top:10pt;font-size:8pt;font-weight:bold;">PARENT / GUARDIAN'S SIGNATURE OVER LEARNER'S PROGRESS REPORT CARD</div>
-    <div style="margin-top:6pt;font-size:7.5pt;">1st Term ___________________________________</div>
-    <div style="margin-top:4pt;font-size:7.5pt;">2nd Term ___________________________________</div>
-    <div style="margin-top:4pt;font-size:7.5pt;">3rd Term ___________________________________</div>
+    <!-- SIGNATURE & CERTIFICATE SECTION - CENTER LEFT -->
+    <div style="margin-top:12pt;padding:0 10pt;width:100%;">
+      <div style="font-size:8pt;font-weight:bold;text-align:center;margin-bottom:6pt;">PARENT / GUARDIAN'S SIGNATURE OVER LEARNER'S PROGRESS REPORT CARD</div>
+      <table style="width:100%;font-size:7.5pt;border-collapse:collapse;">
+        <tr><td style="padding:4pt 0;border-bottom:1px solid #000;">1st Term</td><td style="padding:4pt 0;border-bottom:1px solid #000;text-align:center;">________________________________</td></tr>
+        <tr><td style="padding:4pt 0;border-bottom:1px solid #000;">2nd Term</td><td style="padding:4pt 0;border-bottom:1px solid #000;text-align:center;">________________________________</td></tr>
+        <tr><td style="padding:4pt 0;border-bottom:1px solid #000;">3rd Term</td><td style="padding:4pt 0;border-bottom:1px solid #000;text-align:center;">________________________________</td></tr>
+      </table>
 
-    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Certificate of Transfer</div>
-    <div style="margin-top:4pt;font-size:7.5pt;line-height:1.6;">
-      Admitted to Grade: ____ Section: ____________<br/>
-      Eligibility for Admission to Grade: ____________
-    </div>
-    <div style="margin-top:4pt;font-size:7.5pt;">Approved:</div>
-    <div style="display:flex;gap:20pt;margin-top:10pt;font-size:7.5pt;">
-      <div style="text-align:center;flex:1;">________________________________<br/>Principal</div>
-      <div style="text-align:center;flex:1;">________________________________<br/>Teacher</div>
-    </div>
+      <div style="margin-top:10pt;font-size:8pt;font-weight:bold;text-decoration:underline;text-align:center;">Certificate of Transfer</div>
+      <table style="width:100%;font-size:7.5pt;border-collapse:collapse;margin-top:4pt;">
+        <tr><td style="padding:3pt 0;">Admitted to Grade:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;width:30pt;">____</td><td style="padding:3pt 0;">Section:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;">____________</td></tr>
+        <tr><td colspan="4" style="padding:3pt 0;">Eligibility for Admission to Grade: <span style="border-bottom:1px solid #000;margin-left:4pt;padding:0 20pt;">____________</span></td></tr>
+      </table>
+      <div style="margin-top:6pt;font-size:7.5pt;">Approved:</div>
+      <div style="display:flex;gap:30pt;margin-top:8pt;font-size:7.5pt;">
+        <div style="text-align:center;flex:1;">________________________________<br/>School Head</div>
+        <div style="text-align:center;flex:1;">________________________________<br/>Teacher</div>
+      </div>
 
-    <div style="margin-top:14pt;font-size:8pt;font-weight:bold;text-decoration:underline;">Cancellation of Eligibility to Transfer</div>
-    <div style="margin-top:4pt;font-size:7.5pt;">
-      Admitted in: ________________________________<br/>
-      Date: ____________________
+      <div style="margin-top:10pt;font-size:8pt;font-weight:bold;text-decoration:underline;text-align:center;">Cancellation of Eligibility to Transfer</div>
+      <table style="width:100%;font-size:7.5pt;border-collapse:collapse;margin-top:4pt;">
+        <tr><td style="padding:3pt 0;">Admitted in:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;">________________________________</td></tr>
+        <tr><td style="padding:3pt 0;">Date:</td><td style="padding:3pt 0;text-align:center;border-bottom:1px solid #000;width:80pt;">________________</td></tr>
+      </table>
+      <div style="margin-top:8pt;font-size:7.5pt;text-align:center;">________________________________<br/>School Head</div>
     </div>
-    <div style="margin-top:10pt;font-size:7.5pt;text-align:center;">________________________________<br/>Principal</div>
   </div>
 
   <!-- PAGE 1 RIGHT: LEARNER'S PROGRESS REPORT CARD -->
