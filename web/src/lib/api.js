@@ -68,7 +68,29 @@ export function notifyUnauthorized() {
   window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
 }
 
-export async function api(path, { method = 'GET', body, auth = true, timeoutMs = 30000 } = {}) {
+async function requestCsrfToken() {
+  const res = await fetch(`${getApiBase()}/auth/csrf-token`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) return false;
+  const data = await res.json();
+  if (data.csrfToken) {
+    sessionStorage.setItem(CSRF_KEY, data.csrfToken);
+    return true;
+  }
+  return false;
+}
+
+function isCsrfFailure(status, message) {
+  if (status !== 403) return false;
+  if (!message) return false;
+  const m = String(message).toLowerCase();
+  return m.includes('csrf') || m.includes('csrf token') || m.includes('invalid or missing csrf');
+}
+
+async function apiInternal(path, opts) {
+  const { method = 'GET', body, auth = true, timeoutMs = 30000 } = opts;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
@@ -85,27 +107,54 @@ export async function api(path, { method = 'GET', body, auth = true, timeoutMs =
       body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
       signal: controller.signal,
     });
-  if (res.status === 401 && auth) {
-    const ok = await tryRefresh();
-    if (ok) return api(path, { method, body, auth, timeoutMs });
-    clearSession();
-    notifyUnauthorized();
-    const err = new Error('Session expired — please sign in again');
-    err.status = 401;
-    throw err;
-  }
-  const text = await res.text();
-  let data;
-  try { data = text ? JSON.parse(text) : {}; }
-  catch { data = { error: `Request failed (${res.status})` }; }
-  if (!res.ok) {
-    const err = new Error(data.error || `Request failed (${res.status})`);
-    err.status = res.status;
-    throw err;
-  }
-  return data;
+    if (res.status === 401 && auth) {
+      const ok = await tryRefresh();
+      if (ok) return apiInternal(path, opts);
+      clearSession();
+      notifyUnauthorized();
+      const err = new Error('Session expired — please sign in again');
+      err.status = 401;
+      throw err;
+    }
+    const text = await res.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { data = { error: `Request failed (${res.status})` }; }
+    if (!res.ok) {
+      const err = new Error(data.error || `Request failed (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+export async function api(path, opts = {}) {
+  const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(opts.method || 'GET');
+  try {
+    return await apiInternal(path, opts);
+  } catch (err) {
+    // Self-heal stale/missing CSRF tokens: refresh the token once and retry.
+    if (isMutating && opts.auth !== false && isCsrfFailure(err.status, err.message)) {
+      const refreshed = await requestCsrfToken();
+      if (refreshed) {
+        try {
+          return await apiInternal(path, { ...opts, __csrfRetry: true });
+        } catch (retryErr) {
+          if (isCsrfFailure(retryErr.status, retryErr.message)) {
+            clearSession();
+            notifyUnauthorized();
+            const e = new Error('Session expired — please sign in again');
+            e.status = 401;
+            throw e;
+          }
+          throw retryErr;
+        }
+      }
+    }
+    throw err;
   }
 }
 
