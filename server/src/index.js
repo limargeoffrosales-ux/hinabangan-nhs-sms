@@ -147,12 +147,26 @@ const aiRoutes = require('./routes/ai.routes');
     next();
   });
 
-  // CSRF protection for authenticated mutating requests
+  // Endpoints that are safe to mutate without an established session (pre-auth flows).
+  // CSRF tokens are issued only after authentication (login / refresh / MFA / csrf-token),
+  // so these must skip the authenticated-csrf gate. Logout only revokes the caller's own
+  // refresh token, so it also remains reachable without a bearer token.
+  const PUBLIC_MUTATING_PATHS = [
+    '/api/v1/auth/login',
+    '/api/v1/auth/refresh',
+    '/api/v1/auth/logout',
+    '/api/v1/mfa/verify',
+  ];
+
+  // CSRF protection for authenticated mutating requests.
+  // Authentication must happen first so req.user is populated before CSRF validation.
   app.use((req, res, next) => {
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    if (PUBLIC_MUTATING_PATHS.some((p) => req.path === p || req.path.startsWith(p + '/'))) return next();
+    return authenticate(req, res, (err) => {
+      if (err) return next(err);
       return requireCsrf(req, res, next);
-    }
-    next();
+    });
   });
 
   const MAX_BODY_FIELD = 10000;
