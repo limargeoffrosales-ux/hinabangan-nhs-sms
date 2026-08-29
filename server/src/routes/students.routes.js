@@ -43,6 +43,16 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   res.json({ data: await qa(sql, params), limit, offset });
 }));
 
+function computeAge(birthdate) {
+  if (!birthdate) return null;
+  const birth = new Date(birthdate + 'T00:00:00');
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
 router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM students WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
@@ -52,6 +62,7 @@ router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => 
   }
   logAccess(req, row.id);
   row.enrollments = await qa('SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id WHERE e.student_id = ? ORDER BY e.school_year DESC', [row.id]);
+  row.age = computeAge(row.birth_date);
   if (req.role === 'teacher') {
     maskPII(row, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']);
   }

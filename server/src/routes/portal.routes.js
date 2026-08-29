@@ -9,12 +9,22 @@ const router = express.Router();
 router.use(authenticate);
 const PORTAL = ['student', 'parent'];
 
-const STUDENT_FIELDS = 'id, lrn, first_name, middle_name, last_name, suffix, grade_level, track_strand, status';
+function computeAge(birthdate) {
+  if (!birthdate) return null;
+  const birth = new Date(birthdate + 'T00:00:00');
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+const STUDENT_FIELDS = 'id, lrn, first_name, middle_name, last_name, suffix, grade_level, track_strand, status, birth_date';
 
 async function loadStudentRows(ids) {
   if (!ids || !ids.length) return new Map();
   const rows = await qa(`SELECT ${STUDENT_FIELDS} FROM students WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
-  return new Map(rows.map((r) => [Number(r.id), r]));
+  return new Map(rows.map((r) => [Number(r.id), { ...r, age: r.birth_date ? computeAge(r.birth_date) : null }]));
 }
 
 async function loadCurrentSections(ids) {

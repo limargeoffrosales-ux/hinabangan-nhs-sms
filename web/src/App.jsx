@@ -6,12 +6,18 @@ import PortalLayout from './components/PortalLayout';
 import AIChatbot from './components/AIChatbot';
 import { Spinner } from './components/ui';
 import { isNative, registerForPushNotifications } from './lib/capacitor';
+import { Sentry } from './sentry';
 import './i18n';
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error('ErrorBoundary caught:', error, info?.componentStack); }
+  componentDidCatch(error, info) {
+    console.error('ErrorBoundary caught:', error, info?.componentStack);
+    if (typeof Sentry !== 'undefined') {
+      Sentry.captureException(error, { extra: { componentStack: info?.componentStack } });
+    }
+  }
   render() {
     if (this.state.error) {
       return (

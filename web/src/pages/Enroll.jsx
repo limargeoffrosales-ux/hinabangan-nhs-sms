@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { SHS_TRACKS, ENROLLMENT_STATUSES } from '../lib/constants';
@@ -99,7 +99,7 @@ export default function Enroll() {
   const [history, setHistory] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [st, se] = await Promise.all([api('/students?limit=200'), api('/sections?limit=200')]);
@@ -111,9 +111,9 @@ export default function Enroll() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));

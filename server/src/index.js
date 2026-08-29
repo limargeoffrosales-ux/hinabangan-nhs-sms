@@ -12,6 +12,7 @@ const db = require('./db');
 const { PORT, WEB_DIR, isAllowedOrigin } = require('./config');
 
 const logger = require('./logger');
+const { authenticate, requireCsrf } = require('./auth');
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 const studentsRoutes = require('./routes/students.routes');
@@ -69,20 +70,36 @@ const aiRoutes = require('./routes/ai.routes');
   }
   const { purgeDemo } = require('./purge-demo');
   await purgeDemo();
+  const ENABLE_LEGACY_SUPERADMIN = process.env.ENABLE_LEGACY_SUPERADMIN === 'true';
   const LEGACY_DEFAULT = process.env.LEGACY_SUPERADMIN_PASSWORD || '';
   if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
     const bcrypt = require('bcryptjs');
     const row = await db.q('SELECT id, password_hash, password_changed_at FROM users WHERE username = ?', ['superadmin']);
     if (row && !row.password_changed_at && LEGACY_DEFAULT) {
-      const isLegacy = await bcrypt.compare(LEGACY_DEFAULT, row.password_hash);
-      if (isLegacy) {
-        await db.qr(
-          'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
-          [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
-        );
-        logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
+      if (!ENABLE_LEGACY_SUPERADMIN) {
+        logger.warn('LEGACY_SUPERADMIN_PASSWORD is set but ENABLE_LEGACY_SUPERADMIN is not true. Legacy password migration skipped. Set ENABLE_LEGACY_SUPERADMIN=true to enable (not recommended for production).');
       } else {
-        logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
+        if (process.env.NODE_ENV === 'production') {
+          logger.warn('SECURITY WARNING: ENABLE_LEGACY_SUPERADMIN is enabled in production! This allows legacy superadmin password migration and should be disabled after initial setup.');
+        }
+        const bcrypt = require('bcryptjs');
+        const row = await db.q('SELECT id, password_hash, password_changed_at FROM users WHERE username = ?', ['superadmin']);
+        if (row && !row.password_changed_at && LEGACY_DEFAULT) {
+          const isLegacy = await bcrypt.compare(LEGACY_DEFAULT, row.password_hash);
+          if (isLegacy) {
+            await db.qr(
+              'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
+              [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
+            );
+            await db.qr(
+              'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
+              ['LEGACY_SUPERADMIN_MIGRATION', 'high', 'server-startup', 'system', null, JSON.stringify({ note: 'Legacy superadmin password migrated from default via SUPERADMIN_PASSWORD env' })]
+            );
+            logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
+          } else {
+            logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
+          }
+        }
       }
     }
   }
@@ -130,13 +147,29 @@ const aiRoutes = require('./routes/ai.routes');
     next();
   });
 
+  // CSRF protection for authenticated mutating requests
+  app.use((req, res, next) => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      return requireCsrf(req, res, next);
+    }
+    next();
+  });
+
   const MAX_BODY_FIELD = 10000;
+  const BULK_IMPORT_PATHS = [
+    '/api/v1/enrollments/import',
+    '/api/v1/assignments',
+    '/api/v1/lessons',
+  ];
+  const MAX_BULK_BODY_FIELD = 100000; // 100KB for bulk imports
   app.use(express.json({ limit: '1mb' }));
   app.use((req, res, next) => {
     if (req.body && typeof req.body === 'object') {
+      const isBulkImport = BULK_IMPORT_PATHS.some(p => req.path.startsWith(p));
+      const limit = isBulkImport ? MAX_BULK_BODY_FIELD : MAX_BODY_FIELD;
       for (const [k, v] of Object.entries(req.body)) {
-        if (typeof v === 'string' && v.length > MAX_BODY_FIELD) {
-          req.body[k] = v.slice(0, MAX_BODY_FIELD);
+        if (typeof v === 'string' && v.length > limit) {
+          req.body[k] = v.slice(0, limit);
         }
       }
     }

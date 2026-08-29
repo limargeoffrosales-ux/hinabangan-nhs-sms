@@ -25,7 +25,7 @@ export async function registerForPushNotifications() {
   });
   if (token) {
     try {
-      const auth = localStorage.getItem('meridianed_token');
+      const auth = sessionStorage.getItem('meridianed_token');
       if (auth) {
         await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/push/register`, {
           method: 'POST',

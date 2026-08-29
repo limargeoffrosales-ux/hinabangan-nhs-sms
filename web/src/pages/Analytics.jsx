@@ -85,7 +85,23 @@ export default function Analytics() {
   const handleExportCsv = async () => {
     const params = new URLSearchParams({ school_year: sy });
     if (quarter) params.set('quarter', quarter);
-    window.open(`/api/v1/analytics/kpi/report/csv?${params.toString()}&token=${localStorage.getItem('meridianed_token') || ''}`, '_blank');
+    const token = sessionStorage.getItem('meridianed_token');
+    const url = `/api/v1/analytics/kpi/report/csv?${params.toString()}`;
+    try {
+      const res = await fetch(`${getApiBase()}${url}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `meridianed-report-${sy}${quarter ? `-Q${quarter}` : ''}.csv`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error('CSV export failed:', e);
+    }
   };
 
   if (error && !grades) return <PageHead title={t('analytics.title')}><div className="err-banner">{error}</div></PageHead>;

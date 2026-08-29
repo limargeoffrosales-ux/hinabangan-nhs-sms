@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
 
   async function login(username, password) {
     const data = await api('/auth/login', { method: 'POST', body: { username, password }, auth: false });
-    setSession(data.token, data.refreshToken, data.user);
+    setSession(data.token, data.refreshToken, data.user, data.csrfToken);
     setUser(data.user);
     setReady(true);
     return data.user;

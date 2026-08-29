@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, CheckCheck } from 'lucide-react';
 import { api } from '../lib/api';
@@ -29,7 +29,7 @@ export default function Attendance() {
     })();
   }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!sectionId) return;
     setLoading(true);
     setError(null);
@@ -49,7 +49,7 @@ export default function Attendance() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [sectionId, date]);
 
   function setStatus(studentId, status) {
     setRoster((rs) => rs.map((r) => (r.id === studentId ? { ...r, status } : r)));
