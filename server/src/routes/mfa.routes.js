@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const { q, qi, qr } = require('../db');
 const db = require('../db');
 const { JWT_SECRET } = require('../config');
-const { authenticate, signAccess } = require('../auth');
+const { authenticate, signAccess, generateCsrfToken, storeCsrfToken } = require('../auth');
 const { asyncH, audit } = require('../utils');
 
 const router = express.Router();
@@ -160,9 +160,12 @@ router.post('/verify', asyncH(async (req, res) => {
 
   await audit(req, 'LOGIN_MFA', 'auth', user.id, { username: user.username, role: user.role });
 
+  const csrfToken = generateCsrfToken();
+  storeCsrfToken(user.id, csrfToken);
   res.json({
     token: accessToken,
     refreshToken: rawRefresh,
+    csrfToken,
     user: { id: user.id, username: user.username, name: user.name, role: user.role },
   });
 }));

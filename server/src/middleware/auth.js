@@ -1,9 +1,12 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL } = require('../config');
 const { q, qa } = require('../db');
+const crypto = require('crypto');
 
 const userCache = new Map();
+const csrfTokenCache = new Map();
 const CACHE_TTL_MS = 60_000;
+const CSRF_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function signAccess(user) {
   return jwt.sign(
@@ -19,6 +22,39 @@ function verifyToken(token) {
   } catch {
     return null;
   }
+}
+
+function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function storeCsrfToken(userId, token) {
+  const expiresAt = Date.now() + CSRF_TTL_MS;
+  csrfTokenCache.set(userId, { token, expiresAt });
+}
+
+function getCsrfToken(userId) {
+  const entry = csrfTokenCache.get(userId);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    csrfTokenCache.delete(userId);
+    return null;
+  }
+  return entry.token;
+}
+
+function validateCsrfToken(userId, providedToken) {
+  const storedToken = getCsrfToken(userId);
+  if (!storedToken || !providedToken) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(storedToken, 'hex'), Buffer.from(providedToken, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+function clearCsrfToken(userId) {
+  csrfTokenCache.delete(userId);
 }
 
 async function authenticate(req, res, next) {
@@ -88,4 +124,14 @@ function clearUserCache(id) {
   userCache.delete(String(id));
 }
 
-module.exports = { signAccess, verifyToken, authenticate, requireRole, ROLES, ADMIN_ROLES, isAdminRole, hashToken, clearUserCache };
+function requireCsrf(req, res, next) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+  if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication required for CSRF validation' });
+  const providedToken = req.headers['x-csrf-token'] || req.body?.csrf_token;
+  if (!validateCsrfToken(req.user.id, providedToken)) {
+    return res.status(403).json({ error: 'Invalid or missing CSRF token' });
+  }
+  next();
+}
+
+module.exports = { signAccess, verifyToken, authenticate, requireRole, requireCsrf, ROLES, ADMIN_ROLES, isAdminRole, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, getCsrfToken, validateCsrfToken, clearCsrfToken };

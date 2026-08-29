@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/Toast';
+import i18n from './i18n';
+import { initSentry } from './sentry';
 import './styles.css';
 
 const LEGACY_MAP = { dark: 'midnight', light: 'light' };
@@ -14,17 +16,38 @@ if (theme === 'auto') {
 }
 document.documentElement.dataset.theme = theme;
 
-createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  </React.StrictMode>
-);
+i18n.isInitialized
+  ? renderApp()
+  : i18n.init().then(renderApp);
+
+function renderApp() {
+  createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+}
+
+initSentry();
+
+// Global error handlers for unhandled errors
+window.addEventListener('error', (event) => {
+  if (typeof Sentry !== 'undefined') {
+    Sentry.captureException(event.error);
+  }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  if (typeof Sentry !== 'undefined') {
+    Sentry.captureException(event.reason);
+  }
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

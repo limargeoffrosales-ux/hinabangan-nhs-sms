@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Plus, Download, RefreshCw, Trash2, Star } from 'lucide-react';
 import { api, getToken, getApiBase } from '../lib/api';
 import { downloadBlob } from '../lib/export';
@@ -33,7 +33,7 @@ export default function GradingScales() {
   const [trLoading, setTrLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -46,9 +46,9 @@ export default function GradingScales() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
     api('/students?limit=200').then((r) => setStudents(r.data)).catch(() => {});
   }, []);

@@ -9,6 +9,22 @@ router.use(authenticate);
 
 const ADMIN_ONLY = ['super_admin', 'school_admin', 'registrar'];
 
+function computeAge(birthdate) {
+  if (!birthdate) return null;
+  const birth = new Date(birthdate + 'T00:00:00');
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function withAge(rows) {
+  if (!rows) return rows;
+  const arr = Array.isArray(rows) ? rows : [rows];
+  return arr.map((r) => ({ ...r, age: r.birthdate ? computeAge(r.birthdate) : null }));
+}
+
 function termToQuarter(term) {
   if (!term) return null;
   const m = String(term).match(/(\d)/);
@@ -459,7 +475,7 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       'SELECT * FROM student_conduct_ratings WHERE student_id = ? AND school_year = ? ORDER BY term',
       [student_id, sy]
     );
-    return res.json({ learner: { student, enrollment, grades: allGrades, monthlyAttendance, conduct: allConduct } });
+    return res.json({ learner: { student: withAge(student), enrollment, grades: allGrades, monthlyAttendance, conduct: allConduct } });
   }
   const learners = await qa(
     `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name, s.lrn
@@ -471,7 +487,7 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   );
   const ids = learners.map((lr) => lr.id);
   const marks = ids.map(() => '?').join(',');
-  const [studentRows, enrollRows, gradeRows, attRows, conductRows] = await Promise.all(ids.length ? [
+  const [studentRowsRaw, enrollRows, gradeRows, attRows, conductRows] = await Promise.all(ids.length ? [
     qa(`SELECT * FROM students WHERE id IN (${marks})`, ids),
     qa(
       `SELECT e.*, sec.name as section_name, sec.grade_level
@@ -523,6 +539,7 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       ids
     ),
   ] : [[], [], [], [], []]);
+  const studentRows = withAge(studentRowsRaw);
   const stMap = new Map(studentRows.map((r) => [String(r.id), r]));
   const enrIdMap = new Map();
   for (const e of enrollRows) {
@@ -560,7 +577,7 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
   const ids = learners.map((lr) => lr.id);
   const marks = ids.map(() => '?').join(',');
   const qtr = termToQuarter(term);
-  const [studentRows, enrollRows, gradeRows, attRows, conductRows] = await Promise.all(ids.length ? [
+  const [studentRowsRaw, enrollRows, gradeRows, attRows, conductRows] = await Promise.all(ids.length ? [
     qa(`SELECT * FROM students WHERE id IN (${marks})`, ids),
     qa(
       `SELECT e.*, sec.name as section_name, sec.grade_level, u.name as adviser_name
@@ -615,6 +632,7 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
         )
       : Promise.resolve([]),
   ] : [[], [], [], [], []]);
+  const studentRows = withAge(studentRowsRaw);
   const stMap = new Map(studentRows.map((r) => [String(r.id), r]));
   const enrIdMap = new Map();
   for (const e of enrollRows) {
@@ -681,7 +699,7 @@ router.get('/student-id', requireRole(...ADMIN_ONLY), asyncH(async (req, res) =>
      ORDER BY e.enrolled_at DESC LIMIT 1`,
     [student_id]
   );
-  res.json({ student });
+  res.json({ student: withAge(student) });
 }));
 
 router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
@@ -721,7 +739,7 @@ router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY sec.grade_level`,
     [student_id]
   );
-  res.json({ learner: { student, enrollments, grades: allGrades, attendance: allAttendance } });
+  res.json({ learner: { student: withAge(student), enrollments, grades: allGrades, attendance: allAttendance } });
 }));
 
 router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {

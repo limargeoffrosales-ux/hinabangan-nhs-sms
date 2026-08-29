@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Plus, Trash2, Calculator, ClipboardList, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
@@ -28,7 +28,7 @@ export default function Assessment() {
   const [iaResult, setIaResult] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const [qq, rr, tt, aa, ss] = await Promise.all([
         api('/assessment/questions'),
@@ -45,8 +45,9 @@ export default function Assessment() {
     } catch (e) {
       setError(e.message);
     }
-  }
-  useEffect(() => { load(); }, []);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   async function saveQuestion() {
     if (!qForm.question) return toast.error('Question is required');

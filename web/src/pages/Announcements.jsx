@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
@@ -18,7 +18,7 @@ export default function Announcements() {
 
   const canWrite = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'].includes(user?.role);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api('/announcements?limit=100');
@@ -29,9 +29,9 @@ export default function Announcements() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function openCreate() {
     setForm({ title: '', body: '', audience: 'all', priority: 'normal' });

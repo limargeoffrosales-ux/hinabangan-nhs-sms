@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Plus, AlertTriangle, Users, FileText, PhoneCall } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
@@ -34,7 +34,7 @@ export default function Interventions() {
   const [students, setStudents] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const [p, a, s] = await Promise.all([
         api('/interventions?limit=500'),
@@ -47,8 +47,9 @@ export default function Interventions() {
     } catch (e) {
       setError(e.message);
     }
-  }
-  useEffect(() => { load(); }, []);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (modal && students.length === 0) {

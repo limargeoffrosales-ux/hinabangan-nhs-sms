@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { RefreshCw, Megaphone, CalendarDays, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
@@ -8,6 +9,7 @@ import { fmt } from '../lib/utils';
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function Portal() {
+  const { t } = useTranslation();
   const { me, students, loading: meLoading, error: meError } = useLinkedStudents();
   const [sy, setSy] = useState('2026-2027');
   const [data, setData] = useState(null);
@@ -46,11 +48,11 @@ export default function Portal() {
   return (
     <>
       <div className="portal-hero">
-        <h2>Welcome, {me?.user?.name || 'there'} 👋</h2>
+        <h2>{t('portal.welcome', 'Welcome')} {me?.user?.name || 'there'} 👋</h2>
         <p className="sub" style={{ margin: 0 }}>
           {me?.user?.role === 'parent'
-            ? `You are linked to ${students.length} student${students.length === 1 ? '' : 's'}.`
-            : 'Here is your academic overview for this school year.'}
+            ? t('portal.linkedStudents', 'You are linked to {{count}} student{{plural}}.', { count: students.length })
+            : t('portal.academicOverview', 'Here is your academic overview for this school year.')}
         </p>
       </div>
       <ErrorBanner error={err} />
@@ -83,9 +85,9 @@ export default function Portal() {
                   {s.grade_level} · {s.section ? s.section.section_name : 'No active section'} · LRN {s.lrn}
                 </p>
                 <div className="form-row" style={{ margin: '10px 0 0', gap: 10 }}>
-                  <div className="stat-card"><span className="sub">GWA</span><div style={{ fontSize: 19, fontWeight: 700 }}>{fmt(s.gwa)}</div></div>
-                  <div className="stat-card"><span className="sub">GPA</span><div style={{ fontSize: 19, fontWeight: 700 }}>{fmt(s.gpa)}</div></div>
-                  <div className="stat-card"><span className="sub">Attendance</span><div style={{ fontSize: 19, fontWeight: 700 }}>{s.attendance?.rate != null ? `${s.attendance.rate}%` : '—'}</div></div>
+                  <div className="stat-card"><span className="sub">{t('portal.gwa', 'GWA')}</span><div style={{ fontSize: 19, fontWeight: 700 }}>{fmt(s.gwa)}</div></div>
+                  <div className="stat-card"><span className="sub">{t('portal.gpa', 'GPA')}</span><div style={{ fontSize: 19, fontWeight: 700 }}>{fmt(s.gpa)}</div></div>
+                  <div className="stat-card"><span className="sub">{t('portal.attendance', 'Attendance')}</span><div style={{ fontSize: 19, fontWeight: 700 }}>{s.attendance?.rate != null ? `${s.attendance.rate}%` : '—'}</div></div>
                 </div>
                 <div className="sub" style={{ marginTop: 10 }}>
                   Credits {s.credits ? `${s.credits.earned}/${s.credits.total}` : '—'} · P {s.attendance?.counts?.present || 0} A {s.attendance?.counts?.absent || 0} L {s.attendance?.counts?.late || 0} E {s.attendance?.counts?.excused || 0}
@@ -97,9 +99,9 @@ export default function Portal() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
             {/* Weekly Schedule */}
             <div className="card">
-              <h3 style={{ marginTop: 0 }}><CalendarDays size={15} style={{ verticalAlign: -2 }} /> Weekly Schedule</h3>
+              <h3 style={{ marginTop: 0 }}><CalendarDays size={15} style={{ verticalAlign: -2 }} /> {t('portal.weeklySchedule', 'Weekly Schedule')}</h3>
               {weekly.length === 0 ? (
-                <div className="sub">No schedule available.</div>
+                <div className="sub">{t('portal.noSchedule', 'No schedule available.')}</div>
               ) : (
                 DAY_ORDER.map((day) => (
                   weeklyByDay[day]?.length ? (
@@ -121,15 +123,15 @@ export default function Portal() {
 
             {/* Teacher Contacts */}
             <div className="card">
-              <h3 style={{ marginTop: 0 }}><Users size={15} style={{ verticalAlign: -2 }} /> Teachers</h3>
+              <h3 style={{ marginTop: 0 }}><Users size={15} style={{ verticalAlign: -2 }} /> {t('portal.teachers', 'Teachers')}</h3>
               {teachers.length === 0 ? (
-                <div className="sub">No teacher info available.</div>
+                <div className="sub">{t('portal.noTeacherInfo', 'No teacher info available.')}</div>
               ) : (
                 teachers.map((t) => (
                   <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>
                       {t.last_name}, {t.first_name}
-                      {t.is_adviser ? <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: 'rgba(77,150,255,0.12)', color: 'var(--accent)', marginLeft: 6 }}>ADVISER</span> : null}
+                      {t.is_adviser ? <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: 'rgba(77,150,255,0.12)', color: 'var(--accent)', marginLeft: 6 }}>{t('portal.adviser', 'ADVISER')}</span> : null}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{t.subject_code} — {t.subject_title}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
@@ -145,8 +147,8 @@ export default function Portal() {
           </div>
 
           <div className="card">
-            <h3 style={{ marginTop: 0 }}><Megaphone size={15} style={{ verticalAlign: -2 }} /> Latest announcements</h3>
-            {data.announcements.length === 0 && <div className="empty">No announcements yet.</div>}
+            <h3 style={{ marginTop: 0 }}><Megaphone size={15} style={{ verticalAlign: -2 }} /> {t('portal.latestAnnouncements', 'Latest announcements')}</h3>
+            {data.announcements.length === 0 && <div className="empty">{t('portal.noAnnouncements', 'No announcements yet.')}</div>}
             {data.announcements.map((a) => (
               <div key={a.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                 <strong>{a.title}</strong>

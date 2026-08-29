@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react';
 import { api } from '../lib/api';
@@ -22,7 +22,7 @@ export default function Sections() {
   const [roster, setRoster] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [s, tp] = await Promise.all([api('/sections?limit=200'), api('/teachers?limit=200')]);
@@ -34,9 +34,9 @@ export default function Sections() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function openCreate() {
     setForm(EMPTY_FORM);

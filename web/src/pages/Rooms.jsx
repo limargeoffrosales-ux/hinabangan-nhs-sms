@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -36,7 +36,7 @@ export default function Rooms() {
   const [editing, setEditing] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -47,9 +47,9 @@ export default function Rooms() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function openCreate() {
     setForm(EMPTY_FORM);

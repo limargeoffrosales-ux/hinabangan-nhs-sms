@@ -4,21 +4,24 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 const bundles = { en: () => import('./en.json'), fil: () => import('./fil.json') };
 
-function detectLang() {
-  try { return localStorage.getItem('meridianed_lang') || (navigator.language || 'en').slice(0, 2); } catch { return 'en'; }
-}
-
-const lng = detectLang();
-const loader = bundles[lng] || bundles.en;
-
-loader().then(mod => {
-  i18n.use(LanguageDetector).use(initReactI18next).init({
-    resources: { [lng]: { translation: mod.default } },
-    lng,
+const initPromise = Promise.all([
+  bundles.en(),
+  bundles.fil(),
+]).then(([enMod, filMod]) => {
+  return i18n.use(LanguageDetector).use(initReactI18next).init({
+    resources: {
+      en: { translation: enMod.default },
+      fil: { translation: filMod.default },
+    },
     fallbackLng: 'en',
     interpolation: { escapeValue: false },
-    detection: { order: ['localStorage', 'navigator'], caches: ['localStorage'], key: 'meridianed_lang' },
+    detection: {
+      order: ['localStorage', 'navigator'],
+      caches: ['localStorage'],
+      key: 'meridianed_lang',
+    },
   });
 });
 
+export const initI18n = () => initPromise;
 export default i18n;

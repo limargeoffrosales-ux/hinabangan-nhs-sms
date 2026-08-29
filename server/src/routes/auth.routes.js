@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { q, qa, qi, qr } = require('../db');
-const { signAccess, authenticate, hashToken, clearUserCache } = require('../auth');
+const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, getCsrfToken, clearCsrfToken } = require('../auth');
 const { JWT_SECRET, REFRESH_TTL_DAYS } = require('../config');
 const { asyncH, audit } = require('../utils');
 
@@ -90,10 +90,13 @@ router.post('/login', asyncH(async (req, res) => {
 
   const accessToken = signAccess(user);
   const refreshToken = await issueRefresh(user.id);
+  const csrfToken = generateCsrfToken();
+  storeCsrfToken(user.id, csrfToken);
   await audit(req, 'LOGIN', 'auth', user.id, { username: user.username, role: user.role });
   res.json({
     token: accessToken,
     refreshToken,
+    csrfToken,
     user: { id: user.id, username: user.username, name: user.name, role: user.role, email: user.email },
   });
 }));
@@ -128,6 +131,21 @@ router.post('/logout', asyncH(async (req, res) => {
 router.get('/me', authenticate, asyncH(async (req, res) => {
   const user = await q('SELECT id, username, name, role, email, phone, created_at FROM users WHERE id = ?', [req.user.id]);
   res.json({ user });
+}));
+
+router.get('/csrf-token', authenticate, asyncH(async (req, res) => {
+  const token = generateCsrfToken();
+  storeCsrfToken(req.user.id, token);
+  res.json({ csrfToken: token });
+}));
+
+router.post('/logout', authenticate, asyncH(async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (refreshToken) {
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hashToken(refreshToken)]);
+  }
+  clearCsrfToken(req.user.id);
+  res.json({ ok: true });
 }));
 
 router.post('/change-password', authenticate, asyncH(async (req, res) => {

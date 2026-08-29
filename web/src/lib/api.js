@@ -2,6 +2,7 @@ const TOKEN_KEY = 'meridianed_token';
 const REFRESH_KEY = 'meridianed_refresh';
 const BASE_KEY = 'meridianed_api_base';
 const USER_KEY = 'meridianed_user';
+const CSRF_KEY = 'meridianed_csrf';
 const UNAUTHORIZED_EVENT = 'meridianed:unauthorized';
 
 export function getApiBase() {
@@ -29,10 +30,15 @@ export function getRefreshToken() {
   return sessionStorage.getItem(REFRESH_KEY);
 }
 
-export function setSession(token, refreshToken, user) {
+export function getCsrfToken() {
+  return sessionStorage.getItem(CSRF_KEY);
+}
+
+export function setSession(token, refreshToken, user, csrfToken) {
   sessionStorage.setItem(TOKEN_KEY, token);
   if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
   if (user) sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (csrfToken) sessionStorage.setItem(CSRF_KEY, csrfToken);
 }
 
 export function getStoredUser() {
@@ -55,6 +61,7 @@ export function clearSession() {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(REFRESH_KEY);
   sessionStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(CSRF_KEY);
 }
 
 export function notifyUnauthorized() {
@@ -65,6 +72,10 @@ export async function api(path, { method = 'GET', body, auth = true, timeoutMs =
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
+  if (auth && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
