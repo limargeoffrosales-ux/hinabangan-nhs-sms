@@ -166,7 +166,7 @@ router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, month, year } = req.query;
   if (!section_id) return res.json({ students: [], attendance: [] });
   const students = await qa(
-    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
@@ -195,7 +195,7 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   if (!section_id) return res.json({ students: [], subjects: [] });
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
   const students = await qa(
-    `SELECT DISTINCT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.extension_name, s.sex
+    `SELECT DISTINCT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
@@ -425,7 +425,7 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
     return res.json({ learner: { student, enrollment, grades, attendance: attendance[0], days_enrolled: daysEnrolled?.days_enrolled || 0, conduct: conduct || null } });
   }
   const learners = await qa(
-    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
@@ -485,7 +485,7 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
     return res.json({ learner: { student: withAge(student), enrollment, grades: allGrades, monthlyAttendance, conduct: allConduct } });
   }
   const learners = await qa(
-    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name, s.lrn
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix, s.lrn
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
@@ -574,7 +574,7 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
   const { section_id, term, school_year } = req.query;
   if (!section_id) return res.json({ learners: [] });
   const learners = await qa(
-    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name, s.lrn
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix, s.lrn
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
@@ -590,7 +590,8 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
       `SELECT e.*, sec.name as section_name, sec.grade_level, u.name as adviser_name
        FROM enrollments e
        JOIN sections sec ON sec.id = e.section_id
-       LEFT JOIN users u ON u.id = sec.adviser_user_id
+       LEFT JOIN teachers adv_t ON adv_t.id = sec.adviser_teacher_id
+       LEFT JOIN users u ON u.id = adv_t.user_id
        WHERE e.student_id IN (${marks}) AND e.section_id = ?`,
       [...ids, section_id]
     ),
@@ -669,7 +670,7 @@ router.get('/attendance-summary', requireRole(...ADMIN_ONLY), asyncH(async (req,
   const { section_id, start_date, end_date } = req.query;
   if (!section_id) return res.json({ students: [], months: [] });
   const students = await qa(
-    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
@@ -698,10 +699,12 @@ router.get('/student-id', requireRole(...ADMIN_ONLY), asyncH(async (req, res) =>
   const { student_id } = req.query;
   if (!student_id) return res.json({ student: null });
   const student = await q(
-    `SELECT s.*, e.grade_level, sec.name as section_name, sec.adviser_user_id
+    `SELECT s.*, e.grade_level, sec.name as section_name, u.name AS adviser_name
      FROM students s
      LEFT JOIN enrollments e ON e.student_id = s.id
      LEFT JOIN sections sec ON sec.id = e.section_id
+     LEFT JOIN teachers adv_t ON adv_t.id = sec.adviser_teacher_id
+     LEFT JOIN users u ON u.id = adv_t.user_id
      WHERE s.id = ?
      ORDER BY e.enrolled_at DESC LIMIT 1`,
     [student_id]
@@ -754,7 +757,7 @@ router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, 
   if (!section_id) return res.json({ learners: [], subjects: [], grades: [], section: null });
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
   const learners = await qa(
-    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.extension_name
+    `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?

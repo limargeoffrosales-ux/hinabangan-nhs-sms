@@ -18,14 +18,20 @@ async function paginate(baseQuery, params, query = {}, opts = {}) {
     countQuery = opts.countQuery;
   } else {
     // Auto-generate count query by replacing SELECT ... FROM with SELECT COUNT(*) FROM
-    // This handles basic queries. For queries with subqueries in SELECT, provide countQuery explicitly.
+    // NOTE: This regex approach is fragile with complex queries (e.g. subqueries in SELECT,
+    // JOINs with SELECT clauses). Always provide an explicit countQuery for non-trivial queries.
     countQuery = baseQuery
       .replace(/SELECT\s+[\s\S]*?\s+FROM/i, 'SELECT COUNT(*) AS total FROM')
       .replace(/ORDER BY\s+[\s\S]*$/i, '');
   }
 
-  const countResult = await q(countQuery, params);
-  const total = Number(countResult?.total || 0);
+  let total = 0;
+  try {
+    const countResult = await q(countQuery, params);
+    total = Number(countResult?.total || 0);
+  } catch {
+    total = 0;
+  }
 
   const dataQuery = `${baseQuery} LIMIT ? OFFSET ?`;
   const data = await qa(dataQuery, [...params, limit, offset]);

@@ -1,4 +1,4 @@
-const { qa, qi, qr } = require('./db');
+const { qa, qi, qr, tx } = require('./db');
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const DEFAULT_DAY = { start: '07:00', end: '17:00', lunchStart: '12:00', lunchEnd: '13:00' };
@@ -95,9 +95,6 @@ async function generateSchedule(schoolYear, options = {}) {
     (b.duration_minutes - a.duration_minutes) ||
     a.section_id - b.section_id);
 
-  await qr('DELETE FROM schedule_entries WHERE school_year = ?', [schoolYear]);
-
-  const entries = [];
   const occupied = { section: {}, teacher: {}, room: {} };
   const failures = [];
   const keyFor = (kind, id) => `${kind}|${String(id).toUpperCase()}`;
@@ -119,49 +116,55 @@ async function generateSchedule(schoolYear, options = {}) {
     return prefs.length ? prefs : (roomPool.length ? roomPool : [`${a.section_name || 'Section'} Rm`]);
   };
 
+  const entries = [];
   let seedDay = 0;
-  for (const a of sorted) {
-    const dur = a.duration_minutes || 60;
-    const need = a.meetings_per_week || 1;
-    let placed = 0;
-    const rotated = Array.from({ length: 5 }, (_, i) => (seedDay + i) % 5);
-    seedDay = (seedDay + 1) % 5;
-    const secKey = `s${a.section_id}`;
-    const teaKey = a.teacher_id ? `t${a.teacher_id}` : null;
-    for (const dayIdx of rotated) {
-      if (placed >= need) break;
-      for (const st of starts) {
-        const en = st + dur;
-        if (en > dayEnd) continue;
-        if (st < lunchEnd && en > lunchStart) continue;
-        if (busy('section', dayIdx, secKey, st, en)) continue;
-        if (teaKey && busy('teacher', dayIdx, teaKey, st, en)) continue;
-        const room = roomsFor(a).find((r) => !busy('room', dayIdx, r, st, en));
-        if (!room) continue;
-        const id = await qi(
-          `INSERT INTO schedule_entries (school_year, section_id, subject_id, teacher_id, day, start_time, end_time, room)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [schoolYear, a.section_id, a.subject_id, a.teacher_id, dayIdx + 1, toHM(st), toHM(en), room]);
-        entries.push({
-          id, section_id: a.section_id, subject_id: a.subject_id, teacher_id: a.teacher_id,
-          day: dayIdx + 1, start_time: toHM(st), end_time: toHM(en), room,
-          section_name: a.section_name, subject_code: a.subject_code, subject_title: a.subject_title,
-          teacher_name: a.teacher_name,
+
+  await tx(async (conn) => {
+    await conn.run('DELETE FROM schedule_entries WHERE school_year = ?', [schoolYear]);
+
+    for (const a of sorted) {
+      const dur = a.duration_minutes || 60;
+      const need = a.meetings_per_week || 1;
+      let placed = 0;
+      const rotated = Array.from({ length: 5 }, (_, i) => (seedDay + i) % 5);
+      seedDay = (seedDay + 1) % 5;
+      const secKey = `s${a.section_id}`;
+      const teaKey = a.teacher_id ? `t${a.teacher_id}` : null;
+      for (const dayIdx of rotated) {
+        if (placed >= need) break;
+        for (const st of starts) {
+          const en = st + dur;
+          if (en > dayEnd) continue;
+          if (st < lunchEnd && en > lunchStart) continue;
+          if (busy('section', dayIdx, secKey, st, en)) continue;
+          if (teaKey && busy('teacher', dayIdx, teaKey, st, en)) continue;
+          const room = roomsFor(a).find((r) => !busy('room', dayIdx, r, st, en));
+          if (!room) continue;
+          const id = await conn.runId(
+            `INSERT INTO schedule_entries (school_year, section_id, subject_id, teacher_id, day, start_time, end_time, room)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [schoolYear, a.section_id, a.subject_id, a.teacher_id, dayIdx + 1, toHM(st), toHM(en), room]);
+          entries.push({
+            id, section_id: a.section_id, subject_id: a.subject_id, teacher_id: a.teacher_id,
+            day: dayIdx + 1, start_time: toHM(st), end_time: toHM(en), room,
+            section_name: a.section_name, subject_code: a.subject_code, subject_title: a.subject_title,
+            teacher_name: a.teacher_name,
+          });
+          occupy(dayIdx, secKey, st, en, 'section');
+          if (teaKey) occupy(dayIdx, teaKey, st, en, 'teacher');
+          occupy(dayIdx, room, st, en, 'room');
+          placed++;
+          break;
+        }
+      }
+      if (placed < need) {
+        failures.push({
+          section: a.section_name, subject: a.subject_code, teacher: a.teacher_name,
+          duration_minutes: dur, meetings_per_week: need, placed,
         });
-        occupy(dayIdx, secKey, st, en, 'section');
-        if (teaKey) occupy(dayIdx, teaKey, st, en, 'teacher');
-        occupy(dayIdx, room, st, en, 'room');
-        placed++;
-        break;
       }
     }
-    if (placed < need) {
-      failures.push({
-        section: a.section_name, subject: a.subject_code, teacher: a.teacher_name,
-        duration_minutes: dur, meetings_per_week: need, placed,
-      });
-    }
-  }
+  });
 
   const stored = await qa(
     `SELECT e.*, sec.name AS section_name, s.code AS subject_code,

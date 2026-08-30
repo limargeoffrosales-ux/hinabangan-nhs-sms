@@ -90,9 +90,11 @@ export default function Discipline() {
     setLoading(true);
     setError(null);
     try {
-      const [list, sum] = await Promise.all([api(`/conduct?${qs}`), api('/conduct/summary')]);
-      setRows(list.data);
-      setSummary(sum);
+      const [list, sum] = await Promise.allSettled([api(`/conduct?${qs}`), api('/conduct/summary')]);
+      setRows(list.status === 'fulfilled' ? list.value.data : []);
+      setSummary(sum.status === 'fulfilled' ? sum.value : null);
+      const errs = [list, sum].filter((r) => r.status === 'rejected').map((r) => r.reason.message);
+      if (errs.length) throw new Error(errs.join('; '));
     } catch (e) {
       setError(e.message);
     } finally {

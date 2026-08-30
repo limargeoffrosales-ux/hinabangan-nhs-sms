@@ -60,7 +60,6 @@ async function seedReportTypes() {
 }
 
 async function seed() {
-  await init();
   await seedReportTypes();
   const users = [
     ['superadmin', 'Super Admin', 'super_admin', 'admin@school.edu.ph'],
@@ -439,7 +438,8 @@ async function seedAiModules() {
   const aralLearners = aralRows.filter((r, i) => i % 3 === 0);
   if (aralLearners.length) {
     const aralIds = aralLearners.map((r) => r.student_id);
-    await qr(`UPDATE enrollments SET is_aral = TRUE WHERE school_year = '2026-2027' AND student_id IN (${aralIds.join(',')})`);
+    const placeholders = aralIds.map(() => '?').join(',');
+    await qr(`UPDATE enrollments SET is_aral = TRUE WHERE school_year = '2026-2027' AND student_id IN (${placeholders})`, aralIds);
     const baseLevels = ['Frustration', 'Frustration', 'Non-Reader', 'Frustration', 'Frustration', 'Non-Reader'];
     const postLevels = ['Instructional', 'Independent', 'Instructional', 'Frustration', 'Independent', 'Instructional'];
     const baseScore = { Frustration: 9, 'Non-Reader': 4 };

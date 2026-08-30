@@ -58,14 +58,18 @@ export default function Rankings() {
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
-    Promise.all([api('/sections?limit=200'), api('/students?limit=1000')])
+    Promise.allSettled([api('/sections?limit=200'), api('/students?limit=1000')])
       .then(([sec, stu]) => {
-        setSections(sec.data);
-        setStudents(stu.data);
-        const gl = [...new Set(stu.data.map((s) => s.grade_level).filter(Boolean))].sort();
+        const secData = sec.status === 'fulfilled' ? sec.value.data : [];
+        const stuData = stu.status === 'fulfilled' ? stu.value.data : [];
+        setSections(secData);
+        setStudents(stuData);
+        const gl = [...new Set(stuData.map((s) => s.grade_level).filter(Boolean))].sort();
         if (gl.length) setHonorGrade(gl[0]);
-        const first = sec.data[0];
+        const first = secData[0];
         if (first) setRankSection(String(first.id));
+        const errs = [sec, stu].filter((r) => r.status === 'rejected').map((r) => r.reason.message);
+        if (errs.length) setError(errs.join('; '));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));

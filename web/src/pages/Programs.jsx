@@ -91,6 +91,7 @@ export default function Programs() {
   }
 
   async function deleteAssignment(id) {
+    if (!window.confirm('Delete this assignment? This cannot be undone.')) return;
     await api(`/schedule/assignments/${id}`, { method: 'DELETE' });
     const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
     setAssignments(asg.data || []);

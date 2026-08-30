@@ -318,7 +318,13 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
   const [notes, setNotes] = useState(submission?.notes || '');
   const [due, setDue] = useState(submission?.due_date || '');
   const [draft, setDraft] = useState(submission?.draft_body || '');
-  const [files, setFiles] = useState(submission?.files_json ? JSON.parse(submission.files_json) : []);
+  const [files, setFiles] = useState(() => {
+    try {
+      return submission?.files_json ? JSON.parse(submission.files_json) : [];
+    } catch {
+      return [];
+    }
+  });
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
 

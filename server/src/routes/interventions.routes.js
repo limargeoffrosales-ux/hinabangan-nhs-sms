@@ -72,8 +72,10 @@ router.get('/at-risk', requireRole(...WRITE), asyncH(async (req, res) => {
        LEFT JOIN sections sec ON sec.id = g.section_id
        WHERE g.school_year = ? GROUP BY g.student_id, s.first_name, s.last_name, s.grade_level, s.sex, sec.name`, [sy]),
     qa(
-      `SELECT student_id, SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absents, COUNT(*) AS days
-       FROM attendance GROUP BY student_id`),
+      `SELECT a.student_id, SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absents, COUNT(*) AS days
+       FROM attendance a
+       JOIN enrollments e ON e.student_id = a.student_id AND e.school_year = ?
+       GROUP BY a.student_id`, [sy]),
     qa(
       `SELECT la.student_id, la.level FROM learner_assessments la
        WHERE la.kind = 'reading' AND la.level IS NOT NULL

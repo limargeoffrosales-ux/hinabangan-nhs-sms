@@ -59,24 +59,25 @@ export default function Analytics() {
         const params = new URLSearchParams({ school_year: sy });
         if (quarter) params.set('quarter', quarter);
         const qs = params.toString();
-        const [g, a, r, p, sc, cm, ri, ai] = await Promise.all([
+        const results = await Promise.allSettled([
           api(`/analytics/kpi/grade-distribution?${qs}`),
           api(`/analytics/kpi/attendance-kpi?${qs}`),
           api(`/analytics/kpi/enrollment-retention?school_year=${sy}`),
           api(`/analytics/kpi/pass-rate?${qs}`),
-          api(`/department/strand-comparison?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')).catch(() => ({ data: [] })),
-          api(`/analytics/kpi/competency-mastery?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')).catch(() => null),
-          api(`/analytics/kpi/student-risk?school_year=${sy}`).catch(() => null),
-          api(`/analytics/kpi/ai-insights?school_year=${sy}`).catch(() => null),
+          api(`/department/strand-comparison?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')),
+          api(`/analytics/kpi/competency-mastery?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')),
+          api(`/analytics/kpi/student-risk?school_year=${sy}`),
+          api(`/analytics/kpi/ai-insights?school_year=${sy}`),
         ]);
-        setGrades(g);
-        setAttendance(a);
-        setRetention(r);
-        setPassRate(p);
-        setStrandComp(sc);
-        setCompMastery(cm);
-        setStudentRisk(ri);
-        setAiInsights(ai);
+        const settle = (r, fallback) => r.status === 'fulfilled' ? r.value : fallback;
+        setGrades(settle(results[0], null));
+        setAttendance(settle(results[1], null));
+        setRetention(settle(results[2], null));
+        setPassRate(settle(results[3], null));
+        setStrandComp(settle(results[4], { data: [] }));
+        setCompMastery(settle(results[5], null));
+        setStudentRisk(settle(results[6], null));
+        setAiInsights(settle(results[7], null));
       } catch (e) { setError(e.message); }
       setLoading(false);
     })();

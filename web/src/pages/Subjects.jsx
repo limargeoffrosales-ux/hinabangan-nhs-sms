@@ -106,8 +106,12 @@ export default function Subjects() {
   }
 
   async function toggleOffered(s) {
-    await api(`/subjects/${s.id}`, { method: 'PATCH', body: { is_offered: s.is_offered ? 0 : 1 } });
-    load();
+    try {
+      await api(`/subjects/${s.id}`, { method: 'PATCH', body: { is_offered: s.is_offered ? 0 : 1 } });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   const isSHS = form.grade_level === 'Grade 11' || form.grade_level === 'Grade 12';

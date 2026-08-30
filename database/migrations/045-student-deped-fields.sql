@@ -1,0 +1,2 @@
+ALTER TABLE students ADD COLUMN IF NOT EXISTS indigenous_people TEXT DEFAULT 'No';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS special_needs TEXT;

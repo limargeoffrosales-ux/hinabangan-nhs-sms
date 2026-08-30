@@ -30,27 +30,37 @@ function generateCsrfToken() {
 
 function storeCsrfToken(userId, token) {
   const expiresAt = Date.now() + CSRF_TTL_MS;
-  csrfTokenCache.set(userId, { token, expiresAt });
+  const tokens = csrfTokenCache.get(userId) || [];
+  tokens.push({ token, expiresAt });
+  csrfTokenCache.set(userId, tokens);
 }
 
 function getCsrfToken(userId) {
-  const entry = csrfTokenCache.get(userId);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
+  const tokens = csrfTokenCache.get(userId) || [];
+  const now = Date.now();
+  const valid = tokens.filter((t) => t.expiresAt > now);
+  if (valid.length === 0) {
     csrfTokenCache.delete(userId);
     return null;
   }
-  return entry.token;
+  csrfTokenCache.set(userId, valid);
+  return valid[valid.length - 1].token;
 }
 
 function validateCsrfToken(userId, providedToken) {
-  const storedToken = getCsrfToken(userId);
-  if (!storedToken || !providedToken) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(storedToken, 'hex'), Buffer.from(providedToken, 'hex'));
-  } catch {
-    return false;
+  if (!providedToken) return false;
+  const tokens = csrfTokenCache.get(userId) || [];
+  const now = Date.now();
+  const valid = tokens.filter((t) => t.expiresAt > now);
+  csrfTokenCache.set(userId, valid);
+  for (const t of valid) {
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(t.token, 'hex'), Buffer.from(providedToken, 'hex'))) {
+        return true;
+      }
+    } catch {}
   }
+  return false;
 }
 
 function clearCsrfToken(userId) {
@@ -90,7 +100,10 @@ async function authenticate(req, res, next) {
           res.setHeader('X-Password-Expired', 'true');
         }
       }
-    } catch {}
+    } catch (e) {
+      // Log but don't fail — password age check is non-critical
+      if (process.env.NODE_ENV !== 'production') console.error('Password age check error:', e.message);
+    }
   }
 
   next();
