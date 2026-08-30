@@ -1,6 +1,15 @@
 ﻿const OpenAI = require('openai');
 const { q, qa } = require('./db');
 
+// Official school information (used on DepEd forms and AI-generated reports)
+const SCHOOL_CONTEXT =
+  'Region: Region VIII (Eastern Visayas)\n' +
+  'Division: Schools Division of Samar\n' +
+  'District: Hinabangan I District\n' +
+  'School Name: Hinabangan National High School\n' +
+  'School ID: 303606\n' +
+  'Address: Hinabangan, Samar';
+
 let client = null;
 let clientProvider = null;
 
@@ -97,7 +106,8 @@ async function generateStudentReport(studentId) {
   const prompt = 'Generate an SF9 Learner Progress Report Card for:\n' +
     'Student: ' + student.first_name + ' ' + student.last_name + ', LRN: ' + (student.lrn || 'N/A') + '\n' +
     'Grade: ' + (student.grade_level || 'N/A') + ', Section: ' + (student.section_name || 'N/A') + '\n' +
-    'Strand: ' + (student.track_strand || student.strand || 'N/A') + ', School Year: ' + (student.school_year || 'N/A') + '\n\n' +
+    'Strand: ' + (student.track_strand || student.strand || 'N/A') + ', School Year: ' + (student.school_year || 'N/A') + '\n' +
+    'School: ' + SCHOOL_CONTEXT + '\n\n' +
     'Existing grades: ' + gradeList + '\n' +
     'Attendance: ' + attList + '\n' +
     'Discipline records: ' + condList + '\n\n' +
@@ -255,7 +265,8 @@ async function generateForm137(studentId) {
     'Student: ' + student.first_name + ' ' + student.last_name + (student.middle_name ? ' ' + student.middle_name : '') + ', LRN: ' + (student.lrn || 'N/A') + '\n' +
     'Grade Level: ' + (student.grade_level || 'N/A') + ', Strand: ' + (student.strand || student.track_strand || 'N/A') + ', Section: ' + (student.section_name || 'N/A') + '\n' +
     'School Year: ' + (student.school_year || 'N/A') + '\n' +
-    'Sex: ' + (student.sex || 'N/A') + ', Birthdate: ' + (student.birthdate || 'N/A') + ', Address: ' + (student.address || 'N/A') + '\n\n' +
+    'Sex: ' + (student.sex || 'N/A') + ', Birthdate: ' + (student.birthdate || 'N/A') + ', Address: ' + (student.address || 'N/A') + '\n' +
+    'School: ' + SCHOOL_CONTEXT + '\n\n' +
     'Academic Record: ' + (gradeSummary || 'None') + '\n' +
     'Attendance: ' + attSummary + '\n' +
     'Conduct Ratings: ' + conductSummary + '\n' +

@@ -50,14 +50,13 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit), categories: CATEGORIES });
 }));
 
-router.get('/stats', requireRole(...WRITE), asyncH(async (req, res) => {
-  const sy = req.query.school_year || await getCurrentSchoolYear();
-  const byCat = await qa('SELECT category, COUNT(*) AS n FROM intervention_plans WHERE school_year = ? GROUP BY category', [sy]);
-  const byStatus = await qa('SELECT status, COUNT(*) AS n FROM intervention_plans WHERE school_year = ? GROUP BY status', [sy]);
+router.get('/stats', requireRole(...WRITE), asyncH(async (_req, res) => {
+  const byCat = await qa('SELECT category, COUNT(*) AS n FROM intervention_plans GROUP BY category');
+  const byStatus = await qa('SELECT status, COUNT(*) AS n FROM intervention_plans GROUP BY status');
   res.json({
     by_category: byCat, by_status: byStatus,
-    active: Number((await q("SELECT COUNT(*) AS n FROM intervention_plans WHERE status = 'active' AND school_year = ?", [sy])).n),
-    total: Number((await q('SELECT COUNT(*) AS n FROM intervention_plans WHERE school_year = ?', [sy])).n),
+    active: Number((await q("SELECT COUNT(*) AS n FROM intervention_plans WHERE status = 'active'")).n),
+    total: Number((await q('SELECT COUNT(*) AS n FROM intervention_plans')).n),
   });
 }));
 
