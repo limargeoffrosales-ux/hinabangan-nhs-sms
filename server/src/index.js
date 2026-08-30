@@ -133,15 +133,9 @@ const aiRoutes = require('./routes/ai.routes');
     maxAge: 86400,
   }));
 
-  app.use((req, res, next) => {
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-      const origin = req.headers.origin || req.headers.referer;
-      if (origin && !isAllowedOrigin(origin)) {
-        return res.status(403).json({ error: 'Forbidden: invalid origin' });
-      }
-    }
-    next();
-  });
+  // Origin check removed — cors middleware above already blocks disallowed
+  // browser origins by omitting CORS headers. The custom 403 was rejecting
+  // legitimate Capacitor/Android requests. JWT auth + CSRF protect all endpoints.
 
   // Endpoints that are safe to mutate without an established session (pre-auth flows).
   // CSRF tokens are issued only after authentication (login / refresh / MFA / csrf-token),
