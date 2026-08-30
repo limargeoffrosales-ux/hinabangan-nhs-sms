@@ -119,8 +119,12 @@ export default function Grades() {
   }
 
   async function viewReportCard(studentId) {
-    const res = await api(`/grades/report-card/${studentId}?school_year=${encodeURIComponent(schoolYear)}&term=${term}`);
-    setReport(res);
+    try {
+      const res = await api(`/grades/report-card/${studentId}?school_year=${encodeURIComponent(schoolYear)}&term=${term}`);
+      setReport(res);
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   const section = sections.find((s) => s.id === Number(sectionId));

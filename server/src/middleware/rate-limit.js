@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 
 /**
  * Per-user rate limiter.
@@ -15,9 +16,9 @@ function userRateLimit(opts = {}) {
     limit,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    keyGenerator(req) {
+    keyGenerator(req, res) {
       if (req.user?.id) return `user:${req.user.id}`;
-      return req.ip;
+      return ipKeyGenerator(req, res);
     },
     message,
   });

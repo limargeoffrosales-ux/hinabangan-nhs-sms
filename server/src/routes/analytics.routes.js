@@ -88,6 +88,7 @@ async function buildRankings(students, schoolYear, settings) {
       });
     }
     const summary = summarizeSubjects(rows);
+    const finals = summary.subjects.map((s) => s.final).filter((f) => f != null);
     out.push({
       student: {
         id: st.id, lrn: st.lrn, first_name: st.first_name, middle_name: st.middle_name,
@@ -95,9 +96,7 @@ async function buildRankings(students, schoolYear, settings) {
         section_id: st.section_id, section_name: st.section_name,
       },
       ...summary,
-      min_final: summary.subjects.length
-        ? Math.min(...summary.subjects.filter((s) => s.final != null).map((s) => s.final))
-        : null,
+      min_final: finals.length ? Math.min(...finals) : null,
       honor: honorDesignation(summary, settings),
     });
   }
@@ -178,9 +177,8 @@ router.get('/students/:studentId', requireRole(...READ, 'teacher', 'student', 'p
     rank = found ? found.rank : null;
   }
   const honor = honorDesignation(summary, settings);
-  const minFinal = summary.subjects.length
-    ? Math.min(...summary.subjects.filter((s) => s.final != null).map((s) => s.final))
-    : null;
+  const finals = summary.subjects.map((s) => s.final).filter((f) => f != null);
+  const minFinal = finals.length ? Math.min(...finals) : null;
   res.json({
     student: {
       id: student.id, lrn: student.lrn, first_name: student.first_name, middle_name: student.middle_name,

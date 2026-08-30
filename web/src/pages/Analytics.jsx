@@ -5,7 +5,7 @@ import {
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts';
 import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, getApiBase } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
@@ -86,7 +86,7 @@ export default function Analytics() {
     const params = new URLSearchParams({ school_year: sy });
     if (quarter) params.set('quarter', quarter);
     const token = sessionStorage.getItem('meridianed_token');
-    const url = `/api/v1/analytics/kpi/report/csv?${params.toString()}`;
+    const url = `/analytics/kpi/report/csv?${params.toString()}`;
     try {
       const res = await fetch(`${getApiBase()}${url}`, {
         headers: { Authorization: `Bearer ${token}` },
