@@ -62,6 +62,7 @@ export function clearSession() {
   sessionStorage.removeItem(REFRESH_KEY);
   sessionStorage.removeItem(USER_KEY);
   sessionStorage.removeItem(CSRF_KEY);
+  localStorage.removeItem('meridianed_ai_chat');
 }
 
 export function notifyUnauthorized() {

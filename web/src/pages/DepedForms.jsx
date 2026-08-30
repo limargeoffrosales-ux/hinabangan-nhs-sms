@@ -112,7 +112,7 @@ export default function DepedForms() {
       if (!schoolYear && r.school_year) setSchoolYear(r.school_year);
     }).catch(() => {});
     api('/sections').then(r => setSections(r.data || r.rows || [])).catch(() => {});
-  }, [schoolYear]);
+  }, []);
 
   useEffect(() => {
     if (sectionId) {

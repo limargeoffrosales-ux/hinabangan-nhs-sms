@@ -82,23 +82,19 @@ const aiRoutes = require('./routes/ai.routes');
         if (process.env.NODE_ENV === 'production') {
           logger.warn('SECURITY WARNING: ENABLE_LEGACY_SUPERADMIN is enabled in production! This allows legacy superadmin password migration and should be disabled after initial setup.');
         }
-        const bcrypt = require('bcryptjs');
-        const row = await db.q('SELECT id, password_hash, password_changed_at FROM users WHERE username = ?', ['superadmin']);
-        if (row && !row.password_changed_at && LEGACY_DEFAULT) {
-          const isLegacy = await bcrypt.compare(LEGACY_DEFAULT, row.password_hash);
-          if (isLegacy) {
-            await db.qr(
-              'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
-              [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
-            );
-            await db.qr(
-              'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
-              ['LEGACY_SUPERADMIN_MIGRATION', 'high', 'server-startup', 'system', null, JSON.stringify({ note: 'Legacy superadmin password migrated from default via SUPERADMIN_PASSWORD env' })]
-            );
-            logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
-          } else {
-            logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
-          }
+        const isLegacy = await bcrypt.compare(LEGACY_DEFAULT, row.password_hash);
+        if (isLegacy) {
+          await db.qr(
+            'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
+            [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
+          );
+          await db.qr(
+            'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
+            ['LEGACY_SUPERADMIN_MIGRATION', 'high', 'server-startup', 'system', null, JSON.stringify({ note: 'Legacy superadmin password migrated from default via SUPERADMIN_PASSWORD env' })]
+          );
+          logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
+        } else {
+          logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
         }
       }
     }
@@ -132,8 +128,8 @@ const aiRoutes = require('./routes/ai.routes');
     origin(origin, cb) {
       cb(null, isAllowedOrigin(origin));
     },
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
     maxAge: 86400,
   }));
 
@@ -343,13 +339,13 @@ const aiRoutes = require('./routes/ai.routes');
     startNotifySweep();
   });
 
-  function shutdown(signal) {
+  async function shutdown(signal) {
     logger.info({ signal }, 'Received signal — shutting down gracefully...');
     server.close(() => {
-      logger.info('HTTP server closed.');
-      process.exit(0);
+      db.close().then(() => process.exit(0)).catch(() => process.exit(1));
     });
-    setTimeout(() => { logger.error('Forced shutdown after timeout.'); process.exit(1); }, 10_000);
+    // Force exit after 10s
+    setTimeout(() => process.exit(1), 10000).unref();
   }
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));

@@ -53,24 +53,33 @@ async function init() {
     const db = new DatabaseSync(path.join(DATA_DIR, 'meridianed.db'));
     db.exec('PRAGMA journal_mode = WAL;');
     db.exec('PRAGMA foreign_keys = ON;');
+    const stmtCache = new Map();
+    function getStmt(sql) {
+      let stmt = stmtCache.get(sql);
+      if (!stmt) {
+        stmt = db.prepare(sql);
+        stmtCache.set(sql, stmt);
+      }
+      return stmt;
+    }
     driver = {
       params: (sql) => sql,
       run: (sql, p) => {
-        const st = db.prepare(sql);
+        const st = getStmt(sql);
         const r = p ? st.run(...p) : st.run();
         return { changes: Number(r.changes || 0) };
       },
       runId: (sql, p) => {
-        const st = db.prepare(sql);
+        const st = getStmt(sql);
         const r = p ? st.run(...p) : st.run();
         return Number(r.lastInsertRowid);
       },
       get: (sql, p) => {
-        const st = db.prepare(sql);
+        const st = getStmt(sql);
         return (p ? st.get(...p) : st.get()) || null;
       },
       all: (sql, p) => {
-        const st = db.prepare(sql);
+        const st = getStmt(sql);
         return p ? st.all(...p) : st.all();
       },
       exec: (sql) => db.exec(sql),
@@ -80,21 +89,21 @@ async function init() {
         try {
           const result = await fn({
             run: (sql, p) => {
-              const st = db.prepare(sql);
+              const st = getStmt(sql);
               const r = p ? st.run(...p) : st.run();
               return { changes: Number(r.changes || 0) };
             },
             runId: (sql, p) => {
-              const st = db.prepare(sql);
+              const st = getStmt(sql);
               const r = p ? st.run(...p) : st.run();
               return Number(r.lastInsertRowid);
             },
             get: (sql, p) => {
-              const st = db.prepare(sql);
+              const st = getStmt(sql);
               return (p ? st.get(...p) : st.get()) || null;
             },
             all: (sql, p) => {
-              const st = db.prepare(sql);
+              const st = getStmt(sql);
               return p ? st.all(...p) : st.all();
             },
           });
@@ -135,13 +144,16 @@ async function migrate() {
     mdb.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (file TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))`);
     const appliedRows = mdb.prepare('SELECT file FROM schema_migrations').all();
     const appliedSet = new Set(appliedRows.map((r) => r.file));
-    for (const file of files) {
-      if (appliedSet.has(file)) continue;
-      const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-      driver.exec(sql);
-      mdb.prepare('INSERT OR IGNORE INTO schema_migrations (file) VALUES (?)').run(file);
+    try {
+      for (const file of files) {
+        if (appliedSet.has(file)) continue;
+        const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+        driver.exec(sql);
+        mdb.prepare('INSERT OR IGNORE INTO schema_migrations (file) VALUES (?)').run(file);
+      }
+    } finally {
+      mdb.close();
     }
-    mdb.close();
   }
 }
 

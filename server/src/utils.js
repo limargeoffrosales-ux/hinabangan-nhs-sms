@@ -31,7 +31,8 @@ function maskPII(row, fields = ['lrn', 'contact', 'guardian_contact', 'guardian_
   for (const f of fields) {
     if (masked[f]) {
       const v = String(masked[f]);
-      if (v.length <= 4) masked[f] = '****';
+      if (v.length <= 3) masked[f] = '*'.repeat(v.length);
+      else if (v.length <= 4) masked[f] = '****';
       else masked[f] = v.slice(0, 2) + '*'.repeat(v.length - 4) + v.slice(-2);
     }
   }

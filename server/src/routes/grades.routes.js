@@ -57,7 +57,7 @@ router.get('/class', requireRole(...WRITE, 'registrar'), asyncH(async (req, res)
   if (!section_id || !subject_id || !school_year || !period) {
     return res.status(400).json({ error: 'section_id, subject_id, school_year, term are required' });
   }
-  if (!/[1-3]/.test(period)) return res.status(400).json({ error: 'term must be 1, 2 or 3' });
+  if (!/^[1-3]$/.test(period)) return res.status(400).json({ error: 'term must be 1, 2 or 3' });
   if (req.role === 'teacher') {
     const scope = await teacherScope(req.user);
     if (!scope) return res.status(403).json({ error: 'No teacher profile is linked to this account' });
@@ -155,7 +155,7 @@ router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'studen
   const { school_year } = req.query;
   const period = (req.query.term || req.query.quarter || '').toString().trim();
   if (!school_year || !period) return res.status(400).json({ error: 'school_year and term are required' });
-  if (!/[1-3]/.test(period)) return res.status(400).json({ error: 'term must be 1, 2 or 3' });
+  if (!/^[1-3]$/.test(period)) return res.status(400).json({ error: 'term must be 1, 2 or 3' });
   const student = await q('SELECT * FROM students WHERE id = ?', [req.params.studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
   if (req.role === 'teacher') {

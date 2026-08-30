@@ -24,6 +24,8 @@ const MAX_ATTEMPTS = 5;
 const SWEEP_LIMIT = 30;
 const SWEEP_MS = 60 * 1000;
 
+let sweeping = false;
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isEmail(v) { return EMAIL_RE.test(String(v || '').trim()); }
@@ -386,6 +388,8 @@ async function notifyEvent(event, ctx = {}) {
 
 // --- Background sweep ---------------------------------------------------------
 async function sweep() {
+  if (sweeping) return;
+  sweeping = true;
   try {
     const rows = await qa(
       `SELECT * FROM notifications
@@ -396,6 +400,8 @@ async function sweep() {
     for (const row of rows) await attemptSend(row);
   } catch (err) {
     logger.error({ err: err.message }, 'NOTIFY_SWEEP failed:');
+  } finally {
+    sweeping = false;
   }
 }
 

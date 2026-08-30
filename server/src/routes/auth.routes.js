@@ -117,15 +117,9 @@ router.post('/refresh', asyncH(async (req, res) => {
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE id = ?', [row.token_id]);
   const accessToken = signAccess({ id: row.user_id, username: row.username, name: row.name, role: row.role });
   const newRefresh = await issueRefresh(row.user_id);
-  res.json({ token: accessToken, refreshToken: newRefresh });
-}));
-
-router.post('/logout', asyncH(async (req, res) => {
-  const { refreshToken } = req.body || {};
-  if (refreshToken) {
-    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hashToken(refreshToken)]);
-  }
-  res.json({ ok: true });
+  const csrfToken = generateCsrfToken();
+  storeCsrfToken(row.user_id, csrfToken);
+  res.json({ token: accessToken, refreshToken: newRefresh, csrfToken });
 }));
 
 router.get('/me', authenticate, asyncH(async (req, res) => {
@@ -140,10 +134,7 @@ router.get('/csrf-token', authenticate, asyncH(async (req, res) => {
 }));
 
 router.post('/logout', authenticate, asyncH(async (req, res) => {
-  const { refreshToken } = req.body || {};
-  if (refreshToken) {
-    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hashToken(refreshToken)]);
-  }
+  await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
   clearCsrfToken(req.user.id);
   res.json({ ok: true });
 }));

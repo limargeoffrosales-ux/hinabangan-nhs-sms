@@ -191,7 +191,15 @@ export default function Students() {
   }
 
   async function remove(s) {
-    setConfirmAction({ message: t('students.deleteConfirm') + ` ${s.first_name} ${s.last_name}?`, action: async () => { await api(`/students/${s.id}`, { method: 'DELETE' }); load(); } });
+    setConfirmAction({ message: t('students.deleteConfirm') + ` ${s.first_name} ${s.last_name}?`, action: async () => {
+      try {
+        await api(`/students/${s.id}`, { method: 'DELETE' });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        load();
+      }
+    } });
   }
 
   const field = (k, opts = {}) => {

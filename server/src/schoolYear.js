@@ -27,20 +27,18 @@ async function getCurrentSchoolYear() {
 }
 
 async function setCurrentSchoolYear(newSchoolYear) {
-  await qr(
-    `INSERT INTO app_settings (key, value) VALUES (?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    [SETTING_KEY, newSchoolYear]
-  );
-  cachedSchoolYear = newSchoolYear;
-  cacheTimestamp = Date.now();
   await db.tx(async (conn) => {
     await conn.qr(
-      `INSERT INTO app_settings (key, value) VALUES ('school_year_updated_at', ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      `INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      [SETTING_KEY, newSchoolYear]
+    );
+    await conn.qr(
+      `INSERT INTO app_settings (key, value) VALUES ('school_year_updated_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       [new Date().toISOString()]
     );
   });
+  cachedSchoolYear = newSchoolYear;
+  cacheTimestamp = Date.now();
   return newSchoolYear;
 }
 

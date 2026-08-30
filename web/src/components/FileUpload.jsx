@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, Check, Loader2 } from 'lucide-react';
-import { getApiBase, getToken } from '../lib/api';
+import { getApiBase, getToken, getCsrfToken } from '../lib/api';
 
 export default function FileUpload({ folder = 'general', accept, onUpload, className, label, compact }) {
   const [uploading, setUploading] = useState(false);
@@ -35,6 +35,8 @@ export default function FileUpload({ folder = 'general', accept, onUpload, class
           } catch { reject(new Error('Invalid response from server')); }
         };
         xhr.onerror = () => reject(new Error('Network error'));
+        const csrf = getCsrfToken();
+        if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf);
         xhr.send(form);
       });
       setSuccess(true);

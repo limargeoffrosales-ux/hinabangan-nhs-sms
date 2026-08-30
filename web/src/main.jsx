@@ -51,6 +51,6 @@ window.addEventListener('unhandledrejection', (event) => {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js').catch((e) => { if (import.meta.env.DEV) console.warn('SW registration failed:', e); });
   });
 }
