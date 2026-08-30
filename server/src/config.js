@@ -44,13 +44,18 @@ const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
 
 // Browser/APK origins allowed to call the API cross-origin. Same-origin
 // requests (the web portal served by this same process) are always allowed.
-const ALLOWED_ORIGINS = [
+// Set ALLOWED_ORIGINS env var as a comma-separated list to override defaults.
+const DEFAULT_ORIGINS = [
+  'https://hinabangan-nhs.onrender.com',
   'https://hinabangan-nhs-sms.onrender.com',
-  ...(process.env.NODE_ENV !== 'production' ? [
-    /^https?:\/\/localhost(:\d+)?$/,
-    /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  ] : []),
+  /^https?:\/\/localhost(:\d+)?$/,
+  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^capacitor:\/\/localhost$/,
+  /^https?:\/\/localhost$/,
 ];
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim())
+  : DEFAULT_ORIGINS;
 
 function isAllowedOrigin(origin) {
   if (!origin) return false;
