@@ -32,9 +32,16 @@ function termToQuarter(term) {
 }
 
 router.get('/school-info', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) => {
-  const rows = await qa("SELECT key, value FROM app_settings WHERE key IN ('school_name','school_id','region','division','district','school_year')");
-  const info = {};
-  for (const r of rows) info[r.key] = r.value;
+  const rows = await qa("SELECT key, value FROM app_settings WHERE key IN ('school_name','school_id','region','division','district','address','school_year')");
+  const info = {
+    school_name: 'Hinabangan National High School',
+    school_id: '303606',
+    region: 'Region VIII (Eastern Visayas)',
+    division: 'Schools Division of Samar',
+    district: 'Hinabangan I District',
+    address: 'Hinabangan, Samar',
+  };
+  for (const r of rows) if (r.value) info[r.key] = r.value;
   res.json(info);
 }));
 
