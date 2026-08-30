@@ -104,9 +104,16 @@ export default function Assessment() {
 
   async function saveAnalysis() {
     if (!iaForm.title) return toast.error('Title is required');
-    const data = { items: iaForm.items };
-    await api('/assessment/analyses', { method: 'POST', body: { title: iaForm.title, subject_id: iaForm.subject_id || null, school_year: iaForm.school_year, learners: Number(iaForm.learners), total_items: iaForm.items.length, data, computed: iaResult } });
-    await load();
+    setBusy(true);
+    try {
+      const data = { items: iaForm.items };
+      await api('/assessment/analyses', { method: 'POST', body: { title: iaForm.title, subject_id: iaForm.subject_id || null, school_year: iaForm.school_year, learners: Number(iaForm.learners), total_items: iaForm.items.length, data, computed: iaResult } });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function exportTos(t) {

@@ -1,5 +1,6 @@
 const express = require('express');
-const { q, qa } = require('../db');
+const db = require('../db');
+const { q, qa } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 const { linkedStudentIds } = require('../scope');
@@ -148,18 +149,18 @@ router.get('/today-schedule', requireRole(...PORTAL), asyncH(async (req, res) =>
   const ids = await linkedStudentIds(req.user);
   const studentId = ids[0];
   if (!studentId) return res.json({ data: [] });
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const today = dayNames[new Date().getDay()];
+  // schedule_entries.day is INTEGER (1=Mon .. 5=Fri); Date.getDay() is 0=Sun..6=Sat
+  const today = new Date().getDay();
+  if (today > 5) return res.json({ data: [] });
   const { school_year } = req.query;
   const rows = await qa(
     `SELECT se.*, sub.code AS subject_code, sub.title AS subject_title,
             t.first_name || ' ' || t.last_name AS teacher_name, sec.name AS section_name
      FROM schedule_entries se
-     JOIN class_assignments ca ON ca.id = se.assignment_id
-     JOIN subjects sub ON sub.id = ca.subject_id
-     JOIN teachers t ON t.id = ca.teacher_id
-     JOIN sections sec ON sec.id = ca.section_id
-     JOIN enrollments e ON e.section_id = sec.id AND e.school_year = se.school_year AND e.status = 'enrolled'
+     JOIN subjects sub ON sub.id = se.subject_id
+     JOIN teachers t ON t.id = se.teacher_id
+     JOIN sections sec ON sec.id = se.section_id
+     JOIN enrollments e ON e.section_id = se.section_id AND e.school_year = se.school_year AND e.status = 'enrolled'
      WHERE e.student_id = ? AND se.day = ? ${school_year ? 'AND se.school_year = ?' : ''}
      ORDER BY se.start_time`,
     school_year ? [studentId, today, school_year] : [studentId, today]);
@@ -171,6 +172,7 @@ router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, r
   const studentId = ids[0];
   if (!studentId) return res.json({ data: [] });
   const { school_year } = req.query;
+  const todayStr = new Date().toISOString().slice(0, 10);
   const rows = await qa(
     `SELECT a.id, a.title, a.due_date, a.description, sub.code AS subject_code, sub.title AS subject_title,
             asub.status AS submission_status
@@ -180,11 +182,11 @@ router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, r
      JOIN enrollments e ON e.section_id = ca.section_id AND e.school_year = a.school_year AND e.status = 'enrolled'
      LEFT JOIN assignment_submissions asub ON asub.assignment_id = a.id AND asub.student_id = ?
      WHERE e.student_id = ? ${school_year ? 'AND a.school_year = ?' : ''}
-       AND (a.due_date IS NULL OR a.due_date >= CURRENT_DATE)
+       AND (a.due_date IS NULL OR a.due_date >= ?)
        AND asub.id IS NULL
      ORDER BY a.due_date IS NULL, a.due_date ASC
      LIMIT 10`,
-    school_year ? [studentId, studentId, school_year] : [studentId, studentId]);
+    school_year ? [studentId, studentId, school_year, todayStr] : [studentId, studentId, todayStr]);
   res.json({ data: rows });
 }));
 
@@ -255,13 +257,12 @@ router.get('/weekly-schedule', requireRole(...PORTAL), asyncH(async (req, res) =
             t.first_name || ' ' || t.last_name AS teacher_name,
             sec.name AS section_name
      FROM schedule_entries se
-     JOIN class_assignments ca ON ca.id = se.assignment_id
-     JOIN subjects sub ON sub.id = ca.subject_id
-     JOIN teachers t ON t.id = ca.teacher_id
-     JOIN sections sec ON sec.id = ca.section_id
-     JOIN enrollments e ON e.section_id = sec.id AND e.school_year = se.school_year AND e.status = 'enrolled'
+     JOIN subjects sub ON sub.id = se.subject_id
+     JOIN teachers t ON t.id = se.teacher_id
+     JOIN sections sec ON sec.id = se.section_id
+     JOIN enrollments e ON e.section_id = se.section_id AND e.school_year = se.school_year AND e.status = 'enrolled'
      WHERE e.student_id = ? ${school_year ? 'AND se.school_year = ?' : ''}
-     ORDER BY CASE se.day WHEN 'Mon' THEN 1 WHEN 'Tue' THEN 2 WHEN 'Wed' THEN 3 WHEN 'Thu' THEN 4 WHEN 'Fri' THEN 5 WHEN 'Sat' THEN 6 ELSE 7 END, se.start_time`,
+     ORDER BY se.day, se.start_time`,
     school_year ? [studentId, school_year] : [studentId]);
   res.json({ data: rows });
 }));

@@ -197,9 +197,13 @@ export default function Enroll() {
   }
 
   async function viewHistory(s) {
-    const res = await api(`/enrollments/student/${s.id}`);
-    setHistory({ student: s, rows: res.data });
-    setShowHistory(true);
+    try {
+      const res = await api(`/enrollments/student/${s.id}`);
+      setHistory({ student: s, rows: res.data });
+      setShowHistory(true);
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   const eligible = students.filter((s) => s.status === 'enrolled');
