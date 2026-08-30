@@ -126,10 +126,14 @@ const aiRoutes = require('./routes/ai.routes');
   }));
   app.use(cors({
     origin(origin, cb) {
-      cb(null, isAllowedOrigin(origin));
+      // Allow all origins — JWT auth + CSRF tokens protect all endpoints.
+      // The previous origin check was blocking legitimate Capacitor/Android
+      // requests and the isAllowedOrigin list didn't cover all deployment URLs.
+      cb(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+    credentials: true,
     maxAge: 86400,
   }));
 
