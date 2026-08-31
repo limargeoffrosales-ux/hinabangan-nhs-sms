@@ -190,7 +190,7 @@ export default function Assignments() {
       await api(`/assignments/${active.id}/submissions/${studentId}`, {
         method: 'PUT',
         body: {
-          score: row.score === '' || row.score === null ? null : Number(row.score),
+          score: row.score === '' || row.score == null ? null : (isNaN(Number(row.score)) ? null : Number(row.score)),
           feedback: row.feedback || null,
           rubric_scores: Array.isArray(row.rubricScores) ? row.rubricScores : null,
         },

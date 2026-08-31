@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { DATA_DIR } = require('./config');
+const logger = require('./logger');
 
 const usePg = !!process.env.DATABASE_URL;
 let driver = null;
@@ -19,6 +20,9 @@ async function init() {
     const sslMode = connUrl.searchParams.get('sslmode');
     const useSsl = sslMode === 'disable' ? false : { rejectUnauthorized: false };
     const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl, max: 20, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 });
+    pool.on('error', (err) => {
+      logger.error({ err }, 'PostgreSQL pool idle client error');
+    });
     driver = {
       params: pgParams,
       run: (sql, p) => pool.query(pgParams(sql), p || []).then((r) => ({ changes: r.rowCount })),
@@ -55,6 +59,7 @@ async function init() {
     db.exec('PRAGMA foreign_keys = ON;');
     const stmtCache = new Map();
     function getStmt(sql) {
+      if (stmtCache.size > 500) stmtCache.clear();
       let stmt = stmtCache.get(sql);
       if (!stmt) {
         stmt = db.prepare(sql);

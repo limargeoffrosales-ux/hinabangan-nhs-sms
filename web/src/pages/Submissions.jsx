@@ -88,24 +88,6 @@ export default function Submissions() {
     }
   }
 
-  function ReviewRow({ s }) {
-    return (
-      <tr>
-        <td>{s.report_name}<br /><span className="muted">{s.group_name} · {s.frequency}</span></td>
-        <td>{s.user_name}<br /><span className="muted">@{s.username}</span></td>
-        <td>{s.period}</td>
-        <td><Badge status={s.status} /></td>
-        <td>{s.review_note || '—'}</td>
-        <td className="row-actions">
-          {s.my_review && <button className="btn btn-sm" disabled={busy} onClick={() => act(s.id, 'review', { approved: true, review_note: 'Reviewed and endorsed.' })}><CheckCheck size={13} /> Endorse</button>}
-          {s.my_review && <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => act(s.id, 'return', { review_note: 'Returned for revision.' })}><Undo2 size={13} /> Return</button>}
-          {s.my_approve && <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act(s.id, 'approve', {})}><CheckCheck size={13} /> Approve</button>}
-          {!s.my_review && !s.my_approve && <span className="muted">Awaiting other reviewer</span>}
-        </td>
-      </tr>
-    );
-  }
-
   return (
     <div>
       <PageHead title="Teacher Submissions" sub="Paperless submission of every required report — input the data online, attach files, or mark the task as done.">
@@ -182,7 +164,7 @@ export default function Submissions() {
                 <tr><th>Report</th><th>Submitted by</th><th>Period</th><th>Status</th><th>Review note</th><th>Action</th></tr>
               </thead>
               <tbody>
-                {queue.map((s) => <ReviewRow key={s.id} s={s} />)}
+                {queue.map((s) => <ReviewRow key={s.id} s={s} busy={busy} act={act} />)}
               </tbody>
             </table>
             {!queue.length && <Empty text="Nothing waiting for you — every report is handled." />}
@@ -209,6 +191,24 @@ export default function Submissions() {
         />
       )}
     </div>
+  );
+}
+
+function ReviewRow({ s, busy, act }) {
+  return (
+    <tr>
+      <td>{s.report_name}<br /><span className="muted">{s.group_name} · {s.frequency}</span></td>
+      <td>{s.user_name}<br /><span className="muted">@{s.username}</span></td>
+      <td>{s.period}</td>
+      <td><Badge status={s.status} /></td>
+      <td>{s.review_note || '—'}</td>
+      <td className="row-actions">
+        {s.my_review && <button className="btn btn-sm" disabled={busy} onClick={() => act(s.id, 'review', { approved: true, review_note: 'Reviewed and endorsed.' })}><CheckCheck size={13} /> Endorse</button>}
+        {s.my_review && <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => act(s.id, 'return', { review_note: 'Returned for revision.' })}><Undo2 size={13} /> Return</button>}
+        {s.my_approve && <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act(s.id, 'approve', {})}><CheckCheck size={13} /> Approve</button>}
+        {!s.my_review && !s.my_approve && <span className="muted">Awaiting other reviewer</span>}
+      </td>
+    </tr>
   );
 }
 

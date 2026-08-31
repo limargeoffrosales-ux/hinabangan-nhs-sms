@@ -30,18 +30,18 @@ export default function Assessment() {
 
   const load = useCallback(async () => {
     try {
-      const [qq, rr, tt, aa, ss] = await Promise.all([
+      const [qq, rr, tt, aa, ss] = await Promise.allSettled([
         api('/assessment/questions'),
         api('/assessment/rubrics'),
         api('/assessment/tos'),
         api('/assessment/analyses'),
         api('/subjects?limit=200'),
       ]);
-      setQuestions(qq.data);
-      setRubrics(rr.data);
-      setTos(tt.data);
-      setAnalyses(aa.data);
-      setSubjects(ss.data);
+      setQuestions(qq.status === 'fulfilled' ? qq.value.data : []);
+      setRubrics(rr.status === 'fulfilled' ? rr.value.data : []);
+      setTos(tt.status === 'fulfilled' ? tt.value.data : []);
+      setAnalyses(aa.status === 'fulfilled' ? aa.value.data : []);
+      setSubjects(ss.status === 'fulfilled' ? ss.value.data : []);
     } catch (e) {
       setError(e.message);
     }

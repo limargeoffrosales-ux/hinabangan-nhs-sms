@@ -90,12 +90,12 @@ export default function Grades() {
   }
 
   function update(studentId, key, value) {
-    setRows((rs) => rs.map((r) => (r.id === studentId ? { ...r, [key]: value === '' ? null : Number(value) } : r)));
+    setRows((rs) => rs ? rs.map((r) => (r.id === studentId ? { ...r, [key]: value === '' ? null : Number(value) } : r)) : []);
   }
 
   function quickFill(key, value) {
     const n = value === '' ? null : Number(value);
-    setRows((rs) => rs.map((r) => ({ ...r, [key]: n != null && (n < 0 || n > 100) ? r[key] : n })));
+    setRows((rs) => rs ? rs.map((r) => ({ ...r, [key]: n != null && (n < 0 || n > 100) ? r[key] : n })) : []);
   }
 
   async function save() {

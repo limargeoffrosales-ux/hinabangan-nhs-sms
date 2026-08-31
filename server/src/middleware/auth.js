@@ -8,6 +8,16 @@ const csrfTokenCache = new Map();
 const CACHE_TTL_MS = 60_000;
 const CSRF_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+function evictIfNeeded(map, maxEntries = 10000) {
+  if (map.size > maxEntries) {
+    const half = Math.floor(maxEntries / 2);
+    let i = 0;
+    for (const key of map.keys()) {
+      if (i++ >= half) map.delete(key);
+    }
+  }
+}
+
 function signAccess(user) {
   return jwt.sign(
     { sub: String(user.id), role: user.role, name: user.name, username: user.username },
@@ -33,6 +43,7 @@ function storeCsrfToken(userId, token) {
   const tokens = csrfTokenCache.get(userId) || [];
   tokens.push({ token, expiresAt });
   csrfTokenCache.set(userId, tokens);
+  evictIfNeeded(csrfTokenCache);
 }
 
 function getCsrfToken(userId) {
@@ -44,6 +55,7 @@ function getCsrfToken(userId) {
     return null;
   }
   csrfTokenCache.set(userId, valid);
+  evictIfNeeded(csrfTokenCache);
   return valid[valid.length - 1].token;
 }
 
@@ -52,14 +64,16 @@ function validateCsrfToken(userId, providedToken) {
   const tokens = csrfTokenCache.get(userId) || [];
   const now = Date.now();
   const valid = tokens.filter((t) => t.expiresAt > now);
-  csrfTokenCache.set(userId, valid);
-  for (const t of valid) {
+  for (let i = 0; i < valid.length; i++) {
     try {
-      if (crypto.timingSafeEqual(Buffer.from(t.token, 'hex'), Buffer.from(providedToken, 'hex'))) {
+      if (crypto.timingSafeEqual(Buffer.from(valid[i].token, 'hex'), Buffer.from(providedToken, 'hex'))) {
+        valid.splice(i, 1);
+        csrfTokenCache.set(userId, valid);
         return true;
       }
     } catch {}
   }
+  csrfTokenCache.set(userId, valid);
   return false;
 }
 
@@ -86,6 +100,7 @@ async function authenticate(req, res, next) {
   if (!user || user.status !== 'active') return res.status(401).json({ error: 'Account disabled or removed' });
   const userObj = { id: user.id, username: user.username, name: user.name, role: user.role };
   userCache.set(userId, { user: userObj, ts: Date.now() });
+  evictIfNeeded(userCache);
   req.user = userObj;
   req.role = user.role;
 

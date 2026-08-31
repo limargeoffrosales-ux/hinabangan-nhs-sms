@@ -42,20 +42,27 @@ async function setCurrentSchoolYear(newSchoolYear) {
   return newSchoolYear;
 }
 
+function localDateStr(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function getTodayParam() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr();
 }
 
 function getDaysAgoParam(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 function getDaysFromNowParam(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 module.exports = {
