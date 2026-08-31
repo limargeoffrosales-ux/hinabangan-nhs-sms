@@ -38,8 +38,8 @@ export default function Dashboard() {
           api('/conduct/summary'),
         ]);
         if (s.status === 'fulfilled') setData(s.value);
-        if (trendRes.status === 'fulfilled') setTrend(trendRes.value.data);
-        if (a.status === 'fulfilled') setAnnouncements(a.value.data);
+        if (trendRes.status === 'fulfilled') setTrend(trendRes.value?.data || []);
+        if (a.status === 'fulfilled') setAnnouncements(a.value?.data || []);
         if (c.status === 'fulfilled') setConduct(c.value);
         if (s.status !== 'fulfilled') setError(s.reason?.message || 'Failed to load dashboard');
       } catch (e) {
@@ -191,7 +191,7 @@ export default function Dashboard() {
                       <td style={{ textAlign: 'center' }}><span className={`badge ${CONDUCT_SEVERITY_BADGE[r.severity] || 'badge-gray'}`}>{r.severity}</span></td>
                       <td style={{ textAlign: 'center' }} className="sub">{r.incident_date?.slice(0, 10)}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${CONDUCT_STATUS_BADGE[r.status] || 'badge-gray'}`}>{r.status.replace('_', ' ')}</span>
+                        <span className={`badge ${CONDUCT_STATUS_BADGE[r.status] || 'badge-gray'}`}>{(r.status || '').replace('_', ' ')}</span>
                       </td>
                       <td style={{ textAlign: 'center' }} className="sub">{r.status === 'resolved' ? '—' : `${r.days_open}d`}</td>
                     </tr>

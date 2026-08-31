@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa } = db;
+const { q, qa, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 
@@ -820,7 +820,7 @@ router.put('/sf9/conduct', requireRole(...ADMIN_ONLY), asyncH(async (req, res) =
   );
   if (existing) {
     await qr(
-      `UPDATE student_conduct_ratings SET makadiyos=?, makatao=?, makakalikasan=?, makabansa=?, remarks=?, updated_at=now()
+      `UPDATE student_conduct_ratings SET makadiyos=?, makatao=?, makakalikasan=?, makabansa=?, remarks=?, updated_at=${nowSql()}
        WHERE id=?`,
       [makadiyos || null, makatao || null, makakalikasan || null, makabansa || null, remarks || null, existing.id]
     );

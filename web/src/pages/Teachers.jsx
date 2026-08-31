@@ -84,7 +84,15 @@ export default function Teachers() {
   }
 
   async function remove(teacher) {
-    setConfirmAction({ message: t('teachers.removeConfirm'), action: async () => { await api(`/teachers/${teacher.id}`, { method: 'DELETE' }); load(); } });
+    setConfirmAction({ message: t('teachers.removeConfirm'), action: async () => {
+      try {
+        await api(`/teachers/${teacher.id}`, { method: 'DELETE' });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        load();
+      }
+    } });
   }
 
   const field = (k, opts = {}) => (

@@ -172,7 +172,7 @@ export default function Users() {
                   </td>
                   <td style={{ fontFamily: 'monospace' }}>{u.username}</td>
                   <td><strong>{u.name}</strong></td>
-                  <td><Badge status={u.role.replace(/_/g, ' ')} /></td>
+                  <td><Badge status={(u.role || '').replace(/_/g, ' ')} /></td>
                   <td>{u.email || '—'}</td>
                   <td><Badge status={u.status} /></td>
                   <td style={{ fontSize: 13 }}>{u.created_at?.slice(0, 10)}</td>

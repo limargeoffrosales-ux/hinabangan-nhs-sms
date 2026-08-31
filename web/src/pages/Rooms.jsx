@@ -82,7 +82,15 @@ export default function Rooms() {
   }
 
   async function remove(r) {
-    setConfirmAction({ message: t('rooms.deleteConfirm', { name: r.name }), action: async () => { await api(`/rooms/${r.id}`, { method: 'DELETE' }); load(); } });
+    setConfirmAction({ message: t('rooms.deleteConfirm', { name: r.name }), action: async () => {
+      try {
+        await api(`/rooms/${r.id}`, { method: 'DELETE' });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        load();
+      }
+    } });
   }
 
   const filtered = rows.filter((r) => {

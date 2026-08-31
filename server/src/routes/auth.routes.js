@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { q, qa, qi, qr } = require('../db');
 const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, getCsrfToken, clearCsrfToken } = require('../auth');
-const { JWT_SECRET, REFRESH_TTL_DAYS } = require('../config');
+const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER } = require('../config');
 const { asyncH, audit } = require('../utils');
 
 async function getLockoutSettings() {
@@ -82,7 +82,7 @@ router.post('/login', asyncH(async (req, res) => {
     const tempToken = jwt.sign(
       { sub: String(user.id), mfa_pending: true },
       JWT_SECRET,
-      { expiresIn: '5m' }
+      { expiresIn: '5m', audience: JWT_AUDIENCE, issuer: JWT_ISSUER }
     );
     await audit(req, 'LOGIN_MFA_PENDING', 'auth', user.id, { username: user.username });
     return res.json({ requiresMfa: true, tempToken });
@@ -133,9 +133,20 @@ router.get('/csrf-token', authenticate, asyncH(async (req, res) => {
   res.json({ csrfToken: token });
 }));
 
-router.post('/logout', authenticate, asyncH(async (req, res) => {
-  await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
-  clearCsrfToken(req.user.id);
+router.post('/logout', asyncH(async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (!refreshToken) {
+    if (req.user && req.user.id) {
+      await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
+      clearCsrfToken(req.user.id);
+      return res.json({ ok: true });
+    }
+    return res.status(400).json({ error: 'refreshToken is required' });
+  }
+  const row = await q('SELECT user_id FROM refresh_tokens WHERE token_hash = ?', [hashToken(refreshToken)]);
+  if (!row) return res.status(401).json({ error: 'Invalid refresh token' });
+  await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [row.user_id]);
+  clearCsrfToken(row.user_id);
   res.json({ ok: true });
 }));
 

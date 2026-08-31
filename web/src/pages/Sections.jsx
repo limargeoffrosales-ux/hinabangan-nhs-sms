@@ -69,7 +69,15 @@ export default function Sections() {
   }
 
   async function remove(s) {
-    setConfirmAction({ message: t('sections.deleteConfirm', { name: s.name, year: s.school_year }), action: async () => { await api(`/sections/${s.id}`, { method: 'DELETE' }); load(); } });
+    setConfirmAction({ message: t('sections.deleteConfirm', { name: s.name, year: s.school_year }), action: async () => {
+      try {
+        await api(`/sections/${s.id}`, { method: 'DELETE' });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        load();
+      }
+    } });
   }
 
   async function showRoster(s) {

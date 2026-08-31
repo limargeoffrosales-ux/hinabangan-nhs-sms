@@ -2,9 +2,9 @@ const express = require('express');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const jwt = require('jsonwebtoken');
-const { q, qi, qr } = require('../db');
+const { q, qi, qr, nowSql } = require('../db');
 const db = require('../db');
-const { JWT_SECRET } = require('../config');
+const { JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER } = require('../config');
 const { authenticate, signAccess, generateCsrfToken, storeCsrfToken } = require('../auth');
 const { asyncH, audit } = require('../utils');
 
@@ -16,9 +16,10 @@ const MFA_MAX_ATTEMPTS = 5;
 const MFA_WINDOW_MINUTES = 5;
 
 async function checkMfaRateLimit(userId) {
+  const cutoff = new Date(Date.now() - MFA_WINDOW_MINUTES * 60 * 1000).toISOString();
   const row = await q(
-    'SELECT COUNT(*) AS cnt FROM audit_logs WHERE user_id = ? AND action = ? AND created_at > datetime(\'now\', \'-' + MFA_WINDOW_MINUTES + ' minutes\')',
-    [userId, 'MFA_VERIFY_FAILED']
+    'SELECT COUNT(*) AS cnt FROM audit_logs WHERE user_id = ? AND action = ? AND created_at > ?',
+    [userId, 'MFA_VERIFY_FAILED', cutoff]
   );
   return (row?.cnt || 0) < MFA_MAX_ATTEMPTS;
 }
@@ -112,7 +113,7 @@ router.post('/verify', asyncH(async (req, res) => {
 
   let payload;
   try {
-    payload = jwt.verify(tempToken, JWT_SECRET);
+    payload = jwt.verify(tempToken, JWT_SECRET, { audience: JWT_AUDIENCE, issuer: JWT_ISSUER });
   } catch {
     return res.status(401).json({ error: 'Invalid or expired temp token' });
   }

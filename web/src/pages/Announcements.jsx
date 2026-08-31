@@ -63,7 +63,15 @@ export default function Announcements() {
   }
 
   async function remove(a) {
-    setConfirmAction({ message: t('announcements.deleteConfirm', { title: a.title }), action: async () => { await api(`/announcements/${a.id}`, { method: 'DELETE' }); load(); } });
+    setConfirmAction({ message: t('announcements.deleteConfirm', { title: a.title }), action: async () => {
+      try {
+        await api(`/announcements/${a.id}`, { method: 'DELETE' });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        load();
+      }
+    } });
   }
 
   const canDelete = ['super_admin', 'school_admin', 'principal', 'assistant_principal'].includes(user?.role);

@@ -80,7 +80,7 @@ router.get('/at-risk', requireRole(...WRITE), asyncH(async (req, res) => {
       `SELECT la.student_id, la.level FROM learner_assessments la
        WHERE la.kind = 'reading' AND la.level IS NOT NULL
          AND la.id = (SELECT MAX(l2.id) FROM learner_assessments l2 WHERE l2.student_id = la.student_id AND l2.kind = 'reading')`),
-    qa('SELECT DISTINCT student_id FROM intervention_plans'),
+    qa('SELECT DISTINCT ip.student_id FROM intervention_plans ip JOIN enrollments e ON e.student_id = ip.student_id AND e.school_year = ?', [sy]),
   ]);
 
   const attMap = {};

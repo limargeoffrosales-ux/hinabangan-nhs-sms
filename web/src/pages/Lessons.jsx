@@ -39,15 +39,17 @@ export default function Lessons() {
   const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       api('/subjects?limit=300'),
       api('/sections?limit=200'),
       api('/lessons?limit=300'),
     ]).then(([s, sec, l]) => {
-      setSubjects(s.data);
-      setSections(sec.data);
-      setRows(l.data);
-    }).catch((e) => setError(e.message)).finally(() => setLoading(false));
+      if (s.status === 'fulfilled') setSubjects(s.value.data);
+      if (sec.status === 'fulfilled') setSections(sec.value.data);
+      if (l.status === 'fulfilled') setRows(l.value.data);
+      const errors = [s, sec, l].filter((r) => r.status === 'rejected').map((r) => r.reason?.message).filter(Boolean);
+      if (errors.length) setError(errors.join('; '));
+    }).finally(() => setLoading(false));
   }, []);
 
   async function loadCompetencies(subjectId, quarter) {

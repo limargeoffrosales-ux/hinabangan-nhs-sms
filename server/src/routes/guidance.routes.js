@@ -66,11 +66,12 @@ router.get('/cases/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 router.post('/cases', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.student_id || !b.case_type) return res.status(400).json({ error: 'student_id and case_type required' });
+  const schoolYear = b.school_year || await getCurrentSchoolYear();
   const id = await qi(
-    `INSERT INTO guidance_cases (student_id, case_type, priority, status, opened_by, assigned_to, summary)
-     VALUES (?, ?, ?, 'open', ?, ?, ?)`,
+    `INSERT INTO guidance_cases (student_id, case_type, priority, status, opened_by, assigned_to, summary, school_year)
+     VALUES (?, ?, ?, 'open', ?, ?, ?, ?)`,
     [b.student_id, b.case_type, b.priority || 'normal', req.user.id,
-      b.assigned_to || null, b.summary || null]
+      b.assigned_to || null, b.summary || null, schoolYear]
   );
   await audit(req, 'CREATE_GUIDANCE_CASE', 'guidance_cases', id);
   res.status(201).json({ id });
