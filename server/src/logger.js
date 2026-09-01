@@ -1,6 +1,13 @@
-// NOTE: pino-pretty must be added as a devDependency: npm i -D pino-pretty
+// NOTE: pino-pretty is optional. When absent, fall back to plain JSON output.
 const pino = require('pino');
-const logger = process.env.NODE_ENV === 'production'
-  ? pino({ level: process.env.LOG_LEVEL || 'info' })
-  : pino({ level: process.env.LOG_LEVEL || 'info', transport: { target: 'pino-pretty' } });
+let transport = undefined;
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    require.resolve('pino-pretty');
+    transport = { target: 'pino-pretty' };
+  } catch {
+    transport = undefined;
+  }
+}
+const logger = pino({ level: process.env.LOG_LEVEL || 'info', transport });
 module.exports = logger;

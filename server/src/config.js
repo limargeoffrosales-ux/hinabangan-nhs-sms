@@ -7,7 +7,10 @@ const JWT_SECRET = process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRE
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'meridianed';
 const JWT_ISSUER = process.env.JWT_ISSUER || 'meridianed';
 const ACCESS_TTL = process.env.ACCESS_TTL || '15m';
-const REFRESH_TTL_DAYS = Number(process.env.REFRESH_TTL_DAYS || 14);
+const REFRESH_TTL_DAYS = (() => {
+  const n = Number(process.env.REFRESH_TTL_DAYS || 14);
+  return Number.isFinite(n) && n > 0 ? n : 14;
+})();
 let GRADE_WEIGHTS;
 try { GRADE_WEIGHTS = JSON.parse(process.env.GRADE_WEIGHTS || '{"written_work":25,"performance_task":45,"quarterly_exam":30}'); } catch { GRADE_WEIGHTS = { written_work: 25, performance_task: 45, quarterly_exam: 30 }; }
 

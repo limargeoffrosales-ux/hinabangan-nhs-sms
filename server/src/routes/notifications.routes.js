@@ -9,24 +9,24 @@ async function sendSmsBlast(message, studentIds) {
   if (studentIds && studentIds.length) {
     const placeholders = studentIds.map(() => '?').join(',');
     contacts = await qa(
-      `SELECT DISTINCT s.parent_contact, s.guardian_name, s.first_name, s.last_name
+      `SELECT DISTINCT s.guardian_contact, s.guardian_name, s.first_name, s.last_name
        FROM students s
-       WHERE s.parent_contact IS NOT NULL AND s.parent_contact != ''
+       WHERE s.guardian_contact IS NOT NULL AND s.guardian_contact != ''
          AND s.id IN (${placeholders})`,
       studentIds
     );
   } else {
     contacts = await qa(
-      `SELECT DISTINCT s.parent_contact, s.guardian_name, s.first_name, s.last_name
+      `SELECT DISTINCT s.guardian_contact, s.guardian_name, s.first_name, s.last_name
        FROM students s
-       WHERE s.parent_contact IS NOT NULL AND s.parent_contact != ''`
+       WHERE s.guardian_contact IS NOT NULL AND s.guardian_contact != ''`
     );
   }
   let sent = 0;
   let failed = 0;
   for (const c of contacts) {
     try {
-      const phone = c.parent_contact.replace(/\s+/g, '');
+      const phone = c.guardian_contact.replace(/\s+/g, '');
       if (!phone) { failed++; continue; }
       await qr(
         `INSERT INTO notifications (channel, event, recipient_address, body, status, attempts)

@@ -71,7 +71,7 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 /* ── Availability ──────────────────────────────────────── */
 
 router.get('/availability', requireRole(...WRITE), asyncH(async (req, res) => {
-  const { day, start_time, end_time, school_year, exclude_assignment_id } = req.query;
+  const { day, start_time, end_time, school_year } = req.query;
   if (!day || !start_time || !end_time || !school_year) {
     return res.status(400).json({ error: 'day, start_time, end_time, and school_year are required' });
   }
@@ -80,11 +80,8 @@ router.get('/availability', requireRole(...WRITE), asyncH(async (req, res) => {
      FROM rooms r
      JOIN schedule_entries se ON se.room_id = r.id
      WHERE se.day = ? AND se.school_year = ?
-       AND se.start_time < ? AND se.end_time > ?` +
-    (exclude_assignment_id ? ' AND se.assignment_id != ?' : '');
-  const conflictParams = exclude_assignment_id
-    ? [day, school_year, end_time, start_time, exclude_assignment_id]
-    : [day, school_year, end_time, start_time];
+       AND se.start_time < ? AND se.end_time > ?`;
+  const conflictParams = [day, school_year, end_time, start_time];
   const unavailable = await qa(conflictSql, conflictParams);
   const unavailableIds = unavailable.map((r) => r.id);
   let sql = 'SELECT * FROM rooms WHERE active = TRUE';

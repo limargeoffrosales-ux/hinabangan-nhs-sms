@@ -779,15 +779,14 @@ router.get('/sf11', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        a.section_id,
        sec.name as section_name,
        sec.grade_level,
-       a.school_year,
        COUNT(*) as total_days,
        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
      FROM attendance a
      JOIN sections sec ON sec.id = a.section_id
      WHERE a.student_id = ?
-     GROUP BY a.section_id, sec.name, sec.grade_level, a.school_year
-     ORDER BY a.school_year, sec.grade_level`,
+     GROUP BY a.section_id, sec.name, sec.grade_level
+     ORDER BY sec.grade_level`,
     [student_id]
   );
   res.json({ learner: { student: withAge(student), enrollments, grades: allGrades, attendance: allAttendance } });

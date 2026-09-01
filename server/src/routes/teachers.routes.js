@@ -14,8 +14,8 @@ async function resolveUserId(b, { ignoreId } = {}) {
   if (!Number.isInteger(userId) || userId <= 0) return null;
   const u = await q('SELECT id FROM users WHERE id = ?', [userId]);
   if (!u) return { error: 'Linked login account not found' };
-  const cond = ignoreId ? 'AND t.id != $2::bigint' : '';
-  const used = await q(`SELECT id FROM teachers t WHERE t.user_id = $1::bigint ${cond}`, [userId, ...(ignoreId ? [ignoreId] : [])]);
+  const cond = ignoreId ? 'AND t.id != ?' : '';
+  const used = await q(`SELECT id FROM teachers t WHERE t.user_id = ? ${cond}`, [userId, ...(ignoreId ? [ignoreId] : [])]);
   if (used) return { error: 'That login account is already linked to another teacher' };
   return userId;
 }

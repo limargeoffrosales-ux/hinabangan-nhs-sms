@@ -3,6 +3,7 @@ const db = require('../db');
 const { q, qa, qi, qr } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
+const { ensureTeacherSeesStudent, teacherScope, studentInScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -56,6 +57,16 @@ router.get('/', requireRole('super_admin', 'school_admin', 'principal', 'assista
     const like = `%${req.query.q}%`;
     params.push(like, like, like);
   }
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    if (scope) {
+      const sc = studentInScope(scope, 'st');
+      where.push(sc.sql);
+      params.push(...sc.params);
+    } else {
+      where.push('0 = 1');
+    }
+  }
   const sql = LIST_SELECT +
     (where.length ? ' WHERE ' + where.join(' AND ') : '') +
     " ORDER BY (cr.status = 'open') DESC, cr.incident_date DESC, cr.id DESC LIMIT ? OFFSET ?";
@@ -99,6 +110,10 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   }
   const student = await q('SELECT id FROM students WHERE id = ?', [b.student_id]);
   if (!student) return res.status(400).json({ error: 'Student not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const id = await qi(
     `INSERT INTO student_conduct_records (student_id, incident_type, incident_date, description, severity, status, reported_by)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,

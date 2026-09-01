@@ -65,6 +65,10 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
   }
   const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
   if (!section) return res.status(404).json({ error: 'Section not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesSection(req.user, b.section_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const valid = ['present', 'absent', 'late', 'excused', 'half_day'];
   let n = 0;
   await tx(async (conn) => {
@@ -98,6 +102,10 @@ router.post('/:studentId/check', requireRole(...WRITE), asyncH(async (req, res) 
   const date = b.date || new Date().toISOString().slice(0, 10);
   const student = await q('SELECT id FROM students WHERE id = ?', [req.params.studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, student.id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const sess = b.session || null;
   const existing = await q(
     sess
