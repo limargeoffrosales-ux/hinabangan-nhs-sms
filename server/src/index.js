@@ -54,10 +54,6 @@ const uploadsRoutes = require('./routes/uploads.routes');
 const aiRoutes = require('./routes/ai.routes');
 
 (async () => {
-  if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-    logger.fatal('JWT_SECRET must be set in production.');
-    process.exit(1);
-  }
   await db.init();
   const { ensureDefaults, startNotifySweep } = require('./notify');
   await ensureDefaults();
@@ -99,6 +95,7 @@ const aiRoutes = require('./routes/ai.routes');
   }
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);
 
   if (process.env.SENTRY_DSN) {
     Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'development', tracesSampleRate: 0.1 });
@@ -109,7 +106,7 @@ const aiRoutes = require('./routes/ai.routes');
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com", "https://lh3.googleusercontent.com"],
@@ -150,17 +147,6 @@ const aiRoutes = require('./routes/ai.routes');
     '/api/v1/mfa/verify',
   ];
 
-  // CSRF protection for authenticated mutating requests.
-  // Authentication must happen first so req.user is populated before CSRF validation.
-  app.use((req, res, next) => {
-    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
-    if (PUBLIC_MUTATING_PATHS.some((p) => req.path === p || req.path.startsWith(p + '/'))) return next();
-    return authenticate(req, res, (err) => {
-      if (err) return next(err);
-      return requireCsrf(req, res, next);
-    });
-  });
-
   const MAX_BODY_FIELD = 10000;
   const BULK_IMPORT_PATHS = [
     '/api/v1/enrollments/import',
@@ -180,6 +166,18 @@ const aiRoutes = require('./routes/ai.routes');
       }
     }
     next();
+  });
+
+  // CSRF protection for authenticated mutating requests. Body parsing happens
+  // before the gate so requireCsrf can validate a body-supplied csrf_token.
+  // Authentication must happen first so req.user is populated before CSRF validation.
+  app.use((req, res, next) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    if (PUBLIC_MUTATING_PATHS.some((p) => req.path === p || req.path.startsWith(p + '/'))) return next();
+    return authenticate(req, res, (err) => {
+      if (err) return next(err);
+      return requireCsrf(req, res, next);
+    });
   });
   app.use(compression());
 
@@ -336,7 +334,7 @@ const aiRoutes = require('./routes/ai.routes');
   async function shutdown(signal) {
     logger.info({ signal }, 'Received signal — shutting down gracefully...');
     server.close(() => {
-      db.close().then(() => process.exit(0)).catch(() => process.exit(1));
+      Promise.resolve(db.close()).then(() => process.exit(0)).catch(() => process.exit(1));
     });
     // Force exit after 10s
     setTimeout(() => process.exit(1), 10000).unref();

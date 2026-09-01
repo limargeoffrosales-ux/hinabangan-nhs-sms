@@ -12,6 +12,14 @@ function pgParams(sql) {
   return sql.replace(/\?/g, () => '$' + (++i));
 }
 
+// Normalize JS boolean params to 1/0: PostgreSQL accepts booleans directly,
+// node:sqlite rejects them ("Provided value cannot be bound"), so bind as
+// smallint text on both dialects.
+function normParams(p) {
+  if (!p) return p;
+  return p.map((v) => (v === true ? 1 : v === false ? 0 : v));
+}
+
 async function init() {
   if (usePg) {
     dialect = 'pg';
@@ -25,21 +33,28 @@ async function init() {
     });
     driver = {
       params: pgParams,
-      run: (sql, p) => pool.query(pgParams(sql), p || []).then((r) => ({ changes: r.rowCount })),
-      runId: async (sql, p) => (await pool.query(pgParams(sql + ' RETURNING *'), p || [])).rows[0]?.id,
-      get: async (sql, p) => (await pool.query(pgParams(sql), p || [])).rows[0] || null,
-      all: async (sql, p) => (await pool.query(pgParams(sql), p || [])).rows,
+      run: (sql, p) => pool.query(pgParams(sql), normParams(p) || []).then((r) => ({ changes: r.rowCount })),
+      runId: async (sql, p) => (await pool.query(pgParams(sql + ' RETURNING *'), normParams(p) || [])).rows[0]?.id,
+      get: async (sql, p) => (await pool.query(pgParams(sql), normParams(p) || [])).rows[0] || null,
+      all: async (sql, p) => (await pool.query(pgParams(sql), normParams(p) || [])).rows,
       exec: (sql) => pool.query(sql),
       close: () => pool.end(),
       tx: async (fn) => {
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
+          const stmts = {
+            run: (sql, p) => client.query(pgParams(sql), normParams(p) || []).then((r) => ({ changes: r.rowCount })),
+            runId: async (sql, p) => (await client.query(pgParams(sql + ' RETURNING *'), normParams(p) || [])).rows[0]?.id,
+            get: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows[0] || null,
+            all: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows,
+          };
           const result = await fn({
-            run: (sql, p) => client.query(pgParams(sql), p || []).then((r) => ({ changes: r.rowCount })),
-            runId: async (sql, p) => (await client.query(pgParams(sql + ' RETURNING *'), p || [])).rows[0]?.id,
-            get: async (sql, p) => (await client.query(pgParams(sql), p || [])).rows[0] || null,
-            all: async (sql, p) => (await client.query(pgParams(sql), p || [])).rows,
+            ...stmts,
+            q: stmts.get,
+            qa: stmts.all,
+            qr: stmts.run,
+            qi: stmts.runId,
           });
           await client.query('COMMIT');
           return result;
@@ -67,40 +82,62 @@ async function init() {
       }
       return stmt;
     }
+    // SQLite uses a single shared connection, so all statements — including the
+    // BEGIN/COMMIT of a transaction — must run on one serialized queue. Without
+    // this, an `await` inside a tx callback would let another request's writes
+    // execute inside the open transaction and get rolled back on ROLLBACK.
+    let chain = Promise.resolve();
+    function enqueue(fn) {
+      const p = chain.then(() => {
+        try {
+          return fn();
+        } catch (e) {
+          e.stack = 'SQLITE-BIND >>> ' + (fn.sql || 'unknown') + '\n' + e.stack;
+          throw e;
+        }
+      });
+      chain = p.then(() => {}, () => {});
+      return p;
+    }
+    function bind(sql, args, fn) {
+      fn.sql = sql;
+      fn.args = () => args;
+      return enqueue(fn);
+    }
     driver = {
       params: (sql) => sql,
-      run: (sql, p) => {
+      run: (sql, p) => bind(sql, p, () => {
         const st = getStmt(sql);
-        const r = p ? st.run(...p) : st.run();
+        const r = p ? st.run(...normParams(p)) : st.run();
         return { changes: Number(r.changes || 0) };
-      },
-      runId: (sql, p) => {
+      }),
+      runId: (sql, p) => bind(sql, p, () => {
         const st = getStmt(sql);
-        const r = p ? st.run(...p) : st.run();
+        const r = p ? st.run(...normParams(p)) : st.run();
         return Number(r.lastInsertRowid);
-      },
-      get: (sql, p) => {
+      }),
+      get: (sql, p) => enqueue(() => {
         const st = getStmt(sql);
         return (p ? st.get(...p) : st.get()) || null;
-      },
-      all: (sql, p) => {
+      }),
+      all: (sql, p) => enqueue(() => {
         const st = getStmt(sql);
         return p ? st.all(...p) : st.all();
-      },
+      }),
       exec: (sql) => db.exec(sql),
       close: () => db.close(),
-      tx: async (fn) => {
+      tx: (fn) => enqueue(async () => {
         db.exec('BEGIN');
         try {
-          const result = await fn({
+          const stmts = {
             run: (sql, p) => {
               const st = getStmt(sql);
-              const r = p ? st.run(...p) : st.run();
+              const r = p ? st.run(...normParams(p)) : st.run();
               return { changes: Number(r.changes || 0) };
             },
             runId: (sql, p) => {
               const st = getStmt(sql);
-              const r = p ? st.run(...p) : st.run();
+              const r = p ? st.run(...normParams(p)) : st.run();
               return Number(r.lastInsertRowid);
             },
             get: (sql, p) => {
@@ -111,6 +148,13 @@ async function init() {
               const st = getStmt(sql);
               return p ? st.all(...p) : st.all();
             },
+          };
+          const result = await fn({
+            ...stmts,
+            q: stmts.get,
+            qa: stmts.all,
+            qr: stmts.run,
+            qi: stmts.runId,
           });
           db.exec('COMMIT');
           return result;
@@ -118,7 +162,7 @@ async function init() {
           db.exec('ROLLBACK');
           throw err;
         }
-      },
+      }),
     };
   }
   await migrate();
@@ -140,8 +184,15 @@ async function migrate() {
     for (const file of files) {
       if (appliedSet.has(file)) continue;
       const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-      await driver.exec(sql);
-      await driver.run('INSERT INTO schema_migrations (file, applied_at) VALUES (?, now()) ON CONFLICT (file) DO NOTHING', [file]);
+      await driver.exec('BEGIN');
+      try {
+        await driver.exec(sql);
+        await driver.run('INSERT INTO schema_migrations (file, applied_at) VALUES (?, now()) ON CONFLICT (file) DO NOTHING', [file]);
+        await driver.exec('COMMIT');
+      } catch (err) {
+        await driver.exec('ROLLBACK');
+        throw err;
+      }
     }
   } else {
     const { DatabaseSync } = require('node:sqlite');

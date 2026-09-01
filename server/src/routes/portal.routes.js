@@ -231,7 +231,7 @@ router.get('/teacher-contacts', requireRole(...PORTAL), asyncH(async (req, res) 
     [studentId, school_year || new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)]);
   if (!enr) return res.json({ data: [] });
   const rows = await qa(
-    `SELECT DISTINCT t.id, t.first_name, t.last_name, t.email, t.phone,
+    `SELECT DISTINCT t.id, t.first_name, t.last_name, t.email, t.contact,
             ca.subject_id, sub.code AS subject_code, sub.title AS subject_title,
             sec.name AS section_name,
             CASE WHEN sec.adviser_teacher_id = t.id THEN 1 ELSE 0 END AS is_adviser

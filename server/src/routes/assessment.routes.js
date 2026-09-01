@@ -53,10 +53,13 @@ router.patch('/questions/:id', requireRole(...WRITE), asyncH(async (req, res) =>
   }
   const b = req.body || {};
   const f = (k) => b[k] !== undefined ? b[k] : row[k];
+  const options = b.options !== undefined
+    ? (typeof b.options === 'string' ? b.options : JSON.stringify(b.options))
+    : row.options;
   await qr(
     `UPDATE question_bank SET subject_id = ?, grade_level = ?, competency = ?, competency_id = ?, qtype = ?, question = ?, options = ?, answer = ?, difficulty = ? WHERE id = ?`,
     [f('subject_id'), f('grade_level'), f('competency'), f('competency_id'), f('qtype'), f('question'),
-      f('options'), f('answer'), f('difficulty'), row.id]);
+      options, f('answer'), f('difficulty'), row.id]);
   res.json({ ok: true });
 }));
 

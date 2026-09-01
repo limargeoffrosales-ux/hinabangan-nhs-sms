@@ -11,7 +11,7 @@ router.get('/', asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const isPortal = req.role === 'student' || req.role === 'parent';
   const audienceFilter = isPortal ? " AND (a.audience = 'all' OR a.audience = ?)" : '';
-  const params = isPortal ? [limit, offset, req.role] : [limit, offset];
+  const params = isPortal ? [req.role, limit, offset] : [limit, offset];
   const rows = await qa(
     `SELECT a.*, u.name AS author_name FROM announcements a LEFT JOIN users u ON u.id = a.author_id WHERE 1=1 ${audienceFilter} ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
     params);

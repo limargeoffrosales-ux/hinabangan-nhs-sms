@@ -20,7 +20,7 @@ function evictIfNeeded(map, maxEntries = 10000) {
 
 function signAccess(user) {
   return jwt.sign(
-    { sub: String(user.id), role: user.role, name: user.name, username: user.username },
+    { sub: String(user.id), role: user.role, name: user.name, username: user.username, tokenUse: 'access' },
     JWT_SECRET,
     { expiresIn: ACCESS_TTL, audience: JWT_AUDIENCE, issuer: JWT_ISSUER }
   );
@@ -28,7 +28,11 @@ function signAccess(user) {
 
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET, { audience: JWT_AUDIENCE, issuer: JWT_ISSUER });
+    return jwt.verify(token, JWT_SECRET, {
+      audience: JWT_AUDIENCE,
+      issuer: JWT_ISSUER,
+      algorithms: ['HS256'],
+    });
   } catch {
     return null;
   }
@@ -87,6 +91,9 @@ async function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Missing bearer token' });
   const payload = verifyToken(token);
   if (!payload) return res.status(401).json({ error: 'Invalid or expired token' });
+  if (payload.tokenUse === 'mfa' || payload.mfa_pending) {
+    return res.status(401).json({ error: 'MFA verification required' });
+  }
 
   const userId = payload.sub;
   const cached = userCache.get(userId);
@@ -99,6 +106,10 @@ async function authenticate(req, res, next) {
   const user = await q('SELECT id, username, name, role, status, password_changed_at FROM users WHERE id = ?', [userId]);
   if (!user || user.status !== 'active') return res.status(401).json({ error: 'Account disabled or removed' });
   const userObj = { id: user.id, username: user.username, name: user.name, role: user.role };
+  if (user.role === 'teacher') {
+    const t = await q('SELECT id FROM teachers WHERE user_id = ? LIMIT 1', [user.id]);
+    userObj.teacher_id = t ? Number(t.id) : null;
+  }
   userCache.set(userId, { user: userObj, ts: Date.now() });
   evictIfNeeded(userCache);
   req.user = userObj;

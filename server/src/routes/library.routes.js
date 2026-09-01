@@ -3,7 +3,6 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { getCurrentSchoolYear } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
@@ -11,14 +10,13 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 
 /* ── List books ────────────────────────────────────── */
 router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
-  const { category, status, search, school_year } = req.query;
+  const { category, status, search } = req.query;
   let sql = 'SELECT * FROM library_books';
   const where = [];
   const params = [];
   if (category) { where.push('category = ?'); params.push(category); }
   if (status) { where.push('status = ?'); params.push(status); }
   if (search) { where.push('(LOWER(title) LIKE ? OR LOWER(author) LIKE ? OR isbn = ?)'); const s = `%${search.toLowerCase()}%`; params.push(s, s, search); }
-  if (school_year) { where.push('school_year = ?'); params.push(school_year); }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY title ASC';
   res.json({ data: await qa(sql, params) });
@@ -26,8 +24,7 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
 
 /* ── Summary ───────────────────────────────────────── */
 router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
-  const sy = req.query.school_year || await getCurrentSchoolYear();
-  const total = await q('SELECT COUNT(*) AS count, COALESCE(SUM(total_copies),0) AS copies, COALESCE(SUM(available_copies),0) AS available FROM library_books WHERE status = \'active\' AND school_year = ?', [sy]);
+  const total = await q('SELECT COUNT(*) AS count, COALESCE(SUM(total_copies),0) AS copies, COALESCE(SUM(available_copies),0) AS available FROM library_books WHERE status = \'active\'');
   const borrows = await q('SELECT COUNT(*) AS active FROM book_borrows WHERE status = \'borrowed\'');
   const overdue = await q('SELECT COUNT(*) AS count FROM book_borrows WHERE status = \'borrowed\' AND due_date < CURRENT_DATE');
   const byCategory = await qa('SELECT category, COUNT(*) AS count FROM library_books WHERE status = \'active\' GROUP BY category ORDER BY count DESC');
@@ -36,7 +33,7 @@ router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
 
 /* ── List borrows ──────────────────────────────────── */
 router.get('/borrows/all', requireRole(...WRITE), asyncH(async (req, res) => {
-  const { status, school_year } = req.query;
+  const { status } = req.query;
   let sql = `SELECT bb.*, lb.title AS book_title, lb.author AS book_author,
     CASE WHEN bb.borrower_type = 'student' THEN st.first_name || ' ' || st.last_name
       ELSE t.first_name || ' ' || t.last_name END AS borrower_name
@@ -45,8 +42,7 @@ router.get('/borrows/all', requireRole(...WRITE), asyncH(async (req, res) => {
     LEFT JOIN students st ON st.id = bb.borrower_id AND bb.borrower_type = 'student'
     LEFT JOIN teachers t ON t.id = bb.borrower_id AND bb.borrower_type = 'teacher'`;
   const params = [];
-  if (school_year) { sql += ' WHERE lb.school_year = ?'; params.push(school_year); }
-  if (status) { sql += (params.length ? ' AND' : ' WHERE') + ' bb.status = ?'; params.push(status); }
+  if (status) { sql += ' WHERE bb.status = ?'; params.push(status); }
   sql += ' ORDER BY bb.borrow_date DESC';
   res.json({ data: await qa(sql, params) });
 }));

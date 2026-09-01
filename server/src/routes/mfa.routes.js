@@ -9,6 +9,74 @@ const { authenticate, signAccess, generateCsrfToken, storeCsrfToken } = require(
 const { asyncH, audit } = require('../utils');
 
 const router = express.Router();
+
+// POST /mfa/verify — verify TOTP code during MFA login flow.
+// NOTE: intentionally registered BEFORE router.use(authenticate) because the
+// login flow presents a short-lived MFA-pending token (not a full access
+// token) here, so it must NOT be authenticated as a normal session.
+router.post('/verify', asyncH(async (req, res) => {
+  const { tempToken, code } = req.body || {};
+  if (!tempToken || !code) return res.status(400).json({ error: 'tempToken and code are required' });
+
+  let payload;
+  try {
+    payload = jwt.verify(tempToken, JWT_SECRET, { audience: JWT_AUDIENCE, issuer: JWT_ISSUER, algorithms: ['HS256'] });
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired temp token' });
+  }
+
+  if (!payload.mfa_pending && payload.tokenUse !== 'mfa') {
+    return res.status(400).json({ error: 'This token is not a pending MFA token' });
+  }
+
+  const allowed = await checkMfaRateLimit(payload.sub);
+  if (!allowed) {
+    await audit(req, 'MFA_RATE_LIMITED', 'auth', payload.sub, {});
+    return res.status(429).json({ error: 'Too many MFA attempts. Try again later.' });
+  }
+
+  const user = await q('SELECT id, username, name, role, status, mfa_secret, mfa_enabled FROM users WHERE id = ?', [payload.sub]);
+  if (!user || user.status !== 'active') {
+    return res.status(401).json({ error: 'Account disabled or removed' });
+  }
+  if (!user.mfa_enabled || !user.mfa_secret) {
+    return res.status(400).json({ error: 'MFA is not enabled for this account' });
+  }
+
+  const verified = speakeasy.totp.verify({
+    secret: user.mfa_secret,
+    encoding: 'base32',
+    token: String(code),
+    window: 1,
+  });
+
+  if (!verified) {
+    await recordMfaFailure(user.id, user.username);
+    return res.status(401).json({ error: 'Invalid TOTP code' });
+  }
+
+  // Issue real tokens
+  const accessToken = signAccess(user);
+  const crypto = require('crypto');
+  const { REFRESH_TTL_DAYS } = require('../config');
+  const { hashToken } = require('../auth');
+  const rawRefresh = crypto.randomBytes(48).toString('base64url');
+  const expiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 3600 * 1000).toISOString();
+  await qi('INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+    [user.id, hashToken(rawRefresh), expiresAt]);
+
+  await audit(req, 'LOGIN_MFA', 'auth', user.id, { username: user.username, role: user.role });
+
+  const csrfToken = generateCsrfToken();
+  storeCsrfToken(user.id, csrfToken);
+  res.json({
+    token: accessToken,
+    refreshToken: rawRefresh,
+    csrfToken,
+    user: { id: user.id, username: user.username, name: user.name, role: user.role },
+  });
+}));
+
 router.use(authenticate);
 
 const MFA_TEMP_TTL = '5m';
@@ -24,10 +92,10 @@ async function checkMfaRateLimit(userId) {
   return (row?.cnt || 0) < MFA_MAX_ATTEMPTS;
 }
 
-async function recordMfaFailure(userId) {
+async function recordMfaFailure(userId, username = null) {
   await qi(
     'INSERT INTO audit_logs (user_id, username, action, entity, entity_id, ip) VALUES (?, ?, ?, ?, ?, ?)',
-    [userId, null, 'MFA_VERIFY_FAILED', 'auth', String(userId), '']
+    [userId, username, 'MFA_VERIFY_FAILED', 'auth', String(userId), '']
   );
 }
 
@@ -106,70 +174,7 @@ router.post('/disable', asyncH(async (req, res) => {
   res.json({ ok: true, mfa_enabled: false });
 }));
 
-// POST /mfa/verify — verify TOTP code during MFA login flow
-router.post('/verify', asyncH(async (req, res) => {
-  const { tempToken, code } = req.body || {};
-  if (!tempToken || !code) return res.status(400).json({ error: 'tempToken and code are required' });
-
-  let payload;
-  try {
-    payload = jwt.verify(tempToken, JWT_SECRET, { audience: JWT_AUDIENCE, issuer: JWT_ISSUER });
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired temp token' });
-  }
-
-  if (!payload.mfa_pending) {
-    return res.status(400).json({ error: 'This token is not a pending MFA token' });
-  }
-
-  const allowed = await checkMfaRateLimit(payload.sub);
-  if (!allowed) {
-    await audit(req, 'MFA_RATE_LIMITED', 'auth', payload.sub, {});
-    return res.status(429).json({ error: 'Too many MFA attempts. Try again later.' });
-  }
-
-  const user = await q('SELECT id, username, name, role, status, mfa_secret, mfa_enabled FROM users WHERE id = ?', [payload.sub]);
-  if (!user || user.status !== 'active') {
-    return res.status(401).json({ error: 'Account disabled or removed' });
-  }
-  if (!user.mfa_enabled || !user.mfa_secret) {
-    return res.status(400).json({ error: 'MFA is not enabled for this account' });
-  }
-
-  const verified = speakeasy.totp.verify({
-    secret: user.mfa_secret,
-    encoding: 'base32',
-    token: String(code),
-    window: 1,
-  });
-
-  if (!verified) {
-    await recordMfaFailure(user.id);
-    await audit(req, 'MFA_VERIFY_FAILED', 'auth', user.id, { username: user.username });
-    return res.status(401).json({ error: 'Invalid TOTP code' });
-  }
-
-  // Issue real tokens
-  const accessToken = signAccess(user);
-  const crypto = require('crypto');
-  const { REFRESH_TTL_DAYS } = require('../config');
-  const { hashToken } = require('../auth');
-  const rawRefresh = crypto.randomBytes(48).toString('base64url');
-  const expiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 3600 * 1000).toISOString();
-  await qi('INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
-    [user.id, hashToken(rawRefresh), expiresAt]);
-
-  await audit(req, 'LOGIN_MFA', 'auth', user.id, { username: user.username, role: user.role });
-
-  const csrfToken = generateCsrfToken();
-  storeCsrfToken(user.id, csrfToken);
-  res.json({
-    token: accessToken,
-    refreshToken: rawRefresh,
-    csrfToken,
-    user: { id: user.id, username: user.username, name: user.name, role: user.role },
-  });
-}));
+// POST /mfa/verify — handled at top of file (registered before authenticate).
 
 // GET /mfa/status — get MFA status for current user
 router.get('/status', asyncH(async (req, res) => {

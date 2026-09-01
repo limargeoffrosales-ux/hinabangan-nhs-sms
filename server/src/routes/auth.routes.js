@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, nowSql } = require('../db');
 const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, getCsrfToken, clearCsrfToken } = require('../auth');
 const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER } = require('../config');
 const { asyncH, audit } = require('../utils');
@@ -48,6 +48,16 @@ function genRefresh() {
   return crypto.randomBytes(48).toString('base64url');
 }
 
+let lastSweep = 0;
+async function maybeSweepExpired() {
+  const now = Date.now();
+  if (now - lastSweep < 15 * 60 * 1000) return;
+  lastSweep = now;
+  try {
+    await qr(`DELETE FROM refresh_tokens WHERE expires_at < ${nowSql()}`);
+  } catch {}
+}
+
 async function issueRefresh(userId) {
   const raw = genRefresh();
   const expiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 3600 * 1000).toISOString();
@@ -57,6 +67,7 @@ async function issueRefresh(userId) {
 }
 
 router.post('/login', asyncH(async (req, res) => {
+  await maybeSweepExpired();
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'username and password are required' });
   if (String(username).length > 100 || String(password).length > 128) {
@@ -80,7 +91,7 @@ router.post('/login', asyncH(async (req, res) => {
   // Check if MFA is enabled
   if (user.mfa_enabled && user.mfa_secret) {
     const tempToken = jwt.sign(
-      { sub: String(user.id), mfa_pending: true },
+      { sub: String(user.id), tokenUse: 'mfa', mfa_pending: true },
       JWT_SECRET,
       { expiresIn: '5m', audience: JWT_AUDIENCE, issuer: JWT_ISSUER }
     );
@@ -102,6 +113,7 @@ router.post('/login', asyncH(async (req, res) => {
 }));
 
 router.post('/refresh', asyncH(async (req, res) => {
+  await maybeSweepExpired();
   const { refreshToken } = req.body || {};
   if (!refreshToken) return res.status(400).json({ error: 'refreshToken is required' });
   const row = await q('SELECT rt.id AS token_id, rt.user_id, rt.expires_at, rt.revoked, u.id, u.username, u.name, u.role, u.status FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id WHERE rt.token_hash = ?',
@@ -114,7 +126,14 @@ router.post('/refresh', asyncH(async (req, res) => {
   }
   if (new Date(row.expires_at) < new Date()) return res.status(401).json({ error: 'Refresh token expired' });
   if (row.status !== 'active') return res.status(401).json({ error: 'Account disabled' });
-  await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE id = ?', [row.token_id]);
+  // Atomic conditional revoke: of two concurrent refreshes only one wins.
+  // The loser is treated as reuse and the whole token family is revoked.
+  const revokeRes = await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE id = ? AND revoked = FALSE', [row.token_id]);
+  if (Number(revokeRes.changes || 0) === 0) {
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ? AND revoked = FALSE', [row.user_id]);
+    await logSecurityIncident('REFRESH_TOKEN_REUSE', 'high', req.ip, row.username, row.user_id, {});
+    return res.status(401).json({ error: 'Refresh token revoked (reuse detected)' });
+  }
   const accessToken = signAccess({ id: row.user_id, username: row.username, name: row.name, role: row.role });
   const newRefresh = await issueRefresh(row.user_id);
   const csrfToken = generateCsrfToken();
