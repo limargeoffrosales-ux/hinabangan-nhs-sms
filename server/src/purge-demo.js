@@ -19,11 +19,6 @@ const DEMO_ANNOUNCEMENTS = () => [
 ];
 const DEMO_TEACHERS = ['T-0001', 'T-0002', 'T-0003', 'T-0004', 'T-0005', 'T-0006', 'T-0007', 'T-0008'];
 const DEMO_SECTIONS = ['ACAD 11-A', 'ACAD 11-B', 'TECHPRO 11-A', 'HUMSS 12-A', 'STEM 12-A', 'TVL-ICT 12-A'];
-const DEMO_RESEARCH = [
-  'Improving Oral Communication Skills of Grade 11 HUMSS Learners Through Structured Peer Discussions',
-  'Gamified Review Quizzes in General Mathematics: Impact on Performance and Engagement',
-  'Project READS: A Reading Enhancement Program for Struggling Grade 11 Readers',
-];
 const DEMO_QUESTIONS = [
   '%oral communication message%',
   '%active listening%',
@@ -74,16 +69,6 @@ async function purgeDemo() {
   log('intervention plans', await countAndDel('intervention_plans', `student_id IN (${inClause(studentIds)})`, []));
   log('intervention contacts', await countAndDel(
     'intervention_contacts', `plan_id IN (SELECT id FROM intervention_plans WHERE student_id IN (${inClause(studentIds)}))`, []));
-
-  log('research projects', await countAndDel(
-    'research_projects',
-    `title = ? OR title = ? OR title = ?`, DEMO_RESEARCH));
-  log('research versions', await countAndDel(
-    'research_versions',
-    `project_id IN (SELECT id FROM research_projects WHERE title = ? OR title = ? OR title = ?)`, DEMO_RESEARCH));
-  log('research milestones', await countAndDel(
-    'research_milestones',
-    `project_id IN (SELECT id FROM research_projects WHERE title = ? OR title = ? OR title = ?)`, DEMO_RESEARCH));
 
   const annCount = await countAndDel(
     'announcements', `title = ? OR title = ? OR title = ?`, DEMO_ANNOUNCEMENTS);

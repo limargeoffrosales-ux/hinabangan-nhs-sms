@@ -42,31 +42,8 @@ const R2_SECRET_KEY = process.env.R2_SECRET_KEY || '';
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
 
-// Browser/APK origins allowed to call the API cross-origin. Same-origin
-// requests (the web portal served by this same process) are always allowed.
-// Set ALLOWED_ORIGINS env var as a comma-separated list to override defaults.
-const DEFAULT_ORIGINS = [
-  'https://hinabangan-nhs.onrender.com',
-  'https://hinabangan-nhs-sms.onrender.com',
-  /^https?:\/\/localhost(:\d+)?$/,
-  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  /^capacitor:\/\/localhost$/,
-  /^https?:\/\/localhost$/,
-];
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim())
-  : DEFAULT_ORIGINS;
-
-function isAllowedOrigin(origin) {
-  if (!origin) return false;
-  for (const rule of ALLOWED_ORIGINS) {
-    if (rule instanceof RegExp ? rule.test(origin) : rule === origin) return true;
-  }
-  return false;
-}
-
 module.exports = {
-  PORT, DATA_DIR, WEB_DIR, JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL, REFRESH_TTL_DAYS, GRADE_WEIGHTS, isAllowedOrigin,
+  PORT, DATA_DIR, WEB_DIR, JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL, REFRESH_TTL_DAYS, GRADE_WEIGHTS,
   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, NOTIFY_EMAIL_MODE,
   SMS_PROVIDER_URL, SMS_PROVIDER_TOKEN, SMS_SENDER, NOTIFY_EMAIL_ENABLED, NOTIFY_SMS_ENABLED,
   R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY, R2_SECRET_KEY, R2_PUBLIC_URL, UPLOAD_MAX_MB,

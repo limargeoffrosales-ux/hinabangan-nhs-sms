@@ -369,7 +369,7 @@ async function seed() {
 }
 
 async function seedAiModules() {
-  const existing = await q('SELECT COUNT(*) AS n FROM research_projects');
+  const existing = await q('SELECT COUNT(*) AS n FROM learner_assessments');
   if (Number(existing.n) > 0) {
     logger.info('= AI module seed data already present (kept).');
     return;
@@ -377,36 +377,6 @@ async function seedAiModules() {
   const students = await qa('SELECT id, first_name, last_name FROM students ORDER BY id');
   const ids = students.map((s) => s.id);
   const teachers = await qa('SELECT id FROM users WHERE role = ? LIMIT 4', ['teacher']);
-
-  const r1 = await qi(
-    `INSERT INTO research_projects (user_id, title, research_type, status, abstract, methodology, findings, conclusion, funding_source, timeline_start, timeline_end)
-     VALUES (?, ?, 'Action Research', 'in_progress', ?, 'Mixed methods: pre-test/post-test with a control group, teacher interviews, and classroom observation records.', NULL, NULL, 'School MOOE / BERF', '2025-10-01', '2026-03-30')`,
-    [teachers[0].id, 'Improving Oral Communication Skills of Grade 11 HUMSS Learners Through Structured Peer Discussions',
-      'This study examines whether structured peer discussion sessions improve oral communication performance among Grade 11 HUMSS learners.']);
-  await qi('INSERT INTO research_versions (project_id, version_no, content, note, created_by) VALUES (?, 1, ?, ?, ?)',
-    [r1, 'Proposal v1 — submitted to the School Research Committee on October 5, 2025.', 'Proposal draft', teachers[0].id]);
-  await qi('INSERT INTO research_versions (project_id, version_no, content, note, created_by) VALUES (?, 2, ?, ?, ?)',
-    [r1, 'Proposal v2 — revised per committee comments (sample size, instrument validation).', 'Revised proposal', teachers[0].id]);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r1, 'Proposal approval', '2025-11-15', 'completed']);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r1, 'Data collection', '2026-01-30', 'completed']);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r1, 'Data analysis', '2026-02-28', 'in_progress']);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r1, 'Final paper submission', '2026-03-30', 'pending']);
-
-  const r2 = await qi(
-    `INSERT INTO research_projects (user_id, title, research_type, status, abstract, funding_source)
-     VALUES (?, ?, 'Innovation', 'draft', ?, 'To be developed')`,
-    [teachers[1].id, 'Gamified Review Quizzes in General Mathematics: Impact on Performance and Engagement',
-      'The innovation introduces weekly gamified review quizzes to sustain engagement and improve Mathematics performance.']);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r2, 'Literature review', '2026-01-15', 'pending']);
-
-  const r3 = await qi(
-    `INSERT INTO research_projects (user_id, title, research_type, status, abstract, methodology, findings, conclusion, timeline_start, timeline_end)
-     VALUES (?, ?, 'BERF Proposal', 'completed', ?, 'Quasi-experimental design, two intact sections, pre- and post-assessment.', 'The intervention group improved by an average of 11 percentage points over the control group.', 'The reading intervention program is effective; recommended for adoption school-wide pending further validation.', '2025-06-15', '2025-12-15')`,
-    [teachers[2].id, 'Project READS: A Reading Enhancement Program for Struggling Grade 11 Readers',
-      'A school-based reading program anchored on the PHIL-IRI results to improve comprehension among struggling readers.']);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r3, 'Baseline PHIL-IRI', '2025-07-15', 'completed']);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r3, 'Intervention implementation', '2025-11-30', 'completed']);
-  await qi('INSERT INTO research_milestones (project_id, milestone, target_date, status) VALUES (?, ?, ?, ?)', [r3, 'Report and presentation', '2025-12-15', 'completed']);
 
   const levelPool = ['Independent', 'Independent', 'Instructional', 'Instructional', 'Frustration', 'Frustration', 'Non-Reader'];
   const fluPool = ['Fluent', 'Fluent', 'Fairly Fluent', 'Slow', 'Slow', 'Non-Fluent', 'Non-Fluent'];
@@ -551,7 +521,7 @@ async function seedAiModules() {
       JSON.stringify({ average_difficulty: 0.52, interpretation: 'Overall: test difficulty is appropriate.', poor_items: 1,
         results: [{ item_no: 1, difficulty: 0.55, discrimination: 0.30, difficulty_level: 'Average', discrimination_level: 'Good' }] })]);
 
-  logger.info('+ AI modules seeded: research, PHIL-IRI/numeracy records, interventions, question bank, rubrics, TOS, item analysis.');
+  logger.info('+ AI modules seeded: PHIL-IRI/numeracy records, interventions, question bank, rubrics, TOS, item analysis.');
 }
 
 module.exports = { seed };

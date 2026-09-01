@@ -10,6 +10,7 @@ const EMPTY_FORM = {
   lrn: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: 'Male',
   birth_date: '', birth_place: '', religion: '', address: '', contact: '',
   guardian_name: '', guardian_contact: '', guardian_relation: 'Parent',
+  father_name: '', mother_name: '', mother_tongue: '', learner_status: '', learner_type: '', remarks: '',
   grade_level: 'Grade 11', track_strand: '', status: 'enrolled',
 };
 
@@ -385,6 +386,16 @@ export default function Students() {
               <div><label>{t('students.guardianName')}</label>{field('guardian_name')}</div>
               <div><label>{t('students.guardianContact')}</label>{field('guardian_contact')}</div>
               <div><label>{t('students.relationship')}</label>{field('guardian_relation')}</div>
+            </div>
+            <div className="form-row">
+              <div><label>{t('students.fatherName')}</label>{field('father_name')}</div>
+              <div><label>{t('students.motherName')}</label>{field('mother_name')}</div>
+              <div><label>{t('students.motherTongue')}</label>{field('mother_tongue')}</div>
+              <div><label>{t('students.learnerStatus')}</label>{field('learner_status', { options: ['New', 'Old', 'Transferee', 'Balik-Aral (Continuing)'] })}</div>
+            </div>
+            <div className="form-row">
+              <div><label>{t('students.learnerType')}</label>{field('learner_type', { options: ['Regular', 'Irregular', 'SPED', 'ALS'] })}</div>
+              <div style={{ flex: 3 }}><label>{t('students.remarks')}</label><textarea style={{ width: '100%' }} value={form.remarks || ''} onChange={(e) => set('remarks', e.target.value)} disabled={!canWrite} /></div>
             </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
