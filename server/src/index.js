@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
 const db = require('./db');
-const { PORT, WEB_DIR, isAllowedOrigin } = require('./config');
+const { PORT, WEB_DIR } = require('./config');
 
 const logger = require('./logger');
 const { authenticate, requireCsrf } = require('./auth');
@@ -28,7 +28,6 @@ const auditRoutes = require('./routes/audit.routes');
 const scheduleRoutes = require('./routes/schedule.routes');
 const assignmentsRoutes = require('./routes/assignments.routes');
 const submissionsRoutes = require('./routes/submissions.routes');
-const learnerProgressRoutes = require('./routes/learner-progress.routes');
 const interventionsRoutes = require('./routes/interventions.routes');
 const assessmentRoutes = require('./routes/assessment.routes');
 const conductRoutes = require('./routes/conduct.routes');
@@ -40,7 +39,6 @@ const notificationsRoutes = require('./routes/notifications.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
 const privacyRoutes = require('./routes/privacy.routes');
 const mfaRoutes = require('./routes/mfa.routes');
-const privacyAuditRoutes = require('./routes/privacy-audit.routes');
 const curriculumRoutes = require('./routes/curriculum.routes');
 const roomsRoutes = require('./routes/rooms.routes');
 const departmentRoutes = require('./routes/department.routes');
@@ -127,8 +125,8 @@ const aiRoutes = require('./routes/ai.routes');
   app.use(cors({
     origin(origin, cb) {
       // Allow all origins — JWT auth + CSRF tokens protect all endpoints.
-      // The previous origin check was blocking legitimate Capacitor/Android
-      // requests and the isAllowedOrigin list didn't cover all deployment URLs.
+      // A custom origin allowlist was blocking legitimate Capacitor/Android
+      // requests, so it was removed.
       cb(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -274,7 +272,6 @@ const aiRoutes = require('./routes/ai.routes');
   app.use('/api/v1/schedule', scheduleRoutes);
   app.use('/api/v1/assignments', assignmentsRoutes);
   app.use('/api/v1/submissions', submissionsRoutes);
-  app.use('/api/v1/learner-progress', learnerProgressRoutes);
   app.use('/api/v1/interventions', interventionsRoutes);
   app.use('/api/v1/assessment', assessmentRoutes);
   app.use('/api/v1/immersion', immersion);
@@ -283,7 +280,6 @@ const aiRoutes = require('./routes/ai.routes');
   app.use('/api/v1/notifications', notificationsRoutes);
   app.use('/api/v1/privacy', privacyRoutes);
   app.use('/api/v1/mfa', mfaRoutes);
-  app.use('/api/v1/privacy-audit', privacyAuditRoutes);
   app.use('/api/v1/curriculum', curriculumRoutes);
   app.use('/api/v1/rooms', roomsRoutes);
   app.use('/api/v1/department', departmentRoutes);

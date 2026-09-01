@@ -752,6 +752,47 @@ router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   res.json({ learner: { student: withAge(student), enrollments, grades: allGrades, attendance: allAttendance } });
 }));
 
+router.get('/sf11', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
+  const { student_id } = req.query;
+  if (!student_id) return res.json({ learner: null });
+  const student = await q('SELECT * FROM students WHERE id = ?', [student_id]);
+  if (!student) return res.json({ learner: null });
+  const enrollments = await qa(
+    `SELECT e.*, sec.name as section_name, sec.grade_level
+     FROM enrollments e
+     JOIN sections sec ON sec.id = e.section_id
+     WHERE e.student_id = ?
+     ORDER BY e.enrolled_at`,
+    [student_id]
+  );
+  const allGrades = await qa(
+    `SELECT g.*, sub.title as subject_name, sec.name as section_name, sec.grade_level
+     FROM grades g
+     JOIN subjects sub ON sub.id = g.subject_id
+     JOIN sections sec ON sec.id = g.section_id
+     WHERE g.student_id = ?
+     ORDER BY g.school_year, g.quarter, sub.title`,
+    [student_id]
+  );
+  const allAttendance = await qa(
+    `SELECT
+       a.section_id,
+       sec.name as section_name,
+       sec.grade_level,
+       a.school_year,
+       COUNT(*) as total_days,
+       SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as days_present,
+       SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as days_absent
+     FROM attendance a
+     JOIN sections sec ON sec.id = a.section_id
+     WHERE a.student_id = ?
+     GROUP BY a.section_id, sec.name, sec.grade_level, a.school_year
+     ORDER BY a.school_year, sec.grade_level`,
+    [student_id]
+  );
+  res.json({ learner: { student: withAge(student), enrollments, grades: allGrades, attendance: allAttendance } });
+}));
+
 router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id } = req.query;
   if (!section_id) return res.json({ learners: [], subjects: [], grades: [], section: null });

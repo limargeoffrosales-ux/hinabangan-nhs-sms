@@ -76,10 +76,12 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   }
   const lrn = b.lrn || await uniqueLrn();
   const id = await qi(
-    'INSERT INTO students (lrn, first_name, middle_name, last_name, suffix, sex, birth_date, birth_place, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO students (lrn, first_name, middle_name, last_name, suffix, sex, birth_date, birth_place, religion, address, contact, guardian_name, guardian_contact, guardian_relation, father_name, mother_name, mother_tongue, learner_status, learner_type, remarks, grade_level, track_strand, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [lrn, b.first_name, b.middle_name || null, b.last_name, b.suffix || null, b.sex, b.birth_date || null,
       b.birth_place || null, b.religion || null, b.address || null, b.contact || null,
       b.guardian_name || null, b.guardian_contact || null, b.guardian_relation || null,
+      b.father_name || null, b.mother_name || null, b.mother_tongue || null,
+      b.learner_status || null, b.learner_type || null, b.remarks || null,
       b.grade_level, b.track_strand || null, b.status || 'enrolled']);
   await audit(req, 'CREATE_STUDENT', 'students', id, { lrn, name: `${b.last_name}, ${b.first_name}` });
   res.status(201).json({ id, lrn });
@@ -91,12 +93,15 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   await qr(
-    'UPDATE students SET lrn = ?, first_name = ?, middle_name = ?, last_name = ?, suffix = ?, sex = ?, birth_date = ?, birth_place = ?, religion = ?, address = ?, contact = ?, guardian_name = ?, guardian_contact = ?, guardian_relation = ?, grade_level = ?, track_strand = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    'UPDATE students SET lrn = ?, first_name = ?, middle_name = ?, last_name = ?, suffix = ?, sex = ?, birth_date = ?, birth_place = ?, religion = ?, address = ?, contact = ?, guardian_name = ?, guardian_contact = ?, guardian_relation = ?, father_name = ?, mother_name = ?, mother_tongue = ?, learner_status = ?, learner_type = ?, remarks = ?, grade_level = ?, track_strand = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
     [f('lrn', row.lrn), f('first_name', row.first_name), f('middle_name', row.middle_name), f('last_name', row.last_name),
       f('suffix', row.suffix), f('sex', row.sex), f('birth_date', row.birth_date), f('birth_place', row.birth_place),
       f('religion', row.religion), f('address', row.address), f('contact', row.contact),
       f('guardian_name', row.guardian_name), f('guardian_contact', row.guardian_contact),
-      f('guardian_relation', row.guardian_relation), f('grade_level', row.grade_level),
+      f('guardian_relation', row.guardian_relation), f('father_name', row.father_name),
+      f('mother_name', row.mother_name), f('mother_tongue', row.mother_tongue),
+      f('learner_status', row.learner_status), f('learner_type', row.learner_type), f('remarks', row.remarks),
+      f('grade_level', row.grade_level),
       f('track_strand', row.track_strand), f('status', row.status), row.id]);
   await audit(req, 'UPDATE_STUDENT', 'students', row.id, { lrn: row.lrn });
   res.json({ ok: true });
