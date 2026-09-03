@@ -64,7 +64,7 @@ router.post('/send', authenticate, requireRole('super_admin', 'school_admin', 'p
 
     let tokens;
     if (userIds && Array.isArray(userIds) && userIds.length > 0) {
-      const placeholders = userIds.map(() => '?').join(',');
+      const placeholders = userIds.map((_, i) => (dialect === 'pg' ? `$${i + 1}` : '?')).join(',');
       tokens = await qa(`SELECT token, platform FROM device_tokens WHERE user_id IN (${placeholders})`, userIds);
     } else {
       tokens = await qa('SELECT token, platform FROM device_tokens');

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target, GitBranch, Clock } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, getCurrentSchoolYear } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { Spinner, Modal } from './ui';
 import { loadRecharts } from '../lib/lazy-recharts';
@@ -32,6 +32,10 @@ export default function DashboardSections() {
   const [term, setTerm] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCurrentSchoolYear().then((y) => { if (y) setSy((prev) => (prev === '2026-2027' ? y : prev)); });
+  }, []);
   const [error, setError] = useState(null);
   const [enrollment, setEnrollment] = useState(null);
   const [attGroups, setAttGroups] = useState(null);

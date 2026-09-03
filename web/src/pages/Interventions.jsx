@@ -28,11 +28,14 @@ export default function Interventions() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [students, setStudents] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [contactPlan, setContactPlan] = useState(null);
+  const [contactForm, setContactForm] = useState({ mode: 'meeting', summary: '', contact_date: '' });
 
   const load = useCallback(async () => {
     try {
@@ -61,8 +64,10 @@ export default function Interventions() {
     if (!form.student_id || !form.title) return toast.error('Select a learner and give the plan a title');
     setBusy(true);
     try {
-      await api('/interventions', { method: 'POST', body: form });
+      if (editing) await api(`/interventions/${editing}`, { method: 'PATCH', body: form });
+      else await api('/interventions', { method: 'POST', body: form });
       setModal(false);
+      setEditing(null);
       setForm(blank);
       await load();
     } catch (e) {
@@ -70,6 +75,22 @@ export default function Interventions() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function openEdit(p) {
+    setEditing(p.id);
+    setForm({
+      student_id: String(p.student_id || ''),
+      title: p.title || '',
+      category: p.category || 'academic_recovery',
+      strategy: p.strategy || '',
+      frequency: p.frequency || '',
+      start_date: p.start_date || '',
+      end_date: p.end_date || '',
+      status: p.status || 'active',
+      progress_notes: p.progress_notes || '',
+    });
+    setModal(true);
   }
 
   async function updateStatus(p, status) {
@@ -93,12 +114,31 @@ export default function Interventions() {
     }
   }
 
+  async function logContact(p) {
+    if (!contactForm.contact_date) return toast.error('Select the contact date');
+    setBusy(true);
+    try {
+      await api(`/interventions/${p.id}/contacts`, {
+        method: 'POST',
+        body: { mode: contactForm.mode, summary: contactForm.summary, contact_date: contactForm.contact_date },
+      });
+      setContactPlan(null);
+      setContactForm({ mode: 'meeting', summary: '', contact_date: '' });
+      toast.success('Contact logged');
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const catName = (c) => (CATEGORIES.find((x) => x[0] === c) || [c, c])[1];
 
   return (
     <div>
       <PageHead title="Learner Intervention" sub="Predictive risk detection, intervention plans, parent engagement, and effectiveness analytics.">
-        <button className="btn btn-primary" onClick={() => setModal(true)}><Plus size={15} /> New intervention plan</button>
+        <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(blank); setModal(true); }}><Plus size={15} /> New intervention plan</button>
       </PageHead>
       <ErrorBanner error={error} />
 
@@ -126,7 +166,7 @@ export default function Interventions() {
                   <td>{a.reading_level || '—'}</td>
                   <td><span className={`badge ${RISK_CLASS[a.risk]}`}>{a.risk}</span></td>
                   <td className="sub">{a.indicators.join(', ') || '—'}</td>
-                  <td>{a.has_plan ? <span className="badge badge-green">ON FILE</span> : <button className="btn btn-sm" onClick={() => { setForm({ ...blank, student_id: a.student_id, title: `Intervention for ${a.name}` }); setModal(true); }}><Plus size={12} /> Plan</button>}</td>
+                  <td>{a.has_plan ? <span className="badge badge-green">ON FILE</span> : <button className="btn btn-sm" onClick={() => { setEditing(null); setForm({ ...blank, student_id: a.student_id, title: `Intervention for ${a.name}` }); setModal(true); }}><Plus size={12} /> Plan</button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -150,8 +190,13 @@ export default function Interventions() {
                 <p className="sub">Frequency: {p.frequency || '—'} · {p.start_date || '—'} to {p.end_date || 'ongoing'}</p>
                 {p.progress_notes && <div className="notice ok">{p.progress_notes}</div>}
                 {(p.contacts || []).length > 0 && <div className="mini-stats"><span><PhoneCall size={12} /> {(p.contacts || []).length} parent contacts logged</span></div>}
+                {(p.contacts || []).length > 0 && <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12.5 }}>
+                  {(p.contacts || []).map((c) => <li key={c.id}><strong>{c.mode}</strong> {c.contact_date} — {c.summary || 'no notes'}</li>)}
+                </ul>}
                 <div className="card-actions">
+                  <button className="btn btn-sm" onClick={() => openEdit(p)}>Edit</button>
                   <button className="btn btn-sm" onClick={() => parentNotice(p)} disabled={busy}><FileText size={13} /> Parent notice</button>
+                  <button className="btn btn-sm" onClick={() => { setContactPlan(p); setContactForm({ mode: 'meeting', summary: '', contact_date: new Date().toISOString().slice(0, 10) }); }}><PhoneCall size={13} /> Log contact</button>
                   {p.status === 'active' && <button className="btn btn-sm" onClick={() => updateStatus(p, 'completed')}>Complete</button>}
                   <button className="btn btn-sm btn-danger" onClick={() => remove(p)}>Delete</button>
                 </div>
@@ -162,7 +207,7 @@ export default function Interventions() {
       </div>
 
       {modal && (
-        <Modal title="New Intervention Plan" sub="Interventions protect learners — AI detects risk, you prescribe the response." onClose={() => setModal(null)} wide>
+        <Modal title={editing ? 'Edit Intervention Plan' : 'New Intervention Plan'} sub="Interventions protect learners — AI detects risk, you prescribe the response." onClose={() => { setModal(null); setEditing(null); }} wide>
           <div className="form-row">
             <label>Learner *
               <select value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })}>
@@ -200,8 +245,8 @@ export default function Interventions() {
             <label>Progress notes<textarea rows={2} value={form.progress_notes} onChange={(e) => setForm({ ...form, progress_notes: e.target.value })} /></label>
           </div>
           <div className="modal-footer">
-            <button className="btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving...' : 'Save plan'}</button>
+            <button className="btn" onClick={() => { setModal(null); setEditing(null); }}>Cancel</button>
+            <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving...' : (editing ? 'Save changes' : 'Save plan')}</button>
           </div>
         </Modal>
       )}
@@ -215,6 +260,28 @@ export default function Interventions() {
           </div>
         </Modal>
       )}
+
+      {contactPlan && (
+        <Modal title="Log parent/guardian contact" sub={`For ${contactPlan.first_name} ${contactPlan.last_name} — ${contactPlan.title}`} onClose={() => setContactPlan(null)}>
+          <div className="form-row">
+            <label>Mode
+              <select value={contactForm.mode} onChange={(e) => setContactForm({ ...contactForm, mode: e.target.value })}>
+                <option value="meeting">Meeting</option><option value="call">Phone call</option>
+                <option value="message">Message / email</option><option value="visit">Home visit</option>
+              </select>
+            </label>
+            <label>Date *<input type="date" value={contactForm.contact_date} onChange={(e) => setContactForm({ ...contactForm, contact_date: e.target.value })} /></label>
+          </div>
+          <div className="form-row">
+            <label>Summary<textarea rows={3} value={contactForm.summary} onChange={(e) => setContactForm({ ...contactForm, summary: e.target.value })} placeholder="What was discussed / agreed?" /></label>
+          </div>
+          <div className="modal-footer">
+            <button className="btn" onClick={() => setContactPlan(null)}>Cancel</button>
+            <button className="btn btn-primary" onClick={() => logContact(contactPlan)} disabled={busy}>{busy ? 'Saving...' : 'Log contact'}</button>
+          </div>
+        </Modal>
+      )}
+
       {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
     </div>
   );

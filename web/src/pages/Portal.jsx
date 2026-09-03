@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, Megaphone, CalendarDays, Users } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, getCurrentSchoolYear } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { ErrorBanner, Spinner } from '../components/ui';
 import { fmt } from '../lib/utils';
@@ -17,6 +17,10 @@ export default function Portal() {
   const [error, setError] = useState(null);
   const [teachers, setTeachers] = useState([]);
   const [weekly, setWeekly] = useState([]);
+
+  useEffect(() => {
+    getCurrentSchoolYear().then((y) => { if (y) setSy((prev) => (prev === '2026-2027' ? y : prev)); });
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
