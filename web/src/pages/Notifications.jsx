@@ -28,6 +28,10 @@ export default function Notifications() {
   const [blast, setBlast] = useState({ message: '' });
   const [blastBusy, setBlastBusy] = useState(false);
   const [blastResult, setBlastResult] = useState(null);
+  const [push, setPush] = useState({ title: '', body: '', platform: '' });
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushResult, setPushResult] = useState(null);
+  const [pushError, setPushError] = useState(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -134,6 +138,25 @@ export default function Notifications() {
     }
   }
 
+  async function sendPush() {
+    if (!push.title.trim() || !push.body.trim()) return setPushError('Both a title and message body are required.');
+    setPushBusy(true);
+    setPushError(null);
+    setPushResult(null);
+    try {
+      const r = await api('/push/send', {
+        method: 'POST',
+        body: { title: push.title.trim(), body: push.body.trim(), platform: push.platform || undefined },
+      });
+      setPushResult(r);
+      setPush({ title: '', body: '', platform: '' });
+    } catch (e) {
+      setPushError(e.message);
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
   const statusBadge = (s) => (s === 'sent' ? 'ok' : s === 'failed' ? 'absent' : 'normal');
 
   return (
@@ -220,6 +243,45 @@ export default function Notifications() {
               {blastResult && (
                 <div className="notice" style={{ marginTop: 8 }}>
                   Blast queued: {blastResult.sent} messages queued, {blastResult.failed} failed, {blastResult.total} parents contacted.
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MessageSquare size={16} style={{ color: 'var(--accent)' }} /> Push (FCM)
+              </h3>
+              <div className="sub" style={{ marginBottom: 8 }}>Send an app push notification to registered device tokens. Requires FCM_SERVER_KEY on the server.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input
+                  className="input"
+                  placeholder="Notification title"
+                  value={push.title}
+                  onChange={(e) => setPush({ ...push, title: e.target.value })}
+                />
+                <textarea
+                  className="input"
+                  rows={3}
+                  placeholder="Message body"
+                  value={push.body}
+                  onChange={(e) => setPush({ ...push, body: e.target.value })}
+                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <select className="input" style={{ width: 150 }} value={push.platform} onChange={(e) => setPush({ ...push, platform: e.target.value })}>
+                    <option value="">All platforms</option>
+                    <option value="android">Android</option>
+                    <option value="ios">iOS</option>
+                    <option value="web">Web</option>
+                  </select>
+                  <button className="btn btn-primary" style={{ marginLeft: 'auto' }} disabled={pushBusy || !push.title.trim() || !push.body.trim()} onClick={sendPush}>
+                    <Send size={13} /> {pushBusy ? 'Sending...' : 'Send push'}
+                  </button>
+                </div>
+              </div>
+              {pushError && <div className="notice error-notice" style={{ marginTop: 8 }}>{pushError}</div>}
+              {pushResult && pushResult.ok && (
+                <div className="notice" style={{ marginTop: 8 }}>
+                  Push sent: {pushResult.sent} delivered, {pushResult.failed} failed.
                 </div>
               )}
             </div>

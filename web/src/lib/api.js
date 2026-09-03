@@ -65,6 +65,26 @@ export function clearSession() {
   localStorage.removeItem('meridianed_ai_chat');
 }
 
+let currentSchoolYearPromise = null;
+
+// Fetches the server-driven current school year (cached per session).
+export function getCurrentSchoolYear() {
+  if (!currentSchoolYearPromise) {
+    currentSchoolYearPromise = fetch(`${getApiBase()}/school-year`, {
+      method: 'GET',
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('bad status');
+        const data = await res.json();
+        return data.school_year || null;
+      })
+      .catch(() => null)
+      .finally(() => { currentSchoolYearPromise = null; });
+  }
+  return currentSchoolYearPromise;
+}
+
 export function notifyUnauthorized() {
   window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
 }

@@ -42,7 +42,14 @@ export default function AIChatbot() {
     }
   }, [open]);
 
-  if (!enabled) return null;
+  if (!enabled) {
+    return (
+      <button className="btn" style={{ position: 'fixed', bottom: 20, right: 20 }}
+        onClick={() => setOpen(false)} title="AI assistant unavailable">
+        <MessageCircle size={16} /> AI: Offline
+      </button>
+    );
+  }
 
   async function send(content) {
     if (!content.trim() || loading) return;

@@ -111,8 +111,8 @@ export default function DepedForms() {
     api('/deped-forms/school-info').then(r => {
       setInfo(r);
       if (!schoolYear && r.school_year) setSchoolYear(r.school_year);
-    }).catch(() => {});
-    api('/sections').then(r => setSections(r.data || r.rows || [])).catch(() => {});
+    }).catch(e => setError(e.message));
+    api('/sections').then(r => setSections(r.data || r.rows || [])).catch(e => setError(e.message));
   }, []);
 
   useEffect(() => {

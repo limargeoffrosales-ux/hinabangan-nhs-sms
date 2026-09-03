@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
 const db = require('./db');
+const { getCurrentSchoolYear } = require('./schoolYear');
 const { PORT, WEB_DIR } = require('./config');
 
 const logger = require('./logger');
@@ -41,7 +42,8 @@ const privacyRoutes = require('./routes/privacy.routes');
 const mfaRoutes = require('./routes/mfa.routes');
 const curriculumRoutes = require('./routes/curriculum.routes');
 const roomsRoutes = require('./routes/rooms.routes');
-const departmentRoutes = require('./routes/department.routes');
+const departmentsRoutes = require('./routes/department.routes');
+const exchangeRoutes = require('./routes/exchange.routes');
 const lessonsRoutes = require('./routes/lessons.routes');
 const competencyTrackerRoutes = require('./routes/competency-tracker.routes');
 const depedFormsRoutes = require('./routes/deped-forms.routes');
@@ -235,6 +237,12 @@ const aiRoutes = require('./routes/ai.routes');
   });
   app.use('/api/v1/ai', aiLimiter);
 
+  app.get('/api/v1/school-year', async (req, res) => {
+    try {
+      res.json({ school_year: await getCurrentSchoolYear() });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   app.get('/api/v1/health', async (req, res) => {
     const health = { ok: true, service: 'meridianed', uptime: Math.floor(process.uptime()) };
     try {
@@ -261,6 +269,7 @@ const aiRoutes = require('./routes/ai.routes');
   app.use('/api/v1/attendance', attendanceRoutes);
   app.use('/api/v1/grades', gradesRoutes);
   app.use('/api/v1/grading', gradingRoutes);
+  app.use('/api/v1/exchange', exchangeRoutes);
   app.use('/api/v1/analytics', analyticsRoutes);
   app.use('/api/v1/analytics/kpi', analyticsKpiRoutes);
   app.use('/api/v1/portal', portalRoutes);
@@ -280,7 +289,7 @@ const aiRoutes = require('./routes/ai.routes');
   app.use('/api/v1/mfa', mfaRoutes);
   app.use('/api/v1/curriculum', curriculumRoutes);
   app.use('/api/v1/rooms', roomsRoutes);
-  app.use('/api/v1/department', departmentRoutes);
+  app.use('/api/v1/department', departmentsRoutes);
   app.use('/api/v1/lessons', lessonsRoutes);
   app.use('/api/v1/competency-tracker', competencyTrackerRoutes);
   app.use('/api/v1/deped-forms', depedFormsRoutes);

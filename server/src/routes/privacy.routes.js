@@ -151,4 +151,114 @@ router.post('/role-reviews/:userId/restore', requireRole('super_admin', 'school_
   res.json({ ok: true, status: 'active' });
 }));
 
+// ── Right-to-Erasure (RA 10173) ───────────────────────────────
+
+// List erasure requests with resolved student/requester names.
+router.get('/erasure-requests', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
+  const { limit, offset } = page(req);
+  const where = [];
+  const params = [];
+  if (req.query.status) { where.push('er.status = ?'); params.push(req.query.status); }
+  if (req.query.student_id) { where.push('er.student_id = ?'); params.push(Number(req.query.student_id)); }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const rows = await qa(
+    `SELECT er.*,
+            s.first_name AS student_first, s.last_name AS student_last, s.lrn,
+            u.name AS requested_by_name
+     FROM data_erasure_requests er
+     LEFT JOIN students s ON s.id = er.student_id
+     LEFT JOIN users u ON u.id = er.requested_by
+     ${whereSql}
+     ORDER BY er.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]);
+  const totalRow = (await qa(
+    `SELECT COUNT(*) AS n FROM data_erasure_requests er ${whereSql}`, params))[0];
+  const decorated = rows.map((r) => ({
+    ...r,
+    student_name: r.student_first ? `${r.student_last}, ${r.student_first}` : null,
+  }));
+  res.json({ data: decorated, total: Number(totalRow.n), limit, offset });
+}));
+
+// Create a right-to-erasure request.
+router.post('/erasure-requests', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.student_id) return res.status(400).json({ error: 'student_id is required' });
+  const student = await q('SELECT id FROM students WHERE id = ?', [Number(b.student_id)]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  const reason = String(b.reason || '').trim();
+  const id = await qi(
+    'INSERT INTO data_erasure_requests (student_id, requested_by, reason, status) VALUES (?, ?, ?, ?)',
+    [student.id, req.user.id, reason || null, 'pending']);
+  await audit(req, 'ERASURE_REQUEST_CREATE', 'data_erasure_requests', id,
+    { student_id: student.id, reason: reason || null });
+  res.status(201).json({ id });
+}));
+
+// Export a snapshot of the student's PII for a request.
+router.get('/erasure-requests/:id/export', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
+  const reqRow = await q('SELECT * FROM data_erasure_requests WHERE id = ?', [req.params.id]);
+  if (!reqRow) return res.status(404).json({ error: 'Erasure request not found' });
+  if (!reqRow.student_id) return res.status(400).json({ error: 'This request has no linked student' });
+  const bundle = await gatherStudentPii(reqRow.student_id);
+  res.json({ request_id: Number(reqRow.id), request: reqRow, ...bundle });
+}));
+
+// Approve & process: permanently erase the student's PII and mark done.
+router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const reqRow = await q('SELECT * FROM data_erasure_requests WHERE id = ?', [req.params.id]);
+  if (!reqRow) return res.status(404).json({ error: 'Erasure request not found' });
+  if (reqRow.status !== 'pending') return res.status(400).json({ error: `Request already ${reqRow.status}` });
+  const studentId = reqRow.student_id;
+  if (!studentId) return res.status(400).json({ error: 'No linked student to erase' });
+
+  // Gather PII first (for the audit record), then erase in a transaction.
+  const bundle = await gatherStudentPii(studentId);
+  await db.tx(async (conn) => {
+    await conn.qr('DELETE FROM grades WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM attendance WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM enrollments WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM parent_students WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM student_conduct_ratings WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM certifications WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM clinic_visits WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM guidance_cases WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM intervention_plans WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM work_immersion WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM student_competency_scores WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM students WHERE id = ?', [studentId]);
+  });
+  await qr(
+    `UPDATE data_erasure_requests
+     SET status = 'processed', processed_by = ?, processed_at = ${nowSql()},
+         exported_json = ?
+     WHERE id = ?`,
+    [req.user.id, JSON.stringify(bundle), reqRow.id]);
+  await audit(req, 'ERASURE_REQUEST_APPROVE', 'data_erasure_requests', reqRow.id,
+    { student_id: studentId, tables_erased: 13 });
+  res.json({ ok: true, status: 'processed' });
+}));
+
+// Assemble every PII-bearing record for a student into one exportable object.
+async function gatherStudentPii(studentId) {
+  const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
+  if (!student) return { student: null };
+  const [contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access] =
+    await Promise.all([
+      qa('SELECT * FROM parent_students WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM attendance WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM grades WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM enrollments WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM clinic_visits WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM guidance_cases WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM intervention_plans WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM work_immersion WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM certifications WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM student_conduct_ratings WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM data_access_logs WHERE student_id = ?', [studentId]),
+    ]);
+  return { student, contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access };
+}
+
 module.exports = router;
