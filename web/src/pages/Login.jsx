@@ -21,7 +21,7 @@ const FEATURES = [
 ];
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, verifyMfa } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [error, setError] = useState(null);
@@ -30,11 +30,17 @@ export default function Login() {
   const [serverOpen, setServerOpen] = useState(false);
   const [serverBase, setServerBase] = useState(getStoredApiBase());
   const [showRequest, setShowRequest] = useState(false);
+  const [pendingMfa, setPendingMfa] = useState(null);
   const formRef = useRef(null);
 
   const currentLang = i18n.language?.startsWith('fil') ? 'fil' : 'en';
   function toggleLang() {
     i18n.changeLanguage(currentLang === 'en' ? 'fil' : 'en');
+  }
+
+  function finish(result) {
+    const isPortal = result.user.role === 'student' || result.user.role === 'parent';
+    navigate(isPortal ? '/portal' : '/', { replace: true });
   }
 
   async function onSubmit(e) {
@@ -50,9 +56,25 @@ export default function Login() {
     setBusy(true);
     setError(null);
     try {
-      const u = await login(username, password);
-      const isPortal = u.role === 'student' || u.role === 'parent';
-      navigate(isPortal ? '/portal' : '/', { replace: true });
+      const result = await login(username, password);
+      if (result.requiresMfa) setPendingMfa({ tempToken: result.tempToken });
+      else finish(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onMfaSubmit(e) {
+    e.preventDefault();
+    const code = String(formRef.current.get('mfaCode') || '').trim();
+    if (!code) { setError(t('login.mfaCodeRequired', 'Enter the 6-digit code from your authenticator app.')); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await verifyMfa(pendingMfa.tempToken, code);
+      finish(result);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -99,6 +121,29 @@ export default function Login() {
               <h2>{t('login.signInto')} <span className="login-form-brand">{t('brand')}</span></h2>
               <ErrorBanner error={error} />
             </div>
+            {pendingMfa ? (
+              <form onSubmit={onMfaSubmit} ref={formRef} className="login-form">
+                <label htmlFor="login-mfa">{t('login.signInto')} — {t('login.mfaStep', 'Two-factor authentication')}</label>
+                <input
+                  id="login-mfa"
+                  name="mfaCode"
+                  placeholder="••••••"
+                  autoFocus
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  maxLength={8}
+                />
+                <button type="submit" className="btn btn-primary login-submit" disabled={busy}>
+                  {busy ? <span className="login-spinner" /> : <Shield size={15} />}
+                  {busy ? t('login.signingIn') : t('login.mfaVerify', 'Verify code')}
+                </button>
+                <div className="login-form-links">
+                  <button type="button" className="login-request-btn" onClick={() => { setPendingMfa(null); setError(null); }}>
+                    {t('login.back', 'Back to sign in')}
+                  </button>
+                </div>
+              </form>
+            ) : (
             <form onSubmit={onSubmit} ref={formRef} className="login-form">
               <label htmlFor="login-username">{t('login.username')}</label>
               <input
@@ -151,6 +196,7 @@ export default function Login() {
                 </div>
               )}
             </form>
+            )}
 
             <div className="login-form-security">
               <Shield size={12} />
