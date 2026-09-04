@@ -278,7 +278,7 @@ export default function Notifications() {
                   </button>
                 </div>
               </div>
-              {pushError && <div className="notice error-notice" style={{ marginTop: 8 }}>{pushError}</div>}
+              {pushError && <div className="notice warn" style={{ marginTop: 8 }}>{pushError}</div>}
               {pushResult && pushResult.ok && (
                 <div className="notice" style={{ marginTop: 8 }}>
                   Push sent: {pushResult.sent} delivered, {pushResult.failed} failed.
