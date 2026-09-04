@@ -30,10 +30,23 @@ export function AuthProvider({ children }) {
 
   async function login(username, password) {
     const data = await api('/auth/login', { method: 'POST', body: { username, password }, auth: false });
+    if (data.requiresMfa) return { requiresMfa: true, tempToken: data.tempToken };
     setSession(data.token, data.refreshToken, data.user, data.csrfToken);
     setUser(data.user);
     setReady(true);
-    return data.user;
+    return { user: data.user };
+  }
+
+  async function verifyMfa(tempToken, code) {
+    const data = await api('/mfa/verify', {
+      method: 'POST',
+      body: { tempToken, code },
+      auth: false,
+    });
+    setSession(data.token, data.refreshToken, data.user, data.csrfToken);
+    setUser(data.user);
+    setReady(true);
+    return { user: data.user };
   }
 
   async function logout() {
@@ -42,7 +55,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, ready, login, logout }}>
+    <AuthContext.Provider value={{ user, ready, login, verifyMfa, logout }}>
       {children}
     </AuthContext.Provider>
   );
