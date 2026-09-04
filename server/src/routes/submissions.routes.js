@@ -1,8 +1,12 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit, safeJsonParse } = require('../utils');
 const { REPORT_TYPES } = require('../report-types');
+const { uploadFile, deleteFile } = require('../storage');
+const { UPLOAD_MAX_MB } = require('../config');
 
 const router = express.Router();
 router.use(authenticate);
@@ -470,6 +474,54 @@ router.post('/assign', requireRole('super_admin', 'school_admin'), asyncH(async 
   await audit(req, 'ASSIGN_TASK', 'report_submissions', created[0] || null,
     { report: type.code, period: b.period, school_year: sy, assigned: created.length, skipped: skipped.length });
   res.status(201).json({ created, skipped, count: created.length });
+}));
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: UPLOAD_MAX_MB * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/i;
+    const allowedMimes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain', 'text/csv', 'application/zip',
+    ];
+    if (!allowedExts.test(ext)) return cb(new Error('File type not allowed'));
+    if (!allowedMimes.includes(file.mimetype)) return cb(new Error('File MIME type not allowed'));
+    cb(null, true);
+  },
+});
+
+const ATTACH_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'];
+
+router.post('/:id/attachments', requireRole(...ATTACH_ROLES), upload.single('file'), asyncH(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const sub = await q('SELECT id FROM report_submissions WHERE id = ?', [req.params.id]);
+  if (!sub) return res.status(404).json({ error: 'Submission not found' });
+  const { key } = await uploadFile('submissions', req.file, req.file.originalname);
+  const fileId = await qi(
+    `INSERT INTO submission_files (submission_id, filename, stored_name, size_bytes, mime) VALUES (?, ?, ?, ?, ?)`,
+    [sub.id, req.file.originalname, key, req.file.size, req.file.mimetype]);
+  await audit(req, 'UPLOAD_SUBMISSION_FILE', 'submission_files', fileId, { submission_id: sub.id, key });
+  res.json({ ok: true, file: { id: fileId, submission_id: sub.id, filename: req.file.originalname, stored_name: key, size_bytes: req.file.size, mime: req.file.mimetype } });
+}));
+
+router.get('/:id/attachments', requireRole(...ATTACH_ROLES), asyncH(async (req, res) => {
+  const rows = await qa('SELECT * FROM submission_files WHERE submission_id = ? ORDER BY uploaded_at DESC', [req.params.id]);
+  res.json({ data: rows });
+}));
+
+router.delete('/:id/attachments/:fileId', requireRole(...ATTACH_ROLES), asyncH(async (req, res) => {
+  const row = await q('SELECT * FROM submission_files WHERE id = ? AND submission_id = ?', [req.params.fileId, req.params.id]);
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  deleteFile(row.stored_name).catch(() => {});
+  await qr('DELETE FROM submission_files WHERE id = ?', [row.id]);
+  await audit(req, 'DELETE_SUBMISSION_FILE', 'submission_files', row.id, { submission_id: req.params.id, key: row.stored_name });
+  res.json({ ok: true });
 }));
 
 module.exports = router;

@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Printer, ChevronDown, ChevronRight } from 'lucide-react';
+import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Printer, ChevronDown, ChevronRight, MessageSquare, RefreshCw, FolderOpen, Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead } from '../components/ui';
 import { renderSF9Card, esc, CORE_VALUES } from './DepedForms';
@@ -13,6 +13,8 @@ const TABS = [
   { id: 'exam', label: 'Exam Builder', icon: ClipboardCheck },
   { id: 'analytics', label: 'Student Analytics', icon: BarChart3 },
   { id: 'enroll', label: 'Enrollment Tips', icon: GraduationCap },
+  { id: 'chatlogs', label: 'Chat Logs', icon: MessageSquare },
+  { id: 'library', label: 'Document Library', icon: FolderOpen },
 ];
 
 function Section({ title, children }) {
@@ -549,7 +551,293 @@ function EnrollmentSuggestions() {
   );
 }
 
-const TAB_COMPONENTS = { report: ReportCard, form137: Form137, lesson: LessonPlan, exam: ExamBuilder, analytics: StudentAnalytics, enroll: EnrollmentSuggestions };
+function ChatLogs() {
+  const [logs, setLogs] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const limit = 20;
+
+  async function load(o = offset) {
+    setLoading(true); setError(null);
+    try {
+      const [logRes, statRes] = await Promise.all([
+        api(`/ai/chat-logs?limit=${limit}&offset=${o}`),
+        api('/ai/chat-logs/stats'),
+      ]);
+      setLogs(logRes.data || []);
+      setTotal(logRes.total || 0);
+      setStats(statRes);
+      setOffset(o);
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(0); }, []);
+
+  return (
+    <div>
+      {stats && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Total messages: <strong>{stats.total_messages}</strong></div>
+          <div style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Distinct users: <strong>{stats.distinct_users}</strong></div>
+          <div style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Last 24h: <strong>{stats.last_24h}</strong></div>
+        </div>
+      )}
+      {error && <div className="err-banner" style={{ marginBottom: 12 }}><AlertCircle size={14} /> {error}</div>}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 14 }}><MessageSquare size={14} /> AI Chat Logs</h3>
+          <button className="btn btn-sm" onClick={() => load(offset)} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh</button>
+        </div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 32 }}><Loader2 size={20} className="spin" /></div>
+        ) : logs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>No chat logs recorded yet.</div>
+        ) : (
+          <div className="table-wrap">
+            <table style={{ width: '100%', fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Timestamp</th>
+                  <th style={{ textAlign: 'left' }}>User</th>
+                  <th style={{ textAlign: 'left' }}>Role</th>
+                  <th style={{ textAlign: 'left' }}>Message</th>
+                  <th style={{ textAlign: 'left' }}>Intent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((row) => (
+                  <tr key={row.id}>
+                    <td style={{ whiteSpace: 'nowrap', color: 'var(--text-dim, #6b7280)' }}>{new Date(row.created_at).toLocaleString()}</td>
+                    <td>{row.user_name || row.username || '—'}</td>
+                    <td><span className={`badge badge-${row.role === 'assistant' ? 'blue' : 'green'}`}>{row.role}</span></td>
+                    <td style={{ maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(row.message || '').slice(0, 80)}</td>
+                    <td style={{ color: 'var(--text-dim, #6b7280)' }}>{row.intent || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {total > limit && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+            <button className="btn btn-sm" disabled={offset === 0} onClick={() => load(offset - limit)}>Prev</button>
+            <span style={{ fontSize: 12, alignSelf: 'center', color: 'var(--text-dim)' }}>{offset + 1}–{Math.min(offset + limit, total)} of {total}</span>
+            <button className="btn btn-sm" disabled={offset + limit >= total} onClick={() => load(offset + limit)}>Next</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DocumentLibrary() {
+  const [formats, setFormats] = useState([]);
+  const [generations, setGenerations] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showFormatModal, setShowFormatModal] = useState(false);
+  const [editFormat, setEditFormat] = useState(null);
+  const [formatForm, setFormatForm] = useState({ name: '', body: '', fields: '' });
+  const [showGenModal, setShowGenModal] = useState(false);
+  const [genForm, setGenForm] = useState({ name: '', kind: 'template', source_id: '', body: '' });
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true); setError(null);
+    try {
+      const [fRes, gRes, sRes] = await Promise.all([
+        api('/documents/formats'),
+        api('/documents/generations'),
+        api('/documents/generations/stats'),
+      ]);
+      setFormats(fRes.data || []);
+      setGenerations(gRes.data || []);
+      setStats(sRes.data || []);
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function saveFormat() {
+    setSaving(true);
+    try {
+      const fieldsArr = formatForm.fields.split(',').map(s => s.trim()).filter(Boolean);
+      const payload = { name: formatForm.name, body: formatForm.body, fields: fieldsArr };
+      if (editFormat) {
+        await api(`/documents/formats/${editFormat.id}`, { method: 'PATCH', body: payload });
+      } else {
+        await api('/documents/formats', { method: 'POST', body: payload });
+      }
+      setShowFormatModal(false); setEditFormat(null); setFormatForm({ name: '', body: '', fields: '' });
+      await load();
+    } catch (e) { alert(e.message); } finally { setSaving(false); }
+  }
+
+  async function deleteFormat(id) {
+    if (!window.confirm('Delete this format?')) return;
+    try {
+      await api(`/documents/formats/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function saveGen() {
+    setSaving(true);
+    try {
+      await api('/documents/generations', { method: 'POST', body: genForm });
+      setShowGenModal(false); setGenForm({ name: '', kind: 'template', source_id: '', body: '' });
+      await load();
+    } catch (e) { alert(e.message); } finally { setSaving(false); }
+  }
+
+  function openEditFormat(f) {
+    setEditFormat(f);
+    setFormatForm({ name: f.name, body: f.body, fields: (f.fields || []).join(', ') });
+    setShowFormatModal(true);
+  }
+
+  function openNewFormat() {
+    setEditFormat(null); setFormatForm({ name: '', body: '', fields: '' }); setShowFormatModal(true);
+  }
+
+  const totalDocs = (stats || []).reduce((sum, s) => sum + Number(s.n), 0);
+
+  return (
+    <div>
+      {error && <div className="err-banner" style={{ marginBottom: 12 }}><AlertCircle size={14} /> {error}</div>}
+
+      {/* Stats line */}
+      {stats && stats.length > 0 && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Total generations: <strong>{totalDocs}</strong></div>
+          {stats.map(s => (
+            <div key={s.kind} style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>
+              {s.kind}: <strong>{s.n}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Formats table */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 14 }}><FileText size={14} /> Format Templates</h3>
+          <button className="btn btn-primary btn-sm" onClick={openNewFormat}><Plus size={14} /> New Format</button>
+        </div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 32 }}><Loader2 size={20} className="spin" /></div>
+        ) : formats.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>No formats created yet.</div>
+        ) : (
+          <div className="table-wrap">
+            <table style={{ width: '100%', fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Name</th>
+                  <th style={{ textAlign: 'center' }}>Fields</th>
+                  <th style={{ textAlign: 'left' }}>Created At</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {formats.map(f => (
+                  <tr key={f.id}>
+                    <td>{f.name}</td>
+                    <td style={{ textAlign: 'center' }}>{Array.isArray(f.fields) ? f.fields.length : 0}</td>
+                    <td style={{ whiteSpace: 'nowrap', color: 'var(--text-dim, #6b7280)' }}>{new Date(f.created_at).toLocaleDateString()}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-sm" onClick={() => openEditFormat(f)} style={{ marginRight: 6 }}><Pencil size={13} /> Edit</button>
+                      <button className="btn btn-sm" onClick={() => deleteFormat(f.id)} style={{ color: 'var(--danger, #ef4444)' }}><Trash2 size={13} /> Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Generations table */}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 14 }}><FileText size={14} /> Generated Documents</h3>
+          <button className="btn btn-primary btn-sm" onClick={() => { setGenForm({ name: '', kind: 'template', source_id: '', body: '' }); setShowGenModal(true); }}><Plus size={14} /> Generate</button>
+        </div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 32 }}><Loader2 size={20} className="spin" /></div>
+        ) : generations.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>No documents generated yet.</div>
+        ) : (
+          <div className="table-wrap">
+            <table style={{ width: '100%', fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Name</th>
+                  <th style={{ textAlign: 'center' }}>Kind</th>
+                  <th style={{ textAlign: 'left' }}>Source ID</th>
+                  <th style={{ textAlign: 'left' }}>Created By</th>
+                  <th style={{ textAlign: 'left' }}>Created At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {generations.map(g => (
+                  <tr key={g.id}>
+                    <td>{g.name}</td>
+                    <td style={{ textAlign: 'center' }}><span className="badge badge-blue">{g.kind}</span></td>
+                    <td style={{ color: 'var(--text-dim, #6b7280)' }}>{g.source_id || '—'}</td>
+                    <td>{g.created_by_name || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap', color: 'var(--text-dim, #6b7280)' }}>{new Date(g.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Format modal */}
+      {showFormatModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setShowFormatModal(false)}>
+          <div className="card" style={{ width: 480, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>{editFormat ? 'Edit Format' : 'New Format'}</h3>
+            <label>Name <input className="input" value={formatForm.name} onChange={e => setFormatForm(f => ({ ...f, name: e.target.value }))} placeholder="Format name" /></label>
+            <label style={{ marginTop: 10 }}>Body (template text) <textarea className="input" rows={6} value={formatForm.body} onChange={e => setFormatForm(f => ({ ...f, body: e.target.value }))} placeholder="Template body with placeholders" /></label>
+            <label style={{ marginTop: 10 }}>Fields (comma-separated) <input className="input" value={formatForm.fields} onChange={e => setFormatForm(f => ({ ...f, fields: e.target.value }))} placeholder="field1, field2, field3" /></label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button className="btn" onClick={() => setShowFormatModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveFormat} disabled={saving || !formatForm.name.trim() || !formatForm.body.trim()}>{saving ? <Loader2 size={14} className="spin" /> : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generation modal */}
+      {showGenModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setShowGenModal(false)}>
+          <div className="card" style={{ width: 480, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Generate Document</h3>
+            <label>Name <input className="input" value={genForm.name} onChange={e => setGenForm(f => ({ ...f, name: e.target.value }))} placeholder="Document name" /></label>
+            <label style={{ marginTop: 10 }}>Kind <select className="input" value={genForm.kind} onChange={e => setGenForm(f => ({ ...f, kind: e.target.value }))}>
+              <option value="template">template</option><option value="report">report</option><option value="letter">letter</option><option value="memo">memo</option>
+            </select></label>
+            <label style={{ marginTop: 10 }}>Source ID <input className="input" value={genForm.source_id} onChange={e => setGenForm(f => ({ ...f, source_id: e.target.value }))} placeholder="Optional source ID" /></label>
+            <label style={{ marginTop: 10 }}>Body <textarea className="input" rows={6} value={genForm.body} onChange={e => setGenForm(f => ({ ...f, body: e.target.value }))} placeholder="Document body" /></label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button className="btn" onClick={() => setShowGenModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveGen} disabled={saving || !genForm.name.trim() || !genForm.body.trim()}>{saving ? <Loader2 size={14} className="spin" /> : 'Generate'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TAB_COMPONENTS = { report: ReportCard, form137: Form137, lesson: LessonPlan, exam: ExamBuilder, analytics: StudentAnalytics, enroll: EnrollmentSuggestions, chatlogs: ChatLogs, library: DocumentLibrary };
 
 export default function AIPage() {
   const [tab, setTab] = useState('report');
