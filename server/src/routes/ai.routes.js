@@ -1,7 +1,7 @@
 ﻿const express = require('express');
-const { q, qa } = require('../db');
+const { q, qa, qi, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, page } = require('../utils');
 const { ensureTeacherSeesStudent } = require('../scope');
 const { userRateLimit } = require('../middleware/rate-limit');
 const logger = require('../logger');
@@ -26,11 +26,17 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, 
   }
   let ctx = context || '';
   if (req.user) ctx += '\nLogged in as: ' + req.user.name + ' (role: ' + req.user.role + ')';
+
+  const lastUserMsg = messages[messages.length - 1];
+  const userText = lastUserMsg?.content || '';
+  qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'user', userText]).catch(() => {});
+
   try {
     const reply = await ai.chatMessage(
       messages.map(m => ({ role: m.role || 'user', content: m.content })),
       ctx
     );
+    qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'assistant', reply]).catch(() => {});
     await audit(req, 'AI_CHAT', 'ai', null, { message_count: messages.length });
     res.json({ reply });
   } catch (e) {
@@ -127,6 +133,36 @@ router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), aiUserLi
     }
     return res.status(500).json({ error: 'Form 137 generation failed: ' + e.message });
   }
+}));
+
+router.get('/chat-logs', requireRole(...ADMIN), asyncH(async (req, res) => {
+  const { limit, offset } = page(req);
+  const countSql = dialect === 'pg'
+    ? 'SELECT COUNT(*)::int AS total FROM ai_chat_logs'
+    : 'SELECT COUNT(*) AS total FROM ai_chat_logs';
+  const [rows, countRow] = await Promise.all([
+    qa('SELECT l.*, u.name AS user_name, u.username FROM ai_chat_logs l LEFT JOIN users u ON u.id = l.user_id ORDER BY l.created_at DESC LIMIT ? OFFSET ?', [limit, offset]),
+    q(countSql),
+  ]);
+  res.json({ data: rows, total: countRow?.total || 0, limit, offset });
+}));
+
+router.get('/chat-logs/stats', requireRole(...ADMIN), asyncH(async (_req, res) => {
+  const isPg = dialect === 'pg';
+  const totalRow = await q(isPg
+    ? 'SELECT COUNT(*)::int AS total FROM ai_chat_logs'
+    : 'SELECT COUNT(*) AS total FROM ai_chat_logs');
+  const usersRow = await q(isPg
+    ? 'SELECT COUNT(DISTINCT user_id)::int AS distinct_users FROM ai_chat_logs'
+    : 'SELECT COUNT(DISTINCT user_id) AS distinct_users FROM ai_chat_logs');
+  const recentRow = await q(isPg
+    ? "SELECT COUNT(*)::int AS last_24h FROM ai_chat_logs WHERE created_at >= now() - interval '24 hours'"
+    : "SELECT COUNT(*) AS last_24h FROM ai_chat_logs WHERE created_at >= datetime('now', '-24 hours')");
+  res.json({
+    total_messages: totalRow?.total || 0,
+    distinct_users: usersRow?.distinct_users || 0,
+    last_24h: recentRow?.last_24h || 0,
+  });
 }));
 
 module.exports = router;

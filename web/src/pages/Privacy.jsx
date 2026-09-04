@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Shield, Download, Trash2, AlertTriangle, CheckCircle2, XCircle, Eye, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shield, Download, Trash2, AlertTriangle, CheckCircle2, XCircle, Eye, Users, ChevronLeft, ChevronRight, FileText, Edit2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 import { useAuth, can } from '../lib/auth';
@@ -9,6 +9,7 @@ const TABS = [
   { key: 'erasure', label: 'Erasure Requests' },
   { key: 'audit', label: 'Access Audit Logs' },
   { key: 'roles', label: 'Role Permission Reviews' },
+  { key: 'consent', label: 'Consent Forms' },
 ];
 
 const STATUS_BADGE = {
@@ -46,6 +47,14 @@ export default function Privacy() {
 
   const [roleUsers, setRoleUsers] = useState([]);
   const [roleLoading, setRoleLoading] = useState(true);
+
+  const [consentForms, setConsentForms] = useState([]);
+  const [consentLoading, setConsentLoading] = useState(true);
+  const [consentCounts, setConsentCounts] = useState([]);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [editingForm, setEditingForm] = useState(null);
+  const [consentForm, setConsentForm] = useState({ title: '', description: '', content: '', form_type: 'custom', is_active: true, require_sign: true });
+  const [consentBusy, setConsentBusy] = useState(false);
 
   const [exportBusy, setExportBusy] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -106,12 +115,30 @@ export default function Privacy() {
     }
   }, []);
 
+  const loadConsent = useCallback(async () => {
+    setConsentLoading(true);
+    setError(null);
+    try {
+      const [formsRes, countsRes] = await Promise.all([
+        api('/consents/forms'),
+        api('/consents/responses/counts'),
+      ]);
+      setConsentForms(formsRes.data || []);
+      setConsentCounts(countsRes.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setConsentLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (tab === 'retention') loadPolicies();
     if (tab === 'erasure') loadErasure();
     if (tab === 'audit') loadAudit();
     if (tab === 'roles') loadRoles();
-  }, [tab, loadPolicies, loadErasure, loadAudit, loadRoles]);
+    if (tab === 'consent') loadConsent();
+  }, [tab, loadPolicies, loadErasure, loadAudit, loadRoles, loadConsent]);
 
   useEffect(() => {
     if (tab === 'audit') loadAudit();
@@ -242,6 +269,51 @@ export default function Privacy() {
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  function openConsentModal(form) {
+    if (form) {
+      setEditingForm(form);
+      setConsentForm({ title: form.title, description: form.description || '', content: form.content, form_type: form.form_type, is_active: form.is_active, require_sign: form.require_sign });
+    } else {
+      setEditingForm(null);
+      setConsentForm({ title: '', description: '', content: '', form_type: 'custom', is_active: true, require_sign: true });
+    }
+    setShowConsentModal(true);
+  }
+
+  async function saveConsentForm(e) {
+    e.preventDefault();
+    setConsentBusy(true);
+    setError(null);
+    try {
+      const body = { ...consentForm };
+      if (editingForm) {
+        await api(`/consents/forms/${editingForm.id}`, { method: 'PATCH', body });
+      } else {
+        await api('/consents/forms', { method: 'POST', body });
+      }
+      setShowConsentModal(false);
+      setEditingForm(null);
+      setConsentForm({ title: '', description: '', content: '', form_type: 'custom', is_active: true, require_sign: true });
+      loadConsent();
+    } catch (e2) {
+      setError(e2.message);
+    } finally {
+      setConsentBusy(false);
+    }
+  }
+
+  async function deleteConsentForm(form) {
+    setConfirmAction({ message: `Delete form "${form.title}"? This cannot be undone.`, action: async () => {
+      setError(null);
+      try {
+        await api(`/consents/forms/${form.id}`, { method: 'DELETE' });
+        loadConsent();
+      } catch (e) {
+        setError(e.message);
+      }
+    } });
   }
 
   function passwordExpired(dateStr) {
@@ -517,6 +589,65 @@ export default function Privacy() {
         </div>
       )}
 
+      {tab === 'consent' && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+            <div>
+              <h3 style={{ margin: 0 }}><FileText size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Consent Forms</h3>
+              <p className="sub" style={{ margin: '4px 0 0' }}>Manage consent forms and track user responses</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => openConsentModal(null)}>+ New Form</button>
+          </div>
+          {consentCounts.length > 0 && (
+            <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-dim)' }}>
+              Response counts: {consentCounts.map((c) => (
+                <span key={c.id} style={{ marginRight: 14 }}><strong>{c.title}</strong>: {c.n}</span>
+              ))}
+            </div>
+          )}
+          {consentLoading ? <Spinner /> : consentForms.length === 0 ? <Empty text="No consent forms yet." /> : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Active</th>
+                    <th>Require Sign</th>
+                    <th>Responses</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consentForms.map((f) => (
+                    <tr key={f.id}>
+                      <td><strong>{f.title}</strong></td>
+                      <td><Badge status={f.form_type?.replace(/_/g, ' ')} /></td>
+                      <td>
+                        <span style={{ color: f.is_active ? 'var(--success)' : 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                          {f.is_active ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                          {f.is_active ? ' Yes' : ' No'}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 13 }}>{f.require_sign ? 'Yes' : 'No'}</td>
+                      <td><strong>{f.response_count}</strong></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn btn-sm" onClick={() => openConsentModal(f)} style={{ marginRight: 4 }}>
+                          <Edit2 size={13} /> Edit
+                        </button>
+                        <button className="btn btn-sm btn-danger" onClick={() => deleteConsentForm(f)}>
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {showErasureModal && (
         <Modal title="New Erasure Request" sub="Submit a right-to-erasure request for a student record" onClose={() => setShowErasureModal(false)}>
           <form onSubmit={createErasureRequest}>
@@ -545,6 +676,72 @@ export default function Privacy() {
               <button type="button" className="btn" onClick={() => setShowErasureModal(false)}>Cancel</button>
               <button className="btn btn-primary" disabled={erasureBusy}>
                 {erasureBusy ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {showConsentModal && (
+        <Modal title={editingForm ? 'Edit Consent Form' : 'New Consent Form'} sub={editingForm ? 'Update consent form details' : 'Create a new consent form'} onClose={() => { setShowConsentModal(false); setEditingForm(null); }}>
+          <form onSubmit={saveConsentForm}>
+            <label>Title *</label>
+            <input
+              className="input"
+              required
+              placeholder="Form title..."
+              value={consentForm.title}
+              onChange={(e) => setConsentForm({ ...consentForm, title: e.target.value })}
+            />
+            <label>Form Type</label>
+            <select
+              className="input"
+              value={consentForm.form_type}
+              onChange={(e) => setConsentForm({ ...consentForm, form_type: e.target.value })}
+            >
+              <option value="custom">Custom</option>
+              <option value="data_privacy">Data Privacy</option>
+              <option value="photo_video">Photo / Video</option>
+              <option value="ai_usage">AI Usage</option>
+            </select>
+            <label>
+              <input
+                type="checkbox"
+                checked={consentForm.is_active}
+                onChange={(e) => setConsentForm({ ...consentForm, is_active: e.target.checked })}
+                style={{ marginRight: 6 }}
+              />
+              Active
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={consentForm.require_sign}
+                onChange={(e) => setConsentForm({ ...consentForm, require_sign: e.target.checked })}
+                style={{ marginRight: 6 }}
+              />
+              Require Signature
+            </label>
+            <label>Description</label>
+            <textarea
+              className="input"
+              rows={2}
+              placeholder="Short description..."
+              value={consentForm.description}
+              onChange={(e) => setConsentForm({ ...consentForm, description: e.target.value })}
+            />
+            <label>Content *</label>
+            <textarea
+              className="input"
+              required
+              rows={6}
+              placeholder="Full consent form content..."
+              value={consentForm.content}
+              onChange={(e) => setConsentForm({ ...consentForm, content: e.target.value })}
+            />
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => { setShowConsentModal(false); setEditingForm(null); }}>Cancel</button>
+              <button className="btn btn-primary" disabled={consentBusy}>
+                {consentBusy ? 'Saving...' : (editingForm ? 'Update Form' : 'Create Form')}
               </button>
             </div>
           </form>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList, Paperclip } from 'lucide-react';
-import { api } from '../lib/api';
+import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList, Paperclip, Upload, Trash2, Download } from 'lucide-react';
+import { api, getApiBase, getToken } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
 import FileUpload from '../components/FileUpload';
@@ -139,6 +139,7 @@ export default function Submissions() {
                     <td><span className={`badge ${complianceOf(s).cls}`}>{complianceOf(s).label}</span></td>
                     <td className="muted">{(s.updated_at || '').slice(0, 10)}</td>
                     <td className="row-actions">
+                      <button className="btn btn-sm" onClick={() => setModal({ mode: 'files', s })}><Paperclip size={13} /> Files</button>
                       {(s.status === 'draft' || s.status === 'returned') && (
                         <button className="btn btn-sm" onClick={() => setModal({ mode: 'edit', s })}><FileText size={13} /> Fill data</button>
                       )}
@@ -172,6 +173,14 @@ export default function Submissions() {
         </div>
       )}
 
+      {modal && modal.mode === 'files' && (
+        <FilesModal
+          submission={modal.s}
+          onClose={() => setModal(null)}
+          onNotice={(t) => setNotice(t)}
+          onError={(e) => setError(e.message)}
+        />
+      )}
       {modal && modal.mode === 'assign' && (
         <AssignModal
           types={types}
@@ -180,7 +189,7 @@ export default function Submissions() {
           onNotice={(t) => setNotice(t)}
         />
       )}
-      {modal && modal.mode !== 'assign' && (
+      {modal && modal.mode !== 'assign' && modal.mode !== 'files' && (
         <SubmissionModal
           mode={modal.mode}
           submission={modal.s}
@@ -445,6 +454,116 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
         <button type="button" className="btn btn-primary" disabled={busy || !typeId && !submission} onClick={() => save(true)}>
           <Send size={14} /> {busy ? 'Saving…' : 'Save & mark as done'}
         </button>
+      </div>
+    </Modal>
+  );
+}
+
+function FilesModal({ submission, onClose, onNotice, onError }) {
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api(`/submissions/${submission.id}/attachments`);
+      setFiles(res.data || []);
+      setLoading(false);
+    } catch (e) {
+      onError(e.message);
+      setLoading(false);
+    }
+  }, [submission.id, onError]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleUpload(evt) {
+    const file = evt.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${getApiBase()}/submissions/${submission.id}/attachments`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      });
+      if (!res.ok) {
+        let msg = `Upload failed (${res.status})`;
+        try { const d = await res.json(); msg = d.error || msg; } catch {}
+        throw new Error(msg);
+      }
+      onNotice('File uploaded.');
+      evt.target.value = '';
+      await load();
+    } catch (e) {
+      onError(e.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(f) {
+    setDeleting(f.id);
+    try {
+      await api(`/submissions/${submission.id}/attachments/${f.id}`, { method: 'DELETE', body: {} });
+      onNotice('File deleted.');
+      await load();
+    } catch (e) {
+      onError(e.message);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  return (
+    <Modal title="Submission files" sub={`${submission.report_name} · ${submission.period} — upload supporting documents, download, or remove them.`} onClose={onClose} wide>
+      <div>
+        <label style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+          <Upload size={13} /> Upload a file
+        </label>
+        <input type="file" className="input" disabled={uploading} onChange={handleUpload} />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        {loading ? (
+          <div className="muted">Loading files…</div>
+        ) : files.length === 0 ? (
+          <div className="muted">No files attached yet.</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>File</th><th>Size</th><th>Uploaded</th><th></th></tr>
+              </thead>
+              <tbody>
+                {files.map((f) => (
+                  <tr key={f.id}>
+                    <td>
+                      <a href={`${getApiBase()}/uploads/file/` + f.stored_name} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+                        <FileText size={13} /> {f.filename}
+                      </a>
+                    </td>
+                    <td className="muted">{Math.round((f.size_bytes || 0) / 1024)}KB</td>
+                    <td className="muted">{(f.uploaded_at || '').slice(0, 10)}</td>
+                    <td className="row-actions">
+                      <button className="btn btn-sm" onClick={() => window.open(`${getApiBase()}/uploads/file/` + f.stored_name, '_blank')}>
+                        <Download size={13} /> Download
+                      </button>
+                      <button className="btn btn-sm btn-danger" disabled={deleting === f.id} onClick={() => handleDelete(f)}>
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={onClose}>Close</button>
       </div>
     </Modal>
   );
