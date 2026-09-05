@@ -13,20 +13,22 @@ const FORM_TYPES = ['custom', 'data_privacy', 'photo_video', 'ai_usage'];
 router.get('/forms', asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT cf.*,
-      (SELECT COUNT(*) FROM consent_responses cr WHERE cr.form_id = cf.id) AS response_count
+      (SELECT COUNT(*) FROM consent_responses cr WHERE cr.form_id = cf.id) AS response_count,
+      (SELECT COUNT(*) FROM consent_responses cr2 WHERE cr2.form_id = cf.id AND cr2.user_id = ?) AS signed_by_me
      FROM consent_forms cf
-     ORDER BY cf.created_at DESC`);
-  res.json({ data: rows });
+     ORDER BY cf.created_at DESC`, [req.user.id]);
+  res.json({ data: rows.map((r) => ({ ...r, response_count: Number(r.response_count), signed_by_me: Number(r.signed_by_me) })) });
 }));
 
 router.get('/forms/active', asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT cf.*,
-      (SELECT COUNT(*) FROM consent_responses cr WHERE cr.form_id = cf.id) AS response_count
+      (SELECT COUNT(*) FROM consent_responses cr WHERE cr.form_id = cf.id) AS response_count,
+      (SELECT COUNT(*) FROM consent_responses cr2 WHERE cr2.form_id = cf.id AND cr2.user_id = ?) AS signed_by_me
      FROM consent_forms cf
      WHERE cf.is_active = TRUE
-     ORDER BY cf.created_at DESC`);
-  res.json({ data: rows });
+     ORDER BY cf.created_at DESC`, [req.user.id]);
+  res.json({ data: rows.map((r) => ({ ...r, response_count: Number(r.response_count), signed_by_me: Number(r.signed_by_me) })) });
 }));
 
 router.post('/forms', requireRole(...ADMIN), asyncH(async (req, res) => {

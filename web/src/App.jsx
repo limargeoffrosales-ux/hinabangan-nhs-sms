@@ -37,6 +37,7 @@ class ErrorBoundary extends Component {
 }
 
 const Login = lazy(() => import('./pages/Login'));
+const Consent = lazy(() => import('./pages/Consent'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Students = lazy(() => import('./pages/Students'));
 const Teachers = lazy(() => import('./pages/Teachers'));
@@ -167,6 +168,7 @@ export default function App() {
       <Route path="/portal/analytics" element={<PortalProtected><Page><PortalAnalytics /></Page></PortalProtected>} />
       <Route path="/portal/certifications" element={<PortalProtected><Page><PortalCertifications /></Page></PortalProtected>} />
       <Route path="/privacy" element={<Protected><AdminOnly><Page><Privacy /></Page></AdminOnly></Protected>} />
+      <Route path="/consent" element={<Protected><Page><Consent /></Page></Protected>} />
       <Route path="/mfa" element={<Protected><Page><MFASetup /></Page></Protected>} />
       <Route path="/analytics" element={<Protected><AdminOnly><Page><Analytics /></Page></AdminOnly></Protected>} />
       <Route path="/curriculum" element={<Protected><AdminOnly><Page><Curriculum /></Page></AdminOnly></Protected>} />
