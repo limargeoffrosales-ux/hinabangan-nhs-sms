@@ -51,6 +51,8 @@ router.patch('/forms/:id', requireRole(...ADMIN), asyncH(async (req, res) => {
   const existing = await q('SELECT * FROM consent_forms WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Form not found' });
   const b = req.body || {};
+  if (b.title !== undefined && !String(b.title).trim()) return res.status(400).json({ error: 'title is required' });
+  if (b.content !== undefined && !String(b.content).trim()) return res.status(400).json({ error: 'content is required' });
   const title = b.title !== undefined ? String(b.title).trim() : existing.title;
   const description = b.description !== undefined ? b.description : existing.description;
   const content = b.content !== undefined ? String(b.content).trim() : existing.content;
