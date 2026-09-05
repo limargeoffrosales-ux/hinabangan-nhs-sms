@@ -7,7 +7,7 @@ const FORM_TYPES = {
   custom: { label: 'Custom', cls: 'gray' },
   data_privacy: { label: 'Data Privacy', cls: 'blue' },
   photo_video: { label: 'Photo / Video', cls: 'green' },
-  ai_usage: { label: 'AI Usage', cls: 'orange' },
+  ai_usage: { label: 'AI Usage', cls: 'yellow' },
 };
 
 export default function Consent() {
