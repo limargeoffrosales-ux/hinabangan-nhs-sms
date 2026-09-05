@@ -40,6 +40,8 @@ router.patch('/formats/:id', requireRole(...ADMIN_ROLES), asyncH(async (req, res
   const existing = await q('SELECT * FROM doc_formats WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Format not found' });
   const b = req.body || {};
+  if (b.name !== undefined && !String(b.name || '').trim()) return res.status(400).json({ error: 'name is required' });
+  if (b.body !== undefined && !String(b.body || '').trim()) return res.status(400).json({ error: 'body is required' });
   const name = b.name !== undefined ? String(b.name || '').trim() : existing.name;
   const body = b.body !== undefined ? String(b.body || '').trim() : existing.body;
   const fields = b.fields !== undefined
