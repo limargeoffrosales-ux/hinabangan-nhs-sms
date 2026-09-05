@@ -6,6 +6,7 @@ import {
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
+  FileCheck2,
   Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award, BookMarked, Stethoscope,
   Brain,
 } from 'lucide-react';
@@ -41,6 +42,7 @@ const NAV = [
   { to: '/attendance', labelKey: 'nav.attendance', icon: CalendarCheck },
   { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
   { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
+  { to: '/consent', labelKey: 'nav.consent', icon: FileCheck2 },
   { to: '/mfa', labelKey: 'nav.mfa', icon: Shield, adminOnly: true },
   { to: '/privacy', labelKey: 'nav.privacy', icon: ShieldCheck },
   { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
