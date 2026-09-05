@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(authenticate);
 
 const ADMIN_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const GENERATION_KINDS = ['template', 'report', 'letter', 'memo'];
 
 // ── Formats ──────────────────────────────────────────────────
 
@@ -66,12 +67,18 @@ router.delete('/formats/:id', requireRole(...ADMIN_ROLES), asyncH(async (req, re
 // ── Generations ──────────────────────────────────────────────
 
 router.get('/generations', asyncH(async (req, res) => {
-  const rows = await qa(
-    `SELECT dg.*, u.name AS created_by_name
-     FROM doc_generations dg
-     LEFT JOIN users u ON u.id = dg.created_by
-     ORDER BY dg.created_at DESC`);
-  res.json({ data: rows });
+  const { limit, offset } = page(req);
+  const [rows, totalRow] = await Promise.all([
+    qa(
+      `SELECT dg.*, u.name AS created_by_name
+       FROM doc_generations dg
+       LEFT JOIN users u ON u.id = dg.created_by
+       ORDER BY dg.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset]),
+    q('SELECT COUNT(*) AS n FROM doc_generations'),
+  ]);
+  res.json({ data: rows, total: totalRow.n, limit, offset });
 }));
 
 router.get('/generations/stats', asyncH(async (req, res) => {
@@ -86,6 +93,7 @@ router.post('/generations', requireRole(...ADMIN_ROLES, 'teacher'), asyncH(async
   if (!name) return res.status(400).json({ error: 'name is required' });
   if (!body) return res.status(400).json({ error: 'body is required' });
   const kind = String(b.kind || 'template').trim();
+  if (!GENERATION_KINDS.includes(kind)) return res.status(400).json({ error: 'invalid kind' });
   const source_id = b.source_id ? String(b.source_id).trim() : null;
   const id = await qi(
     'INSERT INTO doc_generations (name, kind, source_id, body, created_by) VALUES (?, ?, ?, ?, ?)',

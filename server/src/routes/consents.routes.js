@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(authenticate);
 
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const FORM_TYPES = ['custom', 'data_privacy', 'photo_video', 'ai_usage'];
 
 router.get('/forms', asyncH(async (req, res) => {
   const rows = await qa(
@@ -32,6 +33,7 @@ router.post('/forms', requireRole(...ADMIN), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'title is required' });
   if (!b.content || !String(b.content).trim()) return res.status(400).json({ error: 'content is required' });
+  if (b.form_type !== undefined && !FORM_TYPES.includes(b.form_type)) return res.status(400).json({ error: 'invalid form_type' });
   const id = await qi(
     'INSERT INTO consent_forms (title, description, content, form_type, is_active, require_sign, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [
@@ -53,6 +55,7 @@ router.patch('/forms/:id', requireRole(...ADMIN), asyncH(async (req, res) => {
   const b = req.body || {};
   if (b.title !== undefined && !String(b.title).trim()) return res.status(400).json({ error: 'title is required' });
   if (b.content !== undefined && !String(b.content).trim()) return res.status(400).json({ error: 'content is required' });
+  if (b.form_type !== undefined && !FORM_TYPES.includes(b.form_type)) return res.status(400).json({ error: 'invalid form_type' });
   const title = b.title !== undefined ? String(b.title).trim() : existing.title;
   const description = b.description !== undefined ? b.description : existing.description;
   const content = b.content !== undefined ? String(b.content).trim() : existing.content;
