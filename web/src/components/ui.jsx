@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export function Badge({ status }) {
+export function Badge({ status, children }) {
   const map = {
     present: 'badge-green', active: 'badge-green', enrolled: 'badge-green', PASSED: 'badge-green', ok: 'badge-green',
     absent: 'badge-red', FAILED: 'badge-red', dropped: 'badge-red', disabled: 'badge-red',
@@ -10,7 +10,7 @@ export function Badge({ status }) {
     'badge-green': 'badge-green', 'badge-red': 'badge-red', 'badge-yellow': 'badge-yellow', 'badge-blue': 'badge-blue', 'badge-gray': 'badge-gray',
   };
   const cls = map[status] || 'badge-gray';
-  return <span className={`badge ${cls}`} role="status">{String(status).toUpperCase()}</span>;
+  return <span className={`badge ${cls}`} role="status">{children || String(status).toUpperCase()}</span>;
 }
 
 export function PageHead({ title, sub, children }) {
