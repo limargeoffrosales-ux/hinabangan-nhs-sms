@@ -78,12 +78,12 @@ router.get('/generations', asyncH(async (req, res) => {
       [limit, offset]),
     q('SELECT COUNT(*) AS n FROM doc_generations'),
   ]);
-  res.json({ data: rows, total: totalRow.n, limit, offset });
+  res.json({ data: rows, total: Number(totalRow.n || 0), limit, offset });
 }));
 
 router.get('/generations/stats', asyncH(async (req, res) => {
   const rows = await qa('SELECT kind, COUNT(*) AS n FROM doc_generations GROUP BY kind');
-  res.json({ data: rows });
+  res.json({ data: rows.map((r) => ({ ...r, n: Number(r.n) })) });
 }));
 
 router.post('/generations', requireRole(...ADMIN_ROLES, 'teacher'), asyncH(async (req, res) => {

@@ -109,7 +109,7 @@ router.get('/responses', requireRole(...ADMIN), asyncH(async (req, res) => {
     [...params, limit, offset]);
   const totalRow = (await qa(
     `SELECT COUNT(*) AS n FROM consent_responses cr ${where}`, params))[0];
-  res.json({ data: rows, total: totalRow.n, limit, offset });
+  res.json({ data: rows, total: Number(totalRow.n || 0), limit, offset });
 }));
 
 router.get('/responses/counts', requireRole(...ADMIN), asyncH(async (req, res) => {
@@ -119,7 +119,7 @@ router.get('/responses/counts', requireRole(...ADMIN), asyncH(async (req, res) =
      LEFT JOIN consent_responses cr ON cr.form_id = f.id
      GROUP BY f.id, f.title
      ORDER BY f.title`);
-  res.json({ data: rows });
+  res.json({ data: rows.map((r) => ({ ...r, n: Number(r.n) })) });
 }));
 
 module.exports = router;

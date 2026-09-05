@@ -144,7 +144,7 @@ router.get('/chat-logs', requireRole(...ADMIN), asyncH(async (req, res) => {
     qa('SELECT l.*, u.name AS user_name, u.username FROM ai_chat_logs l LEFT JOIN users u ON u.id = l.user_id ORDER BY l.created_at DESC LIMIT ? OFFSET ?', [limit, offset]),
     q(countSql),
   ]);
-  res.json({ data: rows, total: countRow?.total || 0, limit, offset });
+  res.json({ data: rows, total: Number(countRow?.total || 0), limit, offset });
 }));
 
 router.get('/chat-logs/stats', requireRole(...ADMIN), asyncH(async (_req, res) => {
@@ -159,9 +159,9 @@ router.get('/chat-logs/stats', requireRole(...ADMIN), asyncH(async (_req, res) =
     ? "SELECT COUNT(*)::int AS last_24h FROM ai_chat_logs WHERE created_at >= now() - interval '24 hours'"
     : "SELECT COUNT(*) AS last_24h FROM ai_chat_logs WHERE created_at >= datetime('now', '-24 hours')");
   res.json({
-    total_messages: totalRow?.total || 0,
-    distinct_users: usersRow?.distinct_users || 0,
-    last_24h: recentRow?.last_24h || 0,
+    total_messages: Number(totalRow?.total || 0),
+    distinct_users: Number(usersRow?.distinct_users || 0),
+    last_24h: Number(recentRow?.last_24h || 0),
   });
 }));
 
