@@ -15,14 +15,12 @@ let clientProvider = null;
 
 const PROVIDERS = {
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o', keyEnv: 'OPENAI_API_KEY' },
-  groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.3-70b-versatile', keyEnv: 'GROQ_API_KEY' },
+  groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'openai/gpt-oss-120b', keyEnv: 'GROQ_API_KEY' },
   ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyEnv: '' },
   hf:     { baseUrl: 'https://api-inference.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct', keyEnv: 'HF_API_KEY' },
 };
 
-const MODEL_ALIASES = {
-  'meta-llama/llama-3.3-70b-versatile': 'llama-3.3-70b-versatile',
-};
+const MODEL_ALIASES = {};
 
 function getProvider() {
   return process.env.AI_PROVIDER || 'groq';
