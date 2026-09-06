@@ -5,6 +5,7 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { uploadFile, deleteFile, getPublicUrl } = require('../storage');
 const { UPLOAD_MAX_MB } = require('../config');
+const { optimizeUpload } = require('../image');
 const { q, qi, qr } = require('../db');
 
 const router = express.Router();
@@ -34,6 +35,7 @@ const upload = multer({
 // POST /uploads/student-photo/:studentId
 router.post('/student-photo/:studentId', requireRole('super_admin', 'school_admin', 'registrar', 'teacher'), upload.single('photo'), asyncH(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  req.file = await optimizeUpload(req.file, { maxDimension: 800 });
   const studentId = Number(req.params.studentId);
   const student = await q('SELECT id, photo_url FROM students WHERE id = ?', [studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
@@ -56,6 +58,7 @@ router.post('/student-photo/:studentId', requireRole('super_admin', 'school_admi
 const STAFF_UPLOAD = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'];
 router.post('/file', requireRole(...STAFF_UPLOAD), upload.single('file'), asyncH(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  req.file = await optimizeUpload(req.file);
   const folder = (req.query.folder || 'general').replace(/[^a-z0-9_-]/gi, '');
   const { key, url } = await uploadFile(folder, req.file, req.file.originalname);
   await audit(req, 'UPLOAD_FILE', 'uploads', null, { key, folder, size: req.file.size });

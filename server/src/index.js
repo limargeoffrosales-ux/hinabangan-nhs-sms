@@ -60,6 +60,7 @@ const documentRoutes = require('./routes/documents.routes');
 (async () => {
   await db.init();
   const { ensureDefaults, startNotifySweep } = require('./notify');
+  const { startStorageCleanup } = require('./storage-cleanup');
   await ensureDefaults();
   if (process.env.SEED_ON_BOOT === '1') {
     const { seed } = require('./seed');
@@ -342,6 +343,7 @@ const documentRoutes = require('./routes/documents.routes');
   const server = app.listen(PORT, () => {
     logger.info({ port: PORT, dialect: db.dialect }, `MeridianEd API listening on http://localhost:${PORT}`);
     startNotifySweep();
+    startStorageCleanup();
   });
 
   async function shutdown(signal) {

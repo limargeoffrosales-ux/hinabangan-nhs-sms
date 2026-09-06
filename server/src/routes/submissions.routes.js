@@ -7,6 +7,7 @@ const { asyncH, audit, safeJsonParse } = require('../utils');
 const { REPORT_TYPES } = require('../report-types');
 const { uploadFile, deleteFile } = require('../storage');
 const { UPLOAD_MAX_MB } = require('../config');
+const { optimizeUpload } = require('../image');
 
 const router = express.Router();
 router.use(authenticate);
@@ -500,6 +501,7 @@ const ATTACH_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_pri
 
 router.post('/:id/attachments', requireRole(...ATTACH_ROLES), upload.single('file'), asyncH(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  req.file = await optimizeUpload(req.file);
   const sub = await q('SELECT id FROM report_submissions WHERE id = ?', [req.params.id]);
   if (!sub) return res.status(404).json({ error: 'Submission not found' });
   const { key } = await uploadFile('submissions', req.file, req.file.originalname);
