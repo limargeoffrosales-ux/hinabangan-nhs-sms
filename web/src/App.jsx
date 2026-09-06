@@ -107,6 +107,18 @@ function AdminOnly({ children }) {
   return children;
 }
 
+function SuperAdminOnly({ children }) {
+  const { user } = useAuth();
+  if (!can(user?.role, 'super_admin')) return <Navigate to="/" replace />;
+  return children;
+}
+
+function AIChatbotGate() {
+  const { user } = useAuth();
+  if (!user || !can(user?.role, 'super_admin')) return null;
+  return <AIChatbot />;
+}
+
 function Page({ children }) {
   const { pathname } = useLocation();
   return <ErrorBoundary key={pathname}><Suspense fallback={<Spinner />}>{children}</Suspense></ErrorBoundary>;
@@ -180,10 +192,10 @@ export default function App() {
       <Route path="/clinic" element={<Protected><Page><Clinic /></Page></Protected>} />
       <Route path="/guidance" element={<Protected><Page><Guidance /></Page></Protected>} />
       <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
-      <Route path="/ai" element={<Protected><Page><AIPage /></Page></Protected>} />
+      <Route path="/ai" element={<Protected><SuperAdminOnly><Page><AIPage /></Page></SuperAdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    <AIChatbot />
+    <AIChatbotGate />
     </ErrorBoundary>
   );
 }

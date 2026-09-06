@@ -55,7 +55,7 @@ const NAV = [
   { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
   { to: '/certifications', labelKey: 'nav.certifications', icon: Award },
   { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
-  { to: '/ai', labelKey: 'AI Tools', icon: Brain },
+  { to: '/ai', labelKey: 'AI Tools', icon: Brain, adminOnly: true },
 ];
 
 const TOOL_NAV = [
