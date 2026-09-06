@@ -1,8 +1,8 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { qa } = require('../db');
 const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
@@ -15,7 +15,7 @@ function fc(cond) { return isPg ? `COUNT(*) FILTER (WHERE ${cond})` : `SUM(CASE 
 // ── Strand Distribution ────────────────────────────────────────────
 // Returns enrollment counts grouped by strand for a school year.
 router.get('/strand-distribution', requireRole(...READ), asyncH(async (req, res) => {
-  const { school_year, term } = req.query;
+  const { school_year } = req.query;
   if (!school_year) return res.status(400).json({ error: 'school_year is required' });
 
   const where = ["e.school_year = ?", "e.status = 'enrolled'"];
@@ -105,7 +105,7 @@ router.get('/at-risk-by-strand', requireRole(...READ), asyncH(async (req, res) =
 // ── Strand Comparison ──────────────────────────────────────────────
 // Grade distribution comparison across strands.
 router.get('/strand-comparison', requireRole(...READ), asyncH(async (req, res) => {
-  const { school_year, quarter } = req.query;
+  const { school_year } = req.query;
   if (!school_year) return res.status(400).json({ error: 'school_year is required' });
 
   const where = ["g.school_year = ?", "g.computed_grade IS NOT NULL"];
@@ -131,7 +131,7 @@ router.get('/strand-comparison', requireRole(...READ), asyncH(async (req, res) =
 // ── Teacher Performance ────────────────────────────────────────────
 // Returns per-teacher grade stats: class average, pass rate, number of students.
 router.get('/teacher-performance', requireRole(...READ), asyncH(async (req, res) => {
-  const { school_year, quarter } = req.query;
+  const { school_year } = req.query;
   if (!school_year) return res.status(400).json({ error: 'school_year is required' });
 
   const rows = await qa(`

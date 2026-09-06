@@ -1,6 +1,7 @@
 const { q, qa, qr } = require('./db');
 const logger = require('./logger');
 const { getCurrentSchoolYear } = require('./schoolYear');
+const { deleteFile, fileKeyFromUrl } = require('./storage');
 
 function log(label, n) {
   logger.info({ table: label, removed: n }, 'PURGE: rows removed');
@@ -39,6 +40,25 @@ async function countWhere(selectSql, params) {
   return rows.map((r) => r.id);
 }
 
+async function purgeStudentPhotos(studentIds) {
+  if (!studentIds.length) return;
+  const rows = await qa(
+    `SELECT id, photo_url FROM students WHERE id IN (${studentIds.join(',')}) AND photo_url IS NOT NULL AND photo_url <> ''`, []);
+  let removed = 0;
+  for (const r of rows) {
+    try {
+      const key = fileKeyFromUrl(r.photo_url);
+      if (key) {
+        await deleteFile(key);
+        removed += 1;
+      }
+    } catch (err) {
+      logger.warn({ err: err.message, id: r.id }, 'PURGE: failed to remove student photo object');
+    }
+  }
+  if (removed) logger.info({ objects: removed }, 'PURGE: R2 student photo objects removed');
+}
+
 async function purgeDemo() {
   if (process.env.PURGE_DEMO !== '1') {
     logger.info('PURGE: skipped (set PURGE_DEMO=1 to remove demo data on boot)');
@@ -70,6 +90,20 @@ async function purgeDemo() {
   log('intervention contacts', await countAndDel(
     'intervention_contacts', `plan_id IN (SELECT id FROM intervention_plans WHERE student_id IN (${inClause(studentIds)}))`, []));
 
+  // book_borrows uses a polymorphic borrower_id with no FK — deleting the
+  // students would otherwise leave their borrowing history orphaned.
+  log('book borrows (student)', await countAndDel(
+    'book_borrows', `borrower_type = 'student' AND borrower_id IN (${inClause(studentIds)})`, []));
+
+  // clinic_visits.student_id is ON DELETE SET NULL, so demo clinic records
+  // (and their medicine dispenses) would linger with a NULL student after the
+  // student delete. Clean them up explicitly first.
+  const clinicVisitIds = await countWhere(
+    `SELECT id FROM clinic_visits WHERE student_id IN (${inClause(studentIds)})`, []);
+  log('medicine dispenses (demo visits)', await countAndDel(
+    'medicine_dispenses', `visit_id IN (${inClause(clinicVisitIds)})`, []));
+  log('clinic visits', await countAndDel('clinic_visits', `student_id IN (${inClause(studentIds)})`, []));
+
   const annCount = await countAndDel(
     'announcements', `title = ? OR title = ? OR title = ?`, DEMO_ANNOUNCEMENTS);
   log('announcements', annCount);
@@ -93,6 +127,7 @@ async function purgeDemo() {
 
   log('sections', await countAndDel('sections', `id IN (${sIn})`, []));
   log('teachers', await countAndDel('teachers', `id IN (${inClause(teacherIds)})`, []));
+  await purgeStudentPhotos(studentIds);
   log('students', await countAndDel('students', `id IN (${sid})`, []));
   logger.info('PURGE: subjects kept — the SHS curriculum catalog is preserved (migration-managed).');
 

@@ -32,14 +32,18 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, 
 
   const lastUserMsg = messages[messages.length - 1];
   const userText = lastUserMsg?.content || '';
-  qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'user', userText]).catch(() => {});
+  qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'user', userText]).catch((err) => {
+    logger.error({ err: err.message }, '[AI_CHAT] failed to persist user log');
+  });
 
   try {
     const reply = await ai.chatMessage(
       messages.map(m => ({ role: m.role || 'user', content: m.content })),
       ctx
     );
-    qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'assistant', reply]).catch(() => {});
+    qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'assistant', reply]).catch((err) => {
+      logger.error({ err: err.message }, '[AI_CHAT] failed to persist assistant log');
+    });
     await audit(req, 'AI_CHAT', 'ai', null, { message_count: messages.length });
     res.json({ reply });
   } catch (e) {

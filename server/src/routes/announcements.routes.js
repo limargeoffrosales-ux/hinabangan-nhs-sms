@@ -3,6 +3,7 @@ const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 const { notifyEvent } = require('../notify');
+const logger = require('../logger');
 
 const router = express.Router();
 router.use(authenticate);
@@ -27,7 +28,7 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
     notifyEvent('announcement_posted', {
       audience: b.audience || 'all',
       data: { title: b.title, body: b.body, priority: b.priority || 'normal' },
-    }).catch(() => {});
+    }).catch((err) => logger.error({ err: err.message }, '[ANNOUNCEMENTS] notifyEvent failed'));
     res.status(201).json({ id });
   }));
 

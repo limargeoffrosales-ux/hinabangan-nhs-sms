@@ -3,9 +3,8 @@ const { q, qa, qi, qr, nowSql } = require('../db');
 const db = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit, esc } = require('../utils');
-const { paginate } = require('../pagination');
 const { getCurrentSchoolYear } = require('../schoolYear');
-const { ensureTeacherSeesStudent } = require('../scope');
+const { ensureTeacherSeesStudent, teacherScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -37,8 +36,24 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const params = [sy];
   if (status) { where.push('p.status = ?'); params.push(status); }
   if (student_id) { where.push('p.student_id = ?'); params.push(student_id); }
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const stIds = scope && scope.sections.length
+      ? (await qa(
+          `SELECT DISTINCT e.student_id FROM enrollments e JOIN sections s ON s.id = e.section_id
+           WHERE e.status = 'enrolled' AND s.id IN (${scope.sections.map(() => '?').join(',')})`,
+          scope.sections)).map((r) => Number(r.student_id))
+      : [];
+    if (!stIds.length) {
+      where.push('p.student_id = -1');
+    } else {
+      where.push(`p.student_id IN (${stIds.map(() => '?').join(',')})`);
+      params.push(...stIds);
+    }
+  }
   const whereClause = where.length ? ' WHERE ' + where.join(' AND ') : '';
-  const totalResult = await q(`SELECT COUNT(*) AS total FROM intervention_plans p${whereClause}`, where.length ? params.slice(1) : []);
+  const countParams = where.length ? params.slice(1) : [];
+  const totalResult = await q(`SELECT COUNT(*) AS total FROM intervention_plans p${whereClause}`, countParams);
   const total = Number(totalResult?.total || 0);
   const rows = await qa(`${baseSql}${whereClause} ORDER BY p.updated_at DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
   const contacts = rows.length ? await qa(
@@ -199,6 +214,10 @@ router.post('/ai/parent-notice', requireRole(...WRITE), asyncH(async (req, res) 
   const pupil = sid
     ? await q('SELECT first_name, last_name, guardian_name FROM students WHERE id = ?', [sid])
     : null;
+  if (sid && req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, sid);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const guardian = esc((pupil && pupil.guardian_name) || b.guardian || 'Parent/Guardian');
   const studentName = esc(pupil ? `${pupil.first_name} ${pupil.last_name}` : b.student || 'your child');
   const reason = esc(b.reason || 'academic progress and the school intervention program for the learner');

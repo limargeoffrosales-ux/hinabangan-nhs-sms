@@ -12,7 +12,7 @@ const {
   studentSummary,
   DESIGNATIONS,
 } = require('../grading/analytics');
-const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent, teacherScope } = require('../scope');
+const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);

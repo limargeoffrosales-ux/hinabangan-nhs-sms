@@ -78,12 +78,36 @@ router.get('/summary', requireRole('super_admin', 'school_admin', 'principal', '
   const monthStart = db.dialect === 'pg'
     ? "date_trunc('month', now())::date"
     : "date('now', 'start of month')";
+  const scopedSql = [];
+  const scopedParams = [];
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const stIds = scope && scope.sections.length
+      ? (await qa(
+          `SELECT DISTINCT e.student_id FROM enrollments e JOIN sections s ON s.id = e.section_id
+           WHERE e.status = 'enrolled' AND s.id IN (${scope.sections.map(() => '?').join(',')})`,
+          scope.sections)).map((r) => Number(r.student_id))
+      : [];
+    if (!stIds.length) {
+      return res.json({
+        by_status: { open: 0, under_review: 0, resolved: 0 },
+        by_type: {},
+        by_severity: { minor: 0, moderate: 0, major: 0 },
+        cases_this_month: 0,
+        recent: [],
+      });
+    }
+    scopedSql.push(`cr.student_id IN (${stIds.map(() => '?').join(',')})`);
+    scopedParams.push(...stIds);
+  }
+  const where = scopedSql.length ? ' WHERE ' + scopedSql.join(' AND ') : '';
+  const monthWhere = `cr.incident_date >= ${monthStart}` + (scopedSql.length ? ' AND ' + scopedSql.join(' AND ') : '');
   const [byStatus, byType, bySeverity, monthRows, recent] = await Promise.all([
-    qa('SELECT status, COUNT(*) AS n FROM student_conduct_records GROUP BY status'),
-    qa('SELECT incident_type, COUNT(*) AS n FROM student_conduct_records GROUP BY incident_type'),
-    qa('SELECT severity, COUNT(*) AS n FROM student_conduct_records GROUP BY severity'),
-    qa(`SELECT COUNT(*) AS n FROM student_conduct_records WHERE incident_date >= ${monthStart}`),
-    qa(`${LIST_SELECT} ORDER BY (cr.status = 'open') DESC, cr.incident_date DESC, cr.id DESC LIMIT 8`),
+    qa(`SELECT cr.status, COUNT(*) AS n FROM student_conduct_records cr GROUP BY cr.status${where}`, scopedParams),
+    qa(`SELECT cr.incident_type, COUNT(*) AS n FROM student_conduct_records cr GROUP BY cr.incident_type${where}`, scopedParams),
+    qa(`SELECT cr.severity, COUNT(*) AS n FROM student_conduct_records cr GROUP BY cr.severity${where}`, scopedParams),
+    qa(`SELECT COUNT(*) AS n FROM student_conduct_records cr WHERE ${monthWhere}`, scopedParams),
+    qa(`${LIST_SELECT}${where} ORDER BY (cr.status = 'open') DESC, cr.incident_date DESC, cr.id DESC LIMIT 8`, scopedParams),
   ]);
   const pick = (rows, key) => rows.find((r) => r.status === key || r.incident_type === key || r.severity === key)?.n || 0;
   res.json({
@@ -127,6 +151,10 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 router.get('/:id', requireRole('super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'), asyncH(async (req, res) => {
   const row = await q(`${LIST_SELECT} WHERE cr.id = ?`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Record not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   row.actions = await qa(
     `SELECT ca.*, u.name AS done_by_name FROM conduct_case_actions ca
      LEFT JOIN users u ON u.id = ca.done_by
@@ -137,6 +165,10 @@ router.get('/:id', requireRole('super_admin', 'school_admin', 'principal', 'assi
 router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM student_conduct_records WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Record not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const b = req.body || {};
   const next = {};
   if (b.incident_type !== undefined) {
@@ -164,6 +196,10 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 router.post('/:id/actions', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM student_conduct_records WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Record not found' });
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   const b = req.body || {};
   if (!b.action_type || !b.action_date) {
     return res.status(400).json({ error: 'action_type and action_date are required' });

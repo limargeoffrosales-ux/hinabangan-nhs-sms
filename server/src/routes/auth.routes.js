@@ -3,9 +3,15 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { q, qa, qi, qr, nowSql } = require('../db');
-const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, getCsrfToken, clearCsrfToken } = require('../auth');
+const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, clearCsrfToken } = require('../auth');
 const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER } = require('../config');
 const { asyncH, audit } = require('../utils');
+const logger = require('../logger');
+
+// bcrypt hash used as a password stand-in when the username doesn't exist (or
+// the account isn't active), so the login path always does the same bcrypt work.
+// This prevents account enumeration via response-time differences.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('dummy-password-for-timing-equalization', 10);
 
 async function getLockoutSettings() {
   const rows = await qa("SELECT key, value FROM app_settings WHERE key IN ('lockout_max_attempts','lockout_duration_minutes')", []);
@@ -39,7 +45,9 @@ async function logSecurityIncident(type, severity, ip, username, userId, details
       'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
       [type, severity, ip, username, userId || null, details ? JSON.stringify(details) : null]
     );
-  } catch {}
+  } catch (err) {
+    logger.error({ err: err.message, type, username }, '[AUTH] failed to record security incident');
+  }
 }
 
 const router = express.Router();
@@ -55,7 +63,9 @@ async function maybeSweepExpired() {
   lastSweep = now;
   try {
     await qr(`DELETE FROM refresh_tokens WHERE expires_at < ${nowSql()}`);
-  } catch {}
+  } catch (err) {
+    logger.error({ err: err.message }, '[AUTH] refresh-token sweep failed');
+  }
 }
 
 async function issueRefresh(userId) {
@@ -81,7 +91,7 @@ router.post('/login', asyncH(async (req, res) => {
     return res.status(423).json({ error: `Account locked. Try again in ${remaining} minute(s).` });
   }
 
-  if (!user || user.status !== 'active' || !(await bcrypt.compare(String(password), user.password_hash))) {
+  if (!user || user.status !== 'active' || !(await bcrypt.compare(String(password), user.password_hash || DUMMY_PASSWORD_HASH))) {
     await audit(req, 'LOGIN_FAILED', 'auth', null, { username });
     await recordFailedLogin(String(username).trim(), user?.id || null, req.ip);
     return res.status(401).json({ error: 'Invalid username or password' });

@@ -3,6 +3,7 @@ const db = require('../db');
 const { q, qa, qi, qr, tx } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, page, audit } = require('../utils');
+const { teacherScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -14,6 +15,18 @@ function today() {
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const DASH_READ = [...WRITE, 'teacher', 'guidance', 'nurse', 'librarian', 'accounting', 'hr'];
 const SHS_GRADES = ['Grade 11', 'Grade 12'];
+
+// ARAL dashboard endpoints are shared with teachers (DASH_READ). Scope their
+// results to the sections they actually teach/advis �?" other ARAL data is not
+// visible to a teacher. Returns { sql ('' or a WHERE fragment), params, empty }.
+async function teacherSectionScope(req) {
+  if (req.role !== 'teacher') return { sql: '', params: [], empty: false };
+  const scope = await teacherScope(req.user);
+  const ids = scope ? scope.sections : [];
+  if (!ids.length) return { sql: '0 = 1', params: [], empty: true };
+  const holders = ids.map(() => '?').join(',');
+  return { sql: `s.id IN (${holders})`, params: ids, empty: false };
+}
 
 router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const [students, teachers, sections, subjects, enrollments] = await Promise.all([
@@ -52,7 +65,8 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
 }));
 
 router.get('/attendance-trend', requireRole(...DASH_READ), asyncH(async (req, res) => {
-  const days = Number(req.query.days || 7);
+  const daysRaw = Number(req.query.days || 7);
+  const days = Number.isFinite(daysRaw) && daysRaw > 0 ? Math.min(Math.floor(daysRaw), 365) : 7;
   const cutoff = db.dialect === 'pg'
     ? `CURRENT_DATE - (? * INTERVAL '1 day')`
     : `date('now', '-' || ? || ' days')`;
@@ -211,6 +225,9 @@ router.get('/aral-summary', requireRole(...DASH_READ), asyncH(async (req, res) =
   let where = "e.is_aral = TRUE AND e.status = 'enrolled'";
   if (sy) { where += ' AND e.school_year = ?'; params.push(sy); }
   if (term) { where += ' AND e.term = ?'; params.push(term); }
+  const sscope = await teacherSectionScope(req);
+  if (sscope.empty) return res.json({ school_year: sy, term: term || null, by_grade: {}, rows: [], totals: { male: 0, female: 0, total: 0 } });
+  if (sscope.sql) { where += ' AND ' + sscope.sql; params.push(...sscope.params); }
   const rows = await qa(
     `SELECT s.grade_level, s.name AS section_name, s.strand,
        COUNT(*) AS aral,
@@ -244,6 +261,16 @@ router.get('/aral-attendance', requireRole(...DASH_READ), asyncH(async (req, res
   const gradeLevel = req.query.grade_level || null;
   const sectionId = req.query.section_id || null;
   const area = req.query.subject_area || null;
+  // Teacher-scoped: restrict to their sections. We must scope against section_id
+  // matches on sess (alias differs from the summary endpoint), so derive ids directly.
+  let allowedSectionIds = null;
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    allowedSectionIds = scope ? scope.sections : [];
+    if (!allowedSectionIds.length) {
+      return res.json({ school_year: sy, subject_area: area, sessions: [], per_section: [], per_learner: [], totals: { sessions: 0, logged: 0, present: 0, absent: 0, excused: 0, rate: 0 } });
+    }
+  }
   const where = [];
   const params = [];
   if (sy) { where.push('sess.school_year = ?'); params.push(sy); }
@@ -252,6 +279,10 @@ router.get('/aral-attendance', requireRole(...DASH_READ), asyncH(async (req, res
   if (gradeLevel) {
     where.push('sect.grade_level = ?');
     params.push(gradeLevel);
+  }
+  if (allowedSectionIds) {
+    where.push(`sess.section_id IN (${allowedSectionIds.map(() => '?').join(',')})`);
+    params.push(...allowedSectionIds);
   }
   const scope = where.length ? ' WHERE ' + where.join(' AND ') : '';
   const sessions = await qa(
@@ -324,11 +355,23 @@ router.get('/aral-progress', requireRole(...DASH_READ), asyncH(async (req, res) 
   const gradeLevel = req.query.grade_level || null;
   const sectionId = req.query.section_id || null;
   const area = req.query.subject_area || null;
+  let allowedSectionIds = null;
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    allowedSectionIds = scope ? scope.sections : [];
+    if (!allowedSectionIds.length) {
+      return res.json({ school_year: sy, subject_area: area, data: [], summary: { learners: 0, improved: 0, declined: 0, stable: 0, not_assessed: 0, exit_met: 0 } });
+    }
+  }
   const where = ["e.is_aral = TRUE AND e.status = 'enrolled'"];
   const params = [];
   if (sy) { where.push('e.school_year = ?'); params.push(sy); }
   if (sectionId) { where.push('e.section_id = ?'); params.push(sectionId); }
   if (gradeLevel) { where.push('sect.grade_level = ?'); params.push(gradeLevel); }
+  if (allowedSectionIds) {
+    where.push(`e.section_id IN (${allowedSectionIds.map(() => '?').join(',')})`);
+    params.push(...allowedSectionIds);
+  }
   const learners = await qa(
     `SELECT DISTINCT st.id AS student_id, st.first_name, st.last_name, st.sex, st.grade_level,
        sect.id AS section_id, sect.name AS section_name

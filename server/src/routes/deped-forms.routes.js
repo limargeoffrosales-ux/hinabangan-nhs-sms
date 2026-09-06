@@ -144,7 +144,6 @@ router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, school_year } = req.query;
   if (!section_id) return res.json({ students: [], section: null });
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
-  const syCond = school_year ? 'AND e.school_year = $2::text' : '';
   const students = await qa(
     db.dialect === 'pg'
       ? `SELECT s.*, e.strand, e.enrolled_at

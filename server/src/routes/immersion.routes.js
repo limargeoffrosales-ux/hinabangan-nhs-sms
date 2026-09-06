@@ -5,10 +5,6 @@ const { asyncH, audit, page } = require('../utils');
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
-function studentSelect(alias) {
-  return `${alias}.id, st.lrn, st.first_name || ' ' || st.last_name AS student_name, st.sex, st.grade_level`;
-}
-
 // ------------------------------------------------------------
 // Work Immersion registry — /api/v1/immersion
 // ------------------------------------------------------------

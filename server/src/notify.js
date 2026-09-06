@@ -236,7 +236,6 @@ async function resolveStudentRecipients(studentId) {
 async function resolveAnnouncementRecipients(audience) {
   const out = { emails: [], phones: [] };
   const seen = new Set();
-  const roles = { all: [], students: ['student', 'parent'], parents: ['parent'], staff: [] };
   let sql = `SELECT id, email, phone, name, role FROM users WHERE status = 'active'
              AND ((email IS NOT NULL AND email <> '') OR (phone IS NOT NULL AND phone <> ''))`;
   const params = [];
@@ -320,15 +319,6 @@ async function attemptSend(row) {
       [message, row.id]);
     return { ok: false, id: row.id, error: message };
   }
-}
-
-async function insertAndSend({ event, channel, to, subject, body, recipientUserId }) {
-  const id = await qi(
-    `INSERT INTO notifications (event, channel, recipient_user_id, recipient_address, subject, body)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [event, channel, recipientUserId || null, to, subject || null, body]);
-  const row = await q('SELECT * FROM notifications WHERE id = ?', [id]);
-  return attemptSend(row).then(() => id);
 }
 
 // --- Event dispatch -----------------------------------------------------------
@@ -437,7 +427,6 @@ async function resend(id) {
 }
 
 async function sendTest({ email, phone }) {
-  const cfg = await getConfig();
   const ctx = { data: {} };
   if (email) ctx.emails = [{ address: email, label: 'Test recipient' }];
   if (phone) ctx.phones = [{ address: phone, user_id: null, label: 'Test recipient' }];

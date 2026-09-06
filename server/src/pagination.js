@@ -1,4 +1,5 @@
 const { q, qa } = require('./db');
+const logger = require('./logger');
 
 /**
  * Paginated query helper.
@@ -29,8 +30,8 @@ async function paginate(baseQuery, params, query = {}, opts = {}) {
   try {
     const countResult = await q(countQuery, params);
     total = Number(countResult?.total || 0);
-  } catch {
-    total = 0;
+  } catch (err) {
+    logger.error({ err: err.message, countQuery }, 'PAGINATE count query failed, reporting total=0');
   }
 
   const dataQuery = `${baseQuery} LIMIT ? OFFSET ?`;

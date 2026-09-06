@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { q, qa, qi, qr, init, close } = require('./db');
+const { q, qa, qi, qr, close } = require('./db');
 const { REPORT_TYPES } = require('./report-types');
 const logger = require('./logger');
 
@@ -113,11 +113,18 @@ async function seed() {
     accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }
   if (accounts.length) {
-    require('fs').writeFileSync(
-      require('path').join(__dirname, '..', '..', 'accounts.txt'),
-      'Hinabangan National High School - Generated Account Credentials\n' +
-      'username | password | role | name\n' + accounts.join('\n') + '\n', 'utf8');
-    logger.info({ count: accounts.length }, '+ new accounts written to accounts.txt');
+    if (process.env.DEMO_SEED === '1') {
+      // Local demo only — write credentials to a plaintext file at the repo root.
+      require('fs').writeFileSync(
+        require('path').join(__dirname, '..', '..', 'accounts.txt'),
+        'Hinabangan National High School - Generated Account Credentials\n' +
+        'username | password | role | name\n' + accounts.join('\n') + '\n', 'utf8');
+      logger.info({ count: accounts.length }, '+ new demo accounts written to accounts.txt (local demo only)');
+    } else {
+      // Production/boot seeding — surface the one-time credentials in the boot
+      // log instead of persisting them in a plaintext file.
+      for (const line of accounts) logger.info('+ new account: ' + line);
+    }
   } else {
     logger.info('= all accounts already exist — nothing new to write.');
   }
@@ -471,12 +478,12 @@ async function seedAiModules() {
   await qi('INSERT INTO intervention_contacts (plan_id, mode, summary, contact_date, recorded_by) VALUES (?, ?, ?, ?, ?)',
     [ip1, 'conference', 'Met with the guardian to agree on at-home reading practice schedule.', '2025-09-12', teachers[0].id]);
 
-  const ip2 = await qi(
+  await qi(
     `INSERT INTO intervention_plans (student_id, title, category, strategy, frequency, start_date, end_date, status, progress_notes, recorded_by)
      VALUES (?, ?, 'academic_recovery', 'After-class remedial sessions focused on General Mathematics fundamentals.', '3x per week', '2025-10-01', NULL, 'active', 'Average improved from 69 to 74.', ?)`,
     [ids[9], 'Math Remediation Program', teachers[1].id]);
 
-  const ip3 = await qi(
+  await qi(
     `INSERT INTO intervention_plans (student_id, title, category, strategy, frequency, start_date, end_date, status, progress_notes, recorded_by)
      VALUES (?, ?, 'enrichment', 'Peer tutoring under the guidance of the subject teacher.', '1x per week', '2025-11-01', '2026-01-31', 'completed', 'Learner reached instructional independence in peer-led tasks.', ?)`,
     [ids[2], 'Enrichment: Peer Tutoring', teachers[2].id]);

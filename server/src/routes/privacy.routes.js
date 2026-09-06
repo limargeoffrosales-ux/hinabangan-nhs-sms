@@ -3,6 +3,8 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole, clearUserCache } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
+const { deleteFile, fileKeyFromUrl } = require('../storage');
+const logger = require('../logger');
 
 const router = express.Router();
 router.use(authenticate);
@@ -215,20 +217,35 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
 
   // Gather PII first (for the audit record), then erase in a transaction.
   const bundle = await gatherStudentPii(studentId);
+  const student = await q('SELECT photo_url FROM students WHERE id = ?', [studentId]);
+  const photoKey = fileKeyFromUrl(student && student.photo_url);
   await db.tx(async (conn) => {
+    await conn.qr('DELETE FROM intervention_contacts WHERE plan_id IN (SELECT id FROM intervention_plans WHERE student_id = ?)', [studentId]);
     await conn.qr('DELETE FROM grades WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM attendance WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM enrollments WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM parent_students WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM learner_assessments WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM aral_session_attendance WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM assignment_submissions WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_conduct_ratings WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM student_conduct_records WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM certifications WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM clinic_visits WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM guidance_cases WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM intervention_plans WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM work_immersion WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM jdvp_recipients WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_competency_scores WHERE student_id = ?', [studentId]);
+    await conn.qr('DELETE FROM student_health WHERE student_id = ?', [studentId]);
+    await conn.qr("DELETE FROM book_borrows WHERE borrower_type = 'student' AND borrower_id = ?", [studentId]);
     await conn.qr('DELETE FROM students WHERE id = ?', [studentId]);
   });
+  if (photoKey) {
+    deleteFile(photoKey).catch((err) => {
+      logger.error({ err: err.message, key: photoKey }, '[ERASURE] failed to delete student photo');
+    });
+  }
   await qr(
     `UPDATE data_erasure_requests
      SET status = 'processed', processed_by = ?, processed_at = ${nowSql()},
@@ -236,7 +253,7 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
      WHERE id = ?`,
     [req.user.id, JSON.stringify(bundle), reqRow.id]);
   await audit(req, 'ERASURE_REQUEST_APPROVE', 'data_erasure_requests', reqRow.id,
-    { student_id: studentId, tables_erased: 13 });
+    { student_id: studentId, tables_erased: 20, photo_deleted: !!photoKey });
   res.json({ ok: true, status: 'processed' });
 }));
 
@@ -244,7 +261,8 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
 async function gatherStudentPii(studentId) {
   const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
   if (!student) return { student: null };
-  const [contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access] =
+  const [contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access,
+    assessments, aral, submissions, health, borrows, conduct, jdvp] =
     await Promise.all([
       qa('SELECT * FROM parent_students WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM attendance WHERE student_id = ?', [studentId]),
@@ -257,8 +275,15 @@ async function gatherStudentPii(studentId) {
       qa('SELECT * FROM certifications WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM student_conduct_ratings WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM data_access_logs WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM learner_assessments WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM aral_session_attendance WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM assignment_submissions WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM student_health WHERE student_id = ?', [studentId]),
+      qa("SELECT * FROM book_borrows WHERE borrower_type = 'student' AND borrower_id = ?", [studentId]),
+      qa('SELECT * FROM student_conduct_records WHERE student_id = ?', [studentId]),
+      qa('SELECT * FROM jdvp_recipients WHERE student_id = ?', [studentId]),
     ]);
-  return { student, contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access };
+  return { student, contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access, assessments, aral, submissions, health, borrows, conduct, jdvp };
 }
 
 module.exports = router;

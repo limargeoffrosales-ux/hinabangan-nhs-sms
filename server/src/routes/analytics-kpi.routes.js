@@ -59,7 +59,7 @@ router.get('/grade-distribution', requireRole(...READ), asyncH(async (req, res) 
 // ── Attendance KPI ────────────────────────────────────────────────
 // Returns attendance rates over time for specified period.
 router.get('/attendance-kpi', requireRole(...READ), asyncH(async (req, res) => {
-  const { school_year, start_date, end_date, group_by } = req.query;
+  const { school_year, start_date, end_date } = req.query;
   const startDate = start_date || (school_year ? `${school_year.split('-')[0]}-06-01` : null);
   const endDate = end_date || new Date().toISOString().slice(0, 10);
 
