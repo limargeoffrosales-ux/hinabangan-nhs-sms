@@ -1,9 +1,9 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa, qi, qr, nowSql, dialect } = db;
+const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { getCurrentSchoolYear, getDaysFromNowParam } = require('../schoolYear');
+const { getDaysFromNowParam } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
@@ -152,17 +152,19 @@ router.delete('/medicines/:id', requireRole(...WRITE), asyncH(async (req, res) =
 /* ── Dispense medicine ─────────────────────────────── */
 router.post('/dispense', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
-  if (!b.medicine_id || !b.quantity) return res.status(400).json({ error: 'medicine_id and quantity required' });
+  if (!b.medicine_id) return res.status(400).json({ error: 'medicine_id required' });
+  const qty = Number(b.quantity);
+  if (!Number.isInteger(qty) || qty <= 0) return res.status(400).json({ error: 'quantity must be a positive whole number' });
   const id = await db.tx(async (conn) => {
     const med = await conn.q('SELECT * FROM clinic_medicines WHERE id = ?', [b.medicine_id]);
     if (!med) throw Object.assign(new Error('Medicine not found'), { status: 404 });
-    if (med.quantity < b.quantity) throw Object.assign(new Error('Insufficient stock'), { status: 400 });
+    if (med.quantity < qty) throw Object.assign(new Error('Insufficient stock'), { status: 400 });
     const dispenseId = await conn.qi(
       `INSERT INTO medicine_dispenses (medicine_id, visit_id, quantity, dispensed_to, dispensed_by, notes)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [b.medicine_id, b.visit_id || null, b.quantity, b.dispensed_to || null, req.user.id, b.notes || null]
+      [b.medicine_id, b.visit_id || null, qty, b.dispensed_to || null, req.user.id, b.notes || null]
     );
-    const newQty = med.quantity - b.quantity;
+    const newQty = med.quantity - qty;
     await conn.qr('UPDATE clinic_medicines SET quantity = ?, status = ? WHERE id = ?',
       [newQty, newQty <= 0 ? 'depleted' : 'active', med.id]);
     return dispenseId;

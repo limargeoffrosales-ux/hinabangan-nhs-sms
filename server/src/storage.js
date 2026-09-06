@@ -51,9 +51,23 @@ function getPublicUrl(key) {
   return PUBLIC_URL ? `${PUBLIC_URL}/${key}` : null;
 }
 
+// Recover the storage key from a stored URL. photo_url values are either a
+// public URL (PUBLIC_URL/<key>) or the fallback serve path
+// (/api/v1/uploads/file/<key>). Returns null when the key cannot be derived.
+function fileKeyFromUrl(url) {
+  if (!url) return null;
+  if (PUBLIC_URL && url.startsWith(PUBLIC_URL)) {
+    return url.slice(PUBLIC_URL.length).replace(/^\/+/, '');
+  }
+  const marker = '/api/v1/uploads/file/';
+  const i = url.indexOf(marker);
+  if (i >= 0) return url.slice(i + marker.length);
+  return null;
+}
+
 async function getSignedDownloadUrl(key, expiresIn = 3600) {
   const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
   return getSignedUrl(r2, cmd, { expiresIn });
 }
 
-module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, genKey };
+module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, genKey, fileKeyFromUrl };

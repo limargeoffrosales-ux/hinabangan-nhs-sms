@@ -4,10 +4,10 @@ const path = require('path');
 const { q, qa, qi, qr, nowSql } = require('../db');
 const { authenticate, requireRole, ADMIN_ROLES, isAdminRole } = require('../auth');
 const { asyncH, audit, safeJsonParse } = require('../utils');
-const { REPORT_TYPES } = require('../report-types');
 const { uploadFile, deleteFile } = require('../storage');
 const { UPLOAD_MAX_MB } = require('../config');
 const { optimizeUpload } = require('../image');
+const logger = require('../logger');
 
 const router = express.Router();
 router.use(authenticate);
@@ -58,8 +58,6 @@ function canApprove(req, wf) {
   if (isAdminRole(req.user.role)) return true;
   return (wf.approve || []).includes(req.user.role);
 }
-
-const SUB_STATUSES = ['draft', 'submitted', 'reviewed', 'approved', 'returned'];
 
 async function submissionDetail(req, id) {
   const row = await q(
@@ -520,7 +518,7 @@ router.get('/:id/attachments', requireRole(...ATTACH_ROLES), asyncH(async (req, 
 router.delete('/:id/attachments/:fileId', requireRole(...ATTACH_ROLES), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM submission_files WHERE id = ? AND submission_id = ?', [req.params.fileId, req.params.id]);
   if (!row) return res.status(404).json({ error: 'File not found' });
-  deleteFile(row.stored_name).catch(() => {});
+  deleteFile(row.stored_name).catch((err) => logger.error({ err: err.message, key: row.stored_name }, '[SUBMISSIONS] deleteFile failed'));
   await qr('DELETE FROM submission_files WHERE id = ?', [row.id]);
   await audit(req, 'DELETE_SUBMISSION_FILE', 'submission_files', row.id, { submission_id: req.params.id, key: row.stored_name });
   res.json({ ok: true });

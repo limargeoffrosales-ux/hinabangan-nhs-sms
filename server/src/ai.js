@@ -1,5 +1,6 @@
 ﻿const OpenAI = require('openai');
 const { q, qa } = require('./db');
+const logger = require('./logger');
 
 // Official school information (used on DepEd forms and AI-generated reports)
 const SCHOOL_CONTEXT =
@@ -287,14 +288,18 @@ async function generateForm137(studentId) {
     conduct = await qa(
       `SELECT * FROM student_conduct_ratings WHERE student_id = ? ORDER BY school_year, term`, [studentId]
     );
-  } catch {}
+  } catch (err) {
+    logger.error({ err: err.message, studentId }, '[AI] failed to load conduct ratings');
+  }
   let incidents = [];
   try {
     incidents = await qa(
       `SELECT incident_type, severity, status, incident_date
        FROM student_conduct_records WHERE student_id = ? ORDER BY incident_date`, [studentId]
     );
-  } catch {}
+  } catch (err) {
+    logger.error({ err: err.message, studentId }, '[AI] failed to load conduct incidents');
+  }
 
   const years = [...new Set(allGrades.map(g => g.school_year))];
   const gradeSummary = years.map(yr => {

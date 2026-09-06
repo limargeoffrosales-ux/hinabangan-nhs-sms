@@ -3,6 +3,7 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql, dialect } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const { ensureTeacherSeesStudent, teacherScope, studentInScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -11,7 +12,7 @@ const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 
 /* ── List certifications ──────────────────────────── */
 router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
-  const { student_id, certification_type, status, school_year } = req.query;
+  const { student_id, certification_type, status } = req.query;
   let sql = `
     SELECT c.*, st.first_name, st.last_name, st.grade_level
     FROM certifications c
@@ -21,6 +22,12 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (student_id) { where.push('c.student_id = ?'); params.push(student_id); }
   if (certification_type) { where.push('c.certification_type = ?'); params.push(certification_type); }
   if (status) { where.push('c.status = ?'); params.push(status); }
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const frag = studentInScope(scope, 'st');
+    where.push(frag.sql);
+    params.push(...frag.params);
+  }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY c.created_at DESC';
   res.json({ data: await qa(sql, params) });
@@ -46,6 +53,10 @@ router.get('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
      LEFT JOIN students st ON st.id = c.student_id
      WHERE c.id = ?`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Certification not found' });
+  if (req.role === 'teacher' && row.student_id) {
+    const chk = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
   res.json(row);
 }));
 

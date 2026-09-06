@@ -3,10 +3,12 @@ const multer = require('multer');
 const path = require('path');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { uploadFile, deleteFile, getPublicUrl } = require('../storage');
+const { uploadFile, deleteFile, getPublicUrl, fileKeyFromUrl } = require('../storage');
 const { UPLOAD_MAX_MB } = require('../config');
 const { optimizeUpload } = require('../image');
-const { q, qi, qr } = require('../db');
+const { q, qr } = require('../db');
+const { ensureTeacherSeesStudent } = require('../scope');
+const logger = require('../logger');
 
 const router = express.Router();
 router.use(authenticate);
@@ -40,10 +42,15 @@ router.post('/student-photo/:studentId', requireRole('super_admin', 'school_admi
   const student = await q('SELECT id, photo_url FROM students WHERE id = ?', [studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
 
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, studentId);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
+
   // Delete old photo if exists
-  if (student.photo_url && student.photo_url.includes('/')) {
-    const oldKey = student.photo_url.split('/').slice(-2).join('/');
-    deleteFile(oldKey).catch(() => {});
+  const oldKey = fileKeyFromUrl(student.photo_url);
+  if (oldKey) {
+    deleteFile(oldKey).catch((err) => logger.error({ err: err.message, key: oldKey }, '[UPLOADS] failed to delete old student photo'));
   }
 
   const { key, url } = await uploadFile('students', req.file, req.file.originalname);

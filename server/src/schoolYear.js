@@ -1,5 +1,5 @@
 const db = require('./db');
-const { q, qa, qi, qr } = db;
+const { q } = db;
 
 const DEFAULT_SCHOOL_YEAR = '2026-2027';
 const SETTING_KEY = 'school_year';

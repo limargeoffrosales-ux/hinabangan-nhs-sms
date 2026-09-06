@@ -2,6 +2,7 @@ const express = require('express');
 const { q, qa } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
+const { ensureTeacherSeesStudent } = require('../scope');
 const { getScaleForSubject, getDefaultScale, convertGrade, gpaFrom } = require('../grading/scales');
 
 const router = express.Router();
@@ -20,6 +21,11 @@ router.get('/export/transcript', requireRole(...READ), asyncH(async (req, res) =
 
   const student = await q('SELECT id, first_name, middle_name, last_name, suffix, sex, lrn, birth_date, grade_level FROM students WHERE id = ?', [studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
+
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, studentId);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
+  }
 
   const grades = await qa(
     `SELECT su.code, su.title, su.units, g.computed_grade, g.quarter, g.subject_id

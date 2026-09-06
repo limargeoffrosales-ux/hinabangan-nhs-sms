@@ -1,11 +1,12 @@
 const express = require('express');
-const { q, qa, qi, qr, tx } = require('../db');
+const { q, qa, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { GRADE_WEIGHTS } = require('../config');
 const { getDefaultScale, getScale, getScaleForSubject, convertGrade, gpaFrom } = require('../grading/scales');
 const { teacherScope, ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
 const { notifyEvent } = require('../notify');
+const logger = require('../logger');
 
 const router = express.Router();
 router.use(authenticate);
@@ -147,7 +148,7 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
       subject: (await q('SELECT title FROM subjects WHERE id = ?', [b.subject_id]))?.title || String(b.subject_id),
       section: (await q('SELECT name FROM sections WHERE id = ?', [b.section_id]))?.name || '',
     },
-  }).catch(() => {});
+  }).catch((err) => logger.error({ err: err.message }, '[GRADES] notifyEvent(grades_saved) failed'));
   res.json({ ok: true, saved: n, scale: scaleMeta(scale) });
 }));
 

@@ -2,11 +2,11 @@ const express = require('express');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const jwt = require('jsonwebtoken');
-const { q, qi, qr, nowSql } = require('../db');
-const db = require('../db');
+const { q, qi, qr } = require('../db');
 const { JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER } = require('../config');
 const { authenticate, signAccess, generateCsrfToken, storeCsrfToken } = require('../auth');
 const { asyncH, audit } = require('../utils');
+const logger = require('../logger');
 
 const router = express.Router();
 
@@ -79,7 +79,6 @@ router.post('/verify', asyncH(async (req, res) => {
 
 router.use(authenticate);
 
-const MFA_TEMP_TTL = '5m';
 const MFA_MAX_ATTEMPTS = 5;
 const MFA_WINDOW_MINUTES = 5;
 
@@ -116,7 +115,9 @@ router.post('/setup', asyncH(async (req, res) => {
   let qr_code_data_url = null;
   try {
     qr_code_data_url = await QRCode.toDataURL(secret.otpauth_url);
-  } catch {}
+  } catch (err) {
+    logger.warn({ err: err.message, user: user.username }, '[MFA] QR code generation failed, continuing without it');
+  }
 
   await audit(req, 'MFA_SETUP', 'users', user.id, {});
 

@@ -1,4 +1,4 @@
-const { qa, qi, qr, tx } = require('./db');
+const { qa, tx } = require('./db');
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const DEFAULT_DAY = { start: '07:00', end: '17:00', lunchStart: '12:00', lunchEnd: '13:00' };
@@ -16,10 +16,6 @@ function toHM(min) {
 
 function overlaps(a1, a2, b1, b2) {
   return a1 < b2 && b1 < a2;
-}
-
-function effectiveRoom(a) {
-  return a.room || a.teacher_room || a.section_room || (a.section_name ? `${a.section_name} Rm` : `Rm ${a.section_id}`);
 }
 
 function loadAssignments(schoolYear) {

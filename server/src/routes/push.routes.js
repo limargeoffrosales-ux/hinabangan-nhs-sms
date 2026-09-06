@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const jwt = require('jsonwebtoken');
 const { q, qa, qi, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const logger = require('../logger');
@@ -52,12 +53,99 @@ router.post('/unregister', authenticate, async (req, res) => {
   }
 });
 
-// POST /push/send - Send push notification (admin only)
-// Requires FCM_SERVER_KEY env var. If not set, returns 503.
-router.post('/send', authenticate, requireRole('super_admin', 'school_admin', 'principal'), async (req, res) => {
-  const fcmKey = process.env.FCM_SERVER_KEY;
-  if (!fcmKey) return res.status(503).json({ error: 'Push notifications not configured (FCM_SERVER_KEY missing)' });
+// --- FCM HTTP v1 --------------------------------------------------------------
+// Firebase shut down the legacy key-based endpoint (https://fcm.googleapis.com/fcm/send)
+// on 2024-06-24. v1 requires an OAuth2 access token minted from a Firebase service
+// account. Provide the service account JSON via the FCM_SERVICE_ACCOUNT env var.
+let _fcmToken = null;
+let _fcmTokenExp = 0;
 
+function parseFcmServiceAccount() {
+  const raw = process.env.FCM_SERVICE_ACCOUNT;
+  if (!raw) {
+    const err = new Error('Push notifications not configured (FCM_SERVICE_ACCOUNT missing)');
+    err.fcmCode = 'NO_FCM_CONFIG';
+    throw err;
+  }
+  let sa;
+  try {
+    sa = JSON.parse(raw);
+  } catch {
+    const err = new Error('FCM_SERVICE_ACCOUNT is not valid JSON');
+    err.fcmCode = 'BAD_FCM_CONFIG';
+    throw err;
+  }
+  if (!sa.client_email || !sa.private_key || !sa.project_id) {
+    const err = new Error('FCM_SERVICE_ACCOUNT JSON is missing client_email/private_key/project_id');
+    err.fcmCode = 'BAD_FCM_CONFIG';
+    throw err;
+  }
+  return sa;
+}
+
+async function getFcmConfig() {
+  if (_fcmToken && _fcmTokenExp > Date.now() + 60 * 1000) {
+    return { accessToken: _fcmToken, projectId: _fcmProjectId };
+  }
+  const sa = parseFcmServiceAccount();
+  const tokenUri = sa.token_uri || 'https://oauth2.googleapis.com/token';
+  const now = Math.floor(Date.now() / 1000);
+  const assertion = jwt.sign(
+    {
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: tokenUri,
+      iat: now,
+      exp: now + 3600,
+    },
+    sa.private_key,
+    { algorithm: 'RS256', header: { kid: sa.private_key_id } },
+  );
+  const params = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion,
+  });
+  const tokenResp = await fetch(tokenUri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+  if (!tokenResp.ok) {
+    logger.error({ status: tokenResp.status }, 'FCM OAuth token exchange failed');
+    const err = new Error('Failed to obtain FCM access token');
+    err.fcmCode = 'FCM_AUTH_FAILED';
+    throw err;
+  }
+  const data = await tokenResp.json();
+  _fcmToken = data.access_token;
+  _fcmProjectId = sa.project_id;
+  _fcmTokenExp = Date.now() + (Number(data.expires_in) || 3600) * 1000;
+  return { accessToken: _fcmToken, projectId: _fcmProjectId };
+}
+
+async function sendFcmMessage(token, payload) {
+  const { accessToken, projectId } = await getFcmConfig();
+  const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: {
+        token,
+        notification: payload.notification,
+        data: payload.data,
+      },
+    }),
+  });
+  return resp.ok;
+}
+
+// POST /push/send - Send push notification (admin only)
+// Requires the FCM_SERVICE_ACCOUNT env var (Firebase service account JSON).
+// If not set, returns 503.
+router.post('/send', authenticate, requireRole('super_admin', 'school_admin', 'principal'), async (req, res) => {
   try {
     const { title, body, userIds, platform } = req.body;
     if (!title || !body) return res.status(400).json({ error: 'title and body required' });
@@ -74,31 +162,28 @@ router.post('/send', authenticate, requireRole('super_admin', 'school_admin', 'p
 
     if (tokens.length === 0) return res.json({ ok: true, sent: 0 });
 
-    const fcmTokens = tokens.map(t => t.token);
-    const results = { sent: 0, failed: 0 };
+    // Parse the service account once so getFcmConfig() can't fail mid-loop with
+    // a misleading per-device error, then send one v1 message per token.
+    parseFcmServiceAccount();
 
-    // Send in batches of 500 (FCM limit)
-    for (let i = 0; i < fcmTokens.length; i += 500) {
-      const batch = fcmTokens.slice(i, i + 500);
-      const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-        method: 'POST',
-        headers: {
-          'Authorization': `key=${fcmKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          registration_ids: batch,
-          notification: { title, body },
-          data: { title, body },
-        }),
-      });
-      const data = await response.json();
-      results.sent += (data.success || 0);
-      results.failed += (data.failure || 0);
+    const payload = {
+      notification: { title, body },
+      data: { title: String(title), body: String(body) },
+    };
+    const results = { sent: 0, failed: 0 };
+    for (const t of tokens) {
+      try {
+        if (await sendFcmMessage(t.token, payload)) results.sent += 1;
+        else results.failed += 1;
+      } catch (err) {
+        logger.error({ err: err.message }, 'push send failed for a device:');
+        results.failed += 1;
+      }
     }
 
     res.json({ ok: true, ...results });
   } catch (err) {
+    if (err.fcmCode === 'NO_FCM_CONFIG') return res.status(503).json({ error: err.message });
     logger.error({ err: err.message }, 'push send error:');
     res.status(500).json({ error: 'Failed to send push notification' });
   }

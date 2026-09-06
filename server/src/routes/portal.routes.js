@@ -76,7 +76,7 @@ async function attendanceSummaries(ids, schoolYear) {
     entry.counts[r.status] = (entry.counts[r.status] || 0) + Number(r.n);
     entry.total += Number(r.n);
   }
-  for (const [sid, entry] of map) {
+  for (const [, entry] of map) {
     if (entry.total) entry.rate = round2(((entry.counts.present + entry.counts.late) / entry.total) * 100);
   }
   return map;

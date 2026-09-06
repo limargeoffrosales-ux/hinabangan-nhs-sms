@@ -4,6 +4,7 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
 const { notifyEvent } = require('../notify');
+const logger = require('../logger');
 
 const router = express.Router();
 router.use(authenticate);
@@ -20,7 +21,7 @@ function fireAttendanceAlerts(records, date) {
     notifyEvent('attendance_alert', {
       student_id: Number(r.student_id),
       data: { status: r.status, date, remarks: r.remarks || '' },
-    }).catch(() => {});
+    }).catch((err) => logger.error({ err: err.message, student_id: r.student_id }, '[ATTENDANCE] notifyEvent failed'));
   }
 }
 

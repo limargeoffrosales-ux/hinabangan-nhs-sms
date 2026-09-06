@@ -3,7 +3,7 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { linkedStudentIds } = require('../scope');
+const { linkedStudentIds, teacherScope, studentInScope, ensureTeacherSeesStudent, ensureTeacherSeesSection } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
@@ -47,7 +47,19 @@ router.get('/scores', requireRole(...WRITE, 'student', 'parent'), asyncH(async (
   if (req.role === 'student' || req.role === 'parent') {
     const ids = await linkedStudentIds(req.user);
     if (!ids.length) { where.push('scs.student_id = ?'); params.push(-1); }
-    else if (!student_id) { where.push('scs.student_id IN (' + ids.map(() => '?').join(',') + ')'); params.push(...ids); }
+    else if (student_id) {
+      if (!ids.includes(Number(student_id))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else {
+      where.push('scs.student_id IN (' + ids.map(() => '?').join(',') + ')');
+      params.push(...ids);
+    }
+  } else if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const frag = studentInScope(scope, 'st');
+    where.push(frag.sql);
+    params.push(...frag.params);
   }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY st.last_name, st.first_name, c.code';
@@ -59,6 +71,10 @@ router.post('/scores', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.student_id || !b.competency_id || !b.school_year) {
     return res.status(400).json({ error: 'student_id, competency_id, and school_year are required' });
+  }
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesStudent(req.user, b.student_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const level = scoreToLevel(b.score);
   const subId = b.subject_id || null;
@@ -93,9 +109,22 @@ router.post('/scores/batch', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!scores || !Array.isArray(scores) || !school_year) {
     return res.status(400).json({ error: 'scores array and school_year are required' });
   }
+  let owned = null;
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const stIds = scope && scope.sections.length
+      ? (await qa(
+          `SELECT DISTINCT e.student_id FROM enrollments e JOIN sections s ON s.id = e.section_id
+           WHERE e.status = 'enrolled' AND s.id IN (${scope.sections.map(() => '?').join(',')})`,
+          scope.sections)).map((r) => Number(r.student_id))
+      : [];
+    owned = new Set(stIds);
+  }
   let saved = 0;
+  let skipped = 0;
   for (const s of scores) {
     if (!s.student_id || !s.competency_id) continue;
+    if (owned && !owned.has(Number(s.student_id))) { skipped++; continue; }
     const level = scoreToLevel(s.score);
     const subId = subject_id || null;
     const qrtr = quarter || null;
@@ -117,8 +146,8 @@ router.post('/scores/batch', requireRole(...WRITE), asyncH(async (req, res) => {
     }
     saved++;
   }
-  await audit(req, 'BATCH_COMPETENCY_SCORES', 'student_competency_scores', null, { count: saved });
-  res.json({ ok: true, saved });
+  await audit(req, 'BATCH_COMPETENCY_SCORES', 'student_competency_scores', null, { count: saved, skipped });
+  res.json({ ok: true, saved, skipped });
 }));
 
 /* ── Class competency overview ──────────────────────── */
@@ -126,6 +155,10 @@ router.get('/class-overview', requireRole(...WRITE), asyncH(async (req, res) => 
   const { section_id, subject_id, school_year, quarter } = req.query;
   if (!section_id || !subject_id || !school_year) {
     return res.status(400).json({ error: 'section_id, subject_id, and school_year are required' });
+  }
+  if (req.role === 'teacher') {
+    const chk = await ensureTeacherSeesSection(req.user, section_id);
+    if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
 
   const competencies = await qa(

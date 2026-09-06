@@ -3,7 +3,7 @@ const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, safeJsonParse } = require('../utils');
-const { teacherScope, sectionInScope } = require('../scope');
+const { teacherScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);

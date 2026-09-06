@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa, qi, qr, nowSql } = db;
+const { q, qa, qi, qr } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 

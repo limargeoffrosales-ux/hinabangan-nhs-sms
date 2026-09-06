@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
-const { settings, setSetting, getTemplates, resend, sendTest, isEmail, MAX_ATTEMPTS } = require('../notify');
+const { settings, setSetting, resend, sendTest, isEmail, MAX_ATTEMPTS } = require('../notify');
 
 async function sendSmsBlast(message, studentIds) {
   let contacts;

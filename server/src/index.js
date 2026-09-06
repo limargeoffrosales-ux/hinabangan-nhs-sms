@@ -7,7 +7,6 @@ const Sentry = require('@sentry/node');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const pino = require('pino');
 const db = require('./db');
 const { getCurrentSchoolYear } = require('./schoolYear');
 const { PORT, WEB_DIR } = require('./config');
@@ -329,7 +328,7 @@ const documentRoutes = require('./routes/documents.routes');
 
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
-  app.use((err, req, res, next) => {
+  app.use((err, req, res, _next) => {
     logger.error({ err, requestId: req.requestId, url: req.originalUrl }, 'Unhandled error');
     if (process.env.SENTRY_DSN) Sentry.captureException(err);
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });

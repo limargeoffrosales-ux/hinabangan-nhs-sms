@@ -137,7 +137,6 @@ function honorDesignation(summary, settings) {
 // Assign competition-style ranks (equal values share the rank of their first occurrence).
 function assignRanks(rows, key = 'gwa') {
   rows.sort((a, b) => (b[key] == null ? -1 : b[key]) - (a[key] == null ? -1 : a[key]));
-  let rank = 0;
   let prev = null;
   let prevRank = 0;
   for (let i = 0; i < rows.length; i++) {
