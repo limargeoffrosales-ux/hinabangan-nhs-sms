@@ -20,6 +20,10 @@ const PROVIDERS = {
   hf:     { baseUrl: 'https://api-inference.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct', keyEnv: 'HF_API_KEY' },
 };
 
+const MODEL_ALIASES = {
+  'meta-llama/llama-3.3-70b-versatile': 'llama-3.3-70b-versatile',
+};
+
 function getProvider() {
   return process.env.AI_PROVIDER || 'groq';
 }
@@ -49,7 +53,8 @@ function isEnabled() {
 function model() {
   const provider = getProvider();
   const cfg = PROVIDERS[provider] || PROVIDERS.groq;
-  return process.env.AI_MODEL || cfg.defaultModel;
+  const m = process.env.AI_MODEL || cfg.defaultModel;
+  return MODEL_ALIASES[m] || m;
 }
 
 function getProviderInfo() {
