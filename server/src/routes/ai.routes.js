@@ -10,6 +10,9 @@ const ai = require('../ai');
 const router = express.Router();
 router.use(authenticate);
 
+// AI is a privileged assistant: only the super admin may query the model.
+router.use(requireRole('super_admin'));
+
 const aiUserLimiter = userRateLimit({ windowMs: 60_000, limit: 10, message: { error: 'AI request limit reached. Try again in a minute.' } });
 
 const STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
