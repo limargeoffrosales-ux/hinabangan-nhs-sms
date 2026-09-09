@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Download, RefreshCw, Trash2, Star } from 'lucide-react';
-import { api, getToken, getApiBase } from '../lib/api';
+import { api, getToken, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { downloadBlob } from '../lib/export';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 
@@ -138,11 +138,14 @@ export default function GradingScales() {
     if (!trStudent || !trYear) return;
     setTrLoading(true);
     setError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 75000);
     try {
-      const qs = new URLSearchParams({ student_id: trStudent, school_year: trYear, mode: 'international', format: trFormat });
+      const qs = new URLSearchParams({ student_id: trStudent, school_year: trYear, mode: 'international', format: trFormat === 'xlsx' ? 'excel' : trFormat });
       if (trScale) qs.set('scale_id', trScale);
       const res = await fetch(`${getApiBase()}/exchange/export/transcript?${qs}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
+        signal: controller.signal,
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -151,7 +154,12 @@ export default function GradingScales() {
       const student = students.find((s) => String(s.id) === String(trStudent));
       const file = `transcript-${(student ? student.last_name : trStudent).replace(/\s+/g, '_')}-${trYear}.${trFormat}`;
       downloadBlob(await res.blob(), file, res.headers.get('content-type') || 'application/octet-stream');
-    } catch (err) { setError(err.message); } finally { setTrLoading(false); }
+    } catch (err) {
+      setError(friendlyAbortMessage(err) || err.message);
+    } finally {
+      clearTimeout(timer);
+      setTrLoading(false);
+    }
   }
 
   const active = scales.filter((s) => s.active);

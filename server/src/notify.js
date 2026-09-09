@@ -75,6 +75,15 @@ const DEFAULT_TEMPLATES = {
     email: { subject: 'Test notification from {{school}}', body: 'This is a test message to confirm email delivery.\n\n— {{school}}' },
     sms: { body: 'Test message from {{school}} — SMS delivery works.' },
   },
+  password_reset: {
+    email: {
+      subject: 'Password reset code',
+      body: 'Hi {{name}},\n\nA password reset was requested for your account.\nYour reset code is {{code}} — it expires in 15 minutes.\n\nReset your password here: {{url}}\n\nIf you did not request this, you can ignore this message and your password stays the same.\n— {{school}}',
+    },
+    sms: {
+      body: 'Your reset code is {{code}}. Valid for 15 minutes. — {{school}}',
+    },
+  },
 };
 
 function render(template, data) {
@@ -287,15 +296,26 @@ async function sendSms(row) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const res = await fetch(SMS_PROVIDER_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SMS_PROVIDER_TOKEN ? { Authorization: `Bearer ${SMS_PROVIDER_TOKEN}` } : {}),
-      },
-      body: JSON.stringify({ to: row.recipient_address, from: SMS_SENDER, message: row.body }),
-    });
+    let res;
+    try {
+      res = await fetch(SMS_PROVIDER_URL, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(SMS_PROVIDER_TOKEN ? { Authorization: `Bearer ${SMS_PROVIDER_TOKEN}` } : {}),
+        },
+        body: JSON.stringify({ to: row.recipient_address, from: SMS_SENDER, message: row.body }),
+      });
+    } catch (err) {
+      // The 15s timeout (or the runtime cancelling the request) aborts fetch
+      // with an opaque AbortError; record the real cause instead.
+      if (controller.signal.aborted) throw new Error('SMS provider timed out (15s)');
+      if (err && (err.name === 'AbortError' || /aborted/i.test(String(err.message)))) {
+        throw new Error('SMS provider request interrupted');
+      }
+      throw err;
+    }
     if (!res.ok) throw new Error(`SMS provider returned ${res.status}`);
     return { providerId: String(res.status) };
   } finally {
@@ -337,9 +357,25 @@ async function resolveRecipientsFor(event, ctx) {
         emails: (ctx.emails || []).map((e) => ({ address: e.address, user_id: null, label: e.label || 'there' })),
         phones: (ctx.phones || []).map((p) => ({ address: p.address, user_id: null, label: p.label || 'there' })),
       };
+    case 'password_reset':
+      if (!ctx.user_id) return { emails: [], phones: [] };
+      return resolveUserRecipients(ctx.user_id);
     default:
       return { emails: [], phones: [] };
   }
+}
+
+// Password reset goes to the account holder's own contact details.
+async function resolveUserRecipients(userId) {
+  const u = await q(
+    'SELECT id, email, phone, name FROM users WHERE id = ? AND status = \'active\'',
+    [userId]);
+  if (!u) return { emails: [], phones: [] };
+  const emails = [];
+  const phones = [];
+  if (u.email && isEmail(u.email)) emails.push({ address: u.email.trim(), user_id: u.id, label: u.name || 'there' });
+  if (u.phone && !isEmail(u.phone)) phones.push({ address: u.phone.trim(), user_id: u.id, label: u.name || 'there' });
+  return { emails, phones };
 }
 
 async function notifyEvent(event, ctx = {}) {

@@ -140,9 +140,9 @@ export default function Portal() {
                     <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{t.subject_code} — {t.subject_title}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
                       {t.email && <span>✉ {t.email}</span>}
-                      {t.email && t.phone && <span style={{ margin: '0 4px' }}>·</span>}
-                      {t.phone && <span>☎ {t.phone}</span>}
-                      {!t.email && !t.phone && <span style={{ fontStyle: 'italic' }}>No contact info</span>}
+                      {t.email && t.contact && <span style={{ margin: '0 4px' }}>·</span>}
+                      {t.contact && <span>☎ {t.contact}</span>}
+                      {!t.email && !t.contact && <span style={{ fontStyle: 'italic' }}>No contact info</span>}
                     </div>
                   </div>
                 ))

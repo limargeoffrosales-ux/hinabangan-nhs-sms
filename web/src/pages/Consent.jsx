@@ -10,11 +10,14 @@ const FORM_TYPES = {
   ai_usage: { label: 'AI Usage', cls: 'yellow' },
 };
 
+const STUDENT_BOUND = new Set(['data_privacy', 'photo_video']);
+
 export default function Consent() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [signForm, setSignForm] = useState(null);
+  const [signStudent, setSignStudent] = useState(null);
   const [signature, setSignature] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -43,7 +46,7 @@ export default function Consent() {
     try {
       const res = await api(`/consents/forms/${signForm.id}/sign`, {
         method: 'POST',
-        body: { signature_name: signature.trim() || null },
+        body: { signature_name: signature.trim() || null, student_id: signStudent || undefined },
       });
       setNotice(res.alreadySigned ? `You have already signed "${signForm.title}".` : `You have signed "${signForm.title}". Thank you.`);
       setSignForm(null);
@@ -95,14 +98,25 @@ export default function Consent() {
                   )}
                 </div>
                 <div style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', color: 'var(--text)' }}>{f.content}</div>
-                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   {signed ? (
                     <button className="btn" disabled><CheckCircle2 size={14} /> Signature recorded</button>
-                  ) : (
-                    <button className="btn btn-primary" onClick={() => { setSignature(''); setNotice(null); setSignForm(f); }}>
-                      <PenLine size={14} /> {f.require_sign ? 'Review & Sign' : 'Acknowledge'}
-                    </button>
-                  )}
+                  ) : (() => {
+                    const needStudent = STUDENT_BOUND.has(f.form_type) && !(f.eligible_students || []).length;
+                    if (needStudent) {
+                      return (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <span className="sub">This form is per student — a linked guardian record is required to sign it.</span>
+                          <button className="btn" disabled title="Contact the registrar to link or verify a guardian before signing">Per-student form</button>
+                        </span>
+                      );
+                    }
+                    return (
+                      <button className="btn btn-primary" onClick={() => { setSignature(''); setNotice(null); setSignStudent((f.eligible_students || []).length === 1 ? f.eligible_students[0].id : null); setSignForm(f); }}>
+                        <PenLine size={14} /> {f.require_sign ? 'Review & Sign' : 'Acknowledge'}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -117,6 +131,21 @@ export default function Consent() {
           onClose={() => setSignForm(null)}
         >
           <form onSubmit={submitSign}>
+            {(signForm.eligible_students || []).length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <label>Signing for (student) *</label>
+                <select
+                  className="input"
+                  value={signStudent === null ? '' : signStudent}
+                  onChange={(e) => setSignStudent(e.target.value ? Number(e.target.value) : null)}
+                >
+                  {signForm.eligible_students.length > 1 && <option value="">Select a student…</option>}
+                  {signForm.eligible_students.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} (LRN {s.lrn})</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <label>Your full name (signature) *</label>
             <input
               className="input"

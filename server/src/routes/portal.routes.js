@@ -10,6 +10,22 @@ const router = express.Router();
 router.use(authenticate);
 const PORTAL = ['student', 'parent'];
 
+// Resolve the target student for a portal request. Honors an explicit
+// student_id query param (multi-child parents) but only when it belongs to
+// the caller; otherwise falls back to the first linked student.
+async function resolvePortalStudent(ids, req, res) {
+  const raw = req.query && req.query.student_id;
+  if (raw != null && raw !== '') {
+    const n = Number(raw);
+    if (!ids.includes(n)) {
+      res.status(403).json({ error: "You do not have access to this student's records" });
+      return null;
+    }
+    return n;
+  }
+  return ids[0];
+}
+
 function computeAge(birthdate) {
   if (!birthdate) return null;
   const birth = new Date(birthdate + 'T00:00:00');
@@ -137,7 +153,7 @@ router.get('/overview', requireRole(...PORTAL), asyncH(async (req, res) => {
 
 router.get('/my-immersion', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const studentId = ids[0];
+  const studentId = await resolvePortalStudent(ids, req, res);
   if (!studentId) return res.json({ data: [] });
   const rows = await qa(
     `SELECT wi.* FROM work_immersion wi WHERE wi.student_id = ? ORDER BY wi.batch DESC, wi.program`,
@@ -147,7 +163,7 @@ router.get('/my-immersion', requireRole(...PORTAL), asyncH(async (req, res) => {
 
 router.get('/today-schedule', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const studentId = ids[0];
+  const studentId = await resolvePortalStudent(ids, req, res);
   if (!studentId) return res.json({ data: [] });
   // schedule_entries.day is INTEGER (1=Mon .. 5=Fri); Date.getDay() is 0=Sun..6=Sat
   const today = new Date().getDay();
@@ -169,7 +185,7 @@ router.get('/today-schedule', requireRole(...PORTAL), asyncH(async (req, res) =>
 
 router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const studentId = ids[0];
+  const studentId = await resolvePortalStudent(ids, req, res);
   if (!studentId) return res.json({ data: [] });
   const { school_year } = req.query;
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -192,7 +208,7 @@ router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, r
 
 router.get('/report-card', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const studentId = ids[0];
+  const studentId = await resolvePortalStudent(ids, req, res);
   if (!studentId) return res.json({ subjects: [], general_average: null });
   const { school_year, term } = req.query;
   if (!school_year || !term) return res.status(400).json({ error: 'school_year and term are required' });
@@ -223,7 +239,7 @@ router.get('/certifications', requireRole(...PORTAL), asyncH(async (req, res) =>
 /* ── Teacher contacts for linked student ─────────── */
 router.get('/teacher-contacts', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const studentId = ids[0];
+  const studentId = await resolvePortalStudent(ids, req, res);
   if (!studentId) return res.json({ data: [] });
   const { school_year } = req.query;
   const enr = await q(
@@ -248,7 +264,7 @@ router.get('/teacher-contacts', requireRole(...PORTAL), asyncH(async (req, res) 
 /* ── Weekly schedule for linked student ──────────── */
 router.get('/weekly-schedule', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const studentId = ids[0];
+  const studentId = await resolvePortalStudent(ids, req, res);
   if (!studentId) return res.json({ data: [] });
   const { school_year } = req.query;
   const rows = await qa(

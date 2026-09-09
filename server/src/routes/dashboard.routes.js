@@ -590,6 +590,71 @@ router.get('/student-progress', requireRole(...DASH_READ), asyncH(async (req, re
 }));
 
 // ------------------------------------------------------------
+// Quarterly subject report — per-subject Mean, MPS, grade
+// range, and below-75 count on the quarterly examination.
+// ------------------------------------------------------------
+router.get('/quarterly-report', requireRole(...DASH_READ), asyncH(async (req, res) => {
+  const sy = String(req.query.school_year || '').trim();
+  if (!sy) return res.status(400).json({ error: 'school_year is required' });
+  const qtrNum = Number(req.query.quarter);
+  if (!Number.isFinite(qtrNum) || qtrNum < 1 || qtrNum > 3) {
+    return res.status(400).json({ error: 'quarter must be 1, 2, or 3' });
+  }
+  const sectionId = String(req.query.section_id || '').trim();
+  const scope = await teacherSectionScope(req);
+  const where = ['g.school_year = ?', 'g.quarter = ?'];
+  const params = [sy, qtrNum];
+  if (sectionId) { where.push('g.section_id = ?'); params.push(sectionId); }
+  if (scope.sql) { where.push(scope.sql); params.push(...scope.params); }
+  const whereSql = where.join(' AND ');
+  const rows = await qa(
+    `SELECT g.subject_id, sub.code, sub.title,
+            COUNT(DISTINCT g.student_id) AS students,
+            AVG(CASE WHEN g.computed_grade > 0 THEN g.computed_grade END) AS mean,
+            AVG(CASE WHEN g.quarterly_exam > 0 THEN g.quarterly_exam END) AS mps,
+            MAX(CASE WHEN g.computed_grade > 0 THEN g.computed_grade END) AS highest,
+            MIN(CASE WHEN g.computed_grade > 0 THEN g.computed_grade END) AS lowest,
+            SUM(CASE WHEN g.quarterly_exam > 0 AND g.quarterly_exam < 75 THEN 1 ELSE 0 END) AS below_75
+     FROM grades g
+     JOIN subjects sub ON sub.id = g.subject_id
+     WHERE ${whereSql}
+     GROUP BY g.subject_id, sub.code, sub.title
+     ORDER BY sub.title`, params);
+  const fmt = (v) => v == null ? null : Number(v);
+  const subjects = rows.map((r) => ({
+    subject_id: Number(r.subject_id),
+    code: r.code,
+    title: r.title,
+    students: Number(r.students || 0),
+    mean: fmt(r.mean),
+    mps: fmt(r.mps),
+    highest: fmt(r.highest),
+    lowest: fmt(r.lowest),
+    below_75: Number(r.below_75 || 0),
+  }));
+  const means = subjects.map((s) => s.mean).filter((v) => v != null);
+  const mpss = subjects.map((s) => s.mps).filter((v) => v != null);
+  const below75Row = await q(
+    `SELECT COUNT(DISTINCT g.student_id) AS n
+     FROM grades g
+     WHERE ${whereSql} AND g.quarterly_exam > 0 AND g.quarterly_exam < 75`, params);
+  res.json({
+    school_year: sy,
+    quarter: qtrNum,
+    section_id: sectionId || null,
+    subjects,
+    summary: {
+      subjects: subjects.length,
+      graded_subjects: subjects.filter((s) => s.mean != null || s.mps != null).length,
+      overall_mean: means.length ? Math.round((means.reduce((a, b) => a + b, 0) / means.length) * 100) / 100 : null,
+      overall_mps: mpss.length ? Math.round((mpss.reduce((a, b) => a + b, 0) / mpss.length) * 100) / 100 : null,
+      below_75_total: subjects.reduce((a, s) => a + s.below_75, 0),
+      below_75_learners: Number(below75Row?.n || 0),
+    },
+  });
+}));
+
+// ------------------------------------------------------------
 // Work Immersion summary — by batch, program, partner, status
 // ------------------------------------------------------------
 router.get('/immersion-summary', requireRole(...DASH_READ), asyncH(async (req, res) => {

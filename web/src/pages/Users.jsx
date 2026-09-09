@@ -26,6 +26,7 @@ export default function Users() {
   const [confirmAction, setConfirmAction] = useState(null);
 
   const isAdmin = ['super_admin', 'school_admin'].includes(user?.role);
+  const canDeleteUser = user?.role === 'super_admin';
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -179,7 +180,7 @@ export default function Users() {
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn-sm" onClick={() => setResetPw(u)} title="Reset password"><KeyRound size={13} /></button>{' '}
                     <button className="btn btn-sm" onClick={() => openEdit(u)} aria-label="Edit user"><Pencil size={13} aria-hidden="true" /></button>{' '}
-                    {user.id !== u.id && (
+                    {canDeleteUser && user.id !== u.id && (
                        <button className="btn btn-sm btn-danger" onClick={() => remove(u)} aria-label="Delete user"><Trash2 size={13} aria-hidden="true" /></button>
                     )}
                   </td>

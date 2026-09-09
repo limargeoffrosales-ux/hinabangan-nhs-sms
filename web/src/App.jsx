@@ -37,6 +37,7 @@ class ErrorBoundary extends Component {
 }
 
 const Login = lazy(() => import('./pages/Login'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Consent = lazy(() => import('./pages/Consent'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Students = lazy(() => import('./pages/Students'));
@@ -107,15 +108,17 @@ function AdminOnly({ children }) {
   return children;
 }
 
-function SuperAdminOnly({ children }) {
+const AI_STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
+
+function AIWorkbenchOnly({ children }) {
   const { user } = useAuth();
-  if (!can(user?.role, 'super_admin')) return <Navigate to="/" replace />;
+  if (!can(user?.role, ...AI_STAFF)) return <Navigate to="/" replace />;
   return children;
 }
 
 function AIChatbotGate() {
   const { user } = useAuth();
-  if (!user || !can(user?.role, 'super_admin')) return null;
+  if (!user || !can(user?.role, ...AI_STAFF, 'student', 'parent')) return null;
   return <AIChatbot />;
 }
 
@@ -146,6 +149,7 @@ export default function App() {
     <ErrorBoundary>
     <Routes>
       <Route path="/login" element={<Page><Login /></Page>} />
+      <Route path="/reset-password" element={<Page><ResetPassword /></Page>} />
       <Route path="/" element={<Protected><Page><Dashboard /></Page></Protected>} />
       <Route path="/students" element={<Protected><Page><Students /></Page></Protected>} />
       <Route path="/teachers" element={<Protected><Page><Teachers /></Page></Protected>} />
@@ -192,7 +196,7 @@ export default function App() {
       <Route path="/clinic" element={<Protected><Page><Clinic /></Page></Protected>} />
       <Route path="/guidance" element={<Protected><Page><Guidance /></Page></Protected>} />
       <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
-      <Route path="/ai" element={<Protected><SuperAdminOnly><Page><AIPage /></Page></SuperAdminOnly></Protected>} />
+      <Route path="/ai" element={<Protected><AIWorkbenchOnly><Page><AIPage /></Page></AIWorkbenchOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     <AIChatbotGate />

@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import {
-  Lock, Eye, EyeOff, ChevronDown, ChevronUp,
+  Lock, Eye, EyeOff, ChevronDown, ChevronUp, KeyRound,
   QrCode, BarChart3, Calendar, GraduationCap, ClipboardList, FileText,
   CheckCircle2, Shield, Globe, ExternalLink, Mail, Phone, Info,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
-import { getStoredApiBase, setApiBase } from '../lib/api';
+import { getStoredApiBase, setApiBase, api } from '../lib/api';
 
 const FEATURES = [
   { icon: QrCode, key: 'featAttendance' },
@@ -30,6 +30,10 @@ export default function Login() {
   const [serverOpen, setServerOpen] = useState(false);
   const [serverBase, setServerBase] = useState(getStoredApiBase());
   const [showRequest, setShowRequest] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState(null);
   const [pendingMfa, setPendingMfa] = useState(null);
   const formRef = useRef(null);
 
@@ -64,6 +68,33 @@ export default function Login() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function onForgotSubmit(e) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const identifier = String(form.get('identifier') || '').trim();
+    if (!identifier) {
+      setForgotError(t('login.forgotIdRequired'));
+      return;
+    }
+    setForgotBusy(true);
+    setForgotError(null);
+    setForgotSent(false);
+    try {
+      await api('/auth/forgot-password', { method: 'POST', auth: false, body: { identifier } });
+      setForgotSent(true);
+    } catch (err) {
+      setForgotError(err.message);
+    } finally {
+      setForgotBusy(false);
+    }
+  }
+
+  function closeForgot() {
+    setShowForgot(false);
+    setForgotError(null);
+    setForgotSent(false);
   }
 
   async function onMfaSubmit(e) {
@@ -143,6 +174,35 @@ export default function Login() {
                   </button>
                 </div>
               </form>
+            ) : showForgot ? (
+              <form onSubmit={onForgotSubmit} className="login-form">
+                <h3 className="login-forgot-title">{t('login.forgotTitle')}</h3>
+                <p className="login-forgot-intro">{t('login.forgotIntro')}</p>
+                {forgotSent ? (
+                  <p className="login-forgot-ok"><CheckCircle2 size={16} /> {t('login.forgotSent')}</p>
+                ) : (
+                  <>
+                    <label htmlFor="login-forgot-id">{t('login.forgotIdLabel')}</label>
+                    <input
+                      id="login-forgot-id"
+                      name="identifier"
+                      placeholder={t('login.forgotIdLabel')}
+                      autoComplete="username"
+                      autoFocus
+                    />
+                    {forgotError && <div className="error-text">{forgotError}</div>}
+                    <button type="submit" className="btn btn-primary login-submit" disabled={forgotBusy}>
+                      {forgotBusy ? <span className="login-spinner" /> : <KeyRound size={15} />}
+                      {forgotBusy ? t('login.signingIn') : t('login.forgotSubmit')}
+                    </button>
+                  </>
+                )}
+                <div className="login-form-links">
+                  <button type="button" className="login-request-btn" onClick={closeForgot}>
+                    {t('login.forgotBack')}
+                  </button>
+                </div>
+              </form>
             ) : (
             <form onSubmit={onSubmit} ref={formRef} className="login-form">
               <label htmlFor="login-username">{t('login.username')}</label>
@@ -180,9 +240,9 @@ export default function Login() {
               </button>
 
               <div className="login-form-links">
-                <a href="#" className="login-forgot" onClick={(e) => e.preventDefault()}>
+                <button type="button" className="login-forgot" onClick={() => setShowForgot(true)}>
                   {t('login.forgotPw')}
-                </a>
+                </button>
                 <span className="login-form-divider">·</span>
                 <button type="button" className="login-request-btn" onClick={() => setShowRequest(!showRequest)}>
                   {t('login.requestAccount')}

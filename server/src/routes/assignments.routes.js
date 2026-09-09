@@ -255,6 +255,14 @@ router.patch('/:id', requireRole(...STAFF), asyncH(async (req, res) => {
     else if (Array.isArray(b.rubric)) { sets.push('rubric = ?'); params.push(JSON.stringify(b.rubric)); }
     else return res.status(400).json({ error: 'rubric must be an array' });
   }
+  if (b.competency_id !== undefined) {
+    const cid = b.competency_id === null || b.competency_id === '' ? null : Number(b.competency_id);
+    if (cid !== null) {
+      const c = await q('SELECT id FROM competencies WHERE id = ?', [cid]);
+      if (!c) return res.status(400).json({ error: 'Invalid competency_id' });
+    }
+    sets.push('competency_id = ?'); params.push(cid);
+  }
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
   sets.push(`updated_at = ${nowSql()}`);
   params.push(chk.a.id);

@@ -1,118 +1,101 @@
 # Backup Strategy
 
-MeridianEd is a secure, cloud-native, AI-powered, mobile-first school management
-ecosystem that centralizes academic, administrative, financial, HR, health,
-guidance, research, and operational data for elementary schools, junior/senior
-high schools, colleges, universities, school divisions, and regional offices.
-This deliverable defines the backup strategy that underpins the platform SLOs:
-RPO ≤ 15 minutes, RTO ≤ 4 hours (region failover), and RTO ≤ 15 minutes for
-database HA. Backups are encrypted, versioned, monitored, and proven by
-scheduled restore drills. The strategy is GCP-native (Cloud SQL backups +
-PITR, Cloud Storage, Cloud KMS); AWS/Azure equivalents are Cloud SQL → RDS and
-Storage → S3/Azure Blob. The MVP uses the same principles with local
-`node:sqlite` files and a nightly dump.
+This document describes the backup system **as actually built** for the
+Hinabangan NHS system. It replaces the earlier aspirational GCP/Cloud SQL
+write-up, which described infrastructure the project does not use.
 
-> MeridianEd is a placeholder brand — the name is rebrandable at any time.
+## 1. What the system runs on
 
-## 1. Backup matrix
-
-| Data / system | Backed up? | Method | Frequency | Owner |
-|---|---|---|---|---|
-| PostgreSQL 16 (Cloud SQL) | Yes | Automated full backups + continuous WAL archiving (PITR) | Full daily, WAL continuous | DB admin |
-| Cloud Storage objects (SF exports, media, receipts) | Yes | Object versioning + multi-region replication | Continuous | Platform team |
-| Keycloak realm config + users | Yes | Export to bucket, included in IaC | On change + daily | Platform team |
-| Terraform state / IaC | Yes | Git history + state bucket versioning | On change | Platform team |
-| Secrets (Secret Manager) | Yes | Secret Manager versioning (no copy to buckets) | On change | Platform team |
-| Audit logs (7-year retention) | Yes | WORM bucket + long-term archive class | Continuous | Platform team |
-| Source code | Yes | Git (GitHub) with branch protection | On commit | Dev team |
-| Redis 7 cache | No (reconstructible) | Rebuild from DB on restart | — | — |
-| Stateless containers / Cloud Run revisions | No | Redeployed from image registry | — | — |
-| Temp files, local uploads in pods | No | Ephemeral by design | — | — |
-
-## 2. Backup types
-
-### 2.1 Continuous WAL archiving (PITR)
-
-- Cloud SQL writes WAL segments continuously to storage; point-in-time recovery
-  restores to any second within the retention window.
-- Achieves RPO ≤ 15 minutes (in practice seconds); the recovery target is
-  validated monthly.
-- Equivalent on AWS/Azure: RDS automated backups + PITR, Azure SQL long-term
-  retention.
-
-### 2.2 Daily full + nightly snapshots
-
-| Backup | Cadence | Retention | Purpose |
-|---|---|---|---|
-| Daily full backup | 01:00 Asia/Manila | 30 days | Baseline for restore |
-| Weekly full | Sunday 01:00 | 90 days | Mid-term recovery |
-| Monthly full | 1st of month 01:00 | 12 months | Long-term recovery |
-| Nightly snapshot (project files, media) | 02:00 Asia/Manila | 30 days | Object-state baseline |
-
-## 3. Object storage lifecycle
-
-- Versioning enabled on all business buckets; accidental delete/overwrite is
-  recoverable via prior version.
-- Multi-region replication: primary (asia-southeast1) mirrored to secondary
-  region bucket for DR (see [20-disaster-recovery.md](20-disaster-recovery.md)).
-- Lifecycle rules: transient data → nearline after 30 days, coldline after 90
-  days, archive after 1 year; audit logs move to archive class at 1 year and
-  are retained 7 years before erasure.
-- Media uploads follow the same lifecycle; SF exports and receipts are
-  versioned indefinitely within retention.
-
-## 4. Encryption of backups
-
-- All backups and WAL segments are encrypted with CMEK via Cloud KMS
-  (AES-256) before leaving the DB; backups in Cloud Storage inherit
-  bucket-level CMEK.
-- Key hierarchy: backup DEKs are wrapped by the backup KEK; KEK rotation
-  (30 days) does not re-encrypt data — new keys apply to new writes.
-- Restore requires both the backup and KEK access; KEK deletion (erasure)
-  renders the backup unrecoverable, used for DPA erasure.
-
-## 5. Backup verification and restore testing
-
-| Drill | Frequency | Scope | Success criteria |
-|---|---|---|---|
-| PITR recovery drill | Monthly | Restore DB to 5 min before a synthetic incident in staging | Restore completes < 4 h; data consistent |
-| Full restore drill | Quarterly | Full restore of DB + object storage into isolated test project | All data present, checksums match, portal runnable |
-| Object restore drill | Quarterly | Restore one versioned object, one deleted object | Version recovered intact |
-| Failover drill (HA) | Quarterly | Promote replica, fail back | RTO ≤ 15 min DB HA |
-| Region failover drill | Annually | Full DR exercise (see 20-disaster-recovery.md) | RTO ≤ 4 h, RPO ≤ 15 min |
-
-Drill results are recorded with evidence (timestamps, checksums) and reported
-to the DR lead; failed drills open corrective tickets with a 30-day SLA.
-
-## 6. Retention policy
-
-| Data | Retention | Disposal |
+| Layer | Production | Local dev |
 |---|---|---|
-| Audit logs (immutable) | 7 years | KEK deletion → erasure |
-| DB full backups | Daily 30 d / weekly 90 d / monthly 12 months | Lifecycle rule delete |
-| WAL segments | Matches DB retention (support PITR ≥ 15 min RPO) | Lifecycle rule delete |
-| Project files, media | 1 year, or school retention rule | Lifecycle rule delete |
-| Deleted learner records (DPA) | Erasure on verified request; backups erased at lifecycle | KEK deletion |
-| Terraform state | 7 years (as infrastructure record) | Bucket lifecycle |
+| Database | PostgreSQL 16 on Neon (`DATABASE_URL`) | Node built-in SQLite (`server/data/meridianed.db`, WAL mode) |
+| Web service | Render (free tier, in-process jobs only) | `npm run dev` |
+| Object storage | Cloudflare R2 (`R2_*` env vars) | None (local disk) |
 
-Retention is enforced by storage lifecycle policies, not manual processes.
-Any extension (e.g. legal hold for a DepEd dispute) is applied per-object via
-hold policy and tracked.
+Because Render's free tier has **no cron-scheduled worker** and its disk is
+**ephemeral** (wiped on redeploy), the backup job runs **inside the API process**
+(like the existing notification and storage-retention sweeps) and writes to
+**both** local disk and the R2 bucket. The R2 copy is what survives redeploys.
 
-## 7. Backup monitoring and alerts
+## 2. The backup mechanism
 
-| Alert | Threshold | Action |
+- Backup logic lives in `server/src/backup.js`; the CLI in `server/scripts/backup.js`;
+  the scheduled job in `server/src/backup-sweep.js` (started from `server/src/index.js`).
+- A "backup" is a compressed logical dump: one JSON file containing every table's
+  column list and row data, gzipped. Format `meridianed-dump` v1.
+- **Consistency:** PostgreSQL dumps run inside a single `SERIALIZABLE READ ONLY`
+  transaction, so every table is read from one snapshot. SQLite uses
+  `VACUUM INTO` (a plain file copy is NOT safe because the app runs in WAL
+  mode — the base `.db` can lag committed writes).
+- **Fidelity:** `date` and `numeric` columns are dumped as text so their exact
+  value survives the JSON round trip; explicit ids are preserved (so foreign
+  keys keep pointing at the same rows); inserts are ordered by foreign-key
+  dependency; and PG sequences are advanced past the restored rows so the app
+  does not collide on the next insert.
+- Backup file: `meridianed-<timestamp>.json.gz`. Local folder `BACKUP_DIR`
+  (default `<DATA_DIR>/backups`); R2 prefix `BACKUP_R2_PREFIX`
+  (default `backups/meridianed`).
+
+## 3. Schedule (automatic)
+
+Enable with `BACKUP_ENABLED=1` on the server (production and/or dev):
+
+| Env var | Default | Meaning |
 |---|---|---|
-| Backup job failed | Any failed full/automated backup | Page DB admin within 15 min; retry within 1 h |
-| WAL lag | Lag > 15 min | Page DB admin; investigate replication/storage |
-| Backup age | No successful backup in 26 h | Page DB admin; block risky deploys |
-| Restore drill failure | Any failed criterion | Ticket + DR lead notified; retest in 30 days |
-| Encryption/key error | KMS operation failed | Page platform team; verify KEK status |
-| Storage lifecycle violation | Object older than retention limit | Audit + `security` review |
+| `BACKUP_ENABLED` | off | Runs the first backup at boot, then every `BACKUP_INTERVAL_HOURS` |
+| `BACKUP_INTERVAL_HOURS` | 24 | Backup cadence |
+| `BACKUP_RETAIN` | 5 | Newest N backups kept locally and in R2 (older ones pruned) |
+| `BACKUP_DIR` | `<DATA_DIR>/backups` | Local destination |
+| `BACKUP_R2_PREFIX` | `backups/meridianed` | R2 key prefix |
+| `BACKUP_DRILL_ENABLED` | off | Also run a full restore drill after each backup |
 
-Alerts flow into Prometheus/Cloud Monitoring and Grafana dashboards; every
-alert has an owner and an escalation path (see on-call in
-[21-devops-pipeline.md](21-devops-pipeline.md)).
+Manual runs: `npm run backup` (create now), `npm run backup:list`,
+`npm run backup:drill`, `npm run backup:cleanup [N]`.
 
----
-*MeridianEd — Cloud-Based School Management Ecosystem — Deliverable 19 of 30.*
+## 4. Restore and restore drills
+
+- **Drill (verifies backups actually restore):** `npm run backup:drill` takes the
+  newest local backup, rebuilds its schema in an isolated throwaway PG schema
+  (or temp SQLite file) by replaying the migrations, restores the rows there,
+  re-dumps, and diff-every-table against the original. It prints
+  `RESTORE DRILL PASS` / `FAIL`. Set `BACKUP_DRILL_ENABLED=1` to run it
+  automatically after every scheduled backup. This was exercised and passing
+  against both a real Postgres 16 server and the app's SQLite database in
+  development.
+- **Real restore:** `node scripts/backup.js --restore FILE --yes`
+  (add `--bootstrap` to build the schema from migrations first, for a fresh
+  target database). Restoration always replaces the dump's tables — run it with
+  the server stopped. Restore + `npm run backup:drill` together confirm the
+  restored data is intact.
+
+## 5. Retention
+
+`BACKUP_RETAIN` (default 5) keeps the newest N files, pruned oldest-first from
+both the local folder and R2 after every successful backup. For a school
+records system, consider raising to 14 (two weeks of daily backups) once you
+confirm storage budget on the free tiers.
+
+## 6. Monitoring
+
+Every backup event is logged through the app's pino logger: dialect, file,
+tables, rows, size, R2 key, duration. Failures are logged as errors and, if a
+Sentry DSN is configured, would flow there with other app errors. There is no
+separate paging — the owner watches the logs (Render log stream).
+
+## 7. Honest RPO/RTO
+
+- **RPO** = the backup interval (24 h by default; tighten with
+  `BACKUP_INTERVAL_HOURS`). A crash can lose up to the last 24 h of records.
+- **RTO** = however long a manual restore takes on a fresh database
+  (minutes for this data volume), plus any re-pointing of `DATABASE_URL`.
+- Neon's free tier keeps a limited built-in history. If the school moves to a
+  paid Neon plan, enable Neon's point-in-time recovery as a **complement** to
+  these dumps to shrink RPO; the dump files in R2 remain the portable,
+  provider-independent safety net.
+
+## 8. What is NOT backed up here
+
+- Uploaded files live in R2 (object storage), not the database. Enabling bucket
+  **versioning** in the Cloudflare dashboard is cheap insurance against
+  accidental deletes/overwrites and is recommended.
+- E-mail/SMS/FCM push queues are re-derivable state, not backed up.

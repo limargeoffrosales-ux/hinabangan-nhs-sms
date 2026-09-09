@@ -103,21 +103,35 @@ on the next request).
 4. On Render: **hinabangan-nhs** → **Environment** → set **DATABASE_URL** to
    that string → **Save** → **Deploy latest commit**.
 5. First boot runs all migrations automatically and seeds the report
-   taxonomy + superadmin + staff accounts (`accounts.txt`).
-6. Sign in with `superadmin` / `MeridianEd2026!` and change the password
+   taxonomy + superadmin + staff accounts. If you set `SUPERADMIN_PASSWORD`
+   in the Render environment, that value becomes the superadmin password on
+   first boot; otherwise the seed generates a random password and prints the
+   one-time credentials to the boot log / `accounts.txt`.
+6. Sign in as `superadmin` with that password and change it right away
    (key icon, top bar).
 
 No maintenance needed afterwards: the Neon database never expires.
 
 ## 5. Environment variables
 
-Set these on the service (Dashboard → the service → **Environment**):
+`render.yaml` declares every variable the app uses. Ones with `sync: false`
+are **set manually** in the dashboard (Render → hinabangan-nhs → Environment) —
+they are never fetched from the repo because they are secrets or per-install
+values. The Bootstrap ones are filled in automatically.
 
-| Key | Value |
-|---|---|
-| `DATABASE_URL` | Your Neon connection string (set manually, see section 4a) |
-| `JWT_SECRET` | A long random string — the Blueprint generates one automatically |
-| `NODE_VERSION` | `22` |
+| Key | Where | Purpose |
+|---|---|---|
+| `DATABASE_URL` | manual (sync: false) | Your Neon connection string (section 4a) |
+| `APP_URL` | manual (sync: false) | Public base URL of the app — used for password-reset links |
+| `JWT_SECRET` | auto-generated | Signs login tokens (never reuse across installs) |
+| `SUPERADMIN_PASSWORD` | manual (optional) | Sets the superadmin password on the **first boot** (8+ chars). After that it is ignored — existing passwords are never reset |
+| `SMTP_HOST/USER/PASS/MAIL_FROM` | manual (optional) | Outgoing mail — **required** for "forgot password" codes to leave the server |
+| `SMS_PROVIDER_URL/TOKEN/SENDER` | manual (optional) | Outgoing SMS for the same reset codes (and notifications) |
+| `GROQ_API_KEY` | manual (optional) | Enables the AI assistant (staff/students/parents per the access matrix) |
+| `SENTRY_DSN` + `VITE_SENTRY_DSN` | manual (optional) | Server + web error tracking |
+| `FCM_SERVICE_ACCOUNT` | manual (optional) | Firebase service account JSON for Android push |
+| `BACKUP_ENABLED` | `'1'` (declared) | Automated backups; pair with the `R2_*` vars (manual) to store them off Render |
+| `NODE_VERSION` | `22` (declared) | Node runtime |
 
 Generate your own secret if you are deploying manually:
 
@@ -129,7 +143,9 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 On every boot (`SEED_ON_BOOT=1` in the Blueprint) the server ensures the
 foundation only: the **report types taxonomy**, **superadmin**, and the **30
-staff accounts** (`accounts.txt`). Existing passwords are never reset.
+staff accounts**. Existing passwords are never reset; if the superadmin account
+was just created (its password has never been changed), a set
+`SUPERADMIN_PASSWORD` is applied once on first boot.
 
 **Demo data is gone.** On first deploy, a one-shot cleanup removed all demo
 rows (students, teachers, sections, subjects, grades, attendance,
@@ -141,14 +157,18 @@ Optional: set `DEMO_SEED=1` in Render **only** on a fresh database if you
 want a populated sandbox — it seeds demo students/grades/attendance once and
 never resets them.
 
-Default `superadmin` password: `MeridianEd2026!`.
+The superadmin password is **randomly generated** on first seed (unless you set
+`SUPERADMIN_PASSWORD`). With `DEMO_SEED=1` the credentials are written to
+`accounts.txt`; otherwise they are printed in the boot log once. Either way,
+the password cannot be recovered once the log is gone, so change it to
+something you know and store the new one safely.
 
-To force a custom superadmin password at boot **without writing it into the
-repo**, set an env var on the Render service instead:
+To force a custom superadmin password **without writing it into the repo**, set
+an env var on the Render service before the first successful boot:
 
 1. Render dashboard → **hinabangan-nhs** → **Environment**.
 2. Add `SUPERADMIN_PASSWORD` with your chosen value (8+ chars).
-3. Save & redeploy. Every boot then applies that password.
+3. Save & redeploy. First boot applies it; later boots leave the password alone.
 
 Migrations run automatically on every server start, so future schema updates
 need no manual step.
@@ -157,8 +177,8 @@ need no manual step.
 
 1. Open `https://hinabangan-nhs.onrender.com` in any browser (the exact URL is
    shown in the Render dashboard top-left).
-2. Sign in as `superadmin` (password `MeridianEd2026!` or your
-   `SUPERADMIN_PASSWORD` override).
+2. Sign in as `superadmin` with the boot-set password (from
+   `SUPERADMIN_PASSWORD` or the boot log / `accounts.txt`).
 3. Create accounts for the principal, registrar, teachers, etc. in the
    **Users** module (or hand out the seeded staff accounts from `accounts.txt`).
 4. **Change the superadmin password immediately**: click the key icon in the

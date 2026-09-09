@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, ClipboardList, Target, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
+import { SCHOOL_YEARS } from '../lib/constants';
 import { PageHead, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
-const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
 function StatChip({ label, value, color }) {
   return (

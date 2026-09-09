@@ -29,7 +29,11 @@ export async function registerForPushNotifications() {
       if (auth) {
         await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/push/register`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth}` },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${auth}`,
+            'X-CSRF-Token': sessionStorage.getItem('meridianed_csrf') || '',
+          },
           body: JSON.stringify({ token, platform: getPlatform() }),
         });
       }

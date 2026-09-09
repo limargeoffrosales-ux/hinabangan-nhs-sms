@@ -5,7 +5,7 @@ import {
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts';
 import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
-import { api, getApiBase } from '../lib/api';
+import { api, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
@@ -88,9 +88,12 @@ export default function Analytics() {
     if (quarter) params.set('quarter', quarter);
     const token = sessionStorage.getItem('meridianed_token');
     const url = `/analytics/kpi/report/csv?${params.toString()}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 75000);
     try {
       const res = await fetch(`${getApiBase()}${url}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
@@ -101,7 +104,9 @@ export default function Analytics() {
       a.click();
       URL.revokeObjectURL(blobUrl);
     } catch (e) {
-      console.error('CSV export failed:', e);
+      console.error('CSV export failed:', friendlyAbortMessage(e) || e);
+    } finally {
+      clearTimeout(timer);
     }
   };
 

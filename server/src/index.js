@@ -60,6 +60,7 @@ const documentRoutes = require('./routes/documents.routes');
   await db.init();
   const { ensureDefaults, startNotifySweep } = require('./notify');
   const { startStorageCleanup } = require('./storage-cleanup');
+  const { startBackupSweep } = require('./backup-sweep');
   await ensureDefaults();
   if (process.env.SEED_ON_BOOT === '1') {
     const { seed } = require('./seed');
@@ -68,33 +69,25 @@ const documentRoutes = require('./routes/documents.routes');
   }
   const { purgeDemo } = require('./purge-demo');
   await purgeDemo();
-  const ENABLE_LEGACY_SUPERADMIN = process.env.ENABLE_LEGACY_SUPERADMIN === 'true';
-  const LEGACY_DEFAULT = process.env.LEGACY_SUPERADMIN_PASSWORD || '';
+  // SUPERADMIN_PASSWORD: on first boot (superadmin password never customized,
+  // i.e. password_changed_at is NULL) set the admin password from the env var so
+  // a deploy can control the initial admin credential. Once applied, the guard
+  // prevents this block from re-running on later boots.
   if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
     const bcrypt = require('bcryptjs');
-    const row = await db.q('SELECT id, password_hash, password_changed_at FROM users WHERE username = ?', ['superadmin']);
-    if (row && !row.password_changed_at && LEGACY_DEFAULT) {
-      if (!ENABLE_LEGACY_SUPERADMIN) {
-        logger.warn('LEGACY_SUPERADMIN_PASSWORD is set but ENABLE_LEGACY_SUPERADMIN is not true. Legacy password migration skipped. Set ENABLE_LEGACY_SUPERADMIN=true to enable (not recommended for production).');
-      } else {
-        if (process.env.NODE_ENV === 'production') {
-          logger.warn('SECURITY WARNING: ENABLE_LEGACY_SUPERADMIN is enabled in production! This allows legacy superadmin password migration and should be disabled after initial setup.');
-        }
-        const isLegacy = await bcrypt.compare(LEGACY_DEFAULT, row.password_hash);
-        if (isLegacy) {
-          await db.qr(
-            'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
-            [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10), row.id],
-          );
-          await db.qr(
-            'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
-            ['LEGACY_SUPERADMIN_MIGRATION', 'high', 'server-startup', 'system', null, JSON.stringify({ note: 'Legacy superadmin password migrated from default via SUPERADMIN_PASSWORD env' })]
-          );
-          logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (legacy default replaced)');
-        } else {
-          logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped');
-        }
-      }
+    const row = await db.q('SELECT id, password_changed_at FROM users WHERE username = ?', ['superadmin']);
+    if (row && !row.password_changed_at) {
+      await db.qr(
+        'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 12), row.id],
+      );
+      await db.qr(
+        'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
+        ['SUPERADMIN_PASSWORD_SET', 'info', 'server-startup', 'system', row.id, JSON.stringify({ note: 'Superadmin password initialised from SUPERADMIN_PASSWORD env' })]
+      );
+      logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (first boot)');
+    } else {
+      logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped (remove SUPERADMIN_PASSWORD from env to silence)');
     }
   }
   const app = express();
@@ -123,12 +116,19 @@ const documentRoutes = require('./routes/documents.routes');
     },
     crossOriginEmbedderPolicy: false,
   }));
+  const ALLOWED_ORIGINS = [
+    process.env.APP_URL,           // e.g. https://hinabangan-nhs.onrender.com
+    'http://localhost:5173',       // Vite dev server
+    'http://localhost:3000',       // Common dev port
+  ].filter(Boolean);
   app.use(cors({
     origin(origin, cb) {
-      // Allow all origins — JWT auth + CSRF tokens protect all endpoints.
-      // A custom origin allowlist was blocking legitimate Capacitor/Android
-      // requests, so it was removed.
-      cb(null, true);
+      // Allow server-to-server (no Origin header), app origin, and localhost dev.
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+        cb(null, true);
+      } else {
+        cb(null, false);
+      }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
@@ -148,20 +148,26 @@ const documentRoutes = require('./routes/documents.routes');
     '/api/v1/auth/login',
     '/api/v1/auth/refresh',
     '/api/v1/auth/logout',
+    '/api/v1/auth/forgot-password',
+    '/api/v1/auth/reset-password',
     '/api/v1/mfa/verify',
   ];
 
   const MAX_BODY_FIELD = 10000;
   const BULK_IMPORT_PATHS = [
-    '/api/v1/enrollments/import',
-    '/api/v1/assignments',
-    '/api/v1/lessons',
+    '/api/v1/enrollments/import',   // exact POST path
+    '/api/v1/assignments',          // bulk assignment creation
+    '/api/v1/lessons',              // bulk lesson creation
   ];
+  // Exact match or match with trailing slash + segment (prevents path traversal like /import-evil)
+  function isBulkPath(requestPath) {
+    return BULK_IMPORT_PATHS.some(p => requestPath === p || requestPath.startsWith(p + '/'));
+  }
   const MAX_BULK_BODY_FIELD = 100000; // 100KB for bulk imports
   app.use(express.json({ limit: '1mb' }));
   app.use((req, res, next) => {
     if (req.body && typeof req.body === 'object') {
-      const isBulkImport = BULK_IMPORT_PATHS.some(p => req.path.startsWith(p));
+      const isBulkImport = isBulkPath(req.path);
       const limit = isBulkImport ? MAX_BULK_BODY_FIELD : MAX_BODY_FIELD;
       for (const [k, v] of Object.entries(req.body)) {
         if (typeof v === 'string' && v.length > limit) {
@@ -343,6 +349,7 @@ const documentRoutes = require('./routes/documents.routes');
     logger.info({ port: PORT, dialect: db.dialect }, `MeridianEd API listening on http://localhost:${PORT}`);
     startNotifySweep();
     startStorageCleanup();
+    startBackupSweep();
   });
 
   async function shutdown(signal) {

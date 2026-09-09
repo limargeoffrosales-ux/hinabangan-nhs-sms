@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Gauge, TriangleAlert, Clock4, CheckCircle2, FileWarning, Undo } from 'lucide-react';
 import { api } from '../lib/api';
+import { SCHOOL_YEARS } from '../lib/constants';
 import { PageHead, ErrorBanner } from '../components/ui';
-
-const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
 function Bar({ percent }) {
   return (

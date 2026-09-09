@@ -8,7 +8,13 @@ import { fmt } from '../lib/utils';
 export default function PortalPortfolio() {
   const { t } = useTranslation();
   const { students, loading: meLoading, error: meError } = useLinkedStudents();
-  const [studentId, setStudentId] = useState(() => students[0] ? String(students[0].id) : '');
+  const [studentId, setStudentId] = useState('');
+  // Linked students arrive after mount (fetch), so the old lazy initializer
+  // always saw an empty list. Auto-select the first child once they load, and
+  // never overwrite a manual choice afterwards.
+  useEffect(() => {
+    setStudentId((prev) => prev || (students[0] ? String(students[0].id) : ''));
+  }, [students]);
   const [sy, setSy] = useState('2026-2027');
   const [analytics, setAnalytics] = useState(null);
   const [immersion, setImmersion] = useState(null);
@@ -84,7 +90,7 @@ export default function PortalPortfolio() {
               <div className="stat-card"><span className="sub">GWA</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(analytics.general_average)}</div></div>
               <div className="stat-card"><span className="sub">GPA</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(analytics.gpa)}</div></div>
               <div className="stat-card"><span className="sub">{t('portfolio.attendanceRate', 'Attendance Rate')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{rate != null ? `${fmt(rate)}%` : '—'}</div></div>
-              <div className="stat-card"><span className="sub">{t('portfolio.creditsEarned', 'Credits Earned')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(analytics.credits)}</div></div>
+              <div className="stat-card"><span className="sub">{t('portfolio.creditsEarned', 'Credits Earned')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{analytics.credits?.total != null ? `${analytics.credits.earned ?? 0} / ${analytics.credits.total}` : '—'}</div></div>
             </div>
           </div>
 

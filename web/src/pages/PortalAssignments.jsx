@@ -28,7 +28,13 @@ function dueLabel(a) {
 
 export default function PortalAssignments() {
   const { students, loading: meLoading, error: meError } = useLinkedStudents();
-  const [studentId, setStudentId] = useState(() => students[0] ? String(students[0].id) : '');
+  const [studentId, setStudentId] = useState('');
+  // Linked students arrive after mount (fetch), so the old lazy initializer
+  // always saw an empty list. Auto-select the first child once they load, and
+  // never overwrite a manual choice afterwards.
+  useEffect(() => {
+    setStudentId((prev) => prev || (students[0] ? String(students[0].id) : ''));
+  }, [students]);
   const [sy, setSy] = useState('2026-2027');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
