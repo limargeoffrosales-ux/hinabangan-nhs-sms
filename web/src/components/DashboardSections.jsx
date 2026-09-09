@@ -46,6 +46,7 @@ export default function DashboardSections() {
   const [aral, setAral] = useState(null);
   const [progress, setProgress] = useState(null);
   const [quarter, setQuarter] = useState(1);
+  const [tab, setTab] = useState('enrollment');
   const [qSection, setQSection] = useState('');
   const [qReport, setQReport] = useState(null);
   const [aralAtt, setAralAtt] = useState(null);
@@ -278,6 +279,34 @@ export default function DashboardSections() {
         </div>
       </div>
 
+      <div className="dash-tabs" role="tablist" aria-label="Dashboard sections">
+        {[
+          { id: 'enrollment', label: 'Enrollment', icon: Users },
+          { id: 'staff', label: 'Attendance & Staff', icon: CalendarCheck },
+          { id: 'career', label: 'Career & TVL', icon: Briefcase },
+          { id: 'outcomes', label: 'Outcomes & ARAL', icon: GraduationCap },
+        ].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={`section-chip ${tab === t.id ? 'on' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            <t.icon size={14} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab !== 'enrollment' && (
+        <p className="dash-tab-hint">
+          Showing the <strong>{tab === 'staff' ? 'Attendance & Staff' : tab === 'career' ? 'Career & TVL' : 'Outcomes & ARAL'}</strong> view. Use the tabs above to switch sections.
+        </p>
+      )}
+
+      {tab === 'enrollment' && (
+      <>
       {/* 1 — Enrollment data */}
       <div className="card">
         <div className="dashboard-block-head">
@@ -350,6 +379,86 @@ export default function DashboardSections() {
         </div>
       </div>
 
+      {/* 4 — Subject enrollment */}
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}><BookOpen size={16} /> Students Enrolled per Subject — {sy}</h3>
+        <div className="split-2">
+          <div>
+            <h4 style={{ margin: '0 0 8px', color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Core Subjects</h4>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
+                <tbody>
+                  {subjectEnr?.core.length === 0 && <tr><td colSpan={2} className="sub">No core subjects with enrolled students for {sy}.</td></tr>}
+                  {subjectEnr?.core.map((s) => (
+                    <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h4 style={{ margin: '0 0 8px', color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Elective Subjects</h4>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
+                <tbody>
+                  {subjectEnr?.electives.length === 0 && <tr><td colSpan={2} className="sub">No elective subjects with enrolled students for {sy}.</td></tr>}
+                  {subjectEnr?.electives.map((s) => (
+                    <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div className="sub" style={{ marginTop: 10 }}>
+          Counts reflect learners whose enrollment records include each subject for {sy}. Only school-offered subjects are shown — manage offerings under Subjects.
+        </div>
+      </div>
+
+      {/* 7 — Strand Distribution */}
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><GitBranch size={16} /> Enrollment by Strand — {sy}</h3>
+          <div className="kpi-row">
+            {strandDist?.data?.slice(0, 4).map((s, i) => (
+              <StatChip key={i} label={s.strand?.length > 20 ? s.strand.slice(0, 18) + '...' : s.strand} value={s.students} color={PIE_COLORS[i % PIE_COLORS.length]} />
+            ))}
+          </div>
+        </div>
+        {strandDist?.data?.length > 0 && R ? (
+          <div style={{ height: 180, margin: '14px 0' }}>
+            <R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={strandDist.data}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
+                <R.XAxis dataKey="strand" tick={{ fill: 'var(--text-dim)', fontSize: 10 }} angle={-15} textAnchor="end" height={60} />
+                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
+                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Bar dataKey="students" name="Students" radius={[4, 4, 0, 0]}>
+                  {strandDist.data.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </R.Bar>
+              </R.BarChart>
+            </R.ResponsiveContainer>
+          </div>
+        ) : <div className="sub">No strand distribution data available for {sy}.</div>}
+        <div className="table-wrap" style={{ marginTop: 8 }}>
+          <table>
+            <thead><tr><th>Strand</th><th style={{ textAlign: 'center' }}>Students</th><th style={{ textAlign: 'center' }}>Sections</th></tr></thead>
+            <tbody>
+              {strandDist?.data?.length === 0 && <tr><td colSpan={3} className="sub">No strand data for {sy}.</td></tr>}
+              {strandDist?.data?.map((r, i) => (
+                <tr key={i}><td>{r.strand}</td><td style={{ textAlign: 'center' }}>{r.students}</td><td style={{ textAlign: 'center' }}>{r.sections}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      </>
+      )}
+      {tab === 'staff' && (
+      <>
       {/* 2 — Student attendance by grade + section */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}><CalendarCheck size={16} /> Student Attendance — {fmtDate(date)}</h3>
@@ -437,44 +546,44 @@ export default function DashboardSections() {
         {!canWrite && <div className="sub" style={{ marginTop: 8 }}>Admins can mark teacher status directly from the dropdown above.</div>}
       </div>
 
-      {/* 4 — Subject enrollment */}
+      
+
+      {/* 8 — Teacher Workload */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}><BookOpen size={16} /> Students Enrolled per Subject — {sy}</h3>
-        <div className="split-2">
-          <div>
-            <h4 style={{ margin: '0 0 8px', color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Core Subjects</h4>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
-                <tbody>
-                  {subjectEnr?.core.length === 0 && <tr><td colSpan={2} className="sub">No core subjects with enrolled students for {sy}.</td></tr>}
-                  {subjectEnr?.core.map((s) => (
-                    <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div>
-            <h4 style={{ margin: '0 0 8px', color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Elective Subjects</h4>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
-                <tbody>
-                  {subjectEnr?.electives.length === 0 && <tr><td colSpan={2} className="sub">No elective subjects with enrolled students for {sy}.</td></tr>}
-                  {subjectEnr?.electives.map((s) => (
-                    <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><Clock size={16} /> Teacher Workload — {sy}</h3>
+          <div className="kpi-row">
+            <StatChip label="Teachers" value={teacherWorkload?.data?.length ?? 0} color="#4D96FF" />
+            <StatChip label="Avg hrs/wk" value={teacherWorkload?.data?.length ? Math.round(teacherWorkload.data.reduce((a, t) => a + (Number(t.total_minutes_per_week) || 0), 0) / teacherWorkload.data.length / 60 * 10) / 10 : '—'} color="#2FD6A0" />
           </div>
         </div>
-        <div className="sub" style={{ marginTop: 10 }}>
-          Counts reflect learners whose enrollment records include each subject for {sy}. Only school-offered subjects are shown — manage offerings under Subjects.
+        <div className="table-wrap" style={{ marginTop: 12, maxHeight: 320, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Teacher</th><th>Position</th><th style={{ textAlign: 'center' }}>Sections</th><th style={{ textAlign: 'center' }}>Subjects</th><th style={{ textAlign: 'center' }}>Hours/Week</th></tr>
+            </thead>
+            <tbody>
+              {(!teacherWorkload || teacherWorkload.data.length === 0) && (
+                <tr><td colSpan={5} className="sub">No teacher workload data for {sy}.</td></tr>
+              )}
+              {teacherWorkload?.data.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.name}</td>
+                  <td className="sub">{t.position || '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{t.sections}</td>
+                  <td style={{ textAlign: 'center' }}>{t.subjects}</td>
+                  <td style={{ textAlign: 'center' }}>{t.total_minutes_per_week ? (Math.round(Number(t.total_minutes_per_week) / 60 * 10) / 10) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
+      </>
+      )}
+      {tab === 'career' && (
+      <>
       {/* 5 — Work immersion */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}><Briefcase size={16} /> Work Immersion Status by Batch &amp; Partner Institution</h3>
@@ -529,76 +638,14 @@ export default function DashboardSections() {
         </div>
       </div>
 
-      {/* 7 — Strand Distribution */}
-      <div className="card">
-        <div className="dashboard-block-head">
-          <h3 style={{ margin: 0 }}><GitBranch size={16} /> Enrollment by Strand — {sy}</h3>
-          <div className="kpi-row">
-            {strandDist?.data?.slice(0, 4).map((s, i) => (
-              <StatChip key={i} label={s.strand?.length > 20 ? s.strand.slice(0, 18) + '...' : s.strand} value={s.students} color={PIE_COLORS[i % PIE_COLORS.length]} />
-            ))}
-          </div>
-        </div>
-        {strandDist?.data?.length > 0 && R ? (
-          <div style={{ height: 180, margin: '14px 0' }}>
-            <R.ResponsiveContainer width="100%" height="100%">
-              <R.BarChart data={strandDist.data}>
-                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-                <R.XAxis dataKey="strand" tick={{ fill: 'var(--text-dim)', fontSize: 10 }} angle={-15} textAnchor="end" height={60} />
-                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-                <R.Bar dataKey="students" name="Students" radius={[4, 4, 0, 0]}>
-                  {strandDist.data.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </R.Bar>
-              </R.BarChart>
-            </R.ResponsiveContainer>
-          </div>
-        ) : <div className="sub">No strand distribution data available for {sy}.</div>}
-        <div className="table-wrap" style={{ marginTop: 8 }}>
-          <table>
-            <thead><tr><th>Strand</th><th style={{ textAlign: 'center' }}>Students</th><th style={{ textAlign: 'center' }}>Sections</th></tr></thead>
-            <tbody>
-              {strandDist?.data?.length === 0 && <tr><td colSpan={3} className="sub">No strand data for {sy}.</td></tr>}
-              {strandDist?.data?.map((r, i) => (
-                <tr key={i}><td>{r.strand}</td><td style={{ textAlign: 'center' }}>{r.students}</td><td style={{ textAlign: 'center' }}>{r.sections}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      
 
-      {/* 8 — Teacher Workload */}
-      <div className="card">
-        <div className="dashboard-block-head">
-          <h3 style={{ margin: 0 }}><Clock size={16} /> Teacher Workload — {sy}</h3>
-          <div className="kpi-row">
-            <StatChip label="Teachers" value={teacherWorkload?.data?.length ?? 0} color="#4D96FF" />
-            <StatChip label="Avg hrs/wk" value={teacherWorkload?.data?.length ? Math.round(teacherWorkload.data.reduce((a, t) => a + (Number(t.total_minutes_per_week) || 0), 0) / teacherWorkload.data.length / 60 * 10) / 10 : '—'} color="#2FD6A0" />
-          </div>
-        </div>
-        <div className="table-wrap" style={{ marginTop: 12, maxHeight: 320, overflowY: 'auto' }}>
-          <table>
-            <thead>
-              <tr><th>Teacher</th><th>Position</th><th style={{ textAlign: 'center' }}>Sections</th><th style={{ textAlign: 'center' }}>Subjects</th><th style={{ textAlign: 'center' }}>Hours/Week</th></tr>
-            </thead>
-            <tbody>
-              {(!teacherWorkload || teacherWorkload.data.length === 0) && (
-                <tr><td colSpan={5} className="sub">No teacher workload data for {sy}.</td></tr>
-              )}
-              {teacherWorkload?.data.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.name}</td>
-                  <td className="sub">{t.position || '—'}</td>
-                  <td style={{ textAlign: 'center' }}>{t.sections}</td>
-                  <td style={{ textAlign: 'center' }}>{t.subjects}</td>
-                  <td style={{ textAlign: 'center' }}>{t.total_minutes_per_week ? (Math.round(Number(t.total_minutes_per_week) / 60 * 10) / 10) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      
 
+      </>
+      )}
+      {tab === 'outcomes' && (
+      <>
       {/* 9 — Aral Program */}
       <div className="card">
         <div className="dashboard-block-head">
@@ -853,6 +900,9 @@ export default function DashboardSections() {
         </div>
         <div className="sub" style={{ marginTop: 8 }}>Attendance is tracked per remediation session (date, subject area, tutor).</div>
       </div>
+
+      </>
+      )}
 
       {showAralModal && (
         <Modal title="Record ARAL remediation session" sub={`Session for ${sy} · ${aralForm.section_id ? sections.find((s) => s.id == aralForm.section_id)?.grade_level + ' — ' + sections.find((s) => s.id == aralForm.section_id)?.name : 'select a section'}`} onClose={() => setShowAralModal(false)} wide>
