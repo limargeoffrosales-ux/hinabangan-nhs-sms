@@ -860,6 +860,24 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
   border: 1px solid rgba(var(--rgb-accent), 0.18); font-size: 12.5px; line-height: 1.5; color: var(--text-dim);
 }
 .login-request-box svg { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.login-form-links button.login-forgot { background: none; border: none; padding: 0; font-family: inherit; font-size: 13px; color: var(--accent); cursor: pointer; }
+.login-form-links button.login-forgot:hover { text-decoration: underline; }
+.login-forgot-title { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 600; }
+.login-forgot-intro { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.login-forgot-ok {
+  display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; border-radius: 10px;
+  background: linear-gradient(135deg, rgba(var(--rgb-green), 0.1), rgba(var(--rgb-accent), 0.06));
+  border: 1px solid rgba(var(--rgb-green), 0.2); font-size: 12.5px; line-height: 1.55; color: var(--text);
+}
+.login-forgot-ok svg { color: var(--rgb-green, var(--accent)); flex-shrink: 0; margin-top: 1px; }
+.error-text { font-size: 12.5px; color: var(--danger, #f43f5e); line-height: 1.4; }
+.reset-ok {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center; padding: 18px 6px 6px; color: var(--text);
+}
+.reset-ok svg { color: var(--rgb-green, var(--accent)); }
+.reset-ok h3 { margin: 0; font-family: var(--font-display); font-size: 18px; }
+.reset-ok p { margin: 0 0 6px; font-size: 13px; color: var(--text-dim); }
 .login-form-security {
   display: flex; align-items: center; justify-content: center; gap: 5px;
   margin-top: 14px; font-size: 11px; color: var(--text-dim); opacity: 0.65;

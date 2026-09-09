@@ -20,6 +20,7 @@ export default function Students() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
+  const canManageAccounts = can(user?.role, 'super_admin', 'school_admin');
   const canViewPhoto = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -418,17 +419,19 @@ export default function Students() {
               {accountsData.student_account ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <div><strong>{accountsData.student_account.username}</strong> <span className="sub">— {accountsData.student_account.name || ''} · {accountsData.student_account.status}</span></div>
-                  <button className="btn btn-sm btn-danger" onClick={unlinkStudentAccount}>{t('students.unlink')}</button>
+                  {canManageAccounts && <button className="btn btn-sm btn-danger" onClick={unlinkStudentAccount}>{t('students.unlink')}</button>}
                 </div>
               ) : (
                 <div className="sub" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>{t('students.noStudentLogin')}</div>
               )}
 
-              <div className="form-row" style={{ marginTop: 12 }}>
-                <div style={{ flex: 2 }}><label>{t('students.linkByUsername')}</label><input placeholder={t('students.searchPortal')} value={linkQuery} onChange={(e) => setLinkQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchAccounts()} /></div>
-                <div><button className="btn" onClick={searchAccounts}>{t('common.search')}</button></div>
-              </div>
-              {linkResults.map((u) => (
+              {canManageAccounts && (
+                <div className="form-row" style={{ marginTop: 12 }}>
+                  <div style={{ flex: 2 }}><label>{t('students.linkByUsername')}</label><input placeholder={t('students.searchPortal')} value={linkQuery} onChange={(e) => setLinkQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchAccounts()} /></div>
+                  <div><button className="btn" onClick={searchAccounts}>{t('common.search')}</button></div>
+                </div>
+              )}
+              {canManageAccounts && linkResults.map((u) => (
                 <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ minWidth: 0 }}><strong>{u.username}</strong> <span className="sub">— {u.name || ''} · {u.role} · {u.status}</span></div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -443,7 +446,7 @@ export default function Students() {
               {(accountsData.parents || []).map((p) => (
                 <div key={p.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                   <div><strong>{p.name || p.username}</strong> <span className="sub">— {p.username} · {p.relation} · {p.status}</span></div>
-                  <button className="btn btn-sm btn-danger" onClick={() => unlinkParent(p.user_id)}>{t('students.unlink')}</button>
+                  {canManageAccounts && <button className="btn btn-sm btn-danger" onClick={() => unlinkParent(p.user_id)}>{t('students.unlink')}</button>}
                 </div>
               ))}
             </>

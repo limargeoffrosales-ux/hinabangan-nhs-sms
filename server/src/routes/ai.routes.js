@@ -10,8 +10,17 @@ const ai = require('../ai');
 const router = express.Router();
 router.use(authenticate);
 
-// AI is a privileged assistant: only the super admin may query the model.
-router.use(requireRole('super_admin'));
+// AI access matrix (deliberate per-role decision):
+//   /chat                -> staff + student + parent (generic policy Q&A; no tenant data in prompts)
+//   /lesson-plan, /exam  -> staff
+//   /report              -> admin + teacher
+//   /analyze             -> admin + teacher + guidance
+//   /enrollment-suggest  -> admin + teacher
+//   /form-137            -> admin + teacher + registrar
+//   /chat-logs[/stats]   -> admin
+// Each endpoint enforces its own requireRole allow-list; there is no global
+// super-admin gate. Student-scope checks apply to teachers only (guidance is a
+// school-wide role in the single-school model).
 
 const aiUserLimiter = userRateLimit({ windowMs: 60_000, limit: 10, message: { error: 'AI request limit reached. Try again in a minute.' } });
 
@@ -28,7 +37,9 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, 
     return res.status(400).json({ error: 'messages array required' });
   }
   let ctx = context || '';
-  if (req.user) ctx += '\nLogged in as: ' + req.user.name + ' (role: ' + req.user.role + ')';
+  // PII guardrail (docs/29): never hand the user's real name to the hosted AI
+  // provider — send only their role, so the assistant knows how to answer.
+  if (req.user) ctx += '\nLogged in as: user (role: ' + req.user.role + ')';
 
   const lastUserMsg = messages[messages.length - 1];
   const userText = lastUserMsg?.content || '';
@@ -57,7 +68,7 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, 
 router.post('/report', requireRole(...ADMIN, 'teacher'), aiUserLimiter, asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
-  if (['teacher', 'guidance'].includes(req.user.role)) {
+  if (req.user.role === 'teacher') {
     const chk = await ensureTeacherSeesStudent(req.user, student_id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
@@ -95,7 +106,7 @@ router.post('/exam', requireRole(...STAFF), aiUserLimiter, asyncH(async (req, re
 router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), aiUserLimiter, asyncH(async (req, res) => {
   const { student_id } = req.body || {};
   if (!student_id) return res.status(400).json({ error: 'student_id required' });
-  if (['teacher', 'guidance'].includes(req.user.role)) {
+  if (req.user.role === 'teacher') {
     const chk = await ensureTeacherSeesStudent(req.user, student_id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }

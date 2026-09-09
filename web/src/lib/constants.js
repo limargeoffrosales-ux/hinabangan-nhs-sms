@@ -1,6 +1,6 @@
 export const CURRENT_SCHOOL_YEAR = '2026-2027';
 
-export const SCHOOL_YEARS = ['2026-2027', '2025-2026', '2024-2025'];
+export const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 
 // Shared option lists for forms across the system.
 

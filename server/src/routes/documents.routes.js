@@ -66,7 +66,7 @@ router.delete('/formats/:id', requireRole(...ADMIN_ROLES), asyncH(async (req, re
 
 // ── Generations ──────────────────────────────────────────────
 
-router.get('/generations', asyncH(async (req, res) => {
+router.get('/generations', requireRole(...ADMIN_ROLES, 'teacher'), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const [rows, totalRow] = await Promise.all([
     qa(
@@ -81,7 +81,7 @@ router.get('/generations', asyncH(async (req, res) => {
   res.json({ data: rows, total: Number(totalRow.n || 0), limit, offset });
 }));
 
-router.get('/generations/stats', asyncH(async (req, res) => {
+router.get('/generations/stats', requireRole(...ADMIN_ROLES, 'teacher'), asyncH(async (req, res) => {
   const rows = await qa('SELECT kind, COUNT(*) AS n FROM doc_generations GROUP BY kind');
   res.json({ data: rows.map((r) => ({ ...r, n: Number(r.n) })) });
 }));

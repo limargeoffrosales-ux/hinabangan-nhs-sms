@@ -16,7 +16,7 @@ export default function Announcements() {
   const [showModal, setShowModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  const canWrite = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'].includes(user?.role);
+  const canWrite = ['super_admin', 'school_admin'].includes(user?.role);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,7 +74,7 @@ export default function Announcements() {
     } });
   }
 
-  const canDelete = ['super_admin', 'school_admin', 'principal', 'assistant_principal'].includes(user?.role);
+  const canDelete = ['super_admin', 'school_admin'].includes(user?.role);
 
   return (
     <>

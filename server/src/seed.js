@@ -95,8 +95,8 @@ async function seed() {
       continue;
     }
     const pw = crypto.randomBytes(12).toString('base64url');
-    await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [username, await bcrypt.hash(pw, 10), name, role, email || null, 'active']);
+    await qi('INSERT INTO users (username, password_hash, name, role, email, status, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, NULL)',
+      [username, await bcrypt.hash(pw, 12), name, role, email || null, 'active']);
     logger.info({ user: username, role }, '+ user created');
     accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }
@@ -107,8 +107,8 @@ async function seed() {
       continue;
     }
     const pw = crypto.randomBytes(12).toString('base64url');
-    await qi('INSERT INTO users (username, password_hash, name, role, email, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [username, await bcrypt.hash(pw, 10), name, role, `${username}@hinabangan-nhs.edu.ph`, 'active']);
+    await qi('INSERT INTO users (username, password_hash, name, role, email, status, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, NULL)',
+      [username, await bcrypt.hash(pw, 12), name, role, `${username}@hinabangan-nhs.edu.ph`, 'active']);
     logger.info({ user: username, role }, '+ user created');
     accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }

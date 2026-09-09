@@ -48,7 +48,9 @@ npm install
 npm run dev         # http://localhost:5173  (proxies /api -> :4000)
 ```
 
-Sign in with an account (default `superadmin` / `REDACTED`):
+Sign in with an account. Passwords are **generated randomly** when accounts are
+seeded: with `DEMO_SEED=1` the credentials are written to `accounts.txt` at the
+repo root, otherwise they are printed once in the boot log:
 
 | Username | Role |
 |---|---|

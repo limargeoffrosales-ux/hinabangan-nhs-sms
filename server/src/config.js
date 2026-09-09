@@ -3,6 +3,9 @@ const path = require('path');
 const PORT = Number(process.env.PORT || 4000);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const WEB_DIR = process.env.WEB_DIR || path.join(__dirname, '..', '..', 'web', 'dist');
+// Public base URL of the app (used to build reset links in emails). When empty,
+// reset links fall back to the request's Host header.
+const APP_URL = process.env.APP_URL || '';
 const JWT_SECRET = process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })();
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'meridianed';
 const JWT_ISSUER = process.env.JWT_ISSUER || 'meridianed';
@@ -50,4 +53,5 @@ module.exports = {
   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, NOTIFY_EMAIL_MODE,
   SMS_PROVIDER_URL, SMS_PROVIDER_TOKEN, SMS_SENDER, NOTIFY_EMAIL_ENABLED, NOTIFY_SMS_ENABLED,
   R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY, R2_SECRET_KEY, R2_PUBLIC_URL, UPLOAD_MAX_MB,
+  APP_URL,
 };

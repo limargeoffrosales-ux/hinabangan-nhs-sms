@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList, Paperclip, Upload, Trash2, Download } from 'lucide-react';
-import { api, getApiBase, getToken } from '../lib/api';
+import { api, getApiBase, getToken, getCsrfToken, friendlyAbortMessage } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
 import FileUpload from '../components/FileUpload';
@@ -482,13 +482,19 @@ function FilesModal({ submission, onClose, onNotice, onError }) {
     const file = evt.target.files[0];
     if (!file) return;
     setUploading(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 75000);
     try {
       const fd = new FormData();
       fd.append('file', file);
       const res = await fetch(`${getApiBase()}/submissions/${submission.id}/attachments`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          'X-CSRF-Token': getCsrfToken() || '',
+        },
         body: fd,
+        signal: controller.signal,
       });
       if (!res.ok) {
         let msg = `Upload failed (${res.status})`;
@@ -499,8 +505,9 @@ function FilesModal({ submission, onClose, onNotice, onError }) {
       evt.target.value = '';
       await load();
     } catch (e) {
-      onError(e.message);
+      onError(friendlyAbortMessage(e) || e.message);
     } finally {
+      clearTimeout(timer);
       setUploading(false);
     }
   }

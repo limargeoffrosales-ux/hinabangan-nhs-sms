@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Printer, ChevronDown, ChevronRight, MessageSquare, RefreshCw, FolderOpen, Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth, can } from '../lib/auth';
 import { PageHead } from '../components/ui';
 import { renderSF9Card, esc, CORE_VALUES } from './DepedForms';
 import { printElementHtml } from '../lib/export';
@@ -16,6 +17,22 @@ const TABS = [
   { id: 'chatlogs', label: 'Chat Logs', icon: MessageSquare },
   { id: 'library', label: 'Document Library', icon: FolderOpen },
 ];
+
+const AI_ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const AI_STAFF = [...AI_ADMIN, 'teacher', 'guidance'];
+
+// Mirrors the server-side requireRole allow-list on /api/v1/ai/*. A tab is
+// only shown when the signed-in role can actually call its endpoint.
+const TAB_ROLES = {
+  report: [...AI_ADMIN, 'teacher'],
+  form137: [...AI_ADMIN, 'teacher'],
+  lesson: AI_STAFF,
+  exam: AI_STAFF,
+  analytics: [...AI_ADMIN, 'teacher', 'guidance'],
+  enroll: [...AI_ADMIN, 'teacher'],
+  chatlogs: AI_ADMIN,
+  library: [...AI_ADMIN, 'teacher'],
+};
 
 function Section({ title, children }) {
   return (
@@ -840,9 +857,12 @@ function DocumentLibrary() {
 const TAB_COMPONENTS = { report: ReportCard, form137: Form137, lesson: LessonPlan, exam: ExamBuilder, analytics: StudentAnalytics, enroll: EnrollmentSuggestions, chatlogs: ChatLogs, library: DocumentLibrary };
 
 export default function AIPage() {
+  const { user } = useAuth();
+  const visibleTabs = TABS.filter((t) => can(user?.role, ...TAB_ROLES[t.id]));
+  const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : (visibleTabs[0]?.id || null);
   const [tab, setTab] = useState('report');
   const [info, setInfo] = useState(null);
-  const TabContent = TAB_COMPONENTS[tab];
+  const TabContent = TAB_COMPONENTS[activeTab];
 
   useEffect(() => { api('/ai/status').then(setInfo).catch(() => {}); }, []);
 
@@ -854,22 +874,28 @@ export default function AIPage() {
           <AlertCircle size={14} /> AI is not configured. Set <code>{info.provider === 'groq' ? 'GROQ_API_KEY' : info.provider === 'ollama' ? 'Start Ollama locally' : info.provider === 'hf' ? 'HF_API_KEY' : 'OPENAI_API_KEY'}</code> in your environment.
         </div>
       )}
-      <div className="card-top" style={{ marginBottom: 0 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {TABS.map((tabItem) => (
-            <button
-              key={tabItem.id}
-              className={`btn ${tab === tabItem.id ? 'btn-primary' : ''}`}
-              onClick={() => setTab(tabItem.id)}
-              style={{ fontSize: 13 }}
-            >
-              <tabItem.icon size={14} /> {tabItem.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{ height: 12 }} />
-      <TabContent />
+      {activeTab ? (
+        <>
+          <div className="card-top" style={{ marginBottom: 0 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {visibleTabs.map((tabItem) => (
+                <button
+                  key={tabItem.id}
+                  className={`btn ${activeTab === tabItem.id ? 'btn-primary' : ''}`}
+                  onClick={() => setTab(tabItem.id)}
+                  style={{ fontSize: 13 }}
+                >
+                  <tabItem.icon size={14} /> {tabItem.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ height: 12 }} />
+          <TabContent />
+        </>
+      ) : (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim, #6b7280)' }}>No AI tools available for your role.</div>
+      )}
     </>
   );
 }

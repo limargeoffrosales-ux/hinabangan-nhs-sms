@@ -101,7 +101,7 @@ export default function Attendance() {
           </div>
           <div>
             <label>{t('attendance.date')}</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setRoster([]); }} />
           </div>
           <button className="btn btn-primary" onClick={load} disabled={!sectionId}>{t('attendance.loadRoster')}</button>
         </div>

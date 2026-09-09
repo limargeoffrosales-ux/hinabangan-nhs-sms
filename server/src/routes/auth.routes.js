@@ -4,8 +4,12 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { q, qa, qi, qr, nowSql } = require('../db');
 const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, clearCsrfToken } = require('../auth');
-const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER } = require('../config');
+const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER, APP_URL } = require('../config');
 const { asyncH, audit } = require('../utils');
+const { userRateLimit } = require('../middleware/rate-limit');
+const { notifyEvent } = require('../notify');
+const { POLICY_KEYS, checkPasswordPolicy } = require('../password-policy');
+const { RESET_CODE_TTL_MS, RESET_MAX_ATTEMPTS, genResetCode } = require('../reset-codes');
 const logger = require('../logger');
 
 // bcrypt hash used as a password stand-in when the username doesn't exist (or
@@ -47,6 +51,33 @@ async function logSecurityIncident(type, severity, ip, username, userId, details
     );
   } catch (err) {
     logger.error({ err: err.message, type, username }, '[AUTH] failed to record security incident');
+  }
+}
+
+async function getPasswordPolicy() {
+  const rows = await qa(
+    `SELECT key, value FROM app_settings WHERE key IN (${POLICY_KEYS.map(() => '?').join(', ')})`,
+    POLICY_KEYS);
+  const policy = {};
+  for (const r of rows) policy[r.key] = r.value;
+  return {
+    minLength: Number(policy.password_min_length || 12),
+    requireUppercase: policy.password_require_uppercase !== '0',
+    requireLowercase: policy.password_require_lowercase !== '0',
+    requireDigit: policy.password_require_digit !== '0',
+    requireSpecial: policy.password_require_special !== '0',
+  };
+}
+
+let lastResetSweep = 0;
+async function maybeSweepResetCodes() {
+  const now = Date.now();
+  if (now - lastResetSweep < 15 * 60 * 1000) return;
+  lastResetSweep = now;
+  try {
+    await qr('DELETE FROM password_resets WHERE expires_at < ?', [new Date().toISOString()]);
+  } catch (err) {
+    logger.error({ err: err.message }, '[AUTH] password-reset code sweep failed');
   }
 }
 
@@ -189,35 +220,11 @@ router.post('/change-password', authenticate, asyncH(async (req, res) => {
   }
 
   // Password policy validation from app_settings
-  const policyRows = await qa(
-    "SELECT key, value FROM app_settings WHERE key IN ('password_min_length', 'password_require_uppercase', 'password_require_lowercase', 'password_require_digit', 'password_require_special')",
-    []);
-  const policy = {};
-  for (const r of policyRows) policy[r.key] = r.value;
+  const policy = await getPasswordPolicy();
+  const policyErr = checkPasswordPolicy(policy, newPassword);
+  if (policyErr) return res.status(400).json({ error: policyErr });
 
-  const minLength = Number(policy.password_min_length || 12);
-  const requireUppercase = policy.password_require_uppercase !== '0';
-  const requireLowercase = policy.password_require_lowercase !== '0';
-  const requireDigit = policy.password_require_digit !== '0';
-  const requireSpecial = policy.password_require_special !== '0';
-
-  if (String(newPassword).length < minLength) {
-    return res.status(400).json({ error: `Password must be at least ${minLength} characters` });
-  }
-  if (requireUppercase && !/[A-Z]/.test(String(newPassword))) {
-    return res.status(400).json({ error: 'Password must contain at least one uppercase letter' });
-  }
-  if (requireLowercase && !/[a-z]/.test(String(newPassword))) {
-    return res.status(400).json({ error: 'Password must contain at least one lowercase letter' });
-  }
-  if (requireDigit && !/[0-9]/.test(String(newPassword))) {
-    return res.status(400).json({ error: 'Password must contain at least one digit' });
-  }
-  if (requireSpecial && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(String(newPassword))) {
-    return res.status(400).json({ error: 'Password must contain at least one special character' });
-  }
-
-  await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [await bcrypt.hash(String(newPassword), 10), req.user.id]);
+  await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [await bcrypt.hash(String(newPassword), 12), req.user.id]);
   clearUserCache(req.user.id);
   await qi(
     'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
@@ -226,5 +233,98 @@ router.post('/change-password', authenticate, asyncH(async (req, res) => {
   await audit(req, 'CHANGE_PASSWORD', 'auth', req.user.id);
   res.json({ ok: true });
 }));
+
+// --- Self-service password reset ----------------------------------------------
+// POST /forgot-password { identifier }   — username, email, or phone.
+// POST /reset-password   { code, newPassword } — single-use 6-digit code.
+//
+// The response never reveals whether an account exists (anti-enumeration);
+// the code is delivered via the notification engine (email/SMS) to the
+// contact stored on the account. When no channel is configured or the user
+// has no contact on file, a notification row is still attempted/queued and
+// the standard fallback stays: an administrator resets the password in
+// Users > edit > set password.
+
+router.post('/forgot-password',
+  userRateLimit({ windowMs: 15 * 60 * 1000, limit: 6, message: { error: 'Too many reset requests. Try again later.' } }),
+  asyncH(async (req, res) => {
+    await maybeSweepResetCodes();
+    const identifier = String(req.body?.identifier || '').trim().slice(0, 200);
+    if (!identifier) return res.status(400).json({ error: 'identifier is required' });
+
+    const user = await q(
+      'SELECT id, username, status FROM users WHERE username = ? OR email = ? OR phone = ? LIMIT 1',
+      [identifier, identifier, identifier]);
+    if (!user || user.status !== 'active') {
+      return res.status(202).json({ ok: true, message: 'If that account exists, a reset code was sent to the contact on file.' });
+    }
+
+    // One live code per account: a new request invalidates older unused codes.
+    await qr('DELETE FROM password_resets WHERE user_id = ? AND used_at IS NULL', [user.id]);
+
+    const code = genResetCode();
+    const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MS).toISOString();
+    await qi('INSERT INTO password_resets (user_id, code_hash, expires_at, ip_address) VALUES (?, ?, ?, ?)',
+      [user.id, hashToken(code), expiresAt, req.ip]);
+
+    const base = APP_URL || `${req.protocol}://${req.get('host')}`;
+    await notifyEvent('password_reset', {
+      user_id: user.id,
+      data: { code, url: `${base}/reset-password?code=${code}` },
+    });
+    await audit(req, 'FORGOT_PASSWORD_REQUEST', 'auth', user.id, { username: user.username });
+    res.status(202).json({ ok: true, message: 'If that account exists, a reset code was sent to the contact on file.' });
+  }));
+
+router.post('/reset-password',
+  userRateLimit({ windowMs: 15 * 60 * 1000, limit: 20, message: { error: 'Too many reset attempts. Try again later.' } }),
+  asyncH(async (req, res) => {
+    await maybeSweepResetCodes();
+    const { code, newPassword } = req.body || {};
+    if (!code || !newPassword) return res.status(400).json({ error: 'code and newPassword are required' });
+    if (String(newPassword).length > 128) return res.status(400).json({ error: 'Password too long' });
+
+    const policy = await getPasswordPolicy();
+    const policyErr = checkPasswordPolicy(policy, newPassword);
+    if (policyErr) return res.status(400).json({ error: policyErr });
+
+    const row = await q('SELECT * FROM password_resets WHERE code_hash = ?', [hashToken(String(code).trim())]);
+    if (!row) return res.status(400).json({ error: 'Invalid or expired reset code' });
+
+    if (row.used_at) {
+      await qr('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', [row.id]);
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    }
+    if (new Date(row.expires_at) < new Date()) {
+      await qr('DELETE FROM password_resets WHERE id = ?', [row.id]);
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    }
+    if (Number(row.attempts || 0) >= RESET_MAX_ATTEMPTS) {
+      await qr('DELETE FROM password_resets WHERE id = ?', [row.id]);
+      await logSecurityIncident('PASSWORD_RESET_BRUTE_FORCE', 'high', req.ip, null, row.user_id, {});
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    }
+
+    const user = await q('SELECT id, username, status FROM users WHERE id = ?', [row.user_id]);
+    if (!user || user.status !== 'active') {
+      await qr('DELETE FROM password_resets WHERE id = ?', [row.id]);
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    }
+
+    await qr(
+      'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, failed_attempts = 0, locked_until = NULL WHERE id = ?',
+      [await bcrypt.hash(String(newPassword), 12), user.id]);
+    await qr('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ?', [row.id]);
+    // A successful reset is a full session reset: kill all refresh tokens so
+    // any device signed in with the old password loses access.
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
+    clearCsrfToken(user.id);
+    clearUserCache(user.id);
+    await qi(
+      'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+      [user.id, user.id, 'reset', req.ip]);
+    await audit(req, 'PASSWORD_RESET', 'auth', user.id, { username: user.username });
+    res.json({ ok: true });
+  }));
 
 module.exports = router;

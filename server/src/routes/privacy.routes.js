@@ -37,6 +37,7 @@ const TABLE_MAP = {
   notifications: 'notifications',
   audit_logs: 'audit_logs',
   data_access_logs: 'data_access_logs',
+  ai_chat_logs: 'ai_chat_logs',
 };
 
 async function runPurge(policy, req) {
@@ -221,6 +222,17 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
   const photoKey = fileKeyFromUrl(student && student.photo_url);
   await db.tx(async (conn) => {
     await conn.qr('DELETE FROM intervention_contacts WHERE plan_id IN (SELECT id FROM intervention_plans WHERE student_id = ?)', [studentId]);
+    // medicine_dispenses link through clinic_visits, so clear them BEFORE deleting the visits.
+    await conn.qr('DELETE FROM medicine_dispenses WHERE visit_id IN (SELECT id FROM clinic_visits WHERE student_id = ?)', [studentId]);
+    // Consent responses must be erased too: either directly by student_id (newer
+    // rows) or, for legacy rows signed before consent binds a student and that
+    // are not yet linked to another student, by any of this student's parents.
+    // Parent-signed consents that ARE linked to another student keep that link.
+    await conn.qr(
+      'DELETE FROM consent_responses WHERE student_id = ? OR (student_id IS NULL AND user_id IN (SELECT parent_user_id FROM parent_students WHERE student_id = ?))',
+      [studentId, studentId]);
+    // Access-log rows referencing the erased student are part of their data trail.
+    await conn.qr('DELETE FROM data_access_logs WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM grades WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM attendance WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM enrollments WHERE student_id = ?', [studentId]);
@@ -239,6 +251,10 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
     await conn.qr('DELETE FROM student_competency_scores WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_health WHERE student_id = ?', [studentId]);
     await conn.qr("DELETE FROM book_borrows WHERE borrower_type = 'student' AND borrower_id = ?", [studentId]);
+    // AI chat history is free-text and has no student column, so any message may
+    // reference the erased student (or anyone) — removing it entirely is the only
+    // way to guarantee the student's data no longer exists in it.
+    await conn.qr('DELETE FROM ai_chat_logs');
     await conn.qr('DELETE FROM students WHERE id = ?', [studentId]);
   });
   if (photoKey) {
@@ -246,14 +262,18 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
       logger.error({ err: err.message, key: photoKey }, '[ERASURE] failed to delete student photo');
     });
   }
+  // Strip the gathered PII before persisting: storing a full snapshot of erased
+  // data on the request row would leave a permanent copy of the very PII the
+  // erasure removes. Only a redacted receipt (per-table row counts) is kept.
+  const receipt = summarizeBundle(bundle);
   await qr(
     `UPDATE data_erasure_requests
      SET status = 'processed', processed_by = ?, processed_at = ${nowSql()},
          exported_json = ?
      WHERE id = ?`,
-    [req.user.id, JSON.stringify(bundle), reqRow.id]);
+    [req.user.id, JSON.stringify(receipt), reqRow.id]);
   await audit(req, 'ERASURE_REQUEST_APPROVE', 'data_erasure_requests', reqRow.id,
-    { student_id: studentId, tables_erased: 20, photo_deleted: !!photoKey });
+    { student_id: studentId, tables_erased: 24, photo_deleted: !!photoKey });
   res.json({ ok: true, status: 'processed' });
 }));
 
@@ -262,7 +282,7 @@ async function gatherStudentPii(studentId) {
   const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
   if (!student) return { student: null };
   const [contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access,
-    assessments, aral, submissions, health, borrows, conduct, jdvp] =
+    assessments, aral, submissions, health, borrows, conduct, jdvp, dispenses, consents] =
     await Promise.all([
       qa('SELECT * FROM parent_students WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM attendance WHERE student_id = ?', [studentId]),
@@ -282,8 +302,20 @@ async function gatherStudentPii(studentId) {
       qa("SELECT * FROM book_borrows WHERE borrower_type = 'student' AND borrower_id = ?", [studentId]),
       qa('SELECT * FROM student_conduct_records WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM jdvp_recipients WHERE student_id = ?', [studentId]),
+      qa('SELECT md.* FROM medicine_dispenses md JOIN clinic_visits cv ON cv.id = md.visit_id WHERE cv.student_id = ?', [studentId]),
+      qa('SELECT * FROM consent_responses WHERE student_id = ? OR (student_id IS NULL AND user_id IN (SELECT parent_user_id FROM parent_students WHERE student_id = ?))', [studentId, studentId]),
     ]);
-  return { student, contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access, assessments, aral, submissions, health, borrows, conduct, jdvp };
+  return { student, contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access, assessments, aral, submissions, health, borrows, conduct, jdvp, dispenses, consents };
+}
+
+// Redact a gathered PII bundle into a non-personal receipt for the audit trail.
+function summarizeBundle(bundle) {
+  const counts = {};
+  for (const [key, rows] of Object.entries(bundle)) {
+    if (key === 'student') continue;
+    if (Array.isArray(rows)) counts[key] = rows.length;
+  }
+  return { erased: true, note: 'PII intentionally not retained after processing; per-table record counts only', tables: counts };
 }
 
 module.exports = router;

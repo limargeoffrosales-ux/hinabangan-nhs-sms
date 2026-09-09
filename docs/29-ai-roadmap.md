@@ -39,6 +39,32 @@ consent and only for non-PII workloads.
 | P1 — Assistant v1 | 2028 | Lesson/DLL planner, exam & question generator, PPT/rubric/activity generators, writing assistant, OCR scanner, academic analytics, chatbot v1, recommendation engine v1 | Open small LLM + retrieval (RAG) on GKE; OCR open-source; on-prem option |
 | P2 — Predictive & advanced | 2029 | Student risk prediction (dropout/at-risk), attendance pattern analysis, AI grading assistant (human-in-the-loop), voice assistant, chatbot v2 (multilingual + code-switching) | Fine-tuned small models; grading with strict HITL |
 
+> **As-built (deployed today):** the MVP already ships generative AI behind
+> `GROQ_API_KEY` (policy Q&A chatbot, draft report cards / Form 137 / lesson
+> plans / exams, student analytics, enrollment tips). Role access is a
+> deliberate per-route decision — see §2a below.
+
+## 2a. AI role access matrix (as built)
+
+| AI surface | Roles allowed | Notes |
+|---|---|---|
+| `/ai/status` | any authenticated user | Provider health only; drives the UI's "AI online/offline" state |
+| `/ai/chat` (floating assistant) | all staff + `student` + `parent` | Generic policy/support Q&A; prompts carry no tenant data (only "logged in as <name> (<role>)"). Role-aware scoped answers are a future P2 target (docs below) |
+| `/ai/lesson-plan`, `/ai/exam` | all staff (`super_admin`…`guidance`) | No learner data involved |
+| `/ai/report` | admin + `teacher` | Teacher calls are scoped to their advisory/assigned sections |
+| `/ai/analyze` | admin + `teacher` + `guidance` | Teachers are scoped to their classes; guidance is school-wide |
+| `/ai/enrollment-suggest` | admin + `teacher` | Teachers scoped to their classes |
+| `/ai/form-137` | admin + `teacher` + `registrar` | Registrars generate official forms |
+| `/ai/chat-logs`, `/ai/chat-logs/stats` | admin | Conversation history and usage stats |
+
+The web UI mirrors the matrix: the floating assistant appears for staff and
+portal users; the AI workbench (`/ai`) and its per-tool tabs are shown only to
+roles the server allow-lists. AI conversations are written to `ai_chat_logs`
+(audit-visible, staff/admin-visible) and are **purged on student erasure** to
+avoid retaining personal data. Student/parent conversations use
+default no-context mode, so chat logs contain no learner PII beyond the
+account's own identity.
+
 ## 3. Phase P0 — AI insights placeholders (MVP)
 
 The MVP exposes an "AI Insights" area that MUST contain, without any ML:

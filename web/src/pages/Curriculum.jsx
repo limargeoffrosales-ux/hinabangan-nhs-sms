@@ -25,13 +25,14 @@ const TYPE_BADGE = { knowledge: 'blue', skill: 'green', understanding: 'purple',
 export default function Curriculum() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal');
+  const canWrite = can(user?.role, 'super_admin', 'school_admin');
 
   const [tab, setTab] = useState(TABS[0]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [tracks, setTracks] = useState([]);
+  const [strands, setStrands] = useState([]);
   const [expandedTrack, setExpandedTrack] = useState(null);
 
   const [competencies, setCompetencies] = useState([]);
@@ -66,6 +67,15 @@ export default function Curriculum() {
     try {
       const res = await api('/curriculum/tracks?limit=300');
       setTracks(res.data);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, []);
+
+  const loadStrands = useCallback(async () => {
+    try {
+      const res = await api('/curriculum/strands?limit=500');
+      setStrands(res.data);
     } catch (e) {
       setError(e.message);
     }
@@ -109,19 +119,19 @@ export default function Curriculum() {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([loadTracks(), loadSubjects()]);
+      await Promise.all([loadTracks(), loadStrands(), loadSubjects()]);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [loadTracks, loadSubjects]);
+  }, [loadTracks, loadStrands, loadSubjects]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { if (tab === 'Competencies') loadCompetencies(); }, [tab, compTrackFilter, compStrandFilter, compGradeFilter, compQuarterFilter, compTypeFilter, loadCompetencies]);
   useEffect(() => { if (tab === 'Subject Mapping') { loadSubjects(); loadMappings(); } }, [tab, mapSubjectId, loadSubjects, loadMappings]);
 
-  const allStrands = tracks.flatMap((t) => (t.strands || []).map((s) => ({ ...s, track_name: t.name, track_code: t.code })));
+  const allStrands = strands.map((s) => ({ ...s, track_name: s.track_name || (tracks.find((t) => String(t.id) === String(s.track_id)) || {}).name || null }));
   const filteredStrands = compTrackFilter ? allStrands.filter((s) => String(s.track_id) === String(compTrackFilter)) : allStrands;
 
   function setTrack(k, v) { setTrackForm((f) => ({ ...f, [k]: v })); }
@@ -166,7 +176,7 @@ export default function Curriculum() {
       if (strandEditing) await api(`/curriculum/strands/${strandEditing}`, { method: 'PATCH', body: strandForm });
       else await api('/curriculum/strands', { method: 'POST', body: strandForm });
       setStrandModal(false);
-      await loadTracks();
+      await Promise.all([loadTracks(), loadStrands()]);
     } catch (e2) { setError(e2.message); }
   }
 
@@ -174,7 +184,7 @@ export default function Curriculum() {
     setConfirmAction({ message: t('cur.deleteStrandConfirm', { name: s.name }), action: async () => {
       try {
         await api(`/curriculum/strands/${s.id}`, { method: 'DELETE' });
-        await loadTracks();
+        await Promise.all([loadTracks(), loadStrands()]);
       } catch (e2) { setError(e2.message); }
     } });
   }
@@ -268,7 +278,7 @@ export default function Curriculum() {
                   </thead>
                   <tbody>
                     {tracks.map((tr) => {
-                      const strands = tr.strands || [];
+                      const strandsForTrack = strands.filter((s) => String(s.track_id) === String(tr.id));
                       const isExpanded = expandedTrack === tr.id;
                       return [
                         <tr key={tr.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedTrack(isExpanded ? null : tr.id)}>
@@ -276,7 +286,7 @@ export default function Curriculum() {
                           <td style={{ fontFamily: 'monospace' }}><strong>{tr.code}</strong></td>
                           <td>{tr.name}</td>
                           <td className="sub">{tr.description || '—'}</td>
-                          <td style={{ textAlign: 'center' }}><Badge status={strands.length ? 'active' : 'normal'} /> {strands.length}</td>
+                          <td style={{ textAlign: 'center' }}><Badge status={strandsForTrack.length ? 'active' : 'normal'} /> {strandsForTrack.length}</td>
                           {canWrite && (
                             <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                               <button className="btn btn-sm" onClick={() => openEditTrack(tr)} aria-label="Edit track"><Pencil size={13} aria-hidden="true" /></button>{' '}
@@ -285,7 +295,7 @@ export default function Curriculum() {
                             </td>
                           )}
                         </tr>,
-                        isExpanded && strands.map((s) => (
+                        isExpanded && strandsForTrack.map((s) => (
                           <tr key={`s-${s.id}`} style={{ background: 'var(--bg-muted, #f9f9fb)' }}>
                             <td></td>
                             <td style={{ fontFamily: 'monospace', paddingLeft: 28 }}>{s.code}</td>

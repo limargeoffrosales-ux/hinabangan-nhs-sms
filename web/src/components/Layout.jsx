@@ -68,6 +68,8 @@ const TOOL_NAV = [
 
 const STAFF_HIDDEN = ['/programs', '/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/privacy', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
 
+const AI_STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
+
 function FileSpreadsheet(props) {
   return <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
 }
@@ -78,6 +80,7 @@ export default function Layout({ children }) {
   const { t, i18n } = useTranslation();
   const isAdmin = can(user?.role, 'super_admin', 'school_admin');
   const isSuperAdmin = can(user?.role, 'super_admin');
+  const isAIStaff = can(user?.role, ...AI_STAFF);
   const [theme, setTheme] = useState(() => {
     const s = localStorage.getItem('meridianed_theme') || 'midnight';
     return LEGACY_MAP[s] || s;
@@ -166,7 +169,7 @@ export default function Layout({ children }) {
           </NavLink>
         ))}
         <div className="nav-label">{t('nav.operations')}</div>
-        {NAV.slice(6).filter((n) => (isAdmin || !STAFF_HIDDEN.includes(n.to)) && (!n.adminOnly || isSuperAdmin)).map((n) => (
+        {NAV.slice(6).filter((n) => (isAdmin || !STAFF_HIDDEN.includes(n.to)) && (!n.adminOnly || (n.to === '/ai' ? isAIStaff : isSuperAdmin))).map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
             <n.icon size={17} /> <span>{t(n.labelKey)}</span>
           </NavLink>

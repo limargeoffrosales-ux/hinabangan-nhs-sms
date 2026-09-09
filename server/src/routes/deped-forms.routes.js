@@ -212,15 +212,35 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const qtr = termToQuarter(term);
   const grades = await qa(
     db.dialect === 'pg'
-      ? `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.remarks
+      ? `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.quarterly_exam, g.remarks
          FROM grades g
          WHERE g.section_id = $1::bigint ${qtr ? 'AND g.quarter = $2::int' : ''}`
-      : `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.remarks
+      : `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.quarterly_exam, g.remarks
          FROM grades g
          WHERE g.section_id = ? ${qtr ? 'AND g.quarter = ?' : ''}`,
     [section_id, ...(qtr ? [qtr] : [])]
   );
-  res.json({ students, subjects, grades, section });
+  // Per-subject analysis: Mean + MPS, Highest-Lowest range, below-75 count in the
+  // (Final term = selected) quarter's Quarterly Examination. When no term is picked,
+  // fall back to the latest quarter that has exam data.
+  const knownQuarters = [...new Set(grades.map((g) => g.quarter).filter((q) => q != null && q !== ''))];
+  const effQuarter = qtr || (knownQuarters.length ? Math.max(...knownQuarters.map((q) => Number(q))) : null);
+  const analysisRows = effQuarter != null ? grades.filter((g) => Number(g.quarter) === Number(effQuarter)) : grades;
+  const analysis = subjects.map((sub) => {
+    const rows = analysisRows.filter((g) => Number(g.subject_id) === Number(sub.id));
+    const finals = rows.map((g) => Number(g.computed_grade)).filter((v) => Number.isFinite(v) && v > 0);
+    const exams = rows.map((g) => Number(g.quarterly_exam)).filter((v) => Number.isFinite(v) && v > 0);
+    return {
+      subject_id: sub.id,
+      mean: finals.length ? finals.reduce((a, b) => a + b, 0) / finals.length : null,
+      mps: exams.length ? exams.reduce((a, b) => a + b, 0) / exams.length : null,
+      highest: finals.length ? Math.max(...finals) : null,
+      lowest: finals.length ? Math.min(...finals) : null,
+      below_75_count: exams.filter((v) => v < 75).length,
+      exam_count: exams.length,
+    };
+  });
+  res.json({ students, subjects, grades, section, term: effQuarter, analysis });
 }));
 
 router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
@@ -572,13 +592,25 @@ router.get('/sf9/full', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, term, school_year } = req.query;
   if (!section_id) return res.json({ learners: [] });
+  const pageSize = Math.min(Math.max(parseInt(req.query.page_size, 10) || 50, 1), 200);
+  const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const offset = (pageNum - 1) * pageSize;
+  const totalRow = await q(
+    `SELECT COUNT(*) AS total
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     WHERE e.section_id = ?`,
+    [section_id]
+  );
+  const total = Number(totalRow?.total || 0);
   const learners = await qa(
     `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix, s.lrn
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
-     ORDER BY s.last_name, s.first_name`,
-    [section_id]
+     ORDER BY s.last_name, s.first_name
+     LIMIT ? OFFSET ?`,
+    [section_id, pageSize, offset]
   );
   const ids = learners.map((lr) => lr.id);
   const marks = ids.map(() => '?').join(',');
@@ -662,7 +694,10 @@ router.get('/sf9/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => 
     const conduct = conductRows.find((c) => c.school_year === sy) || conductRows[0] || null;
     return { student: stMap.get(sid) || null, enrollment, grades, attendance, days_enrolled: daysEnrolled, conduct };
   });
-  res.json({ learners: result });
+  res.json({
+    learners: result,
+    pagination: { page: pageNum, page_size: pageSize, total, total_pages: Math.max(Math.ceil(total / pageSize), 1) },
+  });
 }));
 
 router.get('/attendance-summary', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {

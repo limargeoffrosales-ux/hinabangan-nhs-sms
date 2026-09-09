@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target, GitBranch, Clock } from 'lucide-react';
+import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target, GitBranch, Clock, BarChart3 } from 'lucide-react';
 import { api, getCurrentSchoolYear } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
+import { SCHOOL_YEARS } from '../lib/constants';
 import { Spinner, Modal } from './ui';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
-const SCHOOL_YEARS = ['2027-2028', '2026-2027', '2025-2026', '2024-2025'];
 const STATUS_COLORS = { present: 'badge-green', absent: 'badge-red', late: 'badge-yellow', on_leave: 'badge-blue' };
 const TEACHER_STATUSES = ['present', 'absent', 'on_leave'];
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
@@ -45,6 +45,9 @@ export default function DashboardSections() {
   const [jdvp, setJdvp] = useState(null);
   const [aral, setAral] = useState(null);
   const [progress, setProgress] = useState(null);
+  const [quarter, setQuarter] = useState(1);
+  const [qSection, setQSection] = useState('');
+  const [qReport, setQReport] = useState(null);
   const [aralAtt, setAralAtt] = useState(null);
   const [aralProg, setAralProg] = useState(null);
   const [strandDist, setStrandDist] = useState(null);
@@ -121,6 +124,21 @@ export default function DashboardSections() {
     })();
     return () => { dead = true; };
   }, [sy, term, date]);
+
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const qs = `school_year=${encodeURIComponent(sy)}&quarter=${quarter}`
+          + (qSection ? `&section_id=${encodeURIComponent(qSection)}` : '');
+        const r = await api(`/dashboard/quarterly-report?${qs}`);
+        if (!dead) setQReport(r);
+      } catch (e) {
+        if (!dead) setError(e.message);
+      }
+    })();
+    return () => { dead = true; };
+  }, [sy, quarter, qSection, reloadTick]);
 
   useEffect(() => {
     let dead = false;
@@ -661,6 +679,55 @@ export default function DashboardSections() {
           </table>
         </div>
         {progress && progress.data.length > 100 && <div className="sub" style={{ marginTop: 6 }}>Showing first 100 of {progress.data.length} learners.</div>}
+      </div>
+
+      {/* 10b — Quarterly subject performance (mean, MPS, grade range) */}
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><BarChart3 size={16} /> Quarterly Report — Subject Mean &amp; MPS — {sy}, Q{quarter}</h3>
+          <div className="kpi-row">
+            <StatChip label="Subjects" value={qReport?.summary.subjects ?? 0} color="#4D96FF" />
+            <StatChip label="Overall mean" value={qReport?.summary.overall_mean != null ? Number(qReport.summary.overall_mean).toFixed(1) : '—'} color="#2FD6A0" />
+            <StatChip label="Overall MPS" value={qReport?.summary.overall_mps != null ? Number(qReport.summary.overall_mps).toFixed(1) : '—'} color="#A78BFA" />
+            <StatChip label="Below 75 in exam" value={qReport?.summary.below_75_learners ?? 0} color="#F2555A" />
+          </div>
+        </div>
+        <div className="filter-row" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap', display: 'flex', alignItems: 'center' }}>
+          <div className="seg">
+            {[1, 2, 3].map((q) => (
+              <button key={q} type="button" className={quarter === q ? 'on' : ''} onClick={() => { setQuarter(q); setQReport(null); }}>Q{q}</button>
+            ))}
+          </div>
+          <select value={qSection} onChange={(e) => { setQSection(e.target.value); setQReport(null); }}>
+            <option value="">All sections</option>
+            {sections.map((s) => (
+              <option key={s.id} value={s.id}>{s.grade_level} — {s.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="table-wrap" style={{ marginTop: 12, maxHeight: 420, overflowY: 'auto' }}>
+          <table>
+            <thead>
+              <tr><th>Subject</th><th style={{ textAlign: 'center' }}>Students</th><th style={{ textAlign: 'center' }}>Mean Grade</th><th style={{ textAlign: 'center' }}>MPS</th><th style={{ textAlign: 'center' }}>Highest</th><th style={{ textAlign: 'center' }}>Lowest</th><th style={{ textAlign: 'center' }}>Below 75</th></tr>
+            </thead>
+            <tbody>
+              {(!qReport || qReport.subjects.length === 0) && (
+                <tr><td colSpan={7} className="sub">No grades recorded{qSection ? ' for the selected section' : ''} in Q{quarter} {sy}.</td></tr>
+              )}
+              {qReport?.subjects.map((r) => (
+                <tr key={r.subject_id}>
+                  <td>{r.code ? `${r.code} — ` : ''}{r.title}</td>
+                  <td style={{ textAlign: 'center' }}>{r.students}</td>
+                  <td style={{ textAlign: 'center' }}><strong>{r.mean != null ? Number(r.mean).toFixed(1) : '—'}</strong></td>
+                  <td style={{ textAlign: 'center' }}>{r.mps != null ? Number(r.mps).toFixed(1) : '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{r.highest != null ? Number(r.highest).toFixed(1) : '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{r.lowest != null ? Number(r.lowest).toFixed(1) : '—'}</td>
+                  <td style={{ textAlign: 'center' }}><span className={`badge ${r.below_75 > 0 ? 'badge-red' : 'badge-green'}`}>{r.below_75}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* 11 — Aral program attendance (remediation sessions) */}

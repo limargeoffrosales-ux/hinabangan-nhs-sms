@@ -59,6 +59,7 @@ router.post('/unregister', authenticate, async (req, res) => {
 // account. Provide the service account JSON via the FCM_SERVICE_ACCOUNT env var.
 let _fcmToken = null;
 let _fcmTokenExp = 0;
+let _fcmProjectId = null;
 
 function parseFcmServiceAccount() {
   const raw = process.env.FCM_SERVICE_ACCOUNT;

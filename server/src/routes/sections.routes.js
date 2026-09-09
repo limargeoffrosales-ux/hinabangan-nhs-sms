@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
-router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const schoolYear = req.query.school_year || null;
   let sql = 'SELECT s.*, t.first_name || \' \' || t.last_name AS adviser_name FROM sections s LEFT JOIN teachers t ON t.id = s.adviser_teacher_id';
@@ -28,7 +28,7 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   res.json({ data: await qa(sql, params), limit, offset });
 }));
 
-router.get('/:id/students', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+router.get('/:id/students', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
   if (req.role === 'teacher') {
     const chk = await ensureTeacherSeesSection(req.user, req.params.id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });

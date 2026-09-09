@@ -5,7 +5,7 @@ import App from './App';
 import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/Toast';
 import i18n from './i18n';
-import { initSentry } from './sentry';
+import { initSentry, Sentry } from './sentry';
 import './styles.css';
 
 const LEGACY_MAP = { dark: 'midnight', light: 'light' };

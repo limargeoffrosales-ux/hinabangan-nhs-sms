@@ -1,15 +1,18 @@
 const express = require('express');
 const { q, qa, qi, qr } = require('../db');
-const { authenticate, requireRole } = require('../auth');
+const { authenticate, requireRole, ADMIN_ROLES } = require('../auth');
 const { asyncH, audit } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
+// Reads are available to all admin roles (page is behind the AdminOnly guard);
+// writes are reserved for super_admin / school_admin.
 const WRITE = ['super_admin', 'school_admin'];
+const READ = ADMIN_ROLES;
 
 /* ── Tracks ────────────────────────────────────────────── */
 
-router.get('/tracks', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/tracks', requireRole(...READ), asyncH(async (req, res) => {
   let sql = 'SELECT * FROM tracks';
   const params = [];
   if (req.query.active === '1') {
@@ -63,7 +66,7 @@ router.delete('/tracks/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 
 /* ── Strands ───────────────────────────────────────────── */
 
-router.get('/strands', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/strands', requireRole(...READ), asyncH(async (req, res) => {
   let sql =
     `SELECT st.*, tr.name AS track_name
      FROM strands st
@@ -127,7 +130,7 @@ router.delete('/strands/:id', requireRole(...WRITE), asyncH(async (req, res) => 
 
 /* ── Competencies ──────────────────────────────────────── */
 
-router.get('/competencies', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/competencies', requireRole(...READ), asyncH(async (req, res) => {
   let sql =
     `SELECT c.*, st.name AS strand_name, tr.name AS track_name
      FROM competencies c
@@ -193,7 +196,7 @@ router.delete('/competencies/:id', requireRole(...WRITE), asyncH(async (req, res
 
 /* ── Subject-Competency mapping ────────────────────────── */
 
-router.get('/subject-competencies', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/subject-competencies', requireRole(...READ), asyncH(async (req, res) => {
   const subjectId = req.query.subject_id;
   if (!subjectId) return res.status(400).json({ error: 'subject_id is required' });
   const data = await qa(
@@ -237,7 +240,7 @@ router.delete('/subject-competencies/:id', requireRole(...WRITE), asyncH(async (
 
 /* ── Subject Prerequisites ─────────────────────────────── */
 
-router.get('/prerequisites', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/prerequisites', requireRole(...READ), asyncH(async (req, res) => {
   const subjectId = req.query.subject_id;
   if (!subjectId) return res.status(400).json({ error: 'subject_id is required' });
   const data = await qa(
@@ -281,7 +284,7 @@ router.delete('/prerequisites/:id', requireRole(...WRITE), asyncH(async (req, re
 
 /* ── Summary / Dashboard ───────────────────────────────── */
 
-router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/summary', requireRole(...READ), asyncH(async (req, res) => {
   const [tracks] = await qa('SELECT COUNT(*) AS count FROM tracks');
   const [strands] = await qa('SELECT COUNT(*) AS count FROM strands');
   const [competencies] = await qa('SELECT COUNT(*) AS count FROM competencies');

@@ -10,7 +10,9 @@
     "seed": "node --env-file-if-exists=.env src/seed.js",
     "backup": "node scripts/backup.js",
     "backup:list": "node scripts/backup.js --list",
-    "backup:cleanup": "node scripts/backup.js --cleanup"
+    "backup:cleanup": "node scripts/backup.js --cleanup",
+    "backup:drill": "node scripts/backup.js --drill",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "engines": {
     "node": ">=22.5.0"

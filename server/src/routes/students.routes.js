@@ -20,7 +20,7 @@ async function uniqueLrn() {
   throw new Error('Could not allocate a unique LRN');
 }
 
-router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const q2 = req.query.q ? `%${req.query.q}%` : '%';
   const gradeLevel = req.query.grade_level ? req.query.grade_level : null;
@@ -40,7 +40,11 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   }
   sql += ' ORDER BY last_name, first_name LIMIT ? OFFSET ?';
   params.push(limit, offset);
-  res.json({ data: await qa(sql, params), limit, offset });
+  const rows = await qa(sql, params);
+  if (req.role === 'teacher' || req.role === 'guidance') {
+    for (const r of rows) maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']);
+  }
+  res.json({ data: rows, limit, offset });
 }));
 
 function computeAge(birthdate) {
@@ -53,7 +57,7 @@ function computeAge(birthdate) {
   return age;
 }
 
-router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+router.get('/:id', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM students WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
   if (req.role === 'teacher') {
@@ -63,7 +67,7 @@ router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => 
   logAccess(req, row.id);
   row.enrollments = await qa('SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id WHERE e.student_id = ? ORDER BY e.school_year DESC', [row.id]);
   row.age = computeAge(row.birth_date);
-  if (req.role === 'teacher') {
+  if (req.role === 'teacher' || req.role === 'guidance') {
     maskPII(row, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']);
   }
   res.json(row);

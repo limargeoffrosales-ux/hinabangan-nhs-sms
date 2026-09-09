@@ -750,10 +750,47 @@ ${students.length ? students.map(st => {
   </tr>`;
 }).join('') : blankRows(30, subjects.length + 5)}
 </tbody></table>
+${renderSF5Analysis(data, subjects, gradeMap)}
 <div class="small" style="margin:6pt 0;">
   <strong>Remarks:</strong> Promoted (&#8805;75) | Conditionally Promoted (60-74) | Retained (&lt;60)
 </div>
 ${signatureBlockHtml('', 'Class Adviser', '', 'School Head')}`;
+}
+
+function renderSF5Analysis(data, subjects) {
+  const analysis = Array.isArray(data?.analysis) ? data.analysis : [];
+  if (!analysis.length || !subjects.length) return '';
+  const fmtNum = (v, dec) => v == null ? '—' : Number(v).toFixed(dec == null ? 1 : dec);
+  const rows = [
+    { label: 'Mean', get: (a) => fmtNum(a.mean) },
+    { label: 'MPS (Quarterly Exam)', get: (a) => fmtNum(a.mps) },
+    { label: 'Highest Grade', get: (a) => fmtNum(a.highest) },
+    { label: 'Lowest Grade', get: (a) => fmtNum(a.lowest) },
+    { label: 'Below 75 in Exam', get: (a) => a.exam_count ? `${a.below_75_count} of ${a.exam_count}` : '—' },
+  ];
+  const termLabel = (term, sy) => {
+    if (term == null) return '';
+    const month = `Quarter ${term}`;
+    return `${month} of ${esc(sy || '____-____')}`;
+  };
+  return `
+<table style="font-size:7pt;margin-top:6pt;">
+  <caption style="font-size:7.5pt;font-weight:bold;text-align:left;padding:2pt 0;">Class Analysis per Subject ${data.term != null ? `— ${termLabel(data.term, data.section?.school_year)}` : ''}</caption>
+  <thead><tr>
+    <th style="min-width:90pt">Statistic</th>
+    ${subjects.map(sub => `<th style="min-width:45pt">${esc(sub.title || sub.name)}</th>`).join('')}
+  </tr></thead>
+  <tbody>
+    ${rows.map(r => `<tr><td>${r.label}</td>${subjects.map(sub => {
+      const a = analysis.find(x => String(x.subject_id) === String(sub.id));
+      return `<td class="c">${a ? r.get(a) : '—'}</td>`;
+    }).join('')}</tr>`).join('')}
+  </tbody>
+</table>
+<div class="small" style="margin:6pt 0;">
+  <strong>Mean:</strong> average Final Grade &nbsp;|&nbsp; <strong>MPS (Mean Percentage Score):</strong> average Quarterly Examination score &
+  <strong>Below 75 in Exam:</strong> learners scoring below 75 in the Quarterly Examination.
+</div>`;
 }
 
 function renderSF5Blank(info) { return renderSF5(null, info); }

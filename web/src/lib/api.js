@@ -4,6 +4,17 @@ const BASE_KEY = 'meridianed_api_base';
 const USER_KEY = 'meridianed_user';
 const CSRF_KEY = 'meridianed_csrf';
 const UNAUTHORIZED_EVENT = 'meridianed:unauthorized';
+const ABORT_RE = /aborted/i;
+
+// Browser-cancelled requests and AbortController timeouts both surface as an
+// opaque AbortError whose message is "signal is aborted without reason".
+// Translate it everywhere so that text never reaches the UI.
+export function friendlyAbortMessage(err) {
+  if (err && (err.name === 'AbortError' || ABORT_RE.test(String(err.message)))) {
+    return 'Request was interrupted — please try again.';
+  }
+  return null;
+}
 
 export function getApiBase() {
   const stored = localStorage.getItem(BASE_KEY);
@@ -68,11 +79,15 @@ export function clearSession() {
 let currentSchoolYearPromise = null;
 
 // Fetches the server-driven current school year (cached per session).
+// Wrapped in a timeout so a hung cold start can never pin the promise forever.
 export function getCurrentSchoolYear() {
   if (!currentSchoolYearPromise) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
     currentSchoolYearPromise = fetch(`${getApiBase()}/school-year`, {
       method: 'GET',
       headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      signal: controller.signal,
     })
       .then(async (res) => {
         if (!res.ok) throw new Error('bad status');
@@ -80,7 +95,10 @@ export function getCurrentSchoolYear() {
         return data.school_year || null;
       })
       .catch(() => null)
-      .finally(() => { currentSchoolYearPromise = null; });
+      .finally(() => {
+        clearTimeout(timer);
+        currentSchoolYearPromise = null;
+      });
   }
   return currentSchoolYearPromise;
 }
@@ -90,17 +108,26 @@ export function notifyUnauthorized() {
 }
 
 async function requestCsrfToken() {
-  const res = await fetch(`${getApiBase()}/auth/csrf-token`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) return false;
-  const data = await res.json();
-  if (data.csrfToken) {
-    sessionStorage.setItem(CSRF_KEY, data.csrfToken);
-    return true;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${getApiBase()}/auth/csrf-token`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${getToken()}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data.csrfToken) {
+      sessionStorage.setItem(CSRF_KEY, data.csrfToken);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
-  return false;
 }
 
 function isCsrfFailure(status, message) {
@@ -111,7 +138,7 @@ function isCsrfFailure(status, message) {
 }
 
 async function apiInternal(path, opts) {
-  const { method = 'GET', body, auth = true, timeoutMs = 30000 } = opts;
+  const { method = 'GET', body, auth = true, timeoutMs = 75000 } = opts;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
@@ -120,14 +147,31 @@ async function apiInternal(path, opts) {
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   try {
-    const res = await fetch(`${getApiBase()}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
-      signal: controller.signal,
-    });
+    let res;
+    try {
+      res = await fetch(`${getApiBase()}${path}`, {
+        method,
+        headers,
+        body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      // fetch aborts for two reasons: our timeout, or the browser cancelling
+      // the request (navigation, connection drop, resource pressure). Both
+      // surface as an opaque AbortError ("signal is aborted without reason") —
+      // turn them into errors people can act on.
+      if (timedOut) {
+        const e = new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+        e.status = 408;
+        throw e;
+      }
+      const abortMsg = friendlyAbortMessage(err);
+      if (abortMsg) throw new Error(abortMsg);
+      throw err;
+    }
     if (res.status === 401 && auth) {
       const ok = await tryRefresh();
       if (ok) return apiInternal(path, opts);
@@ -175,6 +219,10 @@ export async function api(path, opts = {}) {
         }
       }
     }
+    // Last-resort guard: no remaining abort (browser-cancelled request) may
+    // surface the opaque "signal is aborted without reason" text to the UI.
+    const abortMsg = friendlyAbortMessage(err);
+    if (abortMsg) throw new Error(abortMsg);
     throw err;
   }
 }
@@ -191,18 +239,26 @@ async function tryRefresh() {
 async function doRefresh() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
   try {
     const res = await fetch(`${getApiBase()}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
+      signal: controller.signal,
     });
     if (!res.ok) return false;
     const data = await res.json();
-    setSession(data.token, data.refreshToken);
+    // The server rotates the refresh token AND the CSRF token on every refresh;
+    // persisting the rotated CSRF here avoids a guaranteed 403 + self-heal round
+    // trip on the first mutating request after a refresh.
+    setSession(data.token, data.refreshToken, undefined, data.csrfToken);
     return true;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

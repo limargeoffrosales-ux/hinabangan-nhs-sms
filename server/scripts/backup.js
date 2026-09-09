@@ -1,101 +1,91 @@
 #!/usr/bin/env node
 /**
- * Database backup utility.
+ * Database backup utility (PostgreSQL/Neon + local SQLite).
  *
  * Usage:
- *   node scripts/backup.js              # Creates timestamped backup in DATA_DIR/backups/
- *   node scripts/backup.js --restore FILE  # Restores from a backup file (sqlite only)
- *
- * For PostgreSQL: set DATABASE_URL and use pg_dump directly.
- * For SQLite: copies the database file.
+ *   node scripts/backup.js                 # Create a backup (PG if DATABASE_URL set, else SQLite)
+ *   node scripts/backup.js --list          # List local backups
+ *   node scripts/backup.js --cleanup [N]   # Keep newest N backups (default 5); prunes local + R2
+ *   node scripts/backup.js --restore FILE [--yes] [--bootstrap]   # Restore + verify.
+ *                                          #   --bootstrap: build schema from migrations first
+ *                                          #                (for a fresh/empty target DB)
+ *   node scripts/backup.js --drill [FILE]  # Drill: restore into an isolated schema, rebuild it
+ *                                          # from migrations, restore data, re-dump and diff.
+ *                                          # Defaults to the newest local backup.
+ *   node scripts/backup.js --verify FILE   # Offline integrity check (parses + validates)
  */
-const fs = require('fs');
 const path = require('path');
-const { DATA_DIR } = require('../src/config');
+const {
+  createBackup,
+  listBackups,
+  cleanupBackups,
+  restoreBackup,
+  runDrill,
+  readDumpFile,
+  backupDir,
+} = require('../src/backup');
 
-const BACKUP_DIR = path.join(DATA_DIR, 'backups');
-const DB_PATH = path.join(DATA_DIR, 'meridianed.db');
+async function main() {
+  const args = process.argv.slice(2);
 
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
-function timestamp() {
-  return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-}
-
-function backupSqlite() {
-  ensureDir(BACKUP_DIR);
-  if (!fs.existsSync(DB_PATH)) {
-    console.error('No SQLite database found at', DB_PATH);
-    process.exit(1);
-  }
-  const dest = path.join(BACKUP_DIR, `meridianed-${timestamp()}.db`);
-  fs.copyFileSync(DB_PATH, dest);
-  console.log(`Backup created: ${dest}`);
-  console.log(`Size: ${(fs.statSync(dest).size / 1024 / 1024).toFixed(2)} MB`);
-  return dest;
-}
-
-function listBackups() {
-  ensureDir(BACKUP_DIR);
-  const files = fs.readdirSync(BACKUP_DIR)
-    .filter((f) => f.endsWith('.db'))
-    .sort()
-    .reverse();
-  if (files.length === 0) {
-    console.log('No backups found in', BACKUP_DIR);
+  if (args[0] === '--list') {
+    listBackups();
     return;
   }
-  console.log('Available backups:');
-  for (const f of files) {
-    const stat = fs.statSync(path.join(BACKUP_DIR, f));
-    console.log(`  ${f}  ${(stat.size / 1024 / 1024).toFixed(2)} MB  ${stat.mtime.toISOString()}`);
-  }
-}
 
-function restoreSqlite(file) {
-  if (!fs.existsSync(file)) {
-    console.error('Backup file not found:', file);
-    process.exit(1);
-  }
-  ensureDir(BACKUP_DIR);
-  const currentBackup = path.join(BACKUP_DIR, `pre-restore-${timestamp()}.db`);
-  if (fs.existsSync(DB_PATH)) {
-    fs.copyFileSync(DB_PATH, currentBackup);
-    console.log('Current database backed up to:', currentBackup);
-  }
-  fs.copyFileSync(file, DB_PATH);
-  console.log('Database restored from:', file);
-}
-
-function cleanup(keep = 10) {
-  ensureDir(BACKUP_DIR);
-  const files = fs.readdirSync(BACKUP_DIR)
-    .filter((f) => f.endsWith('.db'))
-    .sort();
-  if (files.length <= keep) {
-    console.log(`${files.length} backups (<= ${keep} kept) — nothing to clean.`);
+  if (args[0] === '--cleanup') {
+    await cleanupBackups(Number(args[1]) || 5);
     return;
   }
-  const toDelete = files.slice(0, files.length - keep);
-  for (const f of toDelete) {
-    fs.unlinkSync(path.join(BACKUP_DIR, f));
-    console.log('  deleted:', f);
+
+  if (args[0] === '--verify') {
+    const file = args[1];
+    if (!file) { console.error('Usage: node scripts/backup.js --verify FILE'); process.exit(1); }
+    const dump = readDumpFile(file);
+    const rows = dump.tables.reduce((n, t) => n + t.rows.length, 0);
+    console.log(`OK — ${dump.dialect} dump v${dump.version}, ${dump.tables.length} tables, ${rows} rows, created ${dump.created_at}`);
+    return;
   }
-  console.log(`Cleaned ${toDelete.length} old backup(s), kept ${keep}.`);
+
+  if (args[0] === '--restore') {
+    const file = args[1];
+    const yes = args.includes('--yes');
+    const bootstrap = args.includes('--bootstrap');
+    if (!file) { console.error('Usage: node scripts/backup.js --restore FILE [--yes] [--bootstrap]'); process.exit(1); }
+    if (!yes) {
+      console.error('Refusing to restore without --yes. Restoration replaces live data.');
+      console.error(`(Use --bootstrap to build the schema from migrations first on an empty target.)`);
+      process.exit(1);
+    }
+    console.log(`Restoring ${file}${bootstrap ? ' with schema bootstrap' : ''}...`);
+    const original = readDumpFile(file);
+    await restoreBackup(file, { bootstrap });
+    console.log(`Data restored (${original.tables.length} tables). Run the drill to confirm integrity.`);
+    return;
+  }
+
+  if (args[0] === '--drill') {
+    let file = args[1];
+    if (!file) {
+      const files = require('fs').readdirSync(backupDir()).filter((f) => f.endsWith('.json.gz')).sort();
+      const latest = files[files.length - 1];
+      if (!latest) { console.error('No backups found to drill.'); process.exit(1); }
+      file = path.join(backupDir(), latest);
+    }
+    console.log(`Drill against ${file}...`);
+    const report = await runDrill(file);
+    if (!report.ok) process.exit(1);
+    return;
+  }
+
+  // Default: create a backup.
+  const result = await createBackup();
+  console.log(`Backup created: ${result.path}`);
+  console.log(`Local:  ${result.file}  (${(result.sizeBytes / 1024 / 1024).toFixed(2)} MB, ${result.tables} tables, ${result.rows} rows)`);
+  console.log(result.r2Key ? `R2:     ${result.r2Key}` : 'R2:     not configured — backup stored locally only');
 }
 
-const args = process.argv.slice(2);
-if (args[0] === '--restore') {
-  restoreSqlite(args[1]);
-} else if (args[0] === '--list') {
-  listBackups();
-} else if (args[0] === '--cleanup') {
-  cleanup(Number(args[1]) || 10);
-} else if (process.env.DATABASE_URL) {
-  console.log('PostgreSQL detected. Use pg_dump for backups:');
-  console.log(`  pg_dump "$DATABASE_URL" > backup-${timestamp()}.sql`);
-} else {
-  backupSqlite();
-}
+main().catch((err) => {
+  console.error(err.message || err);
+  process.exit(1);
+});
