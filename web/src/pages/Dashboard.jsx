@@ -95,9 +95,6 @@ export default function Dashboard() {
 
       <div style={{ height: 18 }} />
 
-      <DashboardSections />
-
-      <div style={{ height: 18 }} />
       <div className="grid grid-3">
         <div className="card">
           <h3 style={{ marginTop: 0 }}>{t('dashboard.studentsByGrade')}</h3>
@@ -152,6 +149,10 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <div style={{ height: 18 }} />
+
+      <DashboardSections />
 
       <div style={{ height: 18 }} />
 
