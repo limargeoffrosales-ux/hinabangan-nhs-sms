@@ -9,6 +9,7 @@
   "scripts": {
     "build": "cd web && npm ci && npm run build && cd ../server && npm ci && npm test",
     "test": "cd server && npm test",
+    "lint": "cd web && npm run lint && cd ../server && npm run lint",
     "start": "cd server && npm start"
   }
 }
