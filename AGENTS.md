@@ -11,8 +11,10 @@ database/ migrations/  — paired .sql (PG) + .sqlite.sql files, auto-run on boo
 ```
 
 Root `package.json` scripts:
-- `npm run build` — `cd web && npm ci && npm run build && cd ../server && npm ci`
+- `npm run build` — `cd web && npm ci && npm run build && cd ../server && npm ci && npm test`
 - `npm start` — `cd server && npm start`
+- `npm test` — server suite (see below)
+- `npm run lint` — lints web then server
 
 ## Dev commands
 
@@ -31,7 +33,13 @@ docker compose up -d
 # Then: $env:DATABASE_URL = "postgresql://meridianed:meridianed-dev@localhost:5432/meridianed"
 ```
 
-No test suite exists. No lint/typecheck scripts.
+## Tests & lint
+
+- **Server tests** (built-in runner, no deps): `cd server && npm test` → `node --test "test/**/*.test.js"`. Runs DB migration smoke + unit tests. Rides the production build.
+- **Web tests** (Vitest 5 + Testing Library, jsdom): `cd web && npm test` (`vitest run`) or `npm run test:watch`. Config in `web/vitest.config.js`, matcher setup in `web/src/test/setup.js`, specs are `src/**/*.test.{js,jsx}`. Currently a smoke suite covers `ui/Badge`.
+- **Lint**: `cd web && npm run lint` (ESLint 8, `.eslintrc.json`) and `cd server && npm run lint` (`eslint src test`). Run both from root with `npm run lint`. No typecheck script.
+
+Note on Windows: this machine's PowerShell execution policy blocks `npm.ps1` — use `npm.cmd` (or `node` directly) instead of `npm`.
 
 ## Database
 
