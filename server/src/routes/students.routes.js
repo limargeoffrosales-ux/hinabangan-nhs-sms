@@ -42,7 +42,7 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
   params.push(limit, offset);
   const rows = await qa(sql, params);
   if (req.role === 'teacher' || req.role === 'guidance') {
-    for (const r of rows) maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']);
+    rows.forEach((r, i, arr) => { arr[i] = maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']); });
   }
   res.json({ data: rows, limit, offset });
 }));
@@ -68,7 +68,7 @@ router.get('/:id', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (r
   row.enrollments = await qa('SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id WHERE e.student_id = ? ORDER BY e.school_year DESC', [row.id]);
   row.age = computeAge(row.birth_date);
   if (req.role === 'teacher' || req.role === 'guidance') {
-    maskPII(row, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']);
+    return res.json(maskPII(row, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']));
   }
   res.json(row);
 }));

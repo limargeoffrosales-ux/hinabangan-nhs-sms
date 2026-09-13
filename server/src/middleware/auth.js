@@ -86,6 +86,7 @@ function clearCsrfToken(userId) {
 }
 
 async function authenticate(req, res, next) {
+  try {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Missing bearer token' });
@@ -133,6 +134,9 @@ async function authenticate(req, res, next) {
   }
 
   next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 const ROLES = ['super_admin', 'region_admin', 'division_admin', 'school_admin',
