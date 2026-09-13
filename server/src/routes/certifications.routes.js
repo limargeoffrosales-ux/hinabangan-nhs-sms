@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa, qi, qr, nowSql, dialect } = db;
+const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent, teacherScope, studentInScope } = require('../scope');
@@ -38,7 +38,7 @@ router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
   const total = await q('SELECT COUNT(*) AS count FROM certifications');
   const byType = await qa('SELECT certification_type, COUNT(*) AS count FROM certifications GROUP BY certification_type');
   const byStatus = await qa('SELECT status, COUNT(*) AS count FROM certifications GROUP BY status');
-  const expiringSql = dialect === 'pg'
+  const expiringSql = db.dialect === 'pg'
     ? `SELECT COUNT(*) AS count FROM certifications WHERE expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE + INTERVAL '30 days' AND status = 'active'`
     : `SELECT COUNT(*) AS count FROM certifications WHERE expiry_date IS NOT NULL AND expiry_date <= date('now', '+30 days') AND status = 'active'`;
   const expiring = await q(expiringSql);

@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa, nowSql } = db;
+const { q, qa, qr, qi, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 
@@ -884,7 +884,7 @@ router.get('/sf9/conduct/batch', requireRole(...ADMIN_ONLY), asyncH(async (req, 
 router.put('/sf9/conduct', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id, school_year, term, makadiyos, makatao, makakalikasan, makabansa, remarks } = req.body;
   if (!student_id || !school_year || !term) return res.status(400).json({ error: 'student_id, school_year, term required' });
-  const valid = ['always', 'often', 'sometimes', 'rarely', 'ao', 'so', 'ro', 'no', null];
+  const valid = ['ao', 'so', 'ro', 'no', null];
   for (const v of [makadiyos, makatao, makakalikasan, makabansa]) {
     if (!valid.includes(v)) return res.status(400).json({ error: 'Invalid conduct rating value' });
   }

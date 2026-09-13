@@ -295,7 +295,7 @@ router.get('/report/csv', requireRole(...READ), asyncH(async (req, res) => {
     ) sub ON sub.student_id = g.student_id
     WHERE ${whereStr} AND g.computed_grade IS NOT NULL
     GROUP BY s.grade_level ORDER BY s.grade_level
-  `, quarter ? [school_year, Number(quarter)] : [school_year]);
+  `, quarter ? [school_year, Number(quarter), school_year, Number(quarter)] : [school_year, school_year]);
   for (const r of passData) lines.push(`${r.grade_level},${r.total},${r.passing},${r.total - r.passing},${r.total ? Math.round(r.passing / r.total * 1000) / 10 : 0}`);
   lines.push('');
 
