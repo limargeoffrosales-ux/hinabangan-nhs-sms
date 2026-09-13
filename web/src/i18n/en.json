@@ -84,6 +84,7 @@
 
   "login.title": "Sign in",
   "login.signingIn": "Signing in…",
+  "login.coldStart": "The server is waking up from idle — this can take a minute. Please keep this page open.",
   "login.username": "Username / LRN / Employee ID",
   "login.usernamePlaceholder": "e.g. admin, 123456789012",
   "login.password": "Password",
