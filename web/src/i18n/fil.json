@@ -93,6 +93,7 @@
 
   "login.title": "Mag-sign in",
   "login.signingIn": "Nag-sign in…",
+  "login.coldStart": "Nagising ang server mula sa idle — maaaring tumagal ng isang minuto. Mangyaring manatili sa pahinang ito.",
   "login.username": "Username / LRN / Employee ID",
   "login.usernamePlaceholder": "hal. admin, 123456789012",
   "login.password": "Password",

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
-import { getStoredApiBase, setApiBase, api } from '../lib/api';
+import { getStoredApiBase, setApiBase, api, warmServer } from '../lib/api';
 
 const FEATURES = [
   { icon: QrCode, key: 'featAttendance' },
@@ -35,12 +35,27 @@ export default function Login() {
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState(null);
   const [pendingMfa, setPendingMfa] = useState(null);
+  const [slow, setSlow] = useState(false);
   const formRef = useRef(null);
 
   const currentLang = i18n.language?.startsWith('fil') ? 'fil' : 'en';
   function toggleLang() {
     i18n.changeLanguage(currentLang === 'en' ? 'fil' : 'en');
   }
+
+  // Render free tier sleeps the instance when idle; waking it in the
+  // background on page load means the first sign-in is not the slow one.
+  useEffect(() => {
+    warmServer();
+  }, []);
+
+  // If a request lingers past a few seconds it is the post-idle boot — say so
+  // instead of leaving the user staring at a spinner.
+  useEffect(() => {
+    if (!busy) { setSlow(false); return undefined; }
+    const t = setTimeout(() => setSlow(true), 7000);
+    return () => clearTimeout(t);
+  }, [busy]);
 
   function finish(result) {
     const isPortal = result.user.role === 'student' || result.user.role === 'parent';
@@ -82,7 +97,7 @@ export default function Login() {
     setForgotError(null);
     setForgotSent(false);
     try {
-      await api('/auth/forgot-password', { method: 'POST', auth: false, body: { identifier } });
+      await api('/auth/forgot-password', { method: 'POST', auth: false, retryNetwork: true, body: { identifier } });
       setForgotSent(true);
     } catch (err) {
       setForgotError(err.message);
@@ -238,6 +253,13 @@ export default function Login() {
                 {busy ? <span className="login-spinner" /> : <Lock size={15} />}
                 {busy ? t('login.signingIn') : t('login.title')}
               </button>
+
+              {slow && (
+                <p className="login-warming" role="status">
+                  <span className="login-spinner" />
+                  {t('login.coldStart', 'The server is waking up from idle — this can take a minute. Please keep this page open.')}
+                </p>
+              )}
 
               <div className="login-form-links">
                 <button type="button" className="login-forgot" onClick={() => setShowForgot(true)}>

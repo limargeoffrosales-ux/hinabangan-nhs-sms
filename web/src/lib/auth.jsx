@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
       setReady(true);
       return;
     }
-    api('/auth/me')
+    api('/auth/me', { retryNetwork: true })
       .then((d) => setUser(d.user))
       .catch(() => clearSession())
       .finally(() => setReady(true));
@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function login(username, password) {
-    const data = await api('/auth/login', { method: 'POST', body: { username, password }, auth: false });
+    const data = await api('/auth/login', { method: 'POST', body: { username, password }, auth: false, retryNetwork: true });
     if (data.requiresMfa) return { requiresMfa: true, tempToken: data.tempToken };
     setSession(data.token, data.refreshToken, data.user, data.csrfToken);
     setUser(data.user);
@@ -42,6 +42,7 @@ export function AuthProvider({ children }) {
       method: 'POST',
       body: { tempToken, code },
       auth: false,
+      retryNetwork: true,
     });
     setSession(data.token, data.refreshToken, data.user, data.csrfToken);
     setUser(data.user);

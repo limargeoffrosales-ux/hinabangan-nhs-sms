@@ -137,6 +137,34 @@ function isCsrfFailure(status, message) {
   return m.includes('csrf') || m.includes('csrf token') || m.includes('invalid or missing csrf');
 }
 
+const RETRY_DELAYS_MS = [6000, 12000, 18000];
+let warmLast = 0;
+
+function isRetryableNetworkFail(err) {
+  if (!err) return false;
+  if (friendlyAbortMessage(err)) return false; // user/browser cancel — never retry
+  const status = Number(err.status);
+  if (status && status >= 400 && status !== 408) return false; // a real HTTP error
+  const m = String(err.message || '');
+  const name = String(err.name || '');
+  return status === 408 || status === 0
+    || name === 'TypeError'
+    || /timed out|failed to fetch|fetch failed|networkerror|network error|load failed/i.test(m);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Render free tier sleeps the instance when idle; the first request after a
+// nap can hang for 60–90s while it boots. Warming up on page load hides that
+// cost before the user actually signs in.
+export async function warmServer(options = {}) {
+  if (Date.now() - warmLast < 60000) return;
+  try {
+    await api('/health', { auth: false, timeoutMs: 90000, retryNetwork: true, ...options });
+    warmLast = Date.now();
+  } catch { /* best-effort only */ }
+}
+
 async function apiInternal(path, opts) {
   const { method = 'GET', body, auth = true, timeoutMs = 75000 } = opts;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -198,11 +226,16 @@ async function apiInternal(path, opts) {
 
 export async function api(path, opts = {}) {
   const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(opts.method || 'GET');
-  try {
-    return await apiInternal(path, opts);
-  } catch (err) {
+  const allowRetry = (opts.method || 'GET') === 'GET' || opts.retryNetwork === true;
+  let lastErr;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await apiInternal(path, opts);
+    } catch (err) {
+      lastErr = err;
+    }
     // Self-heal stale/missing CSRF tokens: refresh the token once and retry.
-    if (isMutating && opts.auth !== false && isCsrfFailure(err.status, err.message)) {
+    if (isMutating && opts.auth !== false && isCsrfFailure(lastErr.status, lastErr.message)) {
       const refreshed = await requestCsrfToken();
       if (refreshed) {
         try {
@@ -219,12 +252,15 @@ export async function api(path, opts = {}) {
         }
       }
     }
-    // Last-resort guard: no remaining abort (browser-cancelled request) may
-    // surface the opaque "signal is aborted without reason" text to the UI.
-    const abortMsg = friendlyAbortMessage(err);
-    if (abortMsg) throw new Error(abortMsg);
-    throw err;
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (!allowRetry || delay === undefined || !isRetryableNetworkFail(lastErr)) break;
+    await sleep(delay);
   }
+  // Last-resort guard: no remaining abort (browser-cancelled request) may
+  // surface the opaque "signal is aborted without reason" text to the UI.
+  const abortMsg = friendlyAbortMessage(lastErr);
+  if (abortMsg) throw new Error(abortMsg);
+  throw lastErr;
 }
 
 async function tryRefresh() {
