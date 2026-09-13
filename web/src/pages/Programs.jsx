@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { CalendarRange, Plus, RefreshCw, Trash2, Pencil, TriangleAlert, CheckCircle2 } from 'lucide-react';
+import { CalendarRange, Plus, RefreshCw, Trash2, Pencil, TriangleAlert, CheckCircle2, Printer } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
+import { printElementHtml } from '../lib/export';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const DURATIONS = [60, 90, 120];
@@ -18,6 +19,7 @@ export default function Programs() {
   const [assignments, setAssignments] = useState([]);
   const [entries, setEntries] = useState([]);
   const [conflicts, setConflicts] = useState([]);
+  const [schoolInfo, setSchoolInfo] = useState({});
   const [genOpts, setGenOpts] = useState({ start: '07:00', end: '17:00', lunch_start: '12:00', lunch_end: '13:00' });
   const [view, setView] = useState('section');
   const [viewId, setViewId] = useState('');
@@ -29,13 +31,14 @@ export default function Programs() {
   const loadAll = useCallback(async () => {
     setError(null);
     try {
-      const [sec, sub, tea, asg, sched, conf] = await Promise.all([
+      const [sec, sub, tea, asg, sched, conf, sch] = await Promise.all([
         api('/sections?school_year=' + encodeURIComponent(schoolYear)),
         api('/subjects?school_year=' + encodeURIComponent(schoolYear)),
         api('/teachers?limit=100'),
         api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear)),
         api('/schedule?school_year=' + encodeURIComponent(schoolYear)),
         api('/schedule/conflicts?school_year=' + encodeURIComponent(schoolYear)),
+        api('/deped-forms/school-info').catch(() => ({})),
       ]);
       setSections(sec.data || []);
       setSubjects(sub.data || []);
@@ -43,6 +46,7 @@ export default function Programs() {
       setAssignments(asg.data || []);
       setEntries(sched.data || []);
       setConflicts(conf.data || []);
+      setSchoolInfo(sch || {});
     } catch (err) {
       setError(err.message);
     }
@@ -95,6 +99,23 @@ export default function Programs() {
     await api(`/schedule/assignments/${id}`, { method: 'DELETE' });
     const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
     setAssignments(asg.data || []);
+  }
+
+  function printProgram() {
+    const item = (view === 'section' ? sections : teachers).find((x) => String(x.id) === viewId);
+    if (!item || !viewedEntries.length) return;
+    const html = programSheetHtml({
+      kind: view,
+      item,
+      entries: viewedEntries,
+      schoolInfo,
+      lunchStart: genOpts.lunch_start,
+      lunchEnd: genOpts.lunch_end,
+    });
+    const header = view === 'section'
+      ? `Class Program — ${item.name} (${item.grade_level})`
+      : `Teacher's Program — ${item.first_name} ${item.last_name}`;
+    printElementHtml(`${header} | ${(schoolInfo.school_name || 'School')}`, html, { orientation: 'landscape', paper: 'legal' });
   }
 
   const viewedEntries = useMemo(() => {
@@ -222,9 +243,15 @@ export default function Programs() {
                 </option>
               ))}
             </select>
+            {viewId && viewedEntries.length > 0 && (
+              <button className="btn" onClick={printProgram} title="Open the DepEd Class Program sheet for printing">
+                <Printer size={15} /> Print {view === 'section' ? 'Class Program' : "Teacher's Program"}
+              </button>
+            )}
           </div>
         </div>
         {viewedEntries.length ? (
+          <>
           <div className="table-wrap">
             <table>
               <thead>
@@ -249,6 +276,19 @@ export default function Programs() {
               </tbody>
             </table>
           </div>
+          {viewId && view === 'section' && (
+            <div className="program-preview" dangerouslySetInnerHTML={{
+              __html: programSheetHtml({
+                kind: 'section',
+                item: sections.find((x) => String(x.id) === viewId),
+                entries: viewedEntries,
+                schoolInfo,
+                lunchStart: genOpts.lunch_start,
+                lunchEnd: genOpts.lunch_end,
+              }),
+            }} />
+          )}
+          </>
         ) : (
           <Empty text={viewId ? 'No classes scheduled for this selection yet.' : 'Pick a section or teacher to view their program.'} />
         )}
@@ -305,6 +345,154 @@ export default function Programs() {
 function toMin(t) {
   const [h, m] = String(t).split(':').map(Number);
   return h * 60 + m;
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+const DAY_LABELS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+
+function fmtHM(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function buildProgramGrid(entries) {
+  if (!entries.length) return null;
+  const times = [];
+  for (const e of entries) { times.push(toMin(e.start_time), toMin(e.end_time)); }
+  const min = Math.min(...times);
+  const max = Math.max(...times);
+  const slots = [];
+  for (let t = min; t < max; t += 30) slots.push(t);
+  const grid = [[], [], [], [], []];
+  for (const e of entries) {
+    const d = Math.max(0, Math.min(4, (e.day || 1) - 1));
+    const s0 = slots.indexOf(toMin(e.start_time));
+    const s1 = slots.indexOf(toMin(e.end_time));
+    if (s0 < 0 || s1 < 0 || s1 <= s0) continue;
+    grid[d][s0] = e;
+    for (let i = s0 + 1; i < s1; i++) grid[d][i] = '__span__';
+  }
+  return { slots, grid };
+}
+
+function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInfo = {}, lunchStart, lunchEnd }) {
+  const school = schoolInfo || {};
+  const model = buildProgramGrid(entries);
+  const l0 = lunchStart ? toMin(lunchStart) : -1;
+  const l1 = lunchEnd ? toMin(lunchEnd) : -1;
+
+  const head = `
+  <div style="text-align:center;">
+    <div style="font-size:10pt;font-weight:bold;">REPUBLIC OF THE PHILIPPINES</div>
+    <div style="font-size:9pt;">Department of Education</div>
+    <div style="font-size:8.5pt;">${esc(school.region || 'Region ____')}</div>
+    <div style="font-size:8.5pt;">${esc(school.division || 'Schools Division of ____')}</div>
+    <div style="font-size:10pt;font-weight:bold;margin-top:4pt;">${esc(school.school_name || 'Hinabangan National High School')}</div>
+    <div style="font-size:8pt;">School ID: ${esc(school.school_id || '______')}</div>
+    <div style="font-size:12pt;font-weight:bold;margin-top:6pt;">${kind === 'section' ? 'CLASS PROGRAM' : "TEACHER'S PROGRAM"}</div>
+  </div>`;
+
+  const info = kind === 'section' ? `
+  <table class="no-border">
+    <tr>
+      <td style="border:none;">School Year: <strong>${esc(item.school_year || school.school_year || '____-____')}</strong></td>
+      <td style="border:none;">Grade &amp; Section: <strong>${esc(item.grade_level || '____')} — ${esc(item.name || '____')}</strong></td>
+      <td style="border:none;">Strand: <strong>${esc(item.strand ? String(item.strand).replace(/_/g, ' ') : '—')}</strong></td>
+    </tr>
+    <tr>
+      <td style="border:none;">Room: <strong>${esc(item.room || '—')}</strong></td>
+      <td style="border:none;">Adviser: <strong>${esc(item.adviser_name || '____________________')}</strong></td>
+      <td style="border:none;">No. of Meetings: <strong>${entries.length} / week</strong></td>
+    </tr>
+  </table>` : `
+  <table class="no-border">
+    <tr>
+      <td style="border:none;">Teacher: <strong>${esc(item.first_name ? `${item.first_name} ${item.last_name}` : '____________________')}</strong></td>
+      <td style="border:none;">Position: <strong>${esc(item.position || 'Teacher')}</strong></td>
+      <td style="border:none;">School Year: <strong>${esc(school.school_year || '____-____')}</strong></td>
+    </tr>
+  </table>`;
+
+  let gridMarkup = '';
+  if (model) {
+    let body = '';
+    for (let i = 0; i < model.slots.length; i++) {
+      const t = model.slots[i];
+      const inLunch = (l0 >= 0 && t >= l0 && t < l1);
+      body += `<tr><td style="width:64pt;${inLunch ? 'background:#ececec;' : ''}">${fmtHM(t)}</td>`;
+      for (let d = 0; d < 5; d++) {
+        const cell = model.grid[d][i];
+        if (cell === '__span__') continue;
+        if (!cell) { body += '<td></td>'; continue; }
+        const s0 = model.slots.indexOf(toMin(cell.start_time));
+        const s1 = model.slots.indexOf(toMin(cell.end_time));
+        const span = Math.max(1, s1 - s0);
+        const subLine = kind === 'section'
+          ? `Room ${esc(cell.room || '—')}${cell.teacher_name ? ` · ${esc(cell.teacher_name)}` : ''}`
+          : `Room ${esc(cell.room || '—')} · ${esc(cell.section_name || '')}`;
+        body += `<td rowspan="${span}"><div class="b">${esc(cell.subject_code || '')}</div>` +
+          `<div class="small">${esc(cell.subject_title || '')}<br/>${subLine}</div></td>`;
+      }
+      body += '</tr>';
+    }
+    gridMarkup = `<table>
+      <thead><tr><th>TIME</th>${DAY_LABELS.map((d) => `<th>${d}</th>`).join('')}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+  } else {
+    gridMarkup = '<p class="small">No classes are scheduled for this period.</p>';
+  }
+
+  const lunchNote = (l1 > l0) ? `<div class="small" style="margin-top:3pt;">Lunch / recess break: ${fmtHM(l0)} – ${fmtHM(l1)} (shaded).</div>` : '';
+
+  const legend = model ? (() => {
+    const totals = {};
+    for (const e of entries) {
+      const key = kind === 'section'
+        ? `${e.subject_code} — ${e.subject_title || ''}`
+        : `${e.subject_code} (${e.section_name || ''}) — ${e.subject_title || ''}`;
+      totals[key] = (totals[key] || 0) + (toMin(e.end_time) - toMin(e.start_time));
+    }
+    const items = Object.entries(totals)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, mins]) => `<li>${esc(label)} — ${mins} min/week</li>`)
+      .join('');
+    const total = Object.values(totals).reduce((a, b) => a + b, 0);
+    return `<div class="small" style="margin-top:6pt;">Weekly load per subject:</div>
+      <ul class="small" style="margin:2pt 0 0 0;padding-left:14pt;">${items}</ul>
+      <div class="small b" style="margin-top:2pt;">Total teaching load: ${total} minutes per week</div>`;
+  })() : '';
+
+  const sig = kind === 'section' ? `
+  <div style="display:flex;justify-content:space-between;margin-top:28pt;">
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="b">${esc(item.adviser_name || '____________________')}</div>
+      <div class="small">Adviser / Class Adviser</div>
+    </div>
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="b">${esc(school.school_head_name || '____________________')}</div>
+      <div class="small">School Head</div>
+    </div>
+  </div>` : `
+  <div style="display:flex;justify-content:space-between;margin-top:28pt;">
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="small">Teacher / Faculty</div>
+    </div>
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="b">${esc(school.school_head_name || '____________________')}</div>
+      <div class="small">School Head</div>
+    </div>
+  </div>`;
+
+  return `${head}<br/>${info}<br/>${gridMarkup}${lunchNote}${legend}${sig}`;
 }
 
 function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClose, onSubmit }) {

@@ -32,7 +32,7 @@ function termToQuarter(term) {
 }
 
 router.get('/school-info', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) => {
-  const rows = await qa("SELECT key, value FROM app_settings WHERE key IN ('school_name','school_id','region','division','district','address','school_year')");
+  const rows = await qa("SELECT key, value FROM app_settings WHERE key IN ('school_name','school_id','region','division','district','address','school_year','school_head_name')");
   const info = {
     school_name: 'Hinabangan National High School',
     school_id: '303606',
