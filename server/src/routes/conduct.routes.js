@@ -103,9 +103,9 @@ router.get('/summary', requireRole('super_admin', 'school_admin', 'principal', '
   const where = scopedSql.length ? ' WHERE ' + scopedSql.join(' AND ') : '';
   const monthWhere = `cr.incident_date >= ${monthStart}` + (scopedSql.length ? ' AND ' + scopedSql.join(' AND ') : '');
   const [byStatus, byType, bySeverity, monthRows, recent] = await Promise.all([
-    qa(`SELECT cr.status, COUNT(*) AS n FROM student_conduct_records cr GROUP BY cr.status${where}`, scopedParams),
-    qa(`SELECT cr.incident_type, COUNT(*) AS n FROM student_conduct_records cr GROUP BY cr.incident_type${where}`, scopedParams),
-    qa(`SELECT cr.severity, COUNT(*) AS n FROM student_conduct_records cr GROUP BY cr.severity${where}`, scopedParams),
+    qa(`SELECT cr.status, COUNT(*) AS n FROM student_conduct_records cr${where} GROUP BY cr.status`, scopedParams),
+    qa(`SELECT cr.incident_type, COUNT(*) AS n FROM student_conduct_records cr${where} GROUP BY cr.incident_type`, scopedParams),
+    qa(`SELECT cr.severity, COUNT(*) AS n FROM student_conduct_records cr${where} GROUP BY cr.severity`, scopedParams),
     qa(`SELECT COUNT(*) AS n FROM student_conduct_records cr WHERE ${monthWhere}`, scopedParams),
     qa(`${LIST_SELECT}${where} ORDER BY (cr.status = 'open') DESC, cr.incident_date DESC, cr.id DESC LIMIT 8`, scopedParams),
   ]);

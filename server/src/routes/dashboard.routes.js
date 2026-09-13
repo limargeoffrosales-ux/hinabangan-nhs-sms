@@ -501,6 +501,9 @@ router.get('/aral-enrolled', requireRole(...DASH_READ), asyncH(async (req, res) 
   const params = [];
   let where = 'e.is_aral = TRUE';
   if (sy) { where += ' AND e.school_year = ?'; params.push(sy); }
+  const secScope = await teacherSectionScope(req);
+  if (secScope.empty) return res.json({ data: [] });
+  if (secScope.sql) { where += ' AND ' + secScope.sql; params.push(...secScope.params); }
   const rows = await qa(
     `SELECT e.id AS enrollment_id, e.student_id, e.school_year, e.term, e.status,
        st.first_name, st.last_name, st.lrn, st.sex,
@@ -559,6 +562,11 @@ router.get('/student-progress', requireRole(...DASH_READ), asyncH(async (req, re
   let where = "e.status = 'enrolled'";
   if (sy) { where += ' AND e.school_year = ?'; params.push(sy); }
   if (term) { where += ' AND e.term = ?'; params.push(term); }
+  const secScope = await teacherSectionScope(req);
+  if (secScope.empty) {
+    return res.json({ school_year: sy, term: term || null, data: [], summary: { learners: 0, passing: 0, at_risk: 0, no_grades: 0, aral: 0 } });
+  }
+  if (secScope.sql) { where += ' AND ' + secScope.sql; params.push(...secScope.params); }
   const rows = await qa(
     `SELECT st.id AS student_id, st.first_name, st.last_name, st.sex,
        s.name AS section_name, s.grade_level, e.strand, e.term, e.is_aral,

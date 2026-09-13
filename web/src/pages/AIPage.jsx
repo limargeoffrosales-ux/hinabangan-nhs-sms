@@ -858,10 +858,10 @@ const TAB_COMPONENTS = { report: ReportCard, form137: Form137, lesson: LessonPla
 
 export default function AIPage() {
   const { user } = useAuth();
-  const visibleTabs = TABS.filter((t) => can(user?.role, ...TAB_ROLES[t.id]));
-  const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : (visibleTabs[0]?.id || null);
   const [tab, setTab] = useState('report');
   const [info, setInfo] = useState(null);
+  const visibleTabs = TABS.filter((t) => can(user?.role, ...TAB_ROLES[t.id]));
+  const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : (visibleTabs[0]?.id || null);
   const TabContent = TAB_COMPONENTS[activeTab];
 
   useEffect(() => { api('/ai/status').then(setInfo).catch(() => {}); }, []);

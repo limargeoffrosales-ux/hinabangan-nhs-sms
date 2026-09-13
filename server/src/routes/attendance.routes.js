@@ -46,7 +46,7 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (req.role === 'teacher') {
     const scope = await teacherScope(req.user);
     if (scope) {
-      const sc = sectionInScope(scope, 'a');
+      const sc = sectionInScope(scope, 'a', 'section_id');
       where.push(sc.sql);
       params.push(...sc.params);
     } else {

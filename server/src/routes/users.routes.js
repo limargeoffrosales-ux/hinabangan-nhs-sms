@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { q, qa, qi, qr } = require('../db');
-const { authenticate, requireRole, ROLES, isAdminRole, clearUserCache } = require('../auth');
+const { authenticate, requireRole, ROLES, isAdminRole, clearUserCache, clearCsrfToken } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const router = express.Router();
@@ -51,6 +51,8 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
     if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
       [await bcrypt.hash(String(password), 12), user.id]);
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
+    clearCsrfToken(user.id);
     await qi(
       'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
       [user.id, req.user.id, 'reset', req.ip]);
@@ -91,6 +93,8 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
     if (user.role === 'super_admin' && req.user.role !== 'super_admin') continue;
     const hash = await bcrypt.hash(String(password), 12);
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
+    clearCsrfToken(user.id);
     clearUserCache(user.id);
     await qi(
       'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',

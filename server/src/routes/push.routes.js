@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const jwt = require('jsonwebtoken');
-const { q, qa, qi, dialect } = require('../db');
+const { q, qa, qi } = require('../db');
+const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const logger = require('../logger');
 
@@ -14,8 +15,8 @@ router.post('/register', authenticate, async (req, res) => {
     if (!['android', 'ios', 'web'].includes(platform)) {
       return res.status(400).json({ error: 'platform must be android, ios, or web' });
     }
-    const params = dialect === 'pg' ? [req.user.id, token, platform] : [req.user.id, token, platform];
-    if (dialect === 'pg') {
+    const params = [req.user.id, token, platform];
+    if (db.dialect === 'pg') {
       await q(
         `INSERT INTO device_tokens (user_id, token, platform) VALUES ($1, $2, $3)
          ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, updated_at = NOW()`,
@@ -41,7 +42,7 @@ router.post('/unregister', authenticate, async (req, res) => {
   try {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: 'token required' });
-    if (dialect === 'pg') {
+    if (db.dialect === 'pg') {
       await q('DELETE FROM device_tokens WHERE token = $1 AND user_id = $2', [token, req.user.id]);
     } else {
       await q('DELETE FROM device_tokens WHERE token = ? AND user_id = ?', [token, req.user.id]);
@@ -153,7 +154,7 @@ router.post('/send', authenticate, requireRole('super_admin', 'school_admin', 'p
 
     let tokens;
     if (userIds && Array.isArray(userIds) && userIds.length > 0) {
-      const placeholders = userIds.map((_, i) => (dialect === 'pg' ? `$${i + 1}` : '?')).join(',');
+      const placeholders = userIds.map((_, i) => (db.dialect === 'pg' ? `$${i + 1}` : '?')).join(',');
       tokens = await qa(`SELECT token, platform FROM device_tokens WHERE user_id IN (${placeholders})`, userIds);
     } else {
       tokens = await qa('SELECT token, platform FROM device_tokens');

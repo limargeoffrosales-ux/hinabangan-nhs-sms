@@ -1,5 +1,6 @@
 ﻿const express = require('express');
-const { q, qa, qi, dialect } = require('../db');
+const db = require('../db');
+const { q, qa, qi } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 const { ensureTeacherSeesStudent } = require('../scope');
@@ -155,7 +156,7 @@ router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), aiUserLi
 
 router.get('/chat-logs', requireRole(...ADMIN), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
-  const countSql = dialect === 'pg'
+  const countSql = db.dialect === 'pg'
     ? 'SELECT COUNT(*)::int AS total FROM ai_chat_logs'
     : 'SELECT COUNT(*) AS total FROM ai_chat_logs';
   const [rows, countRow] = await Promise.all([
@@ -166,7 +167,7 @@ router.get('/chat-logs', requireRole(...ADMIN), asyncH(async (req, res) => {
 }));
 
 router.get('/chat-logs/stats', requireRole(...ADMIN), asyncH(async (_req, res) => {
-  const isPg = dialect === 'pg';
+  const isPg = db.dialect === 'pg';
   const totalRow = await q(isPg
     ? 'SELECT COUNT(*)::int AS total FROM ai_chat_logs'
     : 'SELECT COUNT(*) AS total FROM ai_chat_logs');

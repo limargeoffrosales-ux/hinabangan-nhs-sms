@@ -43,9 +43,9 @@ function studentInScope(scope, alias) {
 
 // SQL fragment restricting a `sections` table reference (alias) to the
 // teacher's advisory / assigned sections. Empty scope -> impossible condition.
-function sectionInScope(scope, alias) {
+function sectionInScope(scope, alias, column = 'id') {
   if (!scope || !scope.sections.length) return { sql: '0 = 1', params: [] };
-  return { sql: `${alias}.id IN (${scope.sections.map(() => '?').join(',')})`, params: scope.sections };
+  return { sql: `${alias}.${column} IN (${scope.sections.map(() => '?').join(',')})`, params: scope.sections };
 }
 
 async function ensureTeacherSeesStudent(user, studentId) {

@@ -79,7 +79,7 @@ export default function PortalAnalytics() {
             {data.rank != null && data.rank_total != null ? (
               <div style={{ fontSize: 32, fontWeight: 700 }}>{data.rank} <span style={{ fontSize: 16, fontWeight: 400, color: 'var(--text-dim)' }}>/ {data.rank_total}</span></div>
             ) : <div className="sub">{t('analytics.noRank', 'No ranking data available.')}</div>}
-            {data.section && <div className="sub" style={{ marginTop: 4 }}>{t('analytics.section', 'Section')}: {data.section}</div>}
+            {data.section && <div className="sub" style={{ marginTop: 4 }}>{t('analytics.section', 'Section')}: {data.section.section_name}</div>}
           </div>
 
           {data.honor && (
