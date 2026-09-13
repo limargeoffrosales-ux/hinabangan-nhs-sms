@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { ensureTeacherSeesStudent, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
+const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
 const { notifyEvent } = require('../notify');
 const logger = require('../logger');
 

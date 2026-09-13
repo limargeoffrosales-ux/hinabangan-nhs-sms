@@ -733,10 +733,10 @@ export default function DashboardSections() {
         <div className="dashboard-block-head">
           <h3 style={{ margin: 0 }}><BarChart3 size={16} /> Quarterly Report — Subject Mean &amp; MPS — {sy}, Q{quarter}</h3>
           <div className="kpi-row">
-            <StatChip label="Subjects" value={qReport?.summary.subjects ?? 0} color="#4D96FF" />
-            <StatChip label="Overall mean" value={qReport?.summary.overall_mean != null ? Number(qReport.summary.overall_mean).toFixed(1) : '—'} color="#2FD6A0" />
-            <StatChip label="Overall MPS" value={qReport?.summary.overall_mps != null ? Number(qReport.summary.overall_mps).toFixed(1) : '—'} color="#A78BFA" />
-            <StatChip label="Below 75 in exam" value={qReport?.summary.below_75_learners ?? 0} color="#F2555A" />
+            <StatChip label="Subjects" value={qReport?.summary?.subjects ?? 0} color="#4D96FF" />
+            <StatChip label="Overall mean" value={qReport?.summary?.overall_mean != null ? Number(qReport.summary.overall_mean).toFixed(1) : '—'} color="#2FD6A0" />
+            <StatChip label="Overall MPS" value={qReport?.summary?.overall_mps != null ? Number(qReport.summary.overall_mps).toFixed(1) : '—'} color="#A78BFA" />
+            <StatChip label="Below 75 in exam" value={qReport?.summary?.below_75_learners ?? 0} color="#F2555A" />
           </div>
         </div>
         <div className="filter-row" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap', display: 'flex', alignItems: 'center' }}>
@@ -758,10 +758,10 @@ export default function DashboardSections() {
               <tr><th>Subject</th><th style={{ textAlign: 'center' }}>Students</th><th style={{ textAlign: 'center' }}>Mean Grade</th><th style={{ textAlign: 'center' }}>MPS</th><th style={{ textAlign: 'center' }}>Highest</th><th style={{ textAlign: 'center' }}>Lowest</th><th style={{ textAlign: 'center' }}>Below 75</th></tr>
             </thead>
             <tbody>
-              {(!qReport || qReport.subjects.length === 0) && (
+              {(!qReport || !qReport.subjects || qReport.subjects.length === 0) && (
                 <tr><td colSpan={7} className="sub">No grades recorded{qSection ? ' for the selected section' : ''} in Q{quarter} {sy}.</td></tr>
               )}
-              {qReport?.subjects.map((r) => (
+              {(qReport?.subjects || []).map((r) => (
                 <tr key={r.subject_id}>
                   <td>{r.code ? `${r.code} — ` : ''}{r.title}</td>
                   <td style={{ textAlign: 'center' }}>{r.students}</td>

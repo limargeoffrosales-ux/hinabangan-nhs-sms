@@ -6,6 +6,7 @@ const logger = require('./logger');
 const usePg = !!process.env.DATABASE_URL;
 let driver = null;
 let dialect = 'sqlite';
+let poolRef = null;
 
 function pgParams(sql) {
   let i = 0;
@@ -31,6 +32,7 @@ async function init() {
     pool.on('error', (err) => {
       logger.error({ err }, 'PostgreSQL pool idle client error');
     });
+    poolRef = pool;
     driver = {
       params: pgParams,
       run: (sql, p) => pool.query(pgParams(sql), normParams(p) || []).then((r) => ({ changes: r.rowCount })),
@@ -184,31 +186,35 @@ async function migrate() {
     for (const file of files) {
       if (appliedSet.has(file)) continue;
       const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-      await driver.exec('BEGIN');
+      const client = await poolRef.connect();
       try {
-        await driver.exec(sql);
-        await driver.run('INSERT INTO schema_migrations (file, applied_at) VALUES (?, now()) ON CONFLICT (file) DO NOTHING', [file]);
-        await driver.exec('COMMIT');
+        await client.query('BEGIN');
+        await client.query(sql);
+        await client.query('INSERT INTO schema_migrations (file, applied_at) VALUES ($1, now()) ON CONFLICT (file) DO NOTHING', [file]);
+        await client.query('COMMIT');
       } catch (err) {
-        await driver.exec('ROLLBACK');
+        await client.query('ROLLBACK').catch(() => {});
         throw err;
+      } finally {
+        client.release();
       }
     }
   } else {
-    const { DatabaseSync } = require('node:sqlite');
-    const mdb = new DatabaseSync(path.join(DATA_DIR, 'meridianed.db'));
-    mdb.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (file TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))`);
-    const appliedRows = mdb.prepare('SELECT file FROM schema_migrations').all();
+    driver.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (file TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+    const appliedRows = await driver.all('SELECT file FROM schema_migrations');
     const appliedSet = new Set(appliedRows.map((r) => r.file));
-    try {
-      for (const file of files) {
-        if (appliedSet.has(file)) continue;
-        const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+    for (const file of files) {
+      if (appliedSet.has(file)) continue;
+      const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+      driver.exec('BEGIN IMMEDIATE');
+      try {
         driver.exec(sql);
-        mdb.prepare('INSERT OR IGNORE INTO schema_migrations (file) VALUES (?)').run(file);
+        await driver.run('INSERT OR IGNORE INTO schema_migrations (file) VALUES (?)', [file]);
+        driver.exec('COMMIT');
+      } catch (err) {
+        try { driver.exec('ROLLBACK'); } catch (_) {}
+        throw err;
       }
-    } finally {
-      mdb.close();
     }
   }
 }
