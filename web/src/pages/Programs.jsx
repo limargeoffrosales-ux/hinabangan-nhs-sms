@@ -556,7 +556,7 @@ function buildProgramGrid(entries) {
   const min = Math.min(...times);
   const max = Math.max(...times);
   const slots = [];
-  for (let t = min; t < max; t += 30) slots.push(t);
+  for (let t = min; t <= max; t += 30) slots.push(t);
   const grid = [[], [], [], [], []];
   for (const e of entries) {
     const d = Math.max(0, Math.min(4, (e.day || 1) - 1));
@@ -783,7 +783,7 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
         <label>Pin to day &amp; time <span className="muted">(optional — force one meeting for overloaded teachers)</span></label>
         <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <select className="input" value={form.fixed_day} onChange={set('fixed_day')}>
-            <option value="">Auto — generator picks</option>
+            <option value="">Auto — Monday to Friday (generator picks any weekday)</option>
             <option value="1">Monday</option>
             <option value="2">Tuesday</option>
             <option value="3">Wednesday</option>
