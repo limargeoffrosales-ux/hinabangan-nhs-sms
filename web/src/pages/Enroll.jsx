@@ -24,6 +24,11 @@ const CATEGORIES = [
   { cat: 'tvl-maritime', label: 'TechPro — Maritime' },
 ];
 
+function gradeOrder(a, b) {
+  const n = (s) => { const m = /(\d+)/.exec(s || ''); return m ? Number(m[1]) : 0; };
+  return n(a) - n(b);
+}
+
 function catOf(s) {
   if (s.category) return s.category;
   if (s.track === 'tvl') return 'tvl-ict';
@@ -227,6 +232,13 @@ export default function Enroll() {
   const eligible = students.filter((s) => s.status === 'enrolled');
   const selectedCount = selectedSubjects.length;
 
+  const gradeOptions = useMemo(() => {
+    const set = new Set();
+    sections.forEach((s) => { if (s.grade_level) set.add(s.grade_level); });
+    students.forEach((s) => { if (s.grade_level) set.add(s.grade_level); });
+    return [...set].sort(gradeOrder);
+  }, [sections, students]);
+
   return (
     <>
       <PageHead title="Enrollment" sub="Assign learners to sections with the full SSHS subject checklist (DepEd LRN-based)" />
@@ -259,7 +271,7 @@ export default function Enroll() {
               <label>Section</label>
               <select required value={form.section_id} onChange={(e) => onSectionChange(e.target.value)}>
                 <option value="">— select section —</option>
-                {sections.filter((s) => s.status === 'active' && s.school_year === form.school_year).map((s) => (
+                {sections.filter((s) => s.status === 'active' && s.school_year === form.school_year && s.grade_level === form.grade_level).map((s) => (
                   <option key={s.id} value={s.id}>{s.name} — {s.grade_level} ({s.school_year})</option>
                 ))}
               </select>
@@ -267,6 +279,13 @@ export default function Enroll() {
                 <div>
                   <label>School year</label>
                   <input required value={form.school_year} onChange={(e) => { set('school_year', e.target.value); set('section_id', ''); setSelectedSubjects([]); }} />
+                </div>
+                <div>
+                  <label>Grade level</label>
+                  <select value={form.grade_level} onChange={(e) => { set('grade_level', e.target.value); set('section_id', ''); setSelectedSubjects([]); }}>
+                    <option value="">— select —</option>
+                    {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label>Term (SHS)</label>
