@@ -121,7 +121,9 @@ export default function Programs() {
   const viewedEntries = useMemo(() => {
     if (!viewId) return [];
     return entries
-      .filter((e) => view === 'section' ? String(e.section_id) === viewId : String(e.teacher_id) === viewId)
+      .filter((e) => view === 'section'
+        ? (String(e.section_id) === viewId || String(e.combined_section_id) === viewId)
+        : String(e.teacher_id) === viewId)
       .sort((a, b) => a.day - b.day || a.start_time.localeCompare(b.start_time));
   }, [entries, view, viewId]);
 
@@ -286,7 +288,7 @@ export default function Programs() {
             <tbody>
               {assignments.map((a) => (
                 <tr key={a.id}>
-                  <td>{a.section_name} <span className="muted">({a.grade_level})</span></td>
+                  <td>{a.section_name}{a.combined_section_id && a.combined_section_name ? ` + ${a.combined_section_name}` : ''} <span className="muted">({a.combined_section_id ? `${a.grade_level} + ${a.combined_grade_level || '—'}` : a.grade_level})</span></td>
                   <td>{a.subject_code}<br /><span className="muted">{a.subject_title}</span></td>
                   <td>{a.teacher_name || '—'}</td>
                   <td>{a.room || a.section_room || '—'}</td>
@@ -349,7 +351,7 @@ export default function Programs() {
                       <td>{DAYS[e.day - 1]}</td>
                       <td>{e.start_time}–{e.end_time}</td>
                       <td>{Math.round(toMin(e.end_time) - toMin(e.start_time))} min</td>
-                      <td>{e.subject_code}</td>
+                      <td>{e.subject_code}{e.combined_section_id && <><br /><span className="muted">+ {e.combined_section_name}</span></>}</td>
                       {view === 'section' && <td>{e.teacher_name || '—'}</td>}
                       <td>{e.room || '—'}</td>
                       <td>{hit ? <Badge status="absent" /> : <Badge status="present" />}</td>
@@ -525,8 +527,8 @@ function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInf
         const s1 = model.slots.indexOf(toMin(cell.end_time));
         const span = Math.max(1, s1 - s0);
         const subLine = kind === 'section'
-          ? `Room ${esc(cell.room || '—')}${cell.teacher_name ? ` · ${esc(cell.teacher_name)}` : ''}`
-          : `Room ${esc(cell.room || '—')} · ${esc(cell.section_name || '')}`;
+          ? `Room ${esc(cell.room || '—')}${cell.teacher_name ? ` · ${esc(cell.teacher_name)}` : ''}${cell.combined_section_id ? ` · w/ ${esc(cell.combined_section_name || 'companion section')}` : ''}`
+          : `Room ${esc(cell.room || '—')} · ${esc(cell.section_name || '')}${cell.combined_section_id ? ` + ${esc(cell.combined_section_name || '')}` : ''}`;
         body += `<td rowspan="${span}"><div class="b">${esc(cell.subject_code || '')}</div>` +
           `<div class="small">${esc(cell.subject_title || '')}<br/>${subLine}</div></td>`;
       }
@@ -545,9 +547,10 @@ function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInf
   const legend = model ? (() => {
     const totals = {};
     for (const e of entries) {
+      const pair = e.combined_section_id && e.combined_section_name ? ` + ${e.combined_section_name}` : '';
       const key = kind === 'section'
         ? `${e.subject_code} — ${e.subject_title || ''}`
-        : `${e.subject_code} (${e.section_name || ''}) — ${e.subject_title || ''}`;
+        : `${e.subject_code} (${e.section_name || ''}${pair}) — ${e.subject_title || ''}`;
       totals[key] = (totals[key] || 0) + (toMin(e.end_time) - toMin(e.start_time));
     }
     const items = Object.entries(totals)
@@ -591,6 +594,7 @@ function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInf
 function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClose, onSubmit }) {
   const [form, setForm] = useState({
     section_id: assignment?.section_id ? String(assignment.section_id) : '',
+    combined_section_id: assignment?.combined_section_id ? String(assignment.combined_section_id) : '',
     subject_id: assignment?.subject_id ? String(assignment.subject_id) : '',
     teacher_id: assignment?.teacher_id ? String(assignment.teacher_id) : '',
     duration_minutes: String(assignment?.duration_minutes || 60),
@@ -610,6 +614,7 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
       await onSubmit({
         ...form,
         section_id: Number(form.section_id),
+        combined_section_id: form.combined_section_id ? Number(form.combined_section_id) : null,
         subject_id: Number(form.subject_id),
         teacher_id: form.teacher_id ? Number(form.teacher_id) : null,
         duration_minutes: Number(form.duration_minutes),
@@ -622,7 +627,7 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
   }
 
   return (
-    <Modal title={mode === 'add' ? 'Add subject assignment' : 'Edit assignment'} sub="50 min classes are rounded to the standard 60/90/120-min periods." onClose={onClose}>
+    <Modal title={mode === 'add' ? 'Add subject assignment' : 'Edit assignment'} sub="50 min classes are rounded to the standard 60/90/120-min periods. Combined classes place ONE meeting that covers both sections." onClose={onClose}>
       <ErrorBanner error={err} />
       <form onSubmit={submit}>
         <label>Section</label>
@@ -632,6 +637,16 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
             <option key={s.id} value={String(s.id)}>{s.name} ({s.grade_level})</option>
           ))}
         </select>
+        <label>Combine with section <span className="muted">(optional — one meeting serves both sections)</span></label>
+        <select className="input" value={form.combined_section_id}
+          onChange={(e) => setForm({ ...form, combined_section_id: e.target.value })}>
+          <option value="">No — assign to this section alone</option>
+          {sections
+            .filter((s) => String(s.id) !== form.section_id)
+            .map((s) => (
+              <option key={s.id} value={String(s.id)}>{s.name} ({s.grade_level})</option>
+            ))}
+        </select>
         <label>Subject</label>
         <select className="input" value={form.subject_id} onChange={set('subject_id')}>
           <option value="">Select subject…</option>
@@ -639,7 +654,7 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
             <option key={s.id} value={String(s.id)}>{s.code} — {s.title}</option>
           ))}
         </select>
-        <label>Teacher</label>
+        <label>Teacher{form.combined_section_id ? ' (required — combined class)' : ''}</label>
         <select className="input" value={form.teacher_id} onChange={set('teacher_id')}>
           <option value="">Unassigned (auto)</option>
           {teachers.map((t) => (

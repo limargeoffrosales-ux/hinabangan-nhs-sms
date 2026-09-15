@@ -22,11 +22,13 @@ function loadAssignments(schoolYear) {
   return qa(
     `SELECT ca.*, s.title AS subject_title, s.code AS subject_code, s.units,
             sec.name AS section_name, sec.grade_level, sec.strand, sec.room AS section_room,
+            csec.name AS combined_section_name, csec.grade_level AS combined_grade_level,
             t.first_name || ' ' || t.last_name AS teacher_name,
             t.room AS teacher_room
      FROM class_assignments ca
      JOIN sections sec ON sec.id = ca.section_id
      JOIN subjects s ON s.id = ca.subject_id
+     LEFT JOIN sections csec ON csec.id = ca.combined_section_id
      LEFT JOIN teachers t ON t.id = ca.teacher_id
      WHERE ca.school_year = ?
      ORDER BY sec.grade_level, sec.name, s.title`,
@@ -40,33 +42,37 @@ function findConflicts(rows) {
   for (const r of rows) {
     const st = toMin(r.start_time);
     const en = toMin(r.end_time);
+    const sectionIds = [r.section_id, ...(r.combined_section_id ? [r.combined_section_id] : [])];
+    const sectionNames = [r.section_name, ...(r.combined_section_id && r.combined_section_name ? [r.combined_section_name] : [])].join(' + ');
     const keys = {
-      section: `${r.day}|${r.section_id}`,
-      teacher: r.teacher_id ? `${r.day}|${r.teacher_id}` : null,
-      room: r.room ? `${r.day}|${r.room.toUpperCase()}` : null,
+      section: sectionIds.map((id) => `${r.day}|${id}`),
+      teacher: r.teacher_id ? [`${r.day}|${r.teacher_id}`] : null,
+      room: r.room ? [`${r.day}|${r.room.toUpperCase()}`] : null,
     };
     for (const type of Object.keys(keys)) {
-      const k = keys[type];
-      if (!k) continue;
-      const list = (groups[type][k] = groups[type][k] || []);
-      for (const other of list) {
-        if (overlaps(st, en, other.start, other.end)) {
-          conflicts.push({
-            type,
-            day: r.day,
-            day_name: DAYS[r.day - 1],
-            time: `${r.start_time}–${r.end_time}`,
-            section: r.section_name,
-            subject: r.subject_code,
-            teacher: r.teacher_name,
-            room: r.room,
-            other_section: other.section_name,
-            other_subject: other.subject_code,
-            other_teacher: other.teacher_name,
-          });
+      const arr = keys[type];
+      if (!arr) continue;
+      for (const k of arr) {
+        const list = (groups[type][k] = groups[type][k] || []);
+        for (const other of list) {
+          if (overlaps(st, en, other.start, other.end)) {
+            conflicts.push({
+              type,
+              day: r.day,
+              day_name: DAYS[r.day - 1],
+              time: `${r.start_time}–${r.end_time}`,
+              section: sectionNames,
+              subject: r.subject_code,
+              teacher: r.teacher_name,
+              room: r.room,
+              other_section: other.section_name,
+              other_subject: other.subject_code,
+              other_teacher: other.teacher_name,
+            });
+          }
         }
+        list.push({ start: st, end: en, section_name: sectionNames, subject_code: r.subject_code, teacher_name: r.teacher_name });
       }
-      list.push({ start: st, end: en, section_name: r.section_name, subject_code: r.subject_code, teacher_name: r.teacher_name });
     }
   }
   return conflicts;
@@ -124,7 +130,8 @@ async function generateSchedule(schoolYear, options = {}) {
       let placed = 0;
       const rotated = Array.from({ length: 5 }, (_, i) => (seedDay + i) % 5);
       seedDay = (seedDay + 1) % 5;
-      const secKey = `s${a.section_id}`;
+      const secKeys = [`s${a.section_id}`];
+      if (a.combined_section_id) secKeys.push(`s${a.combined_section_id}`);
       const teaKey = a.teacher_id ? `t${a.teacher_id}` : null;
       for (const dayIdx of rotated) {
         if (placed >= need) break;
@@ -132,21 +139,25 @@ async function generateSchedule(schoolYear, options = {}) {
           const en = st + dur;
           if (en > dayEnd) continue;
           if (st < lunchEnd && en > lunchStart) continue;
-          if (busy('section', dayIdx, secKey, st, en)) continue;
+          if (secKeys.some((k) => busy('section', dayIdx, k, st, en))) continue;
           if (teaKey && busy('teacher', dayIdx, teaKey, st, en)) continue;
           const room = roomsFor(a).find((r) => !busy('room', dayIdx, r, st, en));
           if (!room) continue;
           const id = await conn.runId(
-            `INSERT INTO schedule_entries (school_year, section_id, subject_id, teacher_id, day, start_time, end_time, room)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [schoolYear, a.section_id, a.subject_id, a.teacher_id, dayIdx + 1, toHM(st), toHM(en), room]);
+            `INSERT INTO schedule_entries (school_year, section_id, combined_section_id, subject_id, teacher_id, day, start_time, end_time, room)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [schoolYear, a.section_id, a.combined_section_id || null, a.subject_id, a.teacher_id, dayIdx + 1, toHM(st), toHM(en), room]);
+          const combinedName = a.combined_section_id
+            ? `${a.section_name} + ${a.combined_section_name || 'companion'}`
+            : a.section_name;
           entries.push({
-            id, section_id: a.section_id, subject_id: a.subject_id, teacher_id: a.teacher_id,
+            id, section_id: a.section_id, combined_section_id: a.combined_section_id || null,
+            subject_id: a.subject_id, teacher_id: a.teacher_id,
             day: dayIdx + 1, start_time: toHM(st), end_time: toHM(en), room,
-            section_name: a.section_name, subject_code: a.subject_code, subject_title: a.subject_title,
+            section_name: combinedName, subject_code: a.subject_code, subject_title: a.subject_title,
             teacher_name: a.teacher_name,
           });
-          occupy(dayIdx, secKey, st, en, 'section');
+          for (const k of secKeys) occupy(dayIdx, k, st, en, 'section');
           if (teaKey) occupy(dayIdx, teaKey, st, en, 'teacher');
           occupy(dayIdx, room, st, en, 'room');
           placed++;
@@ -155,7 +166,10 @@ async function generateSchedule(schoolYear, options = {}) {
       }
       if (placed < need) {
         failures.push({
-          section: a.section_name, subject: a.subject_code, teacher: a.teacher_name,
+          section: a.combined_section_id
+            ? `${a.section_name} + ${a.combined_section_name || 'companion'}`
+            : a.section_name,
+          subject: a.subject_code, teacher: a.teacher_name,
           duration_minutes: dur, meetings_per_week: need, placed,
         });
       }
@@ -164,10 +178,12 @@ async function generateSchedule(schoolYear, options = {}) {
 
   const stored = await qa(
     `SELECT e.*, sec.name AS section_name, s.code AS subject_code,
+            csec.name AS combined_section_name,
             t.first_name || ' ' || t.last_name AS teacher_name
      FROM schedule_entries e
      JOIN sections sec ON sec.id = e.section_id
      JOIN subjects s ON s.id = e.subject_id
+     LEFT JOIN sections csec ON csec.id = e.combined_section_id
      LEFT JOIN teachers t ON t.id = e.teacher_id
      WHERE e.school_year = ? ORDER BY e.section_id, e.day, e.start_time`,
     [schoolYear]
