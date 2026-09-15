@@ -148,11 +148,13 @@ export default function Enroll() {
   function onStudentChange(v) {
     const s = students.find((x) => x.id === Number(v));
     setForm((f) => ({ ...f, student_id: v, grade_level: s?.grade_level || f.grade_level, strand: s?.track_strand || f.strand }));
+    setSelectedSubjects([]);
   }
 
   function onSectionChange(v) {
     const sec = sections.find((x) => x.id === Number(v));
     setForm((f) => ({ ...f, section_id: v, grade_level: sec?.grade_level || f.grade_level, strand: sec?.strand || f.strand }));
+    setSelectedSubjects([]);
   }
 
   function onTermChange(v) {
@@ -264,7 +266,7 @@ export default function Enroll() {
               <div className="form-row">
                 <div>
                   <label>School year</label>
-                  <input required value={form.school_year} onChange={(e) => { set('school_year', e.target.value); set('section_id', ''); }} />
+                  <input required value={form.school_year} onChange={(e) => { set('school_year', e.target.value); set('section_id', ''); setSelectedSubjects([]); }} />
                 </div>
                 <div>
                   <label>Term (SHS)</label>
