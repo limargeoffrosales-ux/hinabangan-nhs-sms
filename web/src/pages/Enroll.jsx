@@ -118,7 +118,7 @@ export default function Enroll() {
     } catch (e) {
       setError(e.message);
     } finally {
-      if (!quiet) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
