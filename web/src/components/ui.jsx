@@ -38,13 +38,15 @@ export function ErrorBanner({ error }) {
 
 export function Modal({ title, sub, onClose, children, wide }) {
   const modalRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     const el = modalRef.current;
     if (!el) return;
     const prev = document.activeElement;
     el.focus();
     function onKey(e) {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+      if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); }
       if (e.key === 'Tab') {
         const focusable = el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
         if (!focusable.length) return;
@@ -56,7 +58,7 @@ export function Modal({ title, sub, onClose, children, wide }) {
     }
     el.addEventListener('keydown', onKey);
     return () => { el.removeEventListener('keydown', onKey); if (prev) prev.focus(); };
-  }, [onClose]);
+  }, []);
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div className="modal" ref={modalRef} role="dialog" aria-modal="true" aria-label={title}
