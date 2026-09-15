@@ -147,7 +147,9 @@ export default function Programs() {
         teacher: a.teacher_name || '—',
         meetings: a.meetings_per_week,
         duration: a.duration_minutes,
-        fixed: a.fixed_day && a.fixed_start_time ? `${DAYS[a.fixed_day - 1]} ${a.fixed_start_time}–${fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}` : null,
+        fixed: a.fixed_day != null && a.fixed_start_time
+          ? `${a.fixed_day === 0 ? 'Mon–Fri' : DAYS[a.fixed_day - 1]} ${a.fixed_start_time}–${fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}`
+          : null,
       });
       byGrade[g].sectionsSet.add(a.section_name);
       if (a.combined_section_name) byGrade[g].sectionsSet.add(a.combined_section_name);
@@ -384,8 +386,8 @@ export default function Programs() {
                   <td>{a.room || a.section_room || '—'}</td>
                   <td>{a.duration_minutes} min</td>
                   <td>{a.meetings_per_week}×/wk</td>
-                  <td>{a.fixed_day && a.fixed_start_time
-                    ? <>{DAYS[a.fixed_day - 1]} {a.fixed_start_time}–{fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}</>
+                  <td>{a.fixed_day != null && a.fixed_start_time
+                    ? <>{a.fixed_day === 0 ? 'Mon–Fri' : DAYS[a.fixed_day - 1]} {a.fixed_start_time}–{fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}</>
                     : <span className="muted">auto</span>}</td>
                   {canWrite && (
                     <td className="row-actions">
@@ -700,7 +702,7 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
     duration_minutes: String(assignment?.duration_minutes || 60),
     meetings_per_week: String(assignment?.meetings_per_week || 2),
     room: assignment?.room || '',
-    fixed_day: assignment?.fixed_day ? String(assignment.fixed_day) : '',
+    fixed_day: assignment?.fixed_day != null ? String(assignment.fixed_day) : '',
     fixed_start_time: assignment?.fixed_start_time || '',
   });
   const [err, setErr] = useState(null);
@@ -783,7 +785,8 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
         <label>Pin to day &amp; time <span className="muted">(optional — force one meeting for overloaded teachers)</span></label>
         <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <select className="input" value={form.fixed_day} onChange={set('fixed_day')}>
-            <option value="">Auto — Monday to Friday (generator picks any weekday)</option>
+            <option value="">Auto — generator picks</option>
+            <option value="0">Monday to Friday (any weekday)</option>
             <option value="1">Monday</option>
             <option value="2">Tuesday</option>
             <option value="3">Wednesday</option>

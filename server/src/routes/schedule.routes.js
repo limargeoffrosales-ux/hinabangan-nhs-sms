@@ -18,7 +18,7 @@ function parseFixedTime(b) {
   const start = !b.fixed_start_time ? null : String(b.fixed_start_time).trim();
   if (day !== null || start !== null) {
     if (day === null || start === null) return { error: 'Both fixed_day and fixed_start_time are required to pin a meeting' };
-    if (!Number.isInteger(day) || day < 1 || day > 5) return { error: 'fixed_day must be 1 (Monday) to 5 (Friday)' };
+    if (!Number.isInteger(day) || day < 0 || day > 5) return { error: 'fixed_day must be 0 (Monday–Friday) to 5 (Friday)' };
     if (!TIME_RE.test(start)) return { error: 'fixed_start_time must be a valid HH:MM time' };
   }
   return { day, start };

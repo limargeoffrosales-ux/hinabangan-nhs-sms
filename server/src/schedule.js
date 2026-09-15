@@ -137,8 +137,21 @@ async function generateSchedule(schoolYear, options = {}) {
       const teaKey = a.teacher_id ? `t${a.teacher_id}` : null;
       let placed = 0;
 
-      const pin = (a.fixed_day && a.fixed_start_time)
+      let pin = (a.fixed_day != null && a.fixed_start_time)
         ? { day: Number(a.fixed_day), start: String(a.fixed_start_time) } : null;
+      if (pin && pin.day === 0) {
+        const st = toMin(pin.start);
+        const en = st + dur;
+        const dayRange = [1, 2, 3, 4, 5];
+        const canFit = (di) =>
+          !(st < lunchEnd && en > lunchStart) && !(st < recessEnd && en > recessStart) &&
+          !secKeys.some((k) => busy('section', di, k, st, en)) &&
+          (!teaKey || !busy('teacher', di, teaKey, st, en));
+        for (const d of dayRange) {
+          if (canFit(d - 1) && roomsFor(a).some((r) => !busy('room', d - 1, r, st, en))) { pin.day = d; break; }
+        }
+        if (pin.day === 0) pin.day = 1;
+      }
       if (pin) {
         const st = toMin(pin.start);
         const en = st + dur;
