@@ -24,6 +24,26 @@ const CATEGORIES = [
   { cat: 'tvl-maritime', label: 'TechPro — Maritime' },
 ];
 
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Render's free tier sleeps the DB/instance between requests; the first call
+// after an idle window can surface a transient 500 (pool connection error has
+// no status -> generic "Internal server error"). Retry so a cold-start hiccup
+// never bricks the page.
+async function retryFetch(fn, attempts = 3) {
+  let lastErr;
+  for (let a = 0; a < attempts; a++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (e.status === 400 || e.status === 401 || e.status === 403 || e.status === 404 || e.status === 409) throw e;
+      if (a < attempts - 1) await sleepMs(1000 + a * 1000);
+    }
+  }
+  throw lastErr;
+}
+
 function gradeOrder(a, b) {
   const n = (s) => { const m = /(\d+)/.exec(s || ''); return m ? Number(m[1]) : 0; };
   return n(a) - n(b);
@@ -112,16 +132,18 @@ export default function Enroll() {
       const qs = new URLSearchParams({ limit: '300' });
       if (q) qs.set('q', q);
       const [st, se, rec] = await Promise.all([
-        api('/students?' + qs),
-        api('/sections?limit=200'),
-        api('/enrollments/recent?limit=8').catch(() => ({ data: [] })),
+        retryFetch(() => api('/students?' + qs)),
+        retryFetch(() => api('/sections?limit=200')),
+        retryFetch(() => api('/enrollments/recent?limit=8')).catch(() => ({ data: [] })),
       ]);
       setStudents(st.data);
       setSections(se.data);
       setRecent(rec.data || []);
       setError(null);
     } catch (e) {
-      setError(e.message);
+      setError(e.status === 500
+        ? 'The server hit an error loading enrollment data — retrying usually fixes this. Please try again.'
+        : e.message);
     } finally {
       setLoading(false);
     }
@@ -143,10 +165,12 @@ export default function Enroll() {
   async function loadSubjectsFor(gradeLevel) {
     try {
       const q = new URLSearchParams({ grade_level: gradeLevel, limit: '500' });
-      const res = await api(`/subjects?${q}`);
+      const res = await retryFetch(() => api(`/subjects?${q}`), 2);
       setSubjects(res.data);
     } catch (e) {
-      setError(e.message);
+      setError(e.status === 500
+        ? 'The subject catalog could not be loaded — refresh to try again.'
+        : e.message);
     }
   }
 
