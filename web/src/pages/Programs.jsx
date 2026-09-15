@@ -131,6 +131,40 @@ export default function Programs() {
     return set;
   }, [conflicts]);
 
+  const gradeSummary = useMemo(() => {
+    const sectionById = new Map();
+    const base = {};
+    sections.forEach((s) => {
+      sectionById.set(Number(s.id), s);
+      const g = s.grade_level || '—';
+      base[g] = base[g] || { grade: g, sectionSet: new Set(), subjectSet: new Set(), assignments: 0, meetings: 0, minutes: 0, teacherSet: new Set(), conflicts: 0 };
+      base[g].sectionSet.add(s.name);
+    });
+    assignments.forEach((a) => {
+      const g = a.grade_level || sectionById.get(Number(a.section_id))?.grade_level || '—';
+      base[g] = base[g] || { grade: g, sectionSet: new Set(), subjectSet: new Set(), assignments: 0, meetings: 0, minutes: 0, teacherSet: new Set(), conflicts: 0 };
+      base[g].assignments++;
+      if (a.subject_code) base[g].subjectSet.add(a.subject_code);
+      if (a.teacher_id) base[g].teacherSet.add(Number(a.teacher_id));
+    });
+    entries.forEach((e) => {
+      const sec = sectionById.get(Number(e.section_id));
+      const g = sec ? sec.grade_level : '—';
+      base[g] = base[g] || { grade: g, sectionSet: new Set(), subjectSet: new Set(), assignments: 0, meetings: 0, minutes: 0, teacherSet: new Set(), conflicts: 0 };
+      base[g].meetings++;
+      base[g].minutes += Math.max(0, toMin(e.end_time) - toMin(e.start_time));
+    });
+    const sectionNameToGrade = new Map(sections.map((s) => [s.name, s.grade_level]));
+    conflicts.forEach((c) => {
+      const g = (c.section && sectionNameToGrade.get(c.section))
+        || (c.other_section && sectionNameToGrade.get(c.other_section)) || null;
+      if (g && base[g]) base[g].conflicts++;
+    });
+    return Object.values(base)
+      .map((g) => ({ grade: g.grade, sectionsArr: [...g.sectionSet], subjects: g.subjectSet.size, assignments: g.assignments, meetings: g.meetings, minutes: g.minutes, teachers: g.teacherSet.size, conflicts: g.conflicts }))
+      .sort((a, b) => (parseInt(a.grade, 10) || 0) - (parseInt(b.grade, 10) || 0) || String(a.grade).localeCompare(String(b.grade)));
+  }, [sections, assignments, entries, conflicts]);
+
   return (
     <div>
       <PageHead title="Teacher Programs" sub="Auto-generate weekly teaching loads for Grade 11 and Grade 12 — no class, teacher, or room conflicts.">
@@ -183,6 +217,55 @@ export default function Programs() {
             <RefreshCw size={15} /> {busy ? 'Generating…' : 'Auto-generate programs'}
           </button>
           {!canWrite && <span className="hint" style={{ marginLeft: 10 }}>Only admins can generate programs.</span>}
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Summary by Grade Level <span className="count-pill">{schoolYear}</span></h3>
+        {gradeSummary.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Grade level</th><th>Sections</th><th>Subjects</th><th>Assignments</th><th>Meetings / wk</th><th>Teaching load</th><th>Teachers</th><th>Conflicts</th></tr>
+              </thead>
+              <tbody>
+                {gradeSummary.map((g) => (
+                  <tr key={g.grade}>
+                    <td>
+                      <strong>{g.grade}</strong>
+                      <div className="muted" style={{ maxWidth: 220 }}>{g.sectionsArr.join(', ') || '—'}</div>
+                    </td>
+                    <td>{g.sectionsArr.length}</td>
+                    <td>{g.subjects}</td>
+                    <td>{g.assignments}</td>
+                    <td>{g.meetings}</td>
+                    <td>{fmtHours(g.minutes)}</td>
+                    <td>{g.teachers}</td>
+                    <td>{g.conflicts ? <><Badge status="absent" /> {g.conflicts}</> : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {gradeSummary.length > 1 && (
+                <tfoot>
+                  <tr>
+                    <td><strong>All grades</strong></td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.sectionsArr.length, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.subjects, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.assignments, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.meetings, 0)}</td>
+                    <td>{fmtHours(gradeSummary.reduce((a, g) => a + g.minutes, 0))}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.teachers, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.conflicts, 0) || '—'}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        ) : (
+          <Empty text="No scheduling data for this school year yet — add assignments or run the generator first." />
+        )}
+        <div className="hint" style={{ marginTop: 8 }}>
+          Teaching load is the total scheduled class time per week; Subjects counts unique subject codes assigned in that grade.
         </div>
       </div>
 
@@ -345,6 +428,16 @@ export default function Programs() {
 function toMin(t) {
   const [h, m] = String(t).split(':').map(Number);
   return h * 60 + m;
+}
+
+function fmtHours(min) {
+  const m = Math.round(min || 0);
+  if (!m) return '0 min';
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (!h) return `${r} min`;
+  if (!r) return `${h} h`;
+  return `${h} h ${r} min`;
 }
 
 function esc(s) {
