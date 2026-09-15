@@ -782,11 +782,11 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
         </div>
         <label>Room <span className="muted">(defaults to teacher room, then section room)</span></label>
         <input className="input" value={form.room} onChange={set('room')} placeholder="e.g. ICT Lab 1" />
-        <label>Pin to day &amp; time <span className="muted">(optional — force one meeting for overloaded teachers)</span></label>
+        <label>Pin to day &amp; time <span className="muted">(optional — force meetings for overloaded teachers; Mon–Fri places one meeting each weekday at this time)</span></label>
         <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <select className="input" value={form.fixed_day} onChange={set('fixed_day')}>
             <option value="">Auto — generator picks</option>
-            <option value="0">Monday to Friday (any weekday)</option>
+            <option value="0">Monday to Friday (at this time, one meeting per weekday)</option>
             <option value="1">Monday</option>
             <option value="2">Tuesday</option>
             <option value="3">Wednesday</option>

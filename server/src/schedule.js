@@ -142,15 +142,35 @@ async function generateSchedule(schoolYear, options = {}) {
       if (pin && pin.day === 0) {
         const st = toMin(pin.start);
         const en = st + dur;
-        const dayRange = [1, 2, 3, 4, 5];
-        const canFit = (di) =>
-          !(st < lunchEnd && en > lunchStart) && !(st < recessEnd && en > recessStart) &&
-          !secKeys.some((k) => busy('section', di, k, st, en)) &&
-          (!teaKey || !busy('teacher', di, teaKey, st, en));
-        for (const d of dayRange) {
-          if (canFit(d - 1) && roomsFor(a).some((r) => !busy('room', d - 1, r, st, en))) { pin.day = d; break; }
+        const dayOrder = [1, 2, 3, 4, 5];
+        for (let i = 0; i < 5 && placed < need; i++) {
+          const d = dayOrder[(seedDay + i) % 5];
+          const di = d - 1;
+          const slotOk = en <= dayEnd &&
+            !(st < lunchEnd && en > lunchStart) && !(st < recessEnd && en > recessStart) &&
+            !secKeys.some((k) => busy('section', di, k, st, en)) &&
+            (!teaKey || !busy('teacher', di, teaKey, st, en)) &&
+            roomsFor(a).some((r) => !busy('room', di, r, st, en));
+          if (!slotOk) continue;
+          const room = roomsFor(a).find((r) => !busy('room', di, r, st, en)) || roomsFor(a)[0];
+          const id = await conn.runId(
+            `INSERT INTO schedule_entries (school_year, section_id, combined_section_id, subject_id, teacher_id, day, start_time, end_time, room)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [schoolYear, a.section_id, a.combined_section_id || null, a.subject_id, a.teacher_id, d, toHM(st), toHM(en), room]);
+          entries.push({
+            id, section_id: a.section_id, combined_section_id: a.combined_section_id || null,
+            subject_id: a.subject_id, teacher_id: a.teacher_id,
+            day: d, start_time: toHM(st), end_time: toHM(en), room,
+            section_name: comboName, subject_code: a.subject_code, subject_title: a.subject_title,
+            teacher_name: a.teacher_name, pinned: true,
+          });
+          for (const k of secKeys) occupy(di, k, st, en, 'section');
+          if (teaKey) occupy(di, teaKey, st, en, 'teacher');
+          occupy(di, room, st, en, 'room');
+          placed++;
         }
-        if (pin.day === 0) pin.day = 1;
+        seedDay = (seedDay + placed) % 5;
+        pin = placed === 0 ? { day: dayOrder[seedDay], start: String(a.fixed_start_time) } : null;
       }
       if (pin) {
         const st = toMin(pin.start);
