@@ -319,6 +319,9 @@ const documentRoutes = require('./routes/documents.routes');
       if (path.basename(filePath) === 'index.html') {
         res.setHeader('Cache-Control', 'no-store');
       }
+      if (path.basename(filePath) === 'sw.js') {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
     },
   }));
 
