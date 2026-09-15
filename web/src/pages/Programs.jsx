@@ -66,6 +66,7 @@ export default function Programs() {
       setNotice({
         ok: res.failures.length === 0,
         text: `Generated ${res.generated} class meetings across ${res.days.length} days.` +
+          (res.pinned ? ` ${res.pinned} pinned manually.` : '') +
           (res.failures.length ? ` ${res.failures.length} offering(s) could not be fully placed.` : ' No failures.') +
           (res.conflicts.length ? ` ${res.conflicts.length} conflict(s) detected.` : ' No conflicts detected.'),
       });
@@ -283,7 +284,7 @@ export default function Programs() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Section</th><th>Subject</th><th>Teacher</th><th>Room</th><th>Length</th><th>Load</th>{canWrite && <th></th>}</tr>
+              <tr><th>Section</th><th>Subject</th><th>Teacher</th><th>Room</th><th>Length</th><th>Load</th><th>Fixed time</th>{canWrite && <th></th>}</tr>
             </thead>
             <tbody>
               {assignments.map((a) => (
@@ -294,6 +295,9 @@ export default function Programs() {
                   <td>{a.room || a.section_room || '—'}</td>
                   <td>{a.duration_minutes} min</td>
                   <td>{a.meetings_per_week}×/wk</td>
+                  <td>{a.fixed_day && a.fixed_start_time
+                    ? <>{DAYS[a.fixed_day - 1]} {a.fixed_start_time}–{fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}</>
+                    : <span className="muted">auto</span>}</td>
                   {canWrite && (
                     <td className="row-actions">
                       <button className="icon-btn" title="Edit" aria-label="Edit" onClick={() => setModal({ mode: 'edit', a })}><Pencil size={14} aria-hidden="true" /></button>
@@ -600,6 +604,8 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
     duration_minutes: String(assignment?.duration_minutes || 60),
     meetings_per_week: String(assignment?.meetings_per_week || 2),
     room: assignment?.room || '',
+    fixed_day: assignment?.fixed_day ? String(assignment.fixed_day) : '',
+    fixed_start_time: assignment?.fixed_start_time || '',
   });
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -608,6 +614,7 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
   async function submit(e) {
     e.preventDefault();
     if (!form.section_id || !form.subject_id) { setErr('Section and subject are required.'); return; }
+    if (!!form.fixed_day !== !!form.fixed_start_time) { setErr('To pin a meeting, set both the day and the time.'); return; }
     setBusy(true);
     setErr(null);
     try {
@@ -619,6 +626,8 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
         teacher_id: form.teacher_id ? Number(form.teacher_id) : null,
         duration_minutes: Number(form.duration_minutes),
         meetings_per_week: Number(form.meetings_per_week),
+        fixed_day: form.fixed_day ? Number(form.fixed_day) : null,
+        fixed_start_time: form.fixed_start_time || null,
       });
     } catch (ex) {
       setErr(ex.message);
@@ -675,6 +684,18 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
         </div>
         <label>Room <span className="muted">(defaults to teacher room, then section room)</span></label>
         <input className="input" value={form.room} onChange={set('room')} placeholder="e.g. ICT Lab 1" />
+        <label>Pin to day &amp; time <span className="muted">(optional — force one meeting for overloaded teachers)</span></label>
+        <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <select className="input" value={form.fixed_day} onChange={set('fixed_day')}>
+            <option value="">Auto — generator picks</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+          </select>
+          <input type="time" className="input" value={form.fixed_start_time} onChange={set('fixed_start_time')} />
+        </div>
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : mode === 'add' ? 'Add' : 'Save'}</button>
