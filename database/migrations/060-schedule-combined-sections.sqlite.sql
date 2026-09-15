@@ -7,10 +7,10 @@
 -- ============================================================
 
 ALTER TABLE class_assignments
-  ADD COLUMN IF NOT EXISTS combined_section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL;
+  ADD COLUMN combined_section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL;
 
 ALTER TABLE schedule_entries
-  ADD COLUMN IF NOT EXISTS combined_section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL;
+  ADD COLUMN combined_section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_schedule_combined
   ON schedule_entries (combined_section_id);
