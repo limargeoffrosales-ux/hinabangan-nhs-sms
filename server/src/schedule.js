@@ -39,6 +39,7 @@ function loadAssignments(schoolYear) {
 function findConflicts(rows) {
   const conflicts = [];
   const groups = { section: {}, teacher: {}, room: {} };
+  const seen = new Set();
   for (const r of rows) {
     const st = toMin(r.start_time);
     const en = toMin(r.end_time);
@@ -56,12 +57,21 @@ function findConflicts(rows) {
         const list = (groups[type][k] = groups[type][k] || []);
         for (const other of list) {
           if (overlaps(st, en, other.start, other.end)) {
+            const pair = [
+              type,
+              r.day,
+              [r.section_id, other.sectionIds[0]].sort((x, y) => Number(x) - Number(y)).join(','),
+              [r.subject_id, other.subject_id].sort((x, y) => Number(x) - Number(y)).join(','),
+            ].join('|');
+            if (seen.has(pair)) continue;
+            seen.add(pair);
             conflicts.push({
               type,
               day: r.day,
               day_name: DAYS[r.day - 1],
               time: `${r.start_time}–${r.end_time}`,
               section: sectionNames,
+              ids: [...new Set([...sectionIds, ...(other.sectionIds || [])])],
               subject: r.subject_code,
               teacher: r.teacher_name,
               room: r.room,
@@ -71,7 +81,7 @@ function findConflicts(rows) {
             });
           }
         }
-        list.push({ start: st, end: en, section_name: sectionNames, subject_code: r.subject_code, teacher_name: r.teacher_name });
+        list.push({ start: st, end: en, section_name: sectionNames, subject_code: r.subject_code, teacher_name: r.teacher_name, sectionIds });
       }
     }
   }
@@ -80,7 +90,7 @@ function findConflicts(rows) {
 
 async function generateSchedule(schoolYear, options = {}) {
   const day = Object.assign({}, DEFAULT_DAY, Object.fromEntries(
-    Object.entries(options).filter(([, v]) => v !== undefined && v !== '')));
+    Object.entries(options).filter(([, v]) => v !== undefined && v !== null && v !== '')));
   const dayStart = toMin(day.start);
   const dayEnd = toMin(day.end);
   const lunchStart = toMin(day.lunchStart);
@@ -95,6 +105,7 @@ async function generateSchedule(schoolYear, options = {}) {
   for (let t = dayStart; t <= dayEnd; t += 30) starts.push(t);
 
   const sorted = assignments.slice().sort((a, b) =>
+    (((b.duration_minutes || 60) * (b.meetings_per_week || 1)) - ((a.duration_minutes || 60) * (a.meetings_per_week || 1))) ||
     (b.meetings_per_week - a.meetings_per_week) ||
     (b.duration_minutes - a.duration_minutes) ||
     a.section_id - b.section_id);
@@ -136,6 +147,7 @@ async function generateSchedule(schoolYear, options = {}) {
       if (a.combined_section_id) secKeys.push(`s${a.combined_section_id}`);
       const teaKey = a.teacher_id ? `t${a.teacher_id}` : null;
       let placed = 0;
+      const reasons = { teacher: 0, section: 0, room: 0, time: 0 };
 
       let pin = (a.fixed_day != null && a.fixed_start_time)
         ? { day: Number(a.fixed_day), start: String(a.fixed_start_time) } : null;
@@ -146,12 +158,14 @@ async function generateSchedule(schoolYear, options = {}) {
         for (let i = 0; i < 5 && placed < need; i++) {
           const d = dayOrder[(seedDay + i) % 5];
           const di = d - 1;
-          const slotOk = en <= dayEnd &&
-            !(st < lunchEnd && en > lunchStart) && !(st < recessEnd && en > recessStart) &&
-            !secKeys.some((k) => busy('section', di, k, st, en)) &&
-            (!teaKey || !busy('teacher', di, teaKey, st, en)) &&
-            roomsFor(a).some((r) => !busy('room', di, r, st, en));
-          if (!slotOk) continue;
+          let why = null;
+          if (en > dayEnd) why = 'time';
+          else if (st < lunchEnd && en > lunchStart) why = 'time';
+          else if (st < recessEnd && en > recessStart) why = 'time';
+          else if (secKeys.some((k) => busy('section', di, k, st, en))) why = 'section';
+          else if (teaKey && busy('teacher', di, teaKey, st, en)) why = 'teacher';
+          else if (!roomsFor(a).some((r) => !busy('room', di, r, st, en))) why = 'room';
+          if (why) { reasons[why] += 1; continue; }
           const room = roomsFor(a).find((r) => !busy('room', di, r, st, en)) || roomsFor(a)[0];
           const id = await conn.runId(
             `INSERT INTO schedule_entries (school_year, section_id, combined_section_id, subject_id, teacher_id, day, start_time, end_time, room)
@@ -199,13 +213,18 @@ async function generateSchedule(schoolYear, options = {}) {
         if (placed >= need) break;
         for (const st of starts) {
           const en = st + dur;
-          if (en > dayEnd) continue;
-          if (st < lunchEnd && en > lunchStart) continue;
-          if (st < recessEnd && en > recessStart) continue;
-          if (secKeys.some((k) => busy('section', dayIdx, k, st, en))) continue;
-          if (teaKey && busy('teacher', dayIdx, teaKey, st, en)) continue;
-          const room = roomsFor(a).find((r) => !busy('room', dayIdx, r, st, en));
-          if (!room) continue;
+          let why = null;
+          let room = null;
+          if (en > dayEnd) why = 'time';
+          else if (st < lunchEnd && en > lunchStart) why = 'time';
+          else if (st < recessEnd && en > recessStart) why = 'time';
+          else if (secKeys.some((k) => busy('section', dayIdx, k, st, en))) why = 'section';
+          else if (teaKey && busy('teacher', dayIdx, teaKey, st, en)) why = 'teacher';
+          else {
+            room = roomsFor(a).find((r) => !busy('room', dayIdx, r, st, en));
+            if (!room) why = 'room';
+          }
+          if (why) { reasons[why] += 1; continue; }
           const id = await conn.runId(
             `INSERT INTO schedule_entries (school_year, section_id, combined_section_id, subject_id, teacher_id, day, start_time, end_time, room)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -225,9 +244,14 @@ async function generateSchedule(schoolYear, options = {}) {
         }
       }
       if (placed < need) {
+        const resource = Object.entries(reasons)
+          .filter(([k, n]) => k !== 'time' && n > 0)
+          .sort((x, y) => y[1] - x[1])[0];
+        const reason = resource ? resource[0] : (reasons.time > 0 ? 'time' : null);
         failures.push({
           section: comboName, subject: a.subject_code, teacher: a.teacher_name,
           duration_minutes: dur, meetings_per_week: need, placed,
+          ...(reason ? { reason } : {}),
         });
       }
     }
