@@ -182,7 +182,7 @@ export default function Enroll() {
         ...form,
         student_id: Number(form.student_id),
         section_id: Number(form.section_id),
-        grade_level: selected?.grade_level || form.grade_level,
+        grade_level: form.grade_level,
         is_aral: form.is_aral,
         subject_ids: isShs ? selectedSubjects : [],
       };
@@ -228,14 +228,14 @@ export default function Enroll() {
               <label>Section</label>
               <select required value={form.section_id} onChange={(e) => onSectionChange(e.target.value)}>
                 <option value="">— select section —</option>
-                {sections.filter((s) => s.status === 'active').map((s) => (
+                {sections.filter((s) => s.status === 'active' && s.school_year === form.school_year).map((s) => (
                   <option key={s.id} value={s.id}>{s.name} — {s.grade_level} ({s.school_year})</option>
                 ))}
               </select>
               <div className="form-row">
                 <div>
                   <label>School year</label>
-                  <input required value={form.school_year} onChange={(e) => set('school_year', e.target.value)} />
+                  <input required value={form.school_year} onChange={(e) => { set('school_year', e.target.value); set('section_id', ''); }} />
                 </div>
                 <div>
                   <label>Term (SHS)</label>
