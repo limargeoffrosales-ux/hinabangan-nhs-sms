@@ -10,6 +10,19 @@ router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const PORTAL_READ = ['super_admin', 'school_admin', 'registrar', 'student', 'parent'];
 const DURATIONS = [60, 90, 120];
+const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d)$/;
+
+function parseFixedTime(b) {
+  const day = b.fixed_day === undefined || b.fixed_day === null || b.fixed_day === ''
+    ? null : Number(b.fixed_day);
+  const start = !b.fixed_start_time ? null : String(b.fixed_start_time).trim();
+  if (day !== null || start !== null) {
+    if (day === null || start === null) return { error: 'Both fixed_day and fixed_start_time are required to pin a meeting' };
+    if (!Number.isInteger(day) || day < 1 || day > 5) return { error: 'fixed_day must be 1 (Monday) to 5 (Friday)' };
+    if (!TIME_RE.test(start)) return { error: 'fixed_start_time must be a valid HH:MM time' };
+  }
+  return { day, start };
+}
 
 router.get('/days', (req, res) => res.json({ days: DAYS, durations: DURATIONS }));
 
@@ -65,11 +78,13 @@ router.post('/assignments', requireRole(...WRITE), asyncH(async (req, res) => {
       [b.school_year, b.section_id, b.subject_id]);
   }
   if (exists) return res.status(409).json({ error: 'Subject already assigned to this section (or this section pair) for this school year' });
+  const pin = parseFixedTime(b);
+  if (pin.error) return res.status(400).json({ error: pin.error });
   const id = await qi(
-    `INSERT INTO class_assignments (school_year, section_id, combined_section_id, subject_id, teacher_id, duration_minutes, meetings_per_week, room)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [b.school_year, b.section_id, combinedId, b.subject_id, b.teacher_id || null, dur, meetings, b.room || null]);
-  await audit(req, 'CREATE_ASSIGNMENT', 'class_assignments', id, { school_year: b.school_year, section_id: b.section_id, combined_section_id: combinedId, subject_id: b.subject_id });
+    `INSERT INTO class_assignments (school_year, section_id, combined_section_id, subject_id, teacher_id, duration_minutes, meetings_per_week, room, fixed_day, fixed_start_time)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [b.school_year, b.section_id, combinedId, b.subject_id, b.teacher_id || null, dur, meetings, b.room || null, pin.day, pin.start]);
+  await audit(req, 'CREATE_ASSIGNMENT', 'class_assignments', id, { school_year: b.school_year, section_id: b.section_id, combined_section_id: combinedId, subject_id: b.subject_id, fixed_day: pin.day, fixed_start_time: pin.start });
   res.status(201).json({ id });
 }));
 
@@ -96,11 +111,16 @@ router.patch('/assignments/:id', requireRole(...WRITE), asyncH(async (req, res) 
     return res.status(400).json({ error: 'A teacher is required for a combined class' });
   }
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
+  const pinFields = (b.fixed_day !== undefined || b.fixed_start_time !== undefined)
+    ? parseFixedTime(b)
+    : { day: row.fixed_day, start: row.fixed_start_time };
+  if (pinFields.error) return res.status(400).json({ error: pinFields.error });
   await qr(
-    `UPDATE class_assignments SET combined_section_id = ?, teacher_id = ?, duration_minutes = ?, meetings_per_week = ?, room = ? WHERE id = ?`,
+    `UPDATE class_assignments SET combined_section_id = ?, teacher_id = ?, duration_minutes = ?, meetings_per_week = ?, room = ?, fixed_day = ?, fixed_start_time = ? WHERE id = ?`,
     [combinedId, f('teacher_id', row.teacher_id), f('duration_minutes', row.duration_minutes),
-      f('meetings_per_week', row.meetings_per_week), f('room', row.room), row.id]);
-  await audit(req, 'UPDATE_ASSIGNMENT', 'class_assignments', row.id, { combined_section_id: combinedId });
+      f('meetings_per_week', row.meetings_per_week), f('room', row.room),
+      pinFields.day, pinFields.start, row.id]);
+  await audit(req, 'UPDATE_ASSIGNMENT', 'class_assignments', row.id, { combined_section_id: combinedId, fixed_day: pinFields.day, fixed_start_time: pinFields.start });
   res.json({ ok: true });
 }));
 

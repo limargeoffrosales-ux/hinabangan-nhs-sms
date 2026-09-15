@@ -127,12 +127,39 @@ async function generateSchedule(schoolYear, options = {}) {
     for (const a of sorted) {
       const dur = a.duration_minutes || 60;
       const need = a.meetings_per_week || 1;
-      let placed = 0;
-      const rotated = Array.from({ length: 5 }, (_, i) => (seedDay + i) % 5);
-      seedDay = (seedDay + 1) % 5;
+      const comboName = a.combined_section_id
+        ? `${a.section_name} + ${a.combined_section_name || 'companion'}`
+        : a.section_name;
       const secKeys = [`s${a.section_id}`];
       if (a.combined_section_id) secKeys.push(`s${a.combined_section_id}`);
       const teaKey = a.teacher_id ? `t${a.teacher_id}` : null;
+      let placed = 0;
+
+      const pin = (a.fixed_day && a.fixed_start_time)
+        ? { day: Number(a.fixed_day), start: String(a.fixed_start_time) } : null;
+      if (pin) {
+        const st = toMin(pin.start);
+        const en = st + dur;
+        const room = roomsFor(a)[0];
+        const id = await conn.runId(
+          `INSERT INTO schedule_entries (school_year, section_id, combined_section_id, subject_id, teacher_id, day, start_time, end_time, room)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [schoolYear, a.section_id, a.combined_section_id || null, a.subject_id, a.teacher_id, pin.day, toHM(st), toHM(en), room]);
+        entries.push({
+          id, section_id: a.section_id, combined_section_id: a.combined_section_id || null,
+          subject_id: a.subject_id, teacher_id: a.teacher_id,
+          day: pin.day, start_time: toHM(st), end_time: toHM(en), room,
+          section_name: comboName, subject_code: a.subject_code, subject_title: a.subject_title,
+          teacher_name: a.teacher_name, pinned: true,
+        });
+        for (const k of secKeys) occupy(pin.day - 1, k, st, en, 'section');
+        if (teaKey) occupy(pin.day - 1, teaKey, st, en, 'teacher');
+        occupy(pin.day - 1, room, st, en, 'room');
+        placed = 1;
+      }
+
+      const rotated = Array.from({ length: 5 }, (_, i) => (seedDay + i) % 5);
+      seedDay = (seedDay + 1) % 5;
       for (const dayIdx of rotated) {
         if (placed >= need) break;
         for (const st of starts) {
@@ -147,14 +174,11 @@ async function generateSchedule(schoolYear, options = {}) {
             `INSERT INTO schedule_entries (school_year, section_id, combined_section_id, subject_id, teacher_id, day, start_time, end_time, room)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [schoolYear, a.section_id, a.combined_section_id || null, a.subject_id, a.teacher_id, dayIdx + 1, toHM(st), toHM(en), room]);
-          const combinedName = a.combined_section_id
-            ? `${a.section_name} + ${a.combined_section_name || 'companion'}`
-            : a.section_name;
           entries.push({
             id, section_id: a.section_id, combined_section_id: a.combined_section_id || null,
             subject_id: a.subject_id, teacher_id: a.teacher_id,
             day: dayIdx + 1, start_time: toHM(st), end_time: toHM(en), room,
-            section_name: combinedName, subject_code: a.subject_code, subject_title: a.subject_title,
+            section_name: comboName, subject_code: a.subject_code, subject_title: a.subject_title,
             teacher_name: a.teacher_name,
           });
           for (const k of secKeys) occupy(dayIdx, k, st, en, 'section');
@@ -166,10 +190,7 @@ async function generateSchedule(schoolYear, options = {}) {
       }
       if (placed < need) {
         failures.push({
-          section: a.combined_section_id
-            ? `${a.section_name} + ${a.combined_section_name || 'companion'}`
-            : a.section_name,
-          subject: a.subject_code, teacher: a.teacher_name,
+          section: comboName, subject: a.subject_code, teacher: a.teacher_name,
           duration_minutes: dur, meetings_per_week: need, placed,
         });
       }
@@ -190,7 +211,7 @@ async function generateSchedule(schoolYear, options = {}) {
   );
   const conflicts = findConflicts(stored);
 
-  return { generated: entries.length, assignments: assignments.length, failures, conflicts, days: DAYS };
+  return { generated: entries.length, assignments: assignments.length, pinned: entries.filter((e) => e.pinned).length, failures, conflicts, days: DAYS };
 }
 
 module.exports = { generateSchedule, findConflicts, loadAssignments, DAYS };
