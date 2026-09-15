@@ -102,9 +102,16 @@ function PortalProtected({ children }) {
   return <PortalLayout>{children}</PortalLayout>;
 }
 
+const WRITE_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 function AdminOnly({ children }) {
   const { user } = useAuth();
   if (!can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar')) return <Navigate to="/" replace />;
+  return children;
+}
+function StaffAndTeacher({ children }) {
+  const { user } = useAuth();
+  if (user?.role === 'student' || user?.role === 'parent') return <Navigate to="/portal" replace />;
+  if (!can(user?.role, ...WRITE_ROLES, 'teacher')) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -156,7 +163,7 @@ export default function App() {
       <Route path="/subjects" element={<Protected><Page><Subjects /></Page></Protected>} />
       <Route path="/sections" element={<Protected><Page><Sections /></Page></Protected>} />
       <Route path="/enroll" element={<Protected><Page><Enroll /></Page></Protected>} />
-      <Route path="/programs" element={<Protected><AdminOnly><Page><Programs /></Page></AdminOnly></Protected>} />
+      <Route path="/programs" element={<Protected><StaffAndTeacher><Page><Programs /></Page></StaffAndTeacher></Protected>} />
       <Route path="/submissions" element={<Protected><Page><Submissions /></Page></Protected>} />
       <Route path="/compliance" element={<Protected><AdminOnly><Page><Compliance /></Page></AdminOnly></Protected>} />
       <Route path="/aral" element={<Protected><Page><Aral /></Page></Protected>} />
