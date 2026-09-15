@@ -12,6 +12,21 @@ const PORTAL_READ = ['super_admin', 'school_admin', 'registrar', 'student', 'par
 const DURATIONS = [60, 90, 120];
 const TIME_RE = /^(([01]\d|2[0-3]):[0-5]\d)$/;
 
+function toMin(t) {
+  const [h, m] = String(t).split(':').map(Number);
+  return h * 60 + m;
+}
+
+async function ownTeacherId(userId) {
+  const t = await q('SELECT id FROM teachers WHERE user_id = ?', [userId]);
+  return t ? t.id : null;
+}
+
+function canEditEntry(req, row) {
+  if (req.role !== 'teacher') return true;
+  return req._ownTeacherId && req._ownTeacherId === row.teacher_id;
+}
+
 function parseFixedTime(b) {
   const day = b.fixed_day === undefined || b.fixed_day === null || b.fixed_day === ''
     ? null : Number(b.fixed_day);
@@ -146,9 +161,14 @@ router.post('/generate', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json(result);
 }));
 
-router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
+router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const schoolYear = req.query.school_year || null;
-  const teacherId = req.query.teacher_id || null;
+  let teacherId = req.query.teacher_id || null;
+  if (req.role === 'teacher') {
+    const own = await ownTeacherId(req.user.id);
+    if (!own) return res.json({ data: [], days: DAYS });
+    teacherId = String(own);
+  }
   const sectionId = req.query.section_id || null;
   const day = req.query.day || null;
   let sql =
@@ -202,6 +222,42 @@ router.get('/student/:studentId', requireRole(...PORTAL_READ), asyncH(async (req
      ORDER BY e.day, e.start_time`,
     [school_year, ...sections.map((s) => s.section_id), ...sections.map((s) => s.section_id)]);
   res.json({ data: rows, days: DAYS, school_year });
+}));
+
+router.patch('/entries/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+    const row = await q('SELECT * FROM schedule_entries WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: 'Meeting not found' });
+  if (req.role === 'teacher') {
+    req._ownTeacherId = await ownTeacherId(req.user.id);
+    if (!canEditEntry(req, row)) return res.status(403).json({ error: 'You can only change your own meetings' });
+  }
+  const b = req.body || {};
+  const f = (k, d) => b[k] !== undefined ? b[k] : d;
+  const day = f('day', row.day) === null ? null : Number(f('day', row.day));
+  const start = f('start_time', row.start_time) === null ? null : String(f('start_time', row.start_time)).trim();
+  const end = f('end_time', row.end_time) === null ? null : String(f('end_time', row.end_time)).trim();
+  const room = f('room', row.room);
+  if (!Number.isInteger(day) || day < 1 || day > 5) return res.status(400).json({ error: 'day must be 1 (Monday) to 5 (Friday)' });
+  if (!start || !TIME_RE.test(start)) return res.status(400).json({ error: 'start_time must be a valid HH:MM time' });
+  if (!end || !TIME_RE.test(end)) return res.status(400).json({ error: 'end_time must be a valid HH:MM time' });
+  if (toMin(end) <= toMin(start)) return res.status(400).json({ error: 'end_time must be after start_time' });
+  await qr(
+    'UPDATE schedule_entries SET day = ?, start_time = ?, end_time = ?, room = ? WHERE id = ?',
+    [day, start, end, room === null || room === '' ? null : String(room), row.id]);
+  await audit(req, 'UPDATE_SCHEDULE_ENTRY', 'schedule_entries', row.id, { day, start_time: start, end_time: end, room });
+  res.json({ ok: true });
+}));
+
+router.delete('/entries/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+  const row = await q('SELECT id, teacher_id FROM schedule_entries WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Meeting not found' });
+  if (req.role === 'teacher') {
+    req._ownTeacherId = await ownTeacherId(req.user.id);
+    if (!canEditEntry(req, row)) return res.status(403).json({ error: 'You can only change your own meetings' });
+  }
+  await qr('DELETE FROM schedule_entries WHERE id = ?', [row.id]);
+  await audit(req, 'DELETE_SCHEDULE_ENTRY', 'schedule_entries', row.id);
+  res.json({ ok: true });
 }));
 
 router.get('/conflicts', requireRole(...WRITE), asyncH(async (req, res) => {

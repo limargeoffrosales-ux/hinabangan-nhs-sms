@@ -12,6 +12,8 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 export default function Programs() {
   const { user } = useAuth();
   const canWrite = WRITE.includes(user?.role);
+  const isTeacher = user?.role === 'teacher';
+  const canEditMeetings = canWrite || isTeacher;
   const [schoolYear, setSchoolYear] = useState('2026-2027');
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -27,30 +29,41 @@ export default function Programs() {
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState(null);
+  const [entryModal, setEntryModal] = useState(null);
 
   const loadAll = useCallback(async () => {
     setError(null);
     try {
-      const [sec, sub, tea, asg, sched, conf, sch] = await Promise.all([
-        api('/sections?school_year=' + encodeURIComponent(schoolYear)),
-        api('/subjects?school_year=' + encodeURIComponent(schoolYear)),
-        api('/teachers?limit=100'),
-        api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear)),
-        api('/schedule?school_year=' + encodeURIComponent(schoolYear)),
-        api('/schedule/conflicts?school_year=' + encodeURIComponent(schoolYear)),
+      const [sec, sub, tea, sch] = await Promise.all([
+        api('/sections?school_year=' + encodeURIComponent(schoolYear)).catch(() => ({ data: [] })),
+        api('/subjects?school_year=' + encodeURIComponent(schoolYear)).catch(() => ({ data: [] })),
+        api('/teachers?limit=100').catch(() => ({ data: [] })),
         api('/deped-forms/school-info').catch(() => ({})),
       ]);
       setSections(sec.data || []);
       setSubjects(sub.data || []);
       setTeachers(tea.data || []);
-      setAssignments(asg.data || []);
-      setEntries(sched.data || []);
-      setConflicts(conf.data || []);
       setSchoolInfo(sch || {});
+      if (!isTeacher) {
+        const [asg, sched, conf] = await Promise.all([
+          api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear)),
+          api('/schedule?school_year=' + encodeURIComponent(schoolYear)),
+          api('/schedule/conflicts?school_year=' + encodeURIComponent(schoolYear)),
+        ]);
+        setAssignments(asg.data || []);
+        setEntries(sched.data || []);
+        setConflicts(conf.data || []);
+      } else {
+        const sched = await api('/schedule?school_year=' + encodeURIComponent(schoolYear));
+        setEntries(sched.data || []);
+        const self = (tea.data || []).find((t) => t.user_id === user?.id);
+        setView('teacher');
+        setViewId(self ? String(self.id) : '');
+      }
     } catch (err) {
       setError(err.message);
     }
-  }, [schoolYear]);
+  }, [schoolYear, isTeacher, user?.id]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -93,6 +106,28 @@ export default function Programs() {
     await api(`/schedule/assignments/${id}`, { method: 'PATCH', body });
     const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
     setAssignments(asg.data || []);
+  }
+
+  async function reloadSchedule() {
+    const [sched, conf] = await Promise.all([
+      api('/schedule?school_year=' + encodeURIComponent(schoolYear)),
+      canWrite
+        ? api('/schedule/conflicts?school_year=' + encodeURIComponent(schoolYear)).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+    ]);
+    setEntries(sched.data || []);
+    setConflicts(conf.data || []);
+  }
+
+  async function saveEntry(id, body) {
+    await api(`/schedule/entries/${id}`, { method: 'PATCH', body });
+    await reloadSchedule();
+  }
+
+  async function removeEntry(id) {
+    if (!window.confirm('Remove this meeting from the program?')) return;
+    await api(`/schedule/entries/${id}`, { method: 'DELETE' });
+    await reloadSchedule();
   }
 
   async function deleteAssignment(id) {
@@ -211,7 +246,9 @@ export default function Programs() {
 
   return (
     <div>
-      <PageHead title="Teacher Programs" sub="Auto-generate weekly teaching loads for Grade 11 and Grade 12 — no class, teacher, or room conflicts.">
+      <PageHead title={isTeacher ? 'My Class Program' : 'Teacher Programs'} sub={isTeacher
+        ? 'Your weekly teaching program — adjust meetings anytime or print the class program sheet.'
+        : 'Auto-generate weekly teaching loads for Grade 11 and Grade 12 — no class, teacher, or room conflicts.'}>
         <select
           className="input"
           style={{ maxWidth: 180 }}
@@ -229,6 +266,8 @@ export default function Programs() {
         </div>
       )}
 
+      {canWrite && (
+      <>
       <div className="card">
         <h3>
           <CalendarRange size={16} style={{ verticalAlign: -3 }} /> Automatic Program Generator
@@ -402,6 +441,8 @@ export default function Programs() {
           {!assignments.length && <Empty text="No assignments yet — add subjects to sections, then auto-generate." />}
         </div>
       </div>
+      </>
+      )}
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
@@ -410,19 +451,23 @@ export default function Programs() {
             <span className="count-pill">{viewedEntries.length} meetings</span>
           </h3>
           <div style={{ display: 'flex', gap: 8 }}>
-            <select className="input" style={{ maxWidth: 140 }} value={view}
-              onChange={(e) => { setView(e.target.value); setViewId(''); }}>
-              <option value="section">Per section</option>
-              <option value="teacher">Per teacher</option>
-            </select>
-            <select className="input" style={{ minWidth: 210 }} value={viewId} onChange={(e) => setViewId(e.target.value)}>
-              <option value="">Choose {view === 'section' ? 'section' : 'teacher'}…</option>
-              {(view === 'section' ? sections : teachers).map((x) => (
-                <option key={x.id} value={String(x.id)}>
-                  {view === 'section' ? `${x.name} (${x.grade_level})` : `${x.first_name} ${x.last_name}`}
-                </option>
-              ))}
-            </select>
+            {!isTeacher && (
+              <>
+                <select className="input" style={{ maxWidth: 140 }} value={view}
+                  onChange={(e) => { setView(e.target.value); setViewId(''); }}>
+                  <option value="section">Per section</option>
+                  <option value="teacher">Per teacher</option>
+                </select>
+                <select className="input" style={{ minWidth: 210 }} value={viewId} onChange={(e) => setViewId(e.target.value)}>
+                  <option value="">Choose {view === 'section' ? 'section' : 'teacher'}…</option>
+                  {(view === 'section' ? sections : teachers).map((x) => (
+                    <option key={x.id} value={String(x.id)}>
+                      {view === 'section' ? `${x.name} (${x.grade_level})` : `${x.first_name} ${x.last_name}`}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             {viewId && viewedEntries.length > 0 && (
               <button className="btn" onClick={printProgram} title="Open the DepEd Class Program sheet for printing">
                 <Printer size={15} /> Print {view === 'section' ? 'Class Program' : "Teacher's Program"}
@@ -436,7 +481,7 @@ export default function Programs() {
             <table>
               <thead>
                 <tr><th>Day</th><th>Time</th><th>Length</th><th>{view === 'section' ? 'Subject' : 'Subject'}</th>
-                  {view === 'section' && <th>Teacher</th>}<th>Room</th><th>Status</th></tr>
+                  {view === 'section' && <th>Teacher</th>}<th>Room</th><th>Status</th>{canEditMeetings && <th></th>}</tr>
               </thead>
               <tbody>
                 {viewedEntries.map((e) => {
@@ -450,6 +495,12 @@ export default function Programs() {
                       {view === 'section' && <td>{e.teacher_name || '—'}</td>}
                       <td>{e.room || '—'}</td>
                       <td>{hit ? <Badge status="absent" /> : <Badge status="present" />}</td>
+                      {canEditMeetings && (
+                        <td className="row-actions">
+                          <button className="icon-btn" title="Edit meeting" aria-label="Edit meeting" onClick={() => setEntryModal(e)}><Pencil size={14} aria-hidden="true" /></button>
+                          <button className="icon-btn" title="Remove meeting" aria-label="Remove meeting" onClick={() => removeEntry(e.id)}><Trash2 size={14} aria-hidden="true" /></button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -477,8 +528,15 @@ export default function Programs() {
         <div className="hint" style={{ marginTop: 10 }}>
           <Badge status="absent" /> conflict detected &nbsp;·&nbsp; <Badge status="present" /> no conflict
         </div>
+        {isTeacher && (
+          <div className="hint" style={{ marginTop: 8 }}>
+            You can adjust any meeting here — changes apply right away. The next program generator run uses your changed program; admins can fully regenerate a brand-new program from the assignments.
+          </div>
+        )}
       </div>
 
+      {canWrite && (
+      <>
       <div className="card">
         <h3>Conflict Report <span className="count-pill">{conflicts.length}</span></h3>
         {conflicts.length ? (
@@ -504,6 +562,8 @@ export default function Programs() {
           <Empty text="No scheduling conflicts. The program is clear." />
         )}
       </div>
+      </>
+      )}
 
       {modal && (
         <AssignmentModal
@@ -517,6 +577,17 @@ export default function Programs() {
             if (modal.mode === 'add') await addAssignment(body);
             else await updateAssignment(modal.a.id, body);
             setModal(null);
+          }}
+        />
+      )}
+
+      {entryModal && (
+        <EntryModal
+          entry={entryModal}
+          onClose={() => setEntryModal(null)}
+          onSubmit={async (body) => {
+            await saveEntry(entryModal.id, body);
+            setEntryModal(null);
           }}
         />
       )}
@@ -798,6 +869,54 @@ function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClo
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : mode === 'add' ? 'Add' : 'Save'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EntryModal({ entry, onClose, onSubmit }) {
+  const [form, setForm] = useState({
+    day: String(entry.day),
+    start_time: entry.start_time,
+    end_time: entry.end_time,
+    room: entry.room || '',
+  });
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!form.day || !form.start_time || !form.end_time) { setErr('Day and start/end times are required.'); return; }
+    if (toMin(form.end_time) <= toMin(form.start_time)) { setErr('End time must be after start time.'); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      await onSubmit({ day: Number(form.day), start_time: form.start_time, end_time: form.end_time, room: form.room || null });
+    } catch (ex) {
+      setErr(ex.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Edit meeting" sub="Adjust this class period — changes apply until the next auto-generate replaces the program." onClose={onClose}>
+      <ErrorBanner error={err} />
+      <form onSubmit={submit}>
+        <label>Day</label>
+        <select className="input" value={form.day} onChange={set('day')}>
+          {DAYS.map((d, i) => <option key={i + 1} value={String(i + 1)}>{d}</option>)}
+        </select>
+        <label>Start time</label>
+        <input type="time" className="input" value={form.start_time} onChange={set('start_time')} />
+        <label>End time</label>
+        <input type="time" className="input" value={form.end_time} onChange={set('end_time')} />
+        <label>Room</label>
+        <input className="input" value={form.room} onChange={set('room')} placeholder="e.g. Rm 47" />
+        <div className="modal-actions">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save meeting'}</button>
         </div>
       </form>
     </Modal>
