@@ -30,6 +30,19 @@ async function saveSubjects(conn, enrollmentId, subjectIds) {
   return ids.length;
 }
 
+// Validate the checklist before persisting: every subject must exist and the
+// enrollment must be at the same grade level as the subject. Prevents linking
+// a Grade 11 learner to Grade 12 (or stale/foreign) subject ids via the API.
+async function validateSubjects(gradeLevel, subjectIds) {
+  const ids = Array.isArray(subjectIds) ? [...new Set(subjectIds.map(Number).filter(Boolean))] : [];
+  if (!ids.length) return { ok: true, ids: [] };
+  const rows = await qa(`SELECT id, grade_level FROM subjects WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+  if (rows.length !== ids.length) return { ok: false, error: 'One or more selected subjects do not exist in the catalog' };
+  const bad = rows.filter((r) => r.grade_level && r.grade_level !== gradeLevel);
+  if (bad.length) return { ok: false, error: `Selected subjects do not match ${gradeLevel} (ids: ${bad.map((r) => r.id).join(', ')})` };
+  return { ok: true, ids };
+}
+
 async function loadSubjects(studentId) {
   const rows = await qa(
     `SELECT es.enrollment_id, s.id AS subject_id, s.code, s.title, s.track, s.units, s.term
@@ -37,7 +50,7 @@ async function loadSubjects(studentId) {
      JOIN subjects s ON s.id = es.subject_id
      JOIN enrollments e ON e.id = es.enrollment_id
      WHERE e.student_id = ?
-     ORDER BY s.track, s.title`,
+     ORDER BY s.grade_level, s.track, s.title`,
     [studentId]);
   const map = {};
   for (const r of rows) (map[r.enrollment_id] = map[r.enrollment_id] || []).push({
@@ -92,14 +105,16 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
     term ? [b.student_id, b.school_year, term] : [b.student_id, b.school_year]);
   if (existing) return res.status(409).json({ error: `Student already enrolled for ${b.school_year}${term ? ` (${term} term)` : ''}` });
+  const subChk = await validateSubjects(gradeLevel, b.subject_ids);
+  if (!subChk.ok) return res.status(400).json({ error: subChk.error });
   const isAral = bool(b.is_aral);
   let id;
   const subjects = await tx(async (conn) => {
     id = await conn.runId(
       'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [b.student_id, section.id, b.school_year, gradeLevel, strand, term, isAral, b.status || 'enrolled', b.enrolled_at || null]);
-    await conn.run('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, b.status || 'enrolled', b.student_id]);
-    return await saveSubjects(conn, id, b.subject_ids);
+    await conn.run('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', b.student_id]);
+    return await saveSubjects(conn, id, subChk.ids);
   });
   await audit(req, 'ENROLL_STUDENT', 'enrollments', id, { student_id: b.student_id, section_id: b.section_id, school_year: b.school_year, term, is_aral: isAral, subjects });
   res.status(201).json({ id });
@@ -164,11 +179,17 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'} AND id != ?`,
     term ? [row.student_id, row.school_year, term, row.id] : [row.student_id, row.school_year, row.id]);
   if (dup) return res.status(409).json({ error: 'Another enrollment already exists for this student, school year and term' });
+  let checkedSubjectIds = null;
+  if (b.subject_ids !== undefined) {
+    const subChk = await validateSubjects(row.grade_level, b.subject_ids);
+    if (!subChk.ok) return res.status(400).json({ error: subChk.error });
+    checkedSubjectIds = subChk.ids;
+  }
   const isAral = bool(b.is_aral !== undefined ? b.is_aral : row.is_aral);
   await tx(async (conn) => {
     await conn.run('UPDATE enrollments SET section_id = ?, status = ?, strand = ?, term = ?, is_aral = ?, enrolled_at = ? WHERE id = ?',
       [f('section_id', row.section_id), f('status', row.status), f('strand', row.strand), term, isAral, f('enrolled_at', row.enrolled_at), row.id]);
-    if (b.subject_ids !== undefined) await saveSubjects(conn, row.id, b.subject_ids);
+    if (b.subject_ids !== undefined) await saveSubjects(conn, row.id, checkedSubjectIds);
   });
   await audit(req, 'UPDATE_ENROLLMENT', 'enrollments', row.id, { status: b.status, term, is_aral: isAral });
   res.json({ ok: true });
@@ -184,8 +205,28 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
     if (!stuChk.ok) return res.status(403).json({ error: stuChk.reason });
   }
   await qr('DELETE FROM enrollments WHERE id = ?', [row.id]);
+  // Trace-back: restore the student's grade_level/status from their most recent
+  // remaining enrollment so a corrected deletion does not leave stale metadata.
+  const prev = await q(
+    'SELECT grade_level, status FROM enrollments WHERE student_id = ? ORDER BY school_year DESC, created_at DESC, id DESC LIMIT 1',
+    [row.student_id]);
+  if (prev) await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [prev.grade_level, prev.status || 'enrolled', row.student_id]);
   await audit(req, 'DELETE_ENROLLMENT', 'enrollments', row.id);
   res.json({ ok: true });
+}));
+
+router.get('/recent', requireRole(...WRITE), asyncH(async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 50);
+  const rows = await qa(
+    `SELECT e.id, e.student_id, e.school_year, e.grade_level, e.term, e.status, e.enrolled_at, e.created_at,
+            st.last_name, st.first_name, st.lrn, s.name AS section_name
+     FROM enrollments e
+     JOIN students st ON st.id = e.student_id
+     LEFT JOIN sections s ON s.id = e.section_id
+     ORDER BY e.id DESC
+     LIMIT ?`,
+    [limit]);
+  res.json({ data: rows });
 }));
 
 router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
