@@ -136,7 +136,9 @@ router.post('/generate', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.school_year) return res.status(400).json({ error: 'school_year is required' });
   const result = await generateSchedule(b.school_year, {
-    start: b.start_time, end: b.end_time, lunchStart: b.lunch_start, lunchEnd: b.lunch_end,
+    start: b.start_time, end: b.end_time,
+    lunchStart: b.lunch_start, lunchEnd: b.lunch_end,
+    recessStart: b.recess_start, recessEnd: b.recess_end,
   });
   await audit(req, 'GENERATE_SCHEDULE', 'schedule_entries', b.school_year, {
     generated: result.generated, failures: result.failures.length, conflicts: result.conflicts.length,

@@ -20,7 +20,7 @@ export default function Programs() {
   const [entries, setEntries] = useState([]);
   const [conflicts, setConflicts] = useState([]);
   const [schoolInfo, setSchoolInfo] = useState({});
-  const [genOpts, setGenOpts] = useState({ start: '07:00', end: '17:00', lunch_start: '12:00', lunch_end: '13:00' });
+  const [genOpts, setGenOpts] = useState({ start: '07:00', end: '17:00', lunch_start: '12:00', lunch_end: '13:00', recess_start: '10:00', recess_end: '10:30' });
   const [view, setView] = useState('section');
   const [viewId, setViewId] = useState('');
   const [error, setError] = useState(null);
@@ -112,6 +112,8 @@ export default function Programs() {
       schoolInfo,
       lunchStart: genOpts.lunch_start,
       lunchEnd: genOpts.lunch_end,
+      recessStart: genOpts.recess_start,
+      recessEnd: genOpts.recess_end,
     });
     const header = view === 'section'
       ? `Class Program — ${item.name} (${item.grade_level})`
@@ -232,9 +234,9 @@ export default function Programs() {
         <p className="sub">
           Places every subject assignment into conflict-free slots (Mon–Fri). Supports 1-hour, 1.5-hour and 2-hour classes;
           rooms follow the priority assignment room → teacher room → section room → free room pool, so vacant rooms are
-          delegated to teachers without rooms. Skips the lunch break.
+          delegated to teachers without rooms. Skips the recess and lunch breaks, keeping the last afternoon class clear.
         </p>
-        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', maxWidth: 660 }}>
+        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', maxWidth: 660 }}>
           <label>First class
             <input type="time" className="input" value={genOpts.start}
               onChange={(e) => setGenOpts({ ...genOpts, start: e.target.value })} disabled={!canWrite} />
@@ -242,6 +244,14 @@ export default function Programs() {
           <label>Last class
             <input type="time" className="input" value={genOpts.end}
               onChange={(e) => setGenOpts({ ...genOpts, end: e.target.value })} disabled={!canWrite} />
+          </label>
+          <label>Recess break
+            <input type="time" className="input" value={genOpts.recess_start}
+              onChange={(e) => setGenOpts({ ...genOpts, recess_start: e.target.value })} disabled={!canWrite} />
+          </label>
+          <label>Recess ends
+            <input type="time" className="input" value={genOpts.recess_end}
+              onChange={(e) => setGenOpts({ ...genOpts, recess_end: e.target.value })} disabled={!canWrite} />
           </label>
           <label>Lunch break
             <input type="time" className="input" value={genOpts.lunch_start}
@@ -453,6 +463,8 @@ export default function Programs() {
                 schoolInfo,
                 lunchStart: genOpts.lunch_start,
                 lunchEnd: genOpts.lunch_end,
+                recessStart: genOpts.recess_start,
+                recessEnd: genOpts.recess_end,
               }),
             }} />
           )}
@@ -557,11 +569,13 @@ function buildProgramGrid(entries) {
   return { slots, grid };
 }
 
-function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInfo = {}, lunchStart, lunchEnd }) {
+function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInfo = {}, lunchStart, lunchEnd, recessStart, recessEnd }) {
   const school = schoolInfo || {};
   const model = buildProgramGrid(entries);
   const l0 = lunchStart ? toMin(lunchStart) : -1;
   const l1 = lunchEnd ? toMin(lunchEnd) : -1;
+  const r0 = recessStart ? toMin(recessStart) : -1;
+  const r1 = recessEnd ? toMin(recessEnd) : -1;
 
   const head = `
   <div style="text-align:center;">
@@ -601,7 +615,8 @@ function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInf
     for (let i = 0; i < model.slots.length; i++) {
       const t = model.slots[i];
       const inLunch = (l0 >= 0 && t >= l0 && t < l1);
-      body += `<tr><td style="width:64pt;${inLunch ? 'background:#ececec;' : ''}">${fmtHM(t)}</td>`;
+      const inRecess = (r0 >= 0 && t >= r0 && t < r1);
+      body += `<tr><td style="width:64pt;${(inLunch || inRecess) ? 'background:#ececec;' : ''}">${fmtHM(t)}</td>`;
       for (let d = 0; d < 5; d++) {
         const cell = model.grid[d][i];
         if (cell === '__span__') continue;
@@ -625,7 +640,9 @@ function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInf
     gridMarkup = '<p class="small">No classes are scheduled for this period.</p>';
   }
 
-  const lunchNote = (l1 > l0) ? `<div class="small" style="margin-top:3pt;">Lunch / recess break: ${fmtHM(l0)} – ${fmtHM(l1)} (shaded).</div>` : '';
+  const breakNote = (l1 > l0 ? `Lunch / recess break: ${fmtHM(l0)} – ${fmtHM(l1)} (shaded). ` : '')
+    + (r1 > r0 ? `Morning recess: ${fmtHM(r0)} – ${fmtHM(r1)} (shaded).` : '');
+  const lunchNote = breakNote.trim() ? `<div class="small" style="margin-top:3pt;">${breakNote.trim()}</div>` : '';
 
   const legend = model ? (() => {
     const totals = {};

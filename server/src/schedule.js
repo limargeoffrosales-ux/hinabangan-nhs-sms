@@ -1,7 +1,7 @@
 const { qa, tx } = require('./db');
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-const DEFAULT_DAY = { start: '07:00', end: '17:00', lunchStart: '12:00', lunchEnd: '13:00' };
+const DEFAULT_DAY = { start: '07:00', end: '17:00', lunchStart: '12:00', lunchEnd: '13:00', recessStart: '10:00', recessEnd: '10:30' };
 
 function toMin(t) {
   const [h, m] = String(t).split(':').map(Number);
@@ -85,6 +85,8 @@ async function generateSchedule(schoolYear, options = {}) {
   const dayEnd = toMin(day.end);
   const lunchStart = toMin(day.lunchStart);
   const lunchEnd = toMin(day.lunchEnd);
+  const recessStart = toMin(day.recessStart);
+  const recessEnd = toMin(day.recessEnd);
 
   const assignments = await loadAssignments(schoolYear);
   if (!assignments.length) throw new Error('No class assignments found for this school year');
@@ -166,6 +168,7 @@ async function generateSchedule(schoolYear, options = {}) {
           const en = st + dur;
           if (en > dayEnd) continue;
           if (st < lunchEnd && en > lunchStart) continue;
+          if (st < recessEnd && en > recessStart) continue;
           if (secKeys.some((k) => busy('section', dayIdx, k, st, en))) continue;
           if (teaKey && busy('teacher', dayIdx, teaKey, st, en)) continue;
           const room = roomsFor(a).find((r) => !busy('room', dayIdx, r, st, en));
