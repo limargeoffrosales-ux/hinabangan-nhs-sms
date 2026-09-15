@@ -30,6 +30,7 @@ export default function Programs() {
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState(null);
   const [entryModal, setEntryModal] = useState(null);
+  const [lastFailures, setLastFailures] = useState([]);
 
   const loadAll = useCallback(async () => {
     setError(null);
@@ -71,11 +72,13 @@ export default function Programs() {
     setBusy(true);
     setError(null);
     setNotice(null);
+    setLastFailures([]);
     try {
       const res = await api('/schedule/generate', {
         method: 'POST',
         body: { school_year: schoolYear, ...genOpts },
       });
+      setLastFailures(res.failures || []);
       setNotice({
         ok: res.failures.length === 0,
         text: `Generated ${res.generated} class meetings across ${res.days.length} days.` +
@@ -206,7 +209,13 @@ export default function Programs() {
 
   const conflictSubjects = useMemo(() => {
     const set = new Set();
-    for (const c of conflicts) { set.add(`${c.section}|${c.subject}|${c.day}|${c.time}`); }
+    for (const c of conflicts) {
+      if (c.ids && c.ids.length) {
+        for (const id of c.ids) set.add(`${id}|${c.day}|${c.time}`);
+      } else {
+        set.add(`${c.section}|${c.subject}|${c.day}|${c.time}`);
+      }
+    }
     return set;
   }, [conflicts]);
 
@@ -233,10 +242,10 @@ export default function Programs() {
       base[g].meetings++;
       base[g].minutes += Math.max(0, toMin(e.end_time) - toMin(e.start_time));
     });
-    const sectionNameToGrade = new Map(sections.map((s) => [s.name, s.grade_level]));
     conflicts.forEach((c) => {
-      const g = (c.section && sectionNameToGrade.get(c.section))
-        || (c.other_section && sectionNameToGrade.get(c.other_section)) || null;
+      const g = (c.ids || [])
+        .map((id) => sectionById.get(Number(id))?.grade_level)
+        .find(Boolean);
       if (g && base[g]) base[g].conflicts++;
     });
     return Object.values(base)
@@ -309,6 +318,22 @@ export default function Programs() {
           </button>
           {!canWrite && <span className="hint" style={{ marginLeft: 10 }}>Only admins can generate programs.</span>}
         </div>
+        {lastFailures.length > 0 && (
+          <div className="notice warn" style={{ marginTop: 12 }}>
+            <TriangleAlert size={15} />
+            <div style={{ marginLeft: 8 }}>
+              <strong>Not fully placed ({lastFailures.length}):</strong>
+              <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                {lastFailures.map((f, i) => (
+                  <li key={i}>
+                    {f.section} — <strong>{f.subject}</strong> ({f.teacher || 'unassigned'}): placed {f.placed} of {f.meetings_per_week}×/wk
+                    {f.reason ? <span className="muted"> · {failureReason(f.reason)}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -485,7 +510,7 @@ export default function Programs() {
               </thead>
               <tbody>
                 {viewedEntries.map((e) => {
-                  const hit = conflictSubjects.has(`${e.section_name}|${e.subject_code}|${e.day}|${e.start_time}–${e.end_time}`);
+                  const hit = conflictSubjects.has(`${e.section_id}|${e.day}|${e.start_time}–${e.end_time}`);
                   return (
                     <tr key={e.id}>
                       <td>{DAYS[e.day - 1]}</td>
@@ -521,9 +546,27 @@ export default function Programs() {
               }),
             }} />
           )}
+          {viewId && view === 'teacher' && (
+            <div className="program-preview" dangerouslySetInnerHTML={{
+              __html: programSheetHtml({
+                kind: 'teacher',
+                item: teachers.find((x) => String(x.id) === viewId),
+                entries: viewedEntries,
+                schoolInfo,
+                lunchStart: genOpts.lunch_start,
+                lunchEnd: genOpts.lunch_end,
+                recessStart: genOpts.recess_start,
+                recessEnd: genOpts.recess_end,
+              }),
+            }} />
+          )}
           </>
         ) : (
-          <Empty text={viewId ? 'No classes scheduled for this selection yet.' : 'Pick a section or teacher to view their program.'} />
+          <Empty text={viewId
+            ? 'No classes scheduled for this selection yet.'
+            : isTeacher
+              ? "Your account is not linked to a teacher record yet — ask a school admin to link you, then this page shows your program."
+              : 'Pick a section or teacher to view their program.'} />
         )}
         <div className="hint" style={{ marginTop: 10 }}>
           <Badge status="absent" /> conflict detected &nbsp;·&nbsp; <Badge status="present" /> no conflict
@@ -622,20 +665,30 @@ function fmtHM(min) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function failureReason(reason) {
+  switch (reason) {
+    case 'teacher': return 'the teacher is fully booked at every possible slot';
+    case 'section': return 'the section has no free slot (its weekly load is already full)';
+    case 'room': return 'no free room is available at any slot';
+    case 'time': return 'no slot fits within school hours / outside the breaks';
+    default: return 'no free slot could be found';
+  }
+}
+
 function buildProgramGrid(entries) {
   if (!entries.length) return null;
   const times = [];
   for (const e of entries) { times.push(toMin(e.start_time), toMin(e.end_time)); }
-  const min = Math.min(...times);
-  const max = Math.max(...times);
+  const min = Math.floor(Math.min(...times) / 30) * 30;
+  const max = Math.ceil(Math.max(...times) / 30) * 30;
   const slots = [];
   for (let t = min; t <= max; t += 30) slots.push(t);
   const grid = [[], [], [], [], []];
   for (const e of entries) {
     const d = Math.max(0, Math.min(4, (e.day || 1) - 1));
-    const s0 = slots.indexOf(toMin(e.start_time));
-    const s1 = slots.indexOf(toMin(e.end_time));
-    if (s0 < 0 || s1 < 0 || s1 <= s0) continue;
+    const s0 = Math.round((toMin(e.start_time) - min) / 30);
+    const s1 = Math.round((toMin(e.end_time) - min) / 30);
+    if (s1 <= s0 || s0 < 0 || s1 > slots.length) continue;
     grid[d][s0] = e;
     for (let i = s0 + 1; i < s1; i++) grid[d][i] = '__span__';
   }
@@ -694,8 +747,8 @@ function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInf
         const cell = model.grid[d][i];
         if (cell === '__span__') continue;
         if (!cell) { body += '<td></td>'; continue; }
-        const s0 = model.slots.indexOf(toMin(cell.start_time));
-        const s1 = model.slots.indexOf(toMin(cell.end_time));
+        const s0 = Math.round((toMin(cell.start_time) - model.slots[0]) / 30);
+        const s1 = Math.round((toMin(cell.end_time) - model.slots[0]) / 30);
         const span = Math.max(1, s1 - s0);
         const subLine = kind === 'section'
           ? `Room ${esc(cell.room || '—')}${cell.teacher_name ? ` · ${esc(cell.teacher_name)}` : ''}${cell.combined_section_id ? ` · w/ ${esc(cell.combined_section_name || 'companion section')}` : ''}`

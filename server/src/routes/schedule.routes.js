@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { generateSchedule, findConflicts, DAYS } = require('../schedule');
+const { generateSchedule, findConflicts, loadAssignments, DAYS } = require('../schedule');
 const { ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
 
 const router = express.Router();
@@ -130,12 +130,15 @@ router.patch('/assignments/:id', requireRole(...WRITE), asyncH(async (req, res) 
     ? parseFixedTime(b)
     : { day: row.fixed_day, start: row.fixed_start_time };
   if (pinFields.error) return res.status(400).json({ error: pinFields.error });
+  const dur = Number(f('duration_minutes', row.duration_minutes));
+  if (!DURATIONS.includes(dur)) return res.status(400).json({ error: 'duration_minutes must be 60, 90 or 120' });
+  const meetings = Math.max(1, Math.min(5, Number(f('meetings_per_week', row.meetings_per_week)) || 1));
   await qr(
     `UPDATE class_assignments SET combined_section_id = ?, teacher_id = ?, duration_minutes = ?, meetings_per_week = ?, room = ?, fixed_day = ?, fixed_start_time = ? WHERE id = ?`,
-    [combinedId, f('teacher_id', row.teacher_id), f('duration_minutes', row.duration_minutes),
-      f('meetings_per_week', row.meetings_per_week), f('room', row.room),
+    [combinedId, f('teacher_id', row.teacher_id), dur,
+      meetings, f('room', row.room),
       pinFields.day, pinFields.start, row.id]);
-  await audit(req, 'UPDATE_ASSIGNMENT', 'class_assignments', row.id, { combined_section_id: combinedId, fixed_day: pinFields.day, fixed_start_time: pinFields.start });
+  await audit(req, 'UPDATE_ASSIGNMENT', 'class_assignments', row.id, { combined_section_id: combinedId, duration_minutes: dur, meetings_per_week: meetings, fixed_day: pinFields.day, fixed_start_time: pinFields.start });
   res.json({ ok: true });
 }));
 
@@ -150,10 +153,21 @@ router.delete('/assignments/:id', requireRole(...WRITE), asyncH(async (req, res)
 router.post('/generate', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.school_year) return res.status(400).json({ error: 'school_year is required' });
+  const t = (v) => v === undefined || v === null || v === '' || TIME_RE.test(String(v).trim());
+  const bad = Object.keys({ start_time: 1, end_time: 1, lunch_start: 1, lunch_end: 1, recess_start: 1, recess_end: 1 })
+    .find((k) => !t(b[k]));
+  if (bad) return res.status(400).json({ error: `${bad} must be a valid HH:MM time` });
+  const g = (k) => b[k] === undefined || b[k] === '' ? null : String(b[k]).trim();
+  const start = g('start_time'), end = g('end_time');
+  const lunchStart = g('lunch_start'), lunchEnd = g('lunch_end');
+  const recessStart = g('recess_start'), recessEnd = g('recess_end');
+  if (start && end && toMin(start) >= toMin(end)) return res.status(400).json({ error: 'First class must be before last class' });
+  if (lunchStart && lunchEnd && toMin(lunchStart) >= toMin(lunchEnd)) return res.status(400).json({ error: 'Lunch start must be before lunch end' });
+  if (recessStart && recessEnd && toMin(recessStart) >= toMin(recessEnd)) return res.status(400).json({ error: 'Recess start must be before recess end' });
+  const loaded = await loadAssignments(b.school_year);
+  if (!loaded.length) return res.status(400).json({ error: 'No class assignments found for this school year' });
   const result = await generateSchedule(b.school_year, {
-    start: b.start_time, end: b.end_time,
-    lunchStart: b.lunch_start, lunchEnd: b.lunch_end,
-    recessStart: b.recess_start, recessEnd: b.recess_end,
+    start, end, lunchStart, lunchEnd, recessStart, recessEnd,
   });
   await audit(req, 'GENERATE_SCHEDULE', 'schedule_entries', b.school_year, {
     generated: result.generated, failures: result.failures.length, conflicts: result.conflicts.length,
@@ -241,6 +255,7 @@ router.patch('/entries/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req
   if (!start || !TIME_RE.test(start)) return res.status(400).json({ error: 'start_time must be a valid HH:MM time' });
   if (!end || !TIME_RE.test(end)) return res.status(400).json({ error: 'end_time must be a valid HH:MM time' });
   if (toMin(end) <= toMin(start)) return res.status(400).json({ error: 'end_time must be after start_time' });
+  if (toMin(end) - toMin(start) > 600) return res.status(400).json({ error: 'A single meeting cannot exceed 10 hours' });
   await qr(
     'UPDATE schedule_entries SET day = ?, start_time = ?, end_time = ?, room = ? WHERE id = ?',
     [day, start, end, room === null || room === '' ? null : String(room), row.id]);
