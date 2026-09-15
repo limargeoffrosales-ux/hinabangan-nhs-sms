@@ -56,12 +56,37 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     return res.status(400).json({ error: 'term is required for SHS enrollment (first, second or third)' });
   }
   const student = await q('SELECT id FROM students WHERE id = ?', [b.student_id]);
-  const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
+  const section = await q('SELECT id, school_year, grade_level, strand, capacity FROM sections WHERE id = ?', [b.section_id]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
   if (!section) return res.status(404).json({ error: 'Section not found' });
+  if (section.school_year && section.school_year !== b.school_year) {
+    return res.status(400).json({ error: `Section ${section.school_year} does not match the enrollment school year ${b.school_year}` });
+  }
+  if (b.grade_level && section.grade_level && b.grade_level !== section.grade_level) {
+    return res.status(400).json({ error: `Grade level ${b.grade_level} does not match the section (${section.grade_level})` });
+  }
+  const gradeLevel = section.grade_level || b.grade_level;
+  const strand = b.strand || section.strand || null;
   if (req.role === 'teacher') {
     const chk = await ensureTeacherSeesSection(req.user, section.id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
+    const outside = await q(
+      `SELECT e.id FROM enrollments e JOIN sections s ON s.id = e.section_id
+       WHERE e.student_id = ? AND e.status = 'enrolled'
+         AND s.id NOT IN (${chk.scope.sections.map(() => '?').join(',')}) LIMIT 1`,
+      [b.student_id, ...chk.scope.sections]);
+    if (outside) {
+      return res.status(403).json({ error: 'This student is currently enrolled in a class outside your scope — contact an administrator to transfer or admit them.' });
+    }
+  }
+  const capacity = Number(section.capacity) || 40;
+  if (capacity > 0) {
+    const tally = await q(
+      'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?',
+      [section.id, b.school_year, 'enrolled']);
+    if (Number(tally.n) >= capacity) {
+      return res.status(409).json({ error: `Section is at full capacity (${capacity} learners)` });
+    }
   }
   const existing = await q(
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
@@ -72,8 +97,8 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   const subjects = await tx(async (conn) => {
     id = await conn.runId(
       'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [b.student_id, b.section_id, b.school_year, b.grade_level, b.strand || null, term, isAral, b.status || 'enrolled', b.enrolled_at || null]);
-    await conn.run('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [b.grade_level, b.status || 'enrolled', b.student_id]);
+      [b.student_id, section.id, b.school_year, gradeLevel, strand, term, isAral, b.status || 'enrolled', b.enrolled_at || null]);
+    await conn.run('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, b.status || 'enrolled', b.student_id]);
     return await saveSubjects(conn, id, b.subject_ids);
   });
   await audit(req, 'ENROLL_STUDENT', 'enrollments', id, { student_id: b.student_id, section_id: b.section_id, school_year: b.school_year, term, is_aral: isAral, subjects });
@@ -103,10 +128,37 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     const stuChk = await ensureTeacherSeesStudent(req.user, row.student_id);
     if (!stuChk.ok) return res.status(403).json({ error: stuChk.reason });
   }
+  let newSection = null;
+  if (b.section_id !== undefined && Number(b.section_id) !== Number(row.section_id)) {
+    newSection = await q('SELECT id, school_year, grade_level, capacity FROM sections WHERE id = ?', [b.section_id]);
+    if (!newSection) return res.status(404).json({ error: 'Section not found' });
+    if (newSection.school_year && newSection.school_year !== row.school_year) {
+      return res.status(400).json({ error: `Section ${newSection.school_year} does not match the enrollment school year ${row.school_year}` });
+    }
+    if (newSection.grade_level && newSection.grade_level !== row.grade_level) {
+      return res.status(400).json({ error: `Moving between grade levels is not supported here (section is ${newSection.grade_level}, enrollment is ${row.grade_level})` });
+    }
+    const capacity = Number(newSection.capacity) || 40;
+    if (capacity > 0) {
+      const tally = await q(
+        'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ? AND id != ?',
+        [newSection.id, row.school_year, 'enrolled', row.id]);
+      if (Number(tally.n) >= capacity) {
+        return res.status(409).json({ error: `Target section is at full capacity (${capacity} learners)` });
+      }
+    }
+  }
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
-  const term = b.term !== undefined ? normTerm(b.term) : row.term;
-  if (isShs(row.grade_level) && term && !TERMS.includes(term)) {
-    return res.status(400).json({ error: 'term must be first, second or third' });
+  let term = row.term;
+  if (b.term !== undefined) {
+    const nt = normTerm(b.term);
+    if (nt === null && String(b.term).trim() !== '') {
+      return res.status(400).json({ error: 'term must be first, second or third' });
+    }
+    if (nt === null && isShs(row.grade_level)) {
+      return res.status(400).json({ error: 'term is required for SHS enrollment (first, second or third)' });
+    }
+    term = nt;
   }
   const dup = await q(
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'} AND id != ?`,
@@ -147,10 +199,11 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
   const sectionIdx = header.findIndex(h => h === 'section_name' || h === 'section');
   const syIdx = header.findIndex(h => h === 'school_year');
   const glIdx = header.findIndex(h => h === 'grade_level' || h === 'grade');
+  const termIdx = header.findIndex(h => h === 'term');
   if (lrnIdx === -1 || sectionIdx === -1) {
     return res.status(400).json({ error: 'CSV must have lrn and section_name columns' });
   }
-  const schoolYear = syIdx >= 0 ? null : (b.school_year || '2026-2027');
+  const fallbackSy = b.school_year || '2026-2027';
   let imported = 0;
   let skipped = 0;
   const errors = [];
@@ -158,23 +211,41 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
     const cols = lines[i].split(',').map(c => c.trim());
     const lrn = cols[lrnIdx];
     const sectionName = cols[sectionIdx];
-    const sy = syIdx >= 0 ? cols[syIdx] : schoolYear;
+    const sy = (syIdx >= 0 && cols[syIdx]) ? cols[syIdx] : fallbackSy;
     const gl = glIdx >= 0 ? cols[glIdx] : null;
+    const term = normTerm(termIdx >= 0 ? cols[termIdx] : (b.term !== undefined ? b.term : null));
     if (!lrn || !sectionName) { skipped++; continue; }
     try {
       const student = await q('SELECT id FROM students WHERE lrn = ?', [lrn]);
       if (!student) { errors.push(`Row ${i + 1}: student LRN ${lrn} not found`); skipped++; continue; }
-      const section = await q('SELECT id, grade_level FROM sections WHERE name = ? AND (school_year = ? OR school_year IS NULL)', [sectionName, sy]);
+      const section = await q('SELECT id, grade_level, strand, school_year, capacity FROM sections WHERE name = ? AND (school_year = ? OR school_year IS NULL)', [sectionName, sy]);
       if (!section) { errors.push(`Row ${i + 1}: section "${sectionName}" not found`); skipped++; continue; }
       const gradeLevel = gl || section.grade_level;
+      if (isShs(gradeLevel) && !term) {
+        errors.push(`Row ${i + 1}: LRN ${lrn} is SHS but has no valid term (first, second or third)`);
+        skipped++; continue;
+      }
+      if (section.school_year && section.school_year !== sy) {
+        errors.push(`Row ${i + 1}: section "${sectionName}" belongs to ${section.school_year}, not ${sy}`);
+        skipped++; continue;
+      }
       const existing = await q(
-        'SELECT id FROM enrollments WHERE student_id = ? AND school_year = ?',
-        [student.id, sy]
-      );
+        `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
+        term ? [student.id, sy, term] : [student.id, sy]);
       if (existing) { skipped++; continue; }
+      const capacity = Number(section.capacity) || 40;
+      if (capacity > 0) {
+        const tally = await q(
+          'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?',
+          [section.id, sy, 'enrolled']);
+        if (Number(tally.n) >= capacity) {
+          errors.push(`Row ${i + 1}: section "${sectionName}" is at full capacity (${capacity})`);
+          skipped++; continue;
+        }
+      }
       await qr(
-        'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, status) VALUES (?, ?, ?, ?, ?)',
-        [student.id, section.id, sy, gradeLevel, 'enrolled']
+        'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [student.id, section.id, sy, gradeLevel, section.strand || null, term, 'enrolled']
       );
       await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', student.id]);
       imported++;
