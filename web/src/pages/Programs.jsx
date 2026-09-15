@@ -128,6 +128,43 @@ export default function Programs() {
       .sort((a, b) => a.day - b.day || a.start_time.localeCompare(b.start_time));
   }, [entries, view, viewId]);
 
+  const combinedByGrade = useMemo(() => {
+    const pairs = assignments.filter((a) => a.combined_section_id);
+    if (!pairs.length) return [];
+    const byGrade = {};
+    for (const a of pairs) {
+      const g = a.grade_level || '—';
+      byGrade[g] = byGrade[g] || { grade: g, pairs: [], sectionsSet: new Set(), teacherSet: new Set(), meetings: 0, minutes: 0 };
+      byGrade[g].pairs.push({
+        id: a.id,
+        primaryName: a.section_name,
+        primaryGrade: a.grade_level,
+        companionName: a.combined_section_name || 'companion',
+        companionGrade: a.combined_grade_level,
+        subject: a.subject_code,
+        teacher: a.teacher_name || '—',
+        meetings: a.meetings_per_week,
+        duration: a.duration_minutes,
+        fixed: a.fixed_day && a.fixed_start_time ? `${DAYS[a.fixed_day - 1]} ${a.fixed_start_time}–${fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}` : null,
+      });
+      byGrade[g].sectionsSet.add(a.section_name);
+      if (a.combined_section_name) byGrade[g].sectionsSet.add(a.combined_section_name);
+      if (a.teacher_id) byGrade[g].teacherSet.add(Number(a.teacher_id));
+      byGrade[g].meetings += a.meetings_per_week;
+      byGrade[g].minutes += a.meetings_per_week * a.duration_minutes;
+    }
+    return Object.values(byGrade)
+      .map((g) => ({
+        grade: g.grade,
+        pairs: g.pairs,
+        sections: [...g.sectionsSet],
+        teachers: g.teacherSet.size,
+        meetings: g.meetings,
+        minutes: g.minutes,
+      }))
+      .sort((x, y) => (parseInt(x.grade, 10) || 0) - (parseInt(y.grade, 10) || 0) || String(x.grade).localeCompare(String(y.grade)));
+  }, [assignments]);
+
   const conflictSubjects = useMemo(() => {
     const set = new Set();
     for (const c of conflicts) { set.add(`${c.section}|${c.subject}|${c.day}|${c.time}`); }
@@ -271,6 +308,48 @@ export default function Programs() {
           Teaching load is the total scheduled class time per week; Subjects counts unique subject codes assigned in that grade.
         </div>
       </div>
+
+      {combinedByGrade.length > 0 && (
+      <div className="card">
+        <h3>Combined Sections by Grade Level <span className="count-pill">{combinedByGrade.reduce((a, g) => a + g.pairs.length, 0)} pairs</span></h3>
+        <p className="sub">
+          Combined classes pair two sections into one shared meeting — one teacher, one subject, one slot per week for both sections.
+        </p>
+        {combinedByGrade.map((g) => (
+          <div key={g.grade} style={{ marginBottom: 18 }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {g.grade}
+              <span className="count-pill">{g.pairs.length} pair(s)</span>
+              <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
+                {g.sections.length} sections · {g.meetings} meetings/wk · {fmtHours(g.minutes)} shared load · {g.teachers} teacher(s)
+              </span>
+            </h4>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Combined sections</th><th>Subject</th><th>Teacher</th><th>Length</th><th>Load</th><th>Pinned time</th></tr>
+                </thead>
+                <tbody>
+                  {g.pairs.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <strong>{p.primaryName}</strong>{p.companionGrade !== p.primaryGrade ? ` (${p.primaryGrade})` : ''} + {p.companionName}
+                        {p.companionGrade !== p.primaryGrade && <span className="muted"> ({p.companionGrade})</span>}
+                      </td>
+                      <td>{p.subject}</td>
+                      <td>{p.teacher}</td>
+                      <td>{p.duration} min</td>
+                      <td>{p.meetings}×/wk</td>
+                      <td>{p.fixed || <span className="muted">auto</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+      )}
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
