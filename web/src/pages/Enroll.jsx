@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { SHS_TRACKS, ENROLLMENT_STATUSES } from '../lib/constants';
@@ -91,29 +91,45 @@ export default function Enroll() {
   const [students, setStudents] = useState([]);
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [studentSearch, setStudentSearch] = useState('');
   const [form, setForm] = useState({ student_id: '', section_id: '', school_year: '2026-2027', grade_level: 'Grade 11', strand: '', term: 'first', is_aral: false, status: 'enrolled', enrolled_at: '' });
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [search, setSearch] = useState('');
   const [history, setHistory] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (q, quiet) => {
+    if (!quiet) setLoading(true);
     try {
-      const [st, se] = await Promise.all([api('/students?limit=200'), api('/sections?limit=200')]);
+      const qs = new URLSearchParams({ limit: '300' });
+      if (q) qs.set('q', q);
+      const [st, se, rec] = await Promise.all([
+        api('/students?' + qs),
+        api('/sections?limit=200'),
+        api('/enrollments/recent?limit=8').catch(() => ({ data: [] })),
+      ]);
       setStudents(st.data);
       setSections(se.data);
+      setRecent(rec.data || []);
       setError(null);
     } catch (e) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const firstLoad = useRef(true);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      load(studentSearch.trim(), firstLoad.current);
+      firstLoad.current = false;
+    }, 300);
+    return () => clearTimeout(t);
+  }, [studentSearch, load]);
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -218,7 +234,20 @@ export default function Enroll() {
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Enroll a Student</h3>
             <form onSubmit={submit}>
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                <input
+                  className="input"
+                  placeholder="Search learners by name or LRN — updates the list below…"
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  style={{ paddingLeft: 30 }}
+                />
+              </div>
               <label>Student</label>
+              <div className="hint" style={{ marginTop: -6, marginBottom: 6 }}>
+                {eligible.length} {eligible.length === 1 ? 'learner' : 'learners'} {studentSearch ? `matching "${studentSearch}"` : 'available to enroll'}
+              </div>
               <select required value={form.student_id} onChange={(e) => onStudentChange(e.target.value)}>
                 <option value="">— select learner —</option>
                 {eligible.map((s) => (
@@ -322,18 +351,19 @@ export default function Enroll() {
 
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Recently Enrolled</h3>
-            {eligible.length === 0 ? <Empty text="No students available." /> : (
+            {recent.length === 0 ? <Empty text="No enrollments recorded yet." /> : (
               <table>
                 <thead>
-                  <tr><th>Name</th><th>Grade</th><th></th></tr>
+                  <tr><th>Student</th><th>Section</th><th>Grade</th><th></th></tr>
                 </thead>
                 <tbody>
-                  {eligible.slice(0, 8).map((s) => (
-                    <tr key={s.id}>
-                      <td>{s.last_name}, {s.first_name}</td>
-                      <td>{s.grade_level}</td>
+                  {recent.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.last_name}, {r.first_name}</td>
+                      <td>{r.section_name || '—'}</td>
+                      <td>{r.grade_level}{r.term ? ` · ${r.term[0].toUpperCase() + r.term.slice(1)}` : ''}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn btn-sm" onClick={() => viewHistory(s)}>History</button>
+                        <button className="btn btn-sm" onClick={() => viewHistory({ id: r.student_id, last_name: r.last_name, first_name: r.first_name, lrn: r.lrn })}>History</button>
                       </td>
                     </tr>
                   ))}
