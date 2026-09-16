@@ -496,12 +496,22 @@ const upload = multer({
 });
 
 const ATTACH_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'];
+const ATTACH_FULL_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+
+async function assertAttachmentAccess(req, submissionId, res) {
+  const sub = await q('SELECT user_id FROM report_submissions WHERE id = ?', [submissionId]);
+  if (!sub) return res.status(404).json({ error: 'Submission not found' });
+  if (!ATTACH_FULL_ROLES.includes(req.role) && sub.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Can only manage attachments on your own submissions' });
+  }
+  return sub;
+}
 
 router.post('/:id/attachments', requireRole(...ATTACH_ROLES), upload.single('file'), asyncH(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   req.file = await optimizeUpload(req.file);
-  const sub = await q('SELECT id FROM report_submissions WHERE id = ?', [req.params.id]);
-  if (!sub) return res.status(404).json({ error: 'Submission not found' });
+  const sub = await assertAttachmentAccess(req, req.params.id, res);
+  if (!sub) return;
   const { key } = await uploadFile('submissions', req.file, req.file.originalname);
   const fileId = await qi(
     `INSERT INTO submission_files (submission_id, filename, stored_name, size_bytes, mime) VALUES (?, ?, ?, ?, ?)`,
@@ -511,11 +521,15 @@ router.post('/:id/attachments', requireRole(...ATTACH_ROLES), upload.single('fil
 }));
 
 router.get('/:id/attachments', requireRole(...ATTACH_ROLES), asyncH(async (req, res) => {
+  const sub = await assertAttachmentAccess(req, req.params.id, res);
+  if (!sub) return;
   const rows = await qa('SELECT * FROM submission_files WHERE submission_id = ? ORDER BY uploaded_at DESC', [req.params.id]);
   res.json({ data: rows });
 }));
 
 router.delete('/:id/attachments/:fileId', requireRole(...ATTACH_ROLES), asyncH(async (req, res) => {
+  const sub = await assertAttachmentAccess(req, req.params.id, res);
+  if (!sub) return;
   const row = await q('SELECT * FROM submission_files WHERE id = ? AND submission_id = ?', [req.params.fileId, req.params.id]);
   if (!row) return res.status(404).json({ error: 'File not found' });
   deleteFile(row.stored_name).catch((err) => logger.error({ err: err.message, key: row.stored_name }, '[SUBMISSIONS] deleteFile failed'));

@@ -71,6 +71,24 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const valid = ['present', 'absent', 'late', 'excused', 'half_day'];
+  const enrolled = await qa(
+    `SELECT student_id FROM enrollments WHERE section_id = ? AND status = 'enrolled'`,
+    [b.section_id]);
+  const allowedIds = new Set(enrolled.map((e) => Number(e.student_id)));
+  if (allowedIds.size === 0) {
+    return res.status(400).json({ error: 'Section has no enrolled students' });
+  }
+  const invalid = b.records
+    .filter((r) => r.student_id && Number(r.student_id) > 0 && !allowedIds.has(Number(r.student_id)))
+    .map((r) => r.student_id);
+  const unlisted = b.records.filter((r) => !r.student_id);
+  if (invalid.length || unlisted.length) {
+    return res.status(400).json({
+      error: 'One or more student_ids are not enrolled in this section',
+      invalid_student_ids: [...new Set(invalid)],
+      missing_student_ids: unlisted.map(() => null),
+    });
+  }
   let n = 0;
   await tx(async (conn) => {
     for (const r of b.records) {

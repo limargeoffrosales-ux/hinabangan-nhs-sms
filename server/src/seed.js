@@ -96,7 +96,7 @@ async function seed() {
     }
     const pw = crypto.randomBytes(12).toString('base64url');
     await qi('INSERT INTO users (username, password_hash, name, role, email, status, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, NULL)',
-      [username, await bcrypt.hash(pw, 12), name, role, email || null, 'active']);
+      [username, await bcrypt.hash(pw, 10), name, role, email || null, 'active']);
     logger.info({ user: username, role }, '+ user created');
     accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }
@@ -108,7 +108,7 @@ async function seed() {
     }
     const pw = crypto.randomBytes(12).toString('base64url');
     await qi('INSERT INTO users (username, password_hash, name, role, email, status, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, NULL)',
-      [username, await bcrypt.hash(pw, 12), name, role, `${username}@hinabangan-nhs.edu.ph`, 'active']);
+      [username, await bcrypt.hash(pw, 10), name, role, `${username}@hinabangan-nhs.edu.ph`, 'active']);
     logger.info({ user: username, role }, '+ user created');
     accounts.push(`${username} | ${pw} | ${role} | ${name}`);
   }
@@ -121,9 +121,14 @@ async function seed() {
         'username | password | role | name\n' + accounts.join('\n') + '\n', 'utf8');
       logger.info({ count: accounts.length }, '+ new demo accounts written to accounts.txt (local demo only)');
     } else {
-      // Production/boot seeding — surface the one-time credentials in the boot
-      // log instead of persisting them in a plaintext file.
-      for (const line of accounts) logger.info('+ new account: ' + line);
+      // Production/boot seeding — surface the one-time bootstrap credential in
+      // the boot log. Non-bootstrap accounts are logged WITHOUT their password
+      // (logs are retained by the host); reset those via Users > set password.
+      for (const line of accounts) {
+        const [u, , role] = line.split(' | ');
+        if (role === 'super_admin') logger.info('+ new super_admin account: ' + line);
+        else logger.info('+ new account (password withheld): ' + u + ' | ' + role);
+      }
     }
   } else {
     logger.info('= all accounts already exist — nothing new to write.');

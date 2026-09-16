@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Send } from 'lucide-react';
 import { api } from '../lib/api';
+import { safeHttpUrl } from '../lib/utils';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 
@@ -136,7 +137,7 @@ export default function PortalAssignments() {
                 {a.text_content || a.link_url ? (
                   <div className="sub" style={{ margin: '8px 0', padding: 8, background: 'var(--panel-2, rgba(255,255,255,.04))', borderRadius: 6 }}>
                     {a.text_content && <div>{a.text_content}</div>}
-                    {a.link_url && <div><a href={a.link_url} target="_blank" rel="noreferrer">Open submitted link</a></div>}
+                    {a.link_url && safeHttpUrl(a.link_url) && <div><a href={safeHttpUrl(a.link_url)} target="_blank" rel="noreferrer">Open submitted link</a></div>}
                   </div>
                 ) : null}
 

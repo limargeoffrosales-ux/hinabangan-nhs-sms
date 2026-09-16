@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { q, qa, qi, qr } = require('../db');
-const { authenticate, requireRole, ROLES, isAdminRole, clearUserCache, clearCsrfToken } = require('../auth');
+const { authenticate, requireRole, ROLES, ADMIN_ROLES, isAdminRole, clearUserCache, clearCsrfToken } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const router = express.Router();
@@ -20,8 +20,8 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
   const { username, password, name, role, email, phone } = req.body || {};
   if (!username || !password || !name || !role) return res.status(400).json({ error: 'username, password, name, role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: `role must be one of: ${ROLES.join(', ')}` });
-  if (req.user.role === 'school_admin' && role === 'super_admin') {
-    return res.status(403).json({ error: 'Cannot assign super_admin role' });
+  if (req.user.role === 'school_admin' && ADMIN_ROLES.includes(role)) {
+    return res.status(403).json({ error: 'school_admin cannot create accounts with admin-level roles' });
   }
   if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
   const exists = await q('SELECT id FROM users WHERE username = ?', [String(username).trim()]);
@@ -41,8 +41,11 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
   const user = await q('SELECT * FROM users WHERE id = ?', [req.params.id]);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
-  if (req.user.role === 'school_admin' && role === 'super_admin') {
-    return res.status(403).json({ error: 'Cannot assign super_admin role' });
+  if (Number(req.params.id) === req.user.id && role && role !== user.role && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'You cannot change your own role' });
+  }
+  if (req.user.role === 'school_admin' && role && ADMIN_ROLES.includes(role)) {
+    return res.status(403).json({ error: 'school_admin cannot assign admin-level roles' });
   }
   if (user.role === 'super_admin' && req.user.role !== 'super_admin') {
     return res.status(403).json({ error: 'Only super_admin can modify another super_admin' });
