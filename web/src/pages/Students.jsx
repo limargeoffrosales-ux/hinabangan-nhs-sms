@@ -37,6 +37,7 @@ export default function Students() {
   const [linkResults, setLinkResults] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
   const [importCsv, setImportCsv] = useState('');
+  const [importTerm, setImportTerm] = useState('first');
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
@@ -149,7 +150,7 @@ export default function Students() {
     setImportBusy(true);
     setImportResult(null);
     try {
-      const r = await api('/enrollments/import', { method: 'POST', body: { csv: importCsv } });
+      const r = await api('/enrollments/import', { method: 'POST', body: { csv: importCsv, term: importTerm || null } });
       setImportResult(r);
       if (r.imported) load();
     } catch (e) {
@@ -245,15 +246,33 @@ export default function Students() {
           </div>
           {importOpen && (
             <div style={{ marginTop: 10 }}>
-              <div className="sub" style={{ marginBottom: 8 }}>Paste CSV with headers: <code>lrn, section_name, school_year, grade_level</code>. The first row must be the header. Students matching an existing enrollment are skipped.</div>
+              <div className="sub" style={{ marginBottom: 8 }}>
+                Paste CSV. Header row: <code>lrn, section_name, school_year, grade_level</code> (a <code>term</code> column is optional if you set it below).
+                The students must <strong>already exist</strong> with those exact LRNs — this enrolls existing learners into sections; it does not create new students.
+                Section names must exactly match the Sections list.
+              </div>
               <textarea
                 className="input"
                 rows={6}
-                placeholder={'lrn,section_name,school_year,grade_level\n123456789012,Grade 11 - STEM,2026-2027,Grade 11'}
+                placeholder={'lrn,section_name,school_year,grade_level,term\n234567890123,ACAD 11-A,2026-2027,Grade 11,first\n345678901234,7-Mabini,2026-2027,Grade 7,'}
                 value={importCsv}
                 onChange={(e) => setImportCsv(e.target.value)}
                 style={{ fontFamily: 'monospace', fontSize: 12 }}
               />
+              <div className="form-row" style={{ marginTop: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label>Default term</label>
+                  <select value={importTerm} onChange={(e) => setImportTerm(e.target.value)}>
+                    <option value="first">First</option>
+                    <option value="second">Second</option>
+                    <option value="third">Third</option>
+                    <option value="">None</option>
+                  </select>
+                </div>
+                <div style={{ flex: 2, display: 'flex', alignItems: 'flex-end' }}>
+                  <span className="sub" style={{ marginBottom: 10 }}>Used for Grades 11-12 rows when the CSV has no <code>term</code> column. Rows that specify their own term are untouched.</span>
+                </div>
+              </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
                 <button className="btn btn-primary" onClick={importEnrollments} disabled={importBusy || !importCsv.trim()}>
                   <Upload size={13} /> {importBusy ? 'Importing...' : 'Import Enrollments'}
