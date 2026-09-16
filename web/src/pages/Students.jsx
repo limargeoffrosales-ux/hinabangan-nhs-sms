@@ -175,13 +175,16 @@ export default function Students() {
     e.preventDefault();
     if (!form.last_name?.trim()) { setError(t('students.lastNameRequired', 'Last name is required')); return; }
     if (!form.first_name?.trim()) { setError(t('students.firstNameRequired', 'First name is required')); return; }
+    const lrn = (form.lrn || '').trim();
+    if (lrn && !/^\d{12}$/.test(lrn)) { setError(t('students.lrnInvalid', 'LRN must be exactly 12 digits')); return; }
+    const body = { ...form, lrn: lrn || null };
     setSaving(true);
     setError(null);
     try {
       if (editing) {
-        await api(`/students/${editing}`, { method: 'PATCH', body: form });
+        await api(`/students/${editing}`, { method: 'PATCH', body });
       } else {
-        await api('/students', { method: 'POST', body: form });
+        await api('/students', { method: 'POST', body });
       }
       setShowModal(false);
       load();
@@ -307,7 +310,7 @@ export default function Students() {
       {showModal && (
         <Modal
           title={editing ? t('students.editStudent') : t('students.newStudent')}
-          sub={editing ? t('students.updatingRecord', { lrn: form.lrn }) : t('students.autoGenerateLrn')}
+          sub={editing ? t('students.updatingRecord', { lrn: form.lrn }) : t('students.lrnAuto')}
           onClose={() => setShowModal(false)}
           wide
         >
@@ -362,6 +365,10 @@ export default function Students() {
             )}
             {!editing && (
               <>
+                <div className="form-row">
+                  <div style={{ flex: 2 }}><label>{t('students.lrn')}</label>{field('lrn', { maxLength: 12, placeholder: '12-digit LRN', inputMode: 'numeric', onChange: (e) => set('lrn', e.target.value.replace(/\D/g, '').slice(0, 12)) })}</div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}><span className="sub" style={{ marginBottom: 10 }}>{t('students.lrnAuto')}</span></div>
+                </div>
                 <div className="form-row">
                   <div><label>{t('students.firstName')} *</label>{field('first_name', { required: true })}</div>
                   <div><label>{t('students.middleName')}</label>{field('middle_name')}</div>

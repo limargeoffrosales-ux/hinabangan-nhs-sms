@@ -10,6 +10,23 @@ router.use(authenticate);
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
+async function normalizeLrn(raw, excludeId) {
+  if (!raw || !String(raw).trim()) return null;
+  const lrn = String(raw).trim();
+  if (!/^\d{12}$/.test(lrn)) {
+    const err = new Error('LRN must be exactly 12 digits');
+    err.status = 400;
+    throw err;
+  }
+  const dup = await q('SELECT id FROM students WHERE lrn = ?', [lrn]);
+  if (dup && String(dup.id) !== String(excludeId || '')) {
+    const err = new Error('LRN already in use by another student');
+    err.status = 409;
+    throw err;
+  }
+  return lrn;
+}
+
 async function uniqueLrn() {
   for (let i = 0; i < 20; i++) {
     const lrn = String(1 + Math.floor(Math.random() * 9)) +
@@ -78,7 +95,7 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!b.first_name || !b.last_name || !b.sex || !b.grade_level) {
     return res.status(400).json({ error: 'first_name, last_name, sex, grade_level are required' });
   }
-  const lrn = b.lrn || await uniqueLrn();
+  const lrn = await normalizeLrn(b.lrn) || await uniqueLrn();
   const id = await qi(
     'INSERT INTO students (lrn, first_name, middle_name, last_name, suffix, sex, birth_date, birth_place, religion, address, contact, guardian_name, guardian_contact, guardian_relation, father_name, mother_name, mother_tongue, learner_status, learner_type, remarks, grade_level, track_strand, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [lrn, b.first_name, b.middle_name || null, b.last_name, b.suffix || null, b.sex, b.birth_date || null,
@@ -95,6 +112,7 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM students WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
   const b = req.body || {};
+  if (b.lrn !== undefined) await normalizeLrn(b.lrn, row.id);
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   await qr(
     'UPDATE students SET lrn = ?, first_name = ?, middle_name = ?, last_name = ?, suffix = ?, sex = ?, birth_date = ?, birth_place = ?, religion = ?, address = ?, contact = ?, guardian_name = ?, guardian_contact = ?, guardian_relation = ?, father_name = ?, mother_name = ?, mother_tongue = ?, learner_status = ?, learner_type = ?, remarks = ?, grade_level = ?, track_strand = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
