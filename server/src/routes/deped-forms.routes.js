@@ -2,12 +2,54 @@ const express = require('express');
 const db = require('../db');
 const { q, qa, qr, qi, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
-const { asyncH } = require('../utils');
+const { asyncH, maskPII } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
 
 const ADMIN_ONLY = ['super_admin', 'school_admin', 'registrar'];
+
+// Input validation helpers
+function validateSectionId(id) {
+  const num = Number(id);
+  if (!Number.isInteger(num) || num < 1) {
+    throw new Error('Invalid section_id: must be a positive integer');
+  }
+  return num;
+}
+
+function validateStudentId(id) {
+  const num = Number(id);
+  if (!Number.isInteger(num) || num < 1) {
+    throw new Error('Invalid student_id: must be a positive integer');
+  }
+  return num;
+}
+
+function validateTerm(term) {
+  if (!term) return term;
+  const t = String(term).trim().toUpperCase();
+  if (!['Q1', 'Q2', 'Q3', 'Q4', 'FIRST', 'SECOND', 'THIRD', 'FINAL'].includes(t) && isNaN(Number(t))) {
+    throw new Error('Invalid term: must be Q1-Q4 or FIRST-SECOND-THIRD-FINAL');
+  }
+  return term;
+}
+
+function validateMonth(month) {
+  const m = Number(month);
+  if (!Number.isInteger(m) || m < 1 || m > 12) {
+    throw new Error('Invalid month: must be 1-12');
+  }
+  return m;
+}
+
+function validateYear(year) {
+  const y = Number(year);
+  if (!Number.isInteger(y) || y < 1900 || y > new Date().getFullYear() + 1) {
+    throw new Error('Invalid year: must be between 1900 and ' + (new Date().getFullYear() + 1));
+  }
+  return y;
+}
 
 // Input validation helpers
 function validateSectionId(id) {
