@@ -126,7 +126,7 @@ export default function Students() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api(query ? `/students?q=${encodeURIComponent(query)}&limit=100` : '/students?limit=100');
+      const res = await api(query ? `/students?q=${encodeURIComponent(query)}&sort=recent_enrolled&limit=100` : '/students?sort=recent_enrolled&limit=100');
       setRows(res.data);
     } catch (e) {
       setError(e.message);
