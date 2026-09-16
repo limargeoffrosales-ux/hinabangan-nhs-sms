@@ -22,6 +22,7 @@ const CATEGORIES = [
   { cat: 'tvl-industrial', label: 'TechPro — Industrial Technologies' },
   { cat: 'tvl-ict', label: 'TechPro — ICT & Computer Programming' },
   { cat: 'tvl-maritime', label: 'TechPro — Maritime' },
+  { cat: 'tvl-work-immersion', label: 'TechPro — Work Immersion' },
 ];
 
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
