@@ -4,6 +4,8 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const IMMERSION_STATUSES = ['pending', 'ongoing', 'completed', 'withdrawn'];
+const JDVP_STATUSES = ['pending', 'served', 'withdrawn'];
 
 // ------------------------------------------------------------
 // Work Immersion registry — /api/v1/immersion
@@ -35,14 +37,16 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!(await q('SELECT id FROM students WHERE id = ?', [b.student_id]))) {
     return res.status(404).json({ error: 'Student not found' });
   }
+  if (b.status && !IMMERSION_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   const exists = await q('SELECT id FROM work_immersion WHERE student_id = ? AND batch = ? AND program = ?',
     [b.student_id, String(b.batch).trim(), String(b.program).trim()]);
   if (exists) return res.status(409).json({ error: 'Student already has this program in this batch' });
+  const status = b.status || 'ongoing';
   const id = await qi(
     `INSERT INTO work_immersion (student_id, batch, program, partner_institution, status, start_date, end_date, remarks, recorded_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [b.student_id, String(b.batch).trim(), String(b.program).trim(),
-      b.partner_institution || null, b.status || 'ongoing', b.start_date || null, b.end_date || null,
+      b.partner_institution || null, status, b.start_date || null, b.end_date || null,
       b.remarks || null, req.user.id]);
   await audit(req, 'CREATE_IMMERSION', 'work_immersion', id, { student_id: b.student_id, batch: b.batch, program: b.program });
   res.status(201).json({ id });
@@ -50,7 +54,7 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 
 immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
-  if (b.status && !['ongoing', 'completed', 'dropped'].includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
+  if (b.status && !IMMERSION_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   const cur = await q('SELECT * FROM work_immersion WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
   await qr(
@@ -101,20 +105,22 @@ jdvp.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!(await q('SELECT id FROM students WHERE id = ?', [b.student_id]))) {
     return res.status(404).json({ error: 'Student not found' });
   }
+  if (b.status && !JDVP_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   const exists = await q('SELECT id FROM jdvp_recipients WHERE student_id = ? AND batch = ?',
     [b.student_id, String(b.batch).trim()]);
   if (exists) return res.status(409).json({ error: 'Student already listed in this batch' });
+  const status = b.status || 'pending';
   const id = await qi(
     `INSERT INTO jdvp_recipients (student_id, batch, program, status, remarks, recorded_by)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [b.student_id, String(b.batch).trim(), b.program || null, b.status || 'pending', b.remarks || null, req.user.id]);
+    [b.student_id, String(b.batch).trim(), b.program || null, status, b.remarks || null, req.user.id]);
   await audit(req, 'CREATE_JDVP', 'jdvp_recipients', id, { student_id: b.student_id, batch: b.batch });
   res.status(201).json({ id });
 }));
 
 jdvp.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
-  if (b.status && !['ongoing', 'completed', 'dropped'].includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
+  if (b.status && !JDVP_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   const cur = await q('SELECT * FROM jdvp_recipients WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
   await qr(

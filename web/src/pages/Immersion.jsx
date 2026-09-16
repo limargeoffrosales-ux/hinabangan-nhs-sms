@@ -10,8 +10,8 @@ const IMMERSION_STATUSES = ['pending', 'ongoing', 'completed', 'withdrawn'];
 const JDVP_STATUSES = ['pending', 'served', 'withdrawn'];
 const STATUS_CLASS = { pending: 'badge-yellow', ongoing: 'badge-blue', completed: 'badge-green', served: 'badge-green', withdrawn: 'badge-red' };
 
-function emptyForm() {
-  return { student_id: '', batch: 'Batch 1', program: PROGRAMS[0], partner_institution: '', status: 'ongoing', start_date: '', end_date: '', remarks: '' };
+function emptyForm(isImmersion) {
+  return { student_id: '', batch: 'Batch 1', program: PROGRAMS[0], partner_institution: '', status: isImmersion ? 'ongoing' : 'pending', start_date: '', end_date: '', remarks: '' };
 }
 
 export default function Immersion() {
@@ -41,7 +41,7 @@ export default function Immersion() {
 
   useEffect(() => { load(); }, [load]);
 
-  function openAdd() { setForm(emptyForm()); setEditId(null); setModal(true); }
+  function openAdd() { setForm(emptyForm(isImmersion)); setEditId(null); setModal(true); }
   function openEdit(r) {
     setForm({
       student_id: String(r.student_id), batch: r.batch, program: r.program || PROGRAMS[0],
