@@ -254,7 +254,7 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
     const sectionName = cols[sectionIdx];
     const sy = (syIdx >= 0 && cols[syIdx]) ? cols[syIdx] : fallbackSy;
     const gl = glIdx >= 0 ? cols[glIdx] : null;
-    const term = normTerm(termIdx >= 0 ? cols[termIdx] : (b.term !== undefined ? b.term : null));
+    const term = normTerm((termIdx >= 0 && cols[termIdx]) ? cols[termIdx] : (b.term !== undefined ? b.term : null));
     if (!lrn || !sectionName) { skipped++; continue; }
     try {
       const student = await q('SELECT id FROM students WHERE lrn = ?', [lrn]);
@@ -262,8 +262,12 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
       const section = await q('SELECT id, grade_level, strand, school_year, capacity FROM sections WHERE name = ? AND (school_year = ? OR school_year IS NULL)', [sectionName, sy]);
       if (!section) { errors.push(`Row ${i + 1}: section "${sectionName}" not found`); skipped++; continue; }
       const gradeLevel = gl || section.grade_level;
+      if (section.grade_level && gradeLevel !== section.grade_level) {
+        errors.push(`Row ${i + 1}: grade_level "${gradeLevel}" does not match section "${sectionName}" (${section.grade_level})`);
+        skipped++; continue;
+      }
       if (isShs(gradeLevel) && !term) {
-        errors.push(`Row ${i + 1}: LRN ${lrn} is SHS but has no valid term (first, second or third)`);
+        errors.push(`Row ${i + 1}: LRN ${lrn} is SHS but has no valid term (first, second or third) — add a term column or set a default term`);
         skipped++; continue;
       }
       if (section.school_year && section.school_year !== sy) {
