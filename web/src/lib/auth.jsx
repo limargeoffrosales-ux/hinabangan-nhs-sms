@@ -14,7 +14,12 @@ export function AuthProvider({ children }) {
     }
     api('/auth/me', { retryNetwork: true })
       .then((d) => setUser(d.user))
-      .catch(() => clearSession())
+      .catch((err) => {
+        // Only drop the session on real auth failures (401/403). Transient
+        // network errors — Render cold starts, timeouts, 5xx — keep the stored
+        // session so users aren't silently logged out.
+        if (err && (err.status === 401 || err.status === 403)) clearSession();
+      })
       .finally(() => setReady(true));
   }, []);
 

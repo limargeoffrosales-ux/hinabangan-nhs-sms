@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Pencil, Trash2, ClipboardCheck } from 'lucide-react';
 import { api } from '../lib/api';
+import { safeHttpUrl } from '../lib/utils';
 import { PageHead, Empty, ErrorBanner, Spinner, Modal, ConfirmModal } from '../components/ui';
 
 const KINDS = ['homework', 'classwork', 'quiz', 'activity', 'performance_task', 'project'];
@@ -351,7 +352,7 @@ export default function Assignments() {
                           {!has ? <span className="muted">—</span> : (
                             <div style={{ maxWidth: 260 }}>
                               {s.text_content && <div className="sub">{s.text_content}</div>}
-                              {s.link_url && <a href={s.link_url} target="_blank" rel="noreferrer" className="muted">Open link</a>}
+                              {s.link_url && safeHttpUrl(s.link_url) && <a href={safeHttpUrl(s.link_url)} target="_blank" rel="noreferrer" className="muted">Open link</a>}
                             </div>
                           )}
                         </td>

@@ -9,3 +9,11 @@ web/android/build/
 web/android/.gradle/
 web/android/app/build/
 web/android/capacitor-cordova-android-plugins/build/
+
+# PII / secrets / stale duplicates — do NOT commit
+hinabangan-backup.json
+*.apk
+apk-output/
+*-Mary_Anthonette.*
+server/data/
+server/.env

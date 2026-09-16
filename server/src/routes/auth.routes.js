@@ -107,7 +107,7 @@ async function issueRefresh(userId) {
   return raw;
 }
 
-router.post('/login', asyncH(async (req, res) => {
+router.post('/login', userRateLimit({ windowMs: 15 * 60 * 1000, limit: 15, message: { error: 'Too many login attempts. Try again later.' } }), asyncH(async (req, res) => {
   await maybeSweepExpired();
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'username and password are required' });
@@ -117,9 +117,11 @@ router.post('/login', asyncH(async (req, res) => {
   const user = await q('SELECT * FROM users WHERE username = ?', [String(username).trim()]);
 
   if (user && user.locked_until && new Date(user.locked_until) > new Date()) {
-    const remaining = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
-    await logSecurityIncident('LOGIN_BLOCKED_LOCKED', 'high', req.ip, user.username, user.id, { remainingMinutes: remaining });
-    return res.status(423).json({ error: `Account locked. Try again in ${remaining} minute(s).` });
+    // Return the same generic 401 as any other failed login: a distinct 423
+    // would let attackers confirm usernames and let them deny logins at will.
+    await logSecurityIncident('LOGIN_BLOCKED_LOCKED', 'high', req.ip, user.username, user.id, {});
+    await audit(req, 'LOGIN_FAILED', 'auth', null, { username });
+    return res.status(401).json({ error: 'Invalid username or password' });
   }
 
   if (!user || user.status !== 'active' || !(await bcrypt.compare(String(password), user.password_hash || DUMMY_PASSWORD_HASH))) {
@@ -262,12 +264,19 @@ router.post('/forgot-password',
     // One live code per account: a new request invalidates older unused codes.
     await qr('DELETE FROM password_resets WHERE user_id = ? AND used_at IS NULL', [user.id]);
 
+    // Fail closed: never construct reset links from the request's Host header.
+    // A spoofed Host would otherwise ship the reset code to an attacker domain.
+    const base = APP_URL ? APP_URL.replace(/\/+$/, '') : null;
+    if (!base) {
+      await logSecurityIncident('PASSWORD_RESET_BLOCKED', 'medium', req.ip, user.username, user.id, { reason: 'APP_URL not configured' });
+      return res.status(202).json({ ok: true, message: 'If that account exists, a reset code was sent to the contact on file.' });
+    }
+
     const code = genResetCode();
     const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MS).toISOString();
     await qi('INSERT INTO password_resets (user_id, code_hash, expires_at, ip_address) VALUES (?, ?, ?, ?)',
       [user.id, hashToken(code), expiresAt, req.ip]);
 
-    const base = APP_URL || `${req.protocol}://${req.get('host')}`;
     await notifyEvent('password_reset', {
       user_id: user.id,
       data: { code, url: `${base}/reset-password?code=${code}` },

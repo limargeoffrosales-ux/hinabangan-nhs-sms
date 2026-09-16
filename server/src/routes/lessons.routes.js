@@ -76,6 +76,9 @@ router.get('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
      LEFT JOIN teachers t ON t.id = l.teacher_id
      WHERE l.id = ?`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Lesson not found' });
+  if (req.role === 'teacher' && row.teacher_id !== req.user.teacher_id) {
+    return res.status(403).json({ error: 'Can only manage your own lessons' });
+  }
   const competencies = row.competency_ids ? safeJsonParse(row.competency_ids, []) : [];
   if (competencies.length) {
     const comps = await qa('SELECT id, code, title FROM competencies WHERE id IN (' + competencies.map(() => '?').join(',') + ')', competencies);
@@ -113,6 +116,9 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM lessons WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Lesson not found' });
+  if (req.role === 'teacher' && row.teacher_id !== req.user.teacher_id) {
+    return res.status(403).json({ error: 'Can only manage your own lessons' });
+  }
   const b = req.body || {};
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   const compIds = b.competency_ids ? JSON.stringify(b.competency_ids) : row.competency_ids;
@@ -134,8 +140,11 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 
 /* ── Delete lesson ──────────────────────────────────── */
 router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
-  const row = await q('SELECT id FROM lessons WHERE id = ?', [req.params.id]);
+  const row = await q('SELECT id, teacher_id FROM lessons WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Lesson not found' });
+  if (req.role === 'teacher' && row.teacher_id !== req.user.teacher_id) {
+    return res.status(403).json({ error: 'Can only manage your own lessons' });
+  }
   await qr('DELETE FROM lessons WHERE id = ?', [row.id]);
   await audit(req, 'DELETE_LESSON', 'lessons', row.id);
   res.json({ ok: true });

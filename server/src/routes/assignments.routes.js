@@ -203,6 +203,9 @@ router.put('/submit', requireRole(...PORTAL), asyncH(async (req, res) => {
   const text = String(b.text_content || '').trim();
   const link = String(b.link_url || '').trim();
   if (!text && !link) return res.status(400).json({ error: 'Provide your answer text or a link to your work' });
+  if (link && !/^https?:\/\//i.test(link)) {
+    return res.status(400).json({ error: 'Link must start with http:// or https://' });
+  }
   const late = assignment.due_date ? new Date(assignment.due_date).getTime() < Date.now() : false;
   if (late && !assignment.allow_late) return res.status(403).json({ error: 'The due date has passed and late submissions are not allowed' });
   const existing = await q('SELECT id, status FROM assignment_submissions WHERE assignment_id = ? AND student_id = ?',

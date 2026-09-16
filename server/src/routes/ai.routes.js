@@ -1,6 +1,6 @@
 ﻿const express = require('express');
 const db = require('../db');
-const { q, qa, qi } = db;
+const { q, qa, qi, qr } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 const { ensureTeacherSeesStudent } = require('../scope');
@@ -28,8 +28,36 @@ const aiUserLimiter = userRateLimit({ windowMs: 60_000, limit: 10, message: { er
 const STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
+// Fail-closed consent gate: transmitting student data to external AI providers
+// is disabled unless 'ai_student_data_consent' is explicitly enabled in
+// app_settings (Settings page), i.e. after the school has obtained the required
+// parental/guardian consent. Prompts also have LRN/address/contact stripped.
+async function assertStudentDataConsent(req, res) {
+  const row = await q("SELECT value FROM app_settings WHERE key = 'ai_student_data_consent'");
+  if (!row || String(row.value).trim() !== '1') {
+    await audit(req, 'AI_STUDENT_DATA_BLOCKED', 'ai', null, { reason: 'consent not enabled' });
+    return res.status(403).json({ error: 'AI processing of student data is disabled until data-consent is enabled by an administrator.' });
+  }
+  return null;
+}
+
+function egressAudit(req, endpoint, studentId, studentName, fields) {
+  audit(req, 'AI_STUDENT_DATA_EGRESS', 'ai', null, { endpoint, student_id: studentId, student_name: studentName, pii_fields: fields }).catch(() => {});
+}
+
 router.get('/status', asyncH(async (_req, res) => {
   res.json(ai.getProviderInfo());
+}));
+
+// Admin toggle for AI student-data processing (consent gate). Disabled by
+// default; enable only after parental/guardian consent has been obtained.
+router.put('/consent-setting', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const enabled = req.body?.enabled ? '1' : '0';
+  await qr(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+    ['ai_student_data_consent', enabled]);
+  await audit(req, 'AI_CONSENT_SETTING', 'ai', null, { enabled });
+  res.json({ ok: true, enabled: enabled === '1' });
 }));
 
 router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, asyncH(async (req, res) => {
@@ -73,8 +101,13 @@ router.post('/report', requireRole(...ADMIN, 'teacher'), aiUserLimiter, asyncH(a
     const chk = await ensureTeacherSeesStudent(req.user, student_id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  const blocked = await assertStudentDataConsent(req, res);
+  if (blocked) return blocked;
+  const st = await q('SELECT first_name, last_name FROM students WHERE id = ?', [student_id]);
+  if (!st) return res.status(404).json({ error: 'Student not found' });
   try {
     const report = await ai.generateStudentReport(student_id);
+    egressAudit(req, 'report', student_id, st.first_name + ' ' + st.last_name, ['name']);
     await audit(req, 'AI_REPORT', 'ai', null, { student_id });
     res.json(report);
   } catch (e) {
@@ -111,7 +144,12 @@ router.post('/analyze', requireRole(...ADMIN, 'teacher', 'guidance'), aiUserLimi
     const chk = await ensureTeacherSeesStudent(req.user, student_id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  const blocked = await assertStudentDataConsent(req, res);
+  if (blocked) return blocked;
+  const st = await q('SELECT first_name, last_name FROM students WHERE id = ?', [student_id]);
+  if (!st) return res.status(404).json({ error: 'Student not found' });
   const analysis = await ai.analyzeStudentRisk(student_id);
+  egressAudit(req, 'analyze', student_id, st.first_name + ' ' + st.last_name, ['name']);
   await audit(req, 'AI_ANALYZE', 'ai', null, { student_id });
   res.json(analysis);
 }));
@@ -123,7 +161,12 @@ router.post('/enrollment-suggest', requireRole(...ADMIN, 'teacher'), aiUserLimit
     const chk = await ensureTeacherSeesStudent(req.user, student_id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  const blocked = await assertStudentDataConsent(req, res);
+  if (blocked) return blocked;
+  const st = await q('SELECT first_name, last_name FROM students WHERE id = ?', [student_id]);
+  if (!st) return res.status(404).json({ error: 'Student not found' });
   const suggestion = await ai.getEnrollmentSuggestions(student_id);
+  egressAudit(req, 'enrollment-suggest', student_id, st.first_name + ' ' + st.last_name, ['name']);
   await audit(req, 'AI_ENROLL_SUGGEST', 'ai', null, { student_id });
   res.json(suggestion);
 }));
@@ -135,8 +178,13 @@ router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), aiUserLi
     const chk = await ensureTeacherSeesStudent(req.user, student_id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  const blocked = await assertStudentDataConsent(req, res);
+  if (blocked) return blocked;
+  const st = await q('SELECT first_name, last_name FROM students WHERE id = ?', [student_id]);
+  if (!st) return res.status(404).json({ error: 'Student not found' });
   try {
     const report = await ai.generateForm137(student_id);
+    egressAudit(req, 'form-137', student_id, st.first_name + ' ' + st.last_name, ['name']);
     await audit(req, 'AI_FORM_137', 'ai', null, { student_id });
     res.json(report);
   } catch (e) {

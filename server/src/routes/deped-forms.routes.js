@@ -2,12 +2,54 @@ const express = require('express');
 const db = require('../db');
 const { q, qa, qr, qi, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
-const { asyncH } = require('../utils');
+const { asyncH, maskPII } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
 
 const ADMIN_ONLY = ['super_admin', 'school_admin', 'registrar'];
+
+// Input validation helpers
+function validateSectionId(id) {
+  const num = Number(id);
+  if (!Number.isInteger(num) || num < 1) {
+    throw new Error('Invalid section_id: must be a positive integer');
+  }
+  return num;
+}
+
+function validateStudentId(id) {
+  const num = Number(id);
+  if (!Number.isInteger(num) || num < 1) {
+    throw new Error('Invalid student_id: must be a positive integer');
+  }
+  return num;
+}
+
+function validateTerm(term) {
+  if (!term) return term;
+  const t = String(term).trim().toUpperCase();
+  if (!['Q1', 'Q2', 'Q3', 'Q4', 'FIRST', 'SECOND', 'THIRD', 'FINAL'].includes(t) && isNaN(Number(t))) {
+    throw new Error('Invalid term: must be Q1-Q4 or FIRST-SECOND-THIRD-FINAL');
+  }
+  return term;
+}
+
+function validateMonth(month) {
+  const m = Number(month);
+  if (!Number.isInteger(m) || m < 1 || m > 12) {
+    throw new Error('Invalid month: must be 1-12');
+  }
+  return m;
+}
+
+function validateYear(year) {
+  const y = Number(year);
+  if (!Number.isInteger(y) || y < 1900 || y > new Date().getFullYear() + 1) {
+    throw new Error('Invalid year: must be between 1900 and ' + (new Date().getFullYear() + 1));
+  }
+  return y;
+}
 
 function computeAge(birthdate) {
   if (!birthdate) return null;
@@ -47,15 +89,16 @@ router.get('/school-info', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) 
 
 router.get('/sf3', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id } = req.query;
+  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], books: [], section: null });
-  const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const section = await q('SELECT * FROM sections WHERE id = ?', [secId]);
   const students = await qa(
     `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ? AND e.status = 'enrolled'
      ORDER BY s.last_name, s.first_name`,
-    [section_id]
+    [secId]
   );
   const books = await qa(
     `SELECT bb.*, lb.title AS book_title, lb.isbn, lb.category
@@ -72,10 +115,11 @@ router.get('/sf3', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf4', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, month, year } = req.query;
+  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ movements: [], attendance: [] });
-  const sec = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
-  const m = Number(month || (new Date().getMonth() + 1));
-  const y = Number(year || new Date().getFullYear());
+  const sec = await q('SELECT * FROM sections WHERE id = ?', [secId]);
+  const m = validateMonth(month);
+  const y = validateYear(year);
   const enrollments = await qa(
     db.dialect === 'pg'
       ? `SELECT e.*, s.first_name, s.last_name, s.sex,
@@ -98,39 +142,39 @@ router.get('/sf4', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        WHERE e.section_id = ?`,
     [Number(section_id), m, y]
   );
-  const movements = await qa(
+const movements = await qa(
     db.dialect === 'pg'
       ? `SELECT e.student_id, s.first_name, s.last_name, e.status, e.enrolled_at
-         FROM enrollments e
-         JOIN students s ON s.id = e.student_id
-         WHERE e.section_id = $1::bigint
-           AND e.enrolled_at IS NOT NULL
-           AND EXTRACT(MONTH FROM e.enrolled_at::timestamp) = $2::int
-           AND EXTRACT(YEAR FROM e.enrolled_at::timestamp) = $3::int`
+          FROM enrollments e
+          JOIN students s ON s.id = e.student_id
+          WHERE e.section_id = $1::bigint
+            AND e.enrolled_at IS NOT NULL
+            AND EXTRACT(MONTH FROM e.enrolled_at::timestamp) = $2::int
+            AND EXTRACT(YEAR FROM e.enrolled_at::timestamp) = $3::int`
       : `SELECT e.student_id, s.first_name, s.last_name, e.status, e.enrolled_at
-         FROM enrollments e
-         JOIN students s ON s.id = e.student_id
-         WHERE e.section_id = ?
-           AND e.enrolled_at IS NOT NULL
-           AND CAST(strftime('%m', e.enrolled_at) AS INTEGER) = ?
-           AND CAST(strftime('%Y', e.enrolled_at) AS INTEGER) = ?`,
-    [Number(section_id), m, y]
+          FROM enrollments e
+          JOIN students s ON s.id = e.student_id
+          WHERE e.section_id = ?
+            AND e.enrolled_at IS NOT NULL
+            AND CAST(strftime('%m', e.enrolled_at) AS INTEGER) = ?
+            AND CAST(strftime('%Y', e.enrolled_at) AS INTEGER) = ?`,
+    [secId, m, y]
   );
-  const attendance = await qa(
+const attendance = await qa(
     db.dialect === 'pg'
       ? `SELECT a.student_id, a.status,
                 EXTRACT(DAY FROM a.date::timestamp) AS day_num
-         FROM attendance a
-         WHERE a.section_id = $1::bigint
-           AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int
-           AND EXTRACT(YEAR FROM a.date::timestamp) = $3::int`
+           FROM attendance a
+          WHERE a.section_id = $1::bigint
+            AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int
+            AND EXTRACT(YEAR FROM a.date::timestamp) = $3::int`
       : `SELECT a.student_id, a.status,
                 CAST(strftime('%d', a.date) AS INTEGER) AS day_num
-         FROM attendance a
-         WHERE a.section_id = ?
-           AND CAST(strftime('%m', a.date) AS INTEGER) = ?
-           AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
-    [Number(section_id), m, y]
+           FROM attendance a
+          WHERE a.section_id = ?
+            AND CAST(strftime('%m', a.date) AS INTEGER) = ?
+            AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
+    [secId, m, y]
   );
   const enrolledCount = enrollments.filter(e => e.status === 'enrolled').length;
   const maleCount = enrollments.filter(e => e.status === 'enrolled' && e.sex === 'Male').length;
@@ -142,8 +186,9 @@ router.get('/sf4', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, school_year } = req.query;
+  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], section: null });
-  const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
+  const section = await q('SELECT * FROM sections WHERE id = ?', [secId]);
   const students = await qa(
     db.dialect === 'pg'
       ? `SELECT s.*, e.strand, e.enrolled_at
@@ -163,6 +208,7 @@ router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, month, year } = req.query;
+  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], attendance: [] });
   const students = await qa(
     `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix
@@ -170,44 +216,43 @@ router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      JOIN enrollments e ON e.student_id = s.id
      WHERE e.section_id = ?
      ORDER BY s.last_name, s.first_name`,
-    [section_id]
+    [secId]
   );
-  const m = Number(month || (new Date().getMonth() + 1));
-  const y = Number(year || new Date().getFullYear());
-  const attendance = await qa(
+  const m = validateMonth(month);
+  const y = validateYear(year);
+const attendance = await qa(
     db.dialect === 'pg'
       ? `SELECT a.student_id, a.date, a.status, a.session
-         FROM attendance a
-         WHERE a.section_id = $1::bigint AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int
-           AND EXTRACT(YEAR FROM a.date::timestamp) = $3::int`
+          FROM attendance a
+          WHERE a.section_id = $1::bigint AND EXTRACT(MONTH FROM a.date::timestamp) = $2::int
+            AND EXTRACT(YEAR FROM a.date::timestamp) = $3::int`
       : `SELECT a.student_id, a.date, a.status, a.session
-         FROM attendance a
-         WHERE a.section_id = ? AND CAST(strftime('%m', a.date) AS INTEGER) = ?
-           AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
-    [Number(section_id), m, y]
+          FROM attendance a
+          WHERE a.section_id = ? AND CAST(strftime('%m', a.date) AS INTEGER) = ?
+            AND CAST(strftime('%Y', a.date) AS INTEGER) = ?`,
+    [secId, m, y]
   );
   res.json({ students, attendance, month: Number(m), year: Number(y) });
 }));
 
 router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, term } = req.query;
+  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], subjects: [] });
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
-  const students = await qa(
+const students = await qa(
     `SELECT DISTINCT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex
      FROM students s
      JOIN enrollments e ON e.student_id = s.id
-     WHERE e.section_id = ?
-     ORDER BY s.last_name, s.first_name`,
-    [section_id]
+     WHERE e.section_id = ?`,
+    [secId]
   );
   const subjects = await qa(
     `SELECT DISTINCT sub.id, sub.title
      FROM subjects sub
      JOIN class_assignments ca ON ca.subject_id = sub.id
-     WHERE ca.section_id = ?
-     ORDER BY sub.title`,
-    [section_id]
+     WHERE ca.section_id = ?`,
+    [secId]
   );
   const qtr = termToQuarter(term);
   const grades = await qa(
@@ -218,12 +263,12 @@ router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
       : `SELECT g.student_id, g.subject_id, g.quarter, g.computed_grade, g.quarterly_exam, g.remarks
          FROM grades g
          WHERE g.section_id = ? ${qtr ? 'AND g.quarter = ?' : ''}`,
-    [section_id, ...(qtr ? [qtr] : [])]
+    [secId, ...(qtr ? [qtr] : [])]
   );
   // Per-subject analysis: Mean + MPS, Highest-Lowest range, below-75 count in the
   // (Final term = selected) quarter's Quarterly Examination. When no term is picked,
   // fall back to the latest quarter that has exam data.
-  const knownQuarters = [...new Set(grades.map((g) => g.quarter).filter((q) => q != null && q !== ''))];
+  const knownQuarters = [...new Set(grades.map((g) => g.quarter).filter((q) => q != null && q !== '' && !isNaN(Number(q))))];
   const effQuarter = qtr || (knownQuarters.length ? Math.max(...knownQuarters.map((q) => Number(q))) : null);
   const analysisRows = effQuarter != null ? grades.filter((g) => Number(g.quarter) === Number(effQuarter)) : grades;
   const analysis = subjects.map((sub) => {
@@ -317,7 +362,7 @@ router.get('/sf6', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { school_year } = req.query;
-  const sy = school_year || null;
+  const sy = school_year ? validateYear(school_year) : null;
   const teachers = await qa(
     db.dialect === 'pg'
       ? `SELECT t.*, u.name as user_name,
@@ -408,7 +453,7 @@ router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
        ORDER BY e.enrolled_at DESC LIMIT 1`,
       [student_id]
     );
-    const qtr = termToQuarter(term);
+const qtr = termToQuarter(validateTerm(term));
     const grades = await qa(
       db.dialect === 'pg'
         ? `SELECT g.*, sub.title as subject_name

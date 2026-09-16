@@ -149,7 +149,7 @@ async function generateStudentReport(studentId) {
   const condList = conduct.length ? conduct.map(c => c.incident_type + ' (' + c.severity + ') - ' + c.status).join('; ') : 'No conduct records';
 
   const prompt = 'Generate an SF9 Learner Progress Report Card for:\n' +
-    'Student: ' + student.first_name + ' ' + student.last_name + ', LRN: ' + (student.lrn || 'N/A') + '\n' +
+    'Student: ' + student.first_name + ' ' + student.last_name + '\n' +
     'Grade: ' + (student.grade_level || 'N/A') + ', Section: ' + (student.section_name || 'N/A') + '\n' +
     'Strand: ' + (student.track_strand || student.strand || 'N/A') + ', School Year: ' + (student.school_year || 'N/A') + '\n' +
     'School: ' + SCHOOL_CONTEXT + '\n\n' +
@@ -311,10 +311,9 @@ async function generateForm137(studentId) {
   const conductSummary = conduct.length ? conduct.map(c => c.school_year + ' ' + c.term + ': ' + ['makadiyos','makatao','makakalikasan','makabansa'].map(v => v + '=' + (c[v] || 'N/A')).join(', ')).join('; ') : 'No conduct ratings';
 
   const prompt = 'Generate an Individual Permanent Academic Record (Form 137) narrative summary for:\n' +
-    'Student: ' + student.first_name + ' ' + student.last_name + (student.middle_name ? ' ' + student.middle_name : '') + ', LRN: ' + (student.lrn || 'N/A') + '\n' +
+    'Student: ' + student.first_name + ' ' + student.last_name + (student.middle_name ? ' ' + student.middle_name : '') + '\n' +
     'Grade Level: ' + (student.grade_level || 'N/A') + ', Strand: ' + (student.strand || student.track_strand || 'N/A') + ', Section: ' + (student.section_name || 'N/A') + '\n' +
     'School Year: ' + (student.school_year || 'N/A') + '\n' +
-    'Sex: ' + (student.sex || 'N/A') + ', Birthdate: ' + (student.birthdate || 'N/A') + ', Address: ' + (student.address || 'N/A') + '\n' +
     'School: ' + SCHOOL_CONTEXT + '\n\n' +
     'Academic Record: ' + (gradeSummary || 'None') + '\n' +
     'Attendance: ' + attSummary + '\n' +
