@@ -30,6 +30,7 @@ const CATEGORIES = [
   { value: 'tvl-industrial', label: 'TechPro — Industrial Technologies' },
   { value: 'tvl-ict', label: 'TechPro — ICT & Computer Programming' },
   { value: 'tvl-maritime', label: 'TechPro — Maritime' },
+  { value: 'tvl-work-immersion', label: 'TechPro — Work Immersion' },
 ];
 const EMPTY_FORM = { code: '', title: '', description: '', grade_level: 'Grade 11', track: 'academic', units: 0, term: 'all', category: '' };
 
