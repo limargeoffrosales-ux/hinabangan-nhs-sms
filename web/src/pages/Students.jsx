@@ -319,6 +319,9 @@ export default function Students() {
               <div style={{ display: 'flex', gap: 20, marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="form-row">
+                    <div style={{ flex: 2 }}><label>{t('students.lrn')}</label>{field('lrn', { maxLength: 12, placeholder: '12-digit LRN', inputMode: 'numeric', onChange: (e) => set('lrn', e.target.value.replace(/\D/g, '').slice(0, 12)) })}</div>
+                  </div>
+                  <div className="form-row">
                     <div><label>{t('students.firstName')} *</label>{field('first_name', { required: true })}</div>
                     <div><label>{t('students.middleName')}</label>{field('middle_name')}</div>
                     <div><label>{t('students.lastName')} *</label>{field('last_name', { required: true })}</div>
