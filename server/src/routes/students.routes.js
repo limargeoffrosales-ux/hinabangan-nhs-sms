@@ -42,7 +42,7 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
   const q2 = req.query.q ? `%${req.query.q}%` : '%';
   const gradeLevel = req.query.grade_level ? req.query.grade_level : null;
   const params = [q2, q2];
-  let sql = 'SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status, photo_url, (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = students.id) AS enrollment_count FROM students WHERE (last_name LIKE ? OR first_name LIKE ? OR lrn LIKE ?)';
+  let sql = 'SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status, photo_url, (SELECT COUNT(*) FROM enrollment_subjects es JOIN enrollments en ON en.id = es.enrollment_id WHERE en.student_id = students.id) AS subject_count FROM students WHERE (last_name LIKE ? OR first_name LIKE ? OR lrn LIKE ?)';
   params.push(q2);
   if (req.role === 'teacher') {
     const scope = await teacherScope(req.user);
@@ -60,7 +60,7 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
     // sign-up next, then name as a tie-breaker. Uses an aggregate subquery so
     // one student with several enrollments only counts once.
     const core = `SELECT st.id, st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.sex, st.birth_date, st.religion, st.address, st.contact, st.guardian_name, st.guardian_contact, st.guardian_relation, st.grade_level, st.track_strand, st.status, st.photo_url,
-      (SELECT COUNT(*) FROM enrollments ec WHERE ec.student_id = st.id) AS enrollment_count
+      (SELECT COUNT(*) FROM enrollment_subjects es JOIN enrollments en ON en.id = es.enrollment_id WHERE en.student_id = st.id) AS subject_count
       FROM students st
       LEFT JOIN (SELECT student_id, MAX(COALESCE(enrolled_at, created_at)) AS last_enrolled_at FROM enrollments GROUP BY student_id) e ON e.student_id = st.id
       WHERE (st.last_name LIKE ? OR st.first_name LIKE ? OR st.lrn LIKE ?)`;
@@ -81,7 +81,7 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
   }
   params.push(limit, offset);
   const rows = await qa(sql, params);
-  for (const r of rows) r.has_enrollment = bool(r.enrollment_count) > 0;
+  for (const r of rows) r.has_subjects = bool(r.subject_count) > 0;
   if (req.role === 'teacher' || req.role === 'guidance') {
     rows.forEach((r, i, arr) => { arr[i] = maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']); });
   }
