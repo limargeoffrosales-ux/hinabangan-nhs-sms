@@ -1,148 +1,202 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Users, UserCog, Layers, CalendarCheck, Megaphone, Activity, Wand2, ShieldAlert } from 'lucide-react';
+import {
+  Users, UserCog, Layers, CalendarCheck, Megaphone, Activity,
+  BookOpenCheck, ShieldAlert, GraduationCap, Target, Briefcase,
+  BadgeCheck, UserCheck, History,
+} from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import { loadRecharts } from '../lib/lazy-recharts';
 
-const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942'];
+const READINESS_STATUS = {
+  done: { badge: 'badge-green', tri: 'dashboard.readinessDone' },
+  started: { badge: 'badge-blue', tri: 'dashboard.readinessStarted' },
+  pending: { badge: 'badge-yellow', tri: 'dashboard.readinessPending' },
+  note: { badge: 'badge-gray', tri: 'dashboard.readinessNote' },
+};
 
-const CONDUCT_STATUS_BADGE = { open: 'badge-yellow', under_review: 'badge-blue', resolved: 'badge-green' };
-const CONDUCT_SEVERITY_BADGE = { minor: 'badge-blue', moderate: 'badge-yellow', major: 'badge-red' };
+const SEX_COLORS = { Male: '#4D96FF', Female: '#F5B942' };
+
+function fmtWhen(iso) {
+  if (!iso) return '';
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return '';
+  const diff = Math.max(0, Date.now() - then.getTime());
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function actionLabel(action, t) {
+  if (!action) return '';
+  const key = `dashboard.act.${action}`;
+  if (t && t(key) !== key) return t(key);
+  return action
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function Dashboard() {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
-  const [trend, setTrend] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [activity, setActivity] = useState(null);
   const [error, setError] = useState(null);
-  const [conduct, setConduct] = useState(false);
   const [R, setR] = useState(null);
 
   useEffect(() => { loadRecharts().then(setR); }, []);
 
-  const CONDUCT_TYPE_LABEL = {
-    call_slip: t('conduct.callSlip'), bullying: t('conduct.bullying'), inappropriate_behavior: t('conduct.inappropriateBehavior'),
-    fighting: t('conduct.fighting'), vandalism: t('conduct.vandalism'), tardiness: t('conduct.tardiness'), disrespect: t('conduct.disrespect'), other: t('conduct.other'),
-  };
-
   useEffect(() => {
-    // Each widget loads on its own: the core summary renders as soon as it
-    // lands and the side panels fill in behind it, so one slow call can never
-    // hold the whole dashboard on a spinner. Widget calls use a short timeout
-    // and no network retries so they fail fast into their empty states.
     api('/dashboard/summary')
       .then(setData)
       .catch((e) => setError(e.message));
-    api('/dashboard/attendance-trend?days=7', { timeoutMs: 30000, retryNetwork: false })
-      .then((r) => setTrend(r?.data || []))
-      .catch(() => {});
-    api('/announcements?limit=5', { timeoutMs: 30000, retryNetwork: false })
+    api('/announcements?limit=4', { timeoutMs: 30000, retryNetwork: false })
       .then((r) => setAnnouncements(r?.data || []))
       .catch(() => {});
-    api('/conduct/summary', { timeoutMs: 30000, retryNetwork: false })
-      .then(setConduct)
-      .catch(() => setConduct(null));
+    api('/dashboard/latest-activity?limit=8', { timeoutMs: 30000, retryNetwork: false })
+      .then((r) => setActivity(r?.data || null))
+      .catch(() => setActivity([]));
   }, []);
 
   if (error && !data) return <PageHead title={t('dashboard.title')}><div className="err-banner">{error}</div></PageHead>;
   if (!data) return <Spinner />;
 
   const kpis = [
-    { label: t('dashboard.enrolledStudents'), value: data.students, icon: Users, color: 'var(--accent)' },
-    { label: t('dashboard.activeTeachers'), value: data.teachers, icon: UserCog, color: 'var(--accent-2)' },
-    { label: t('dashboard.sections'), value: data.sections, icon: Layers, color: 'var(--accent-3)' },
-    { label: t('dashboard.attendanceToday'), value: `${data.attendance_rate}%`, icon: CalendarCheck, color: 'var(--success)' },
+    { to: '/students', label: t('dashboard.enrolledLearners'), value: data.enrolled ?? 0, sub: t('dashboard.enrolledSub', { total: data.students ?? 0 }), icon: Users, color: 'var(--accent)' },
+    { to: '/enroll', label: t('dashboard.waitlisted'), value: data.waitlisted ?? 0, sub: t('dashboard.waitlistedSub'), icon: Users, color: 'var(--warn)' },
+    { to: '/teachers', label: t('dashboard.activeTeachers'), value: data.teachers ?? 0, sub: t('dashboard.activeTeachersSub'), icon: UserCog, color: 'var(--accent-2)' },
+    { to: '/sections', label: t('dashboard.sections'), value: data.sections ?? 0, sub: t('dashboard.activeSectionsSub'), icon: Layers, color: 'var(--accent-3)' },
+    { to: '/subjects', label: t('dashboard.subjectsOffered'), value: data.subjects ?? 0, sub: t('dashboard.offeredSub'), icon: BookOpenCheck, color: 'var(--purple)' },
+    { to: '/attendance', label: t('dashboard.attendanceLogged'), value: data.attendance_logged_today ?? 0, sub: t('dashboard.attendanceLoggedSub'), icon: CalendarCheck, color: 'var(--success)' },
   ];
 
-  const gradeData = Object.entries(data.by_grade_level || {}).map(([g, v]) => ({
+  const r = data.readiness || {};
+  const readinessItems = [
+    { key: 'grades', label: t('dashboard.gradesEntry'), to: '/grades', icon: BookOpenCheck,
+      detail: `${r.grades?.learners ?? 0} ${t('dashboard.ofEligible')} ${r.grades?.expected ?? 0} ${t('dashboard.enrolledLearners')}`,
+      status: (r.grades?.expected ?? 0) > 0 ? ((r.grades?.learners ?? 0) >= (r.grades?.expected ?? 0) ? 'done' : 'pending') : 'note' },
+    { key: 'attendance', label: t('dashboard.studentAttendanceLogging'), to: '/attendance', icon: CalendarCheck,
+      detail: `${r.attendance?.days ?? 0} ${t('dashboard.dayLogged')} · ${r.attendance?.records ?? 0} ${t('dashboard.records')}`,
+      status: (r.attendance?.days ?? 0) > 0 ? 'started' : 'pending' },
+    { key: 'teacherAttendance', label: t('dashboard.teacherAttendanceMarking'), to: '/attendance', icon: UserCheck,
+      detail: `${r.teacher_attendance?.marked ?? 0} ${t('dashboard.ofEligible')} ${r.teacher_attendance?.total ?? 0} ${t('dashboard.markedToday')}`,
+      status: (r.teacher_attendance?.total ?? 0) > 0 ? ((r.teacher_attendance?.marked ?? 0) >= (r.teacher_attendance?.total ?? 0) ? 'done' : 'pending') : 'note' },
+    { key: 'conduct', label: t('dashboard.conductDiscipline'), to: '/discipline', icon: ShieldAlert,
+      detail: `${r.conduct?.records ?? 0} ${t('dashboard.recordPlural')}`,
+      status: (r.conduct?.records ?? 0) > 0 ? 'started' : 'pending' },
+    { key: 'aral', label: t('dashboard.aralProgram'), to: '/aral', icon: GraduationCap,
+      detail: `${r.aral?.tagged ?? 0} ${t('dashboard.taggedLearners')} · ${r.aral?.sessions ?? 0} ${t('dashboard.sessionPlural')}`,
+      status: (r.aral?.sessions ?? 0) > 0 ? 'started' : ((r.aral?.tagged ?? 0) > 0 ? 'pending' : 'note') },
+    { key: 'assessments', label: t('dashboard.assessmentsEntry'), to: '/assessment', icon: Target,
+      detail: `${r.assessments?.records ?? 0} ${t('dashboard.recordPlural')}`,
+      status: (r.assessments?.records ?? 0) > 0 ? 'started' : 'pending' },
+    { key: 'immersion', label: t('dashboard.workImmersion'), to: '/immersion', icon: Briefcase,
+      detail: `${r.immersion?.total ?? 0} ${t('dashboard.immersionLearners')} · ${r.immersion?.pending ?? 0} ${t('dashboard.immersionPending')}`,
+      status: (r.immersion?.total ?? 0) > 0 ? ((r.immersion?.pending ?? 0) > 0 ? 'pending' : 'done') : 'note' },
+    { key: 'jdvp', label: t('dashboard.jdvp'), to: '/immersion', icon: BadgeCheck,
+      detail: `${r.jdvp?.total ?? 0} ${t('dashboard.recipientPlural')}`,
+      status: (r.jdvp?.total ?? 0) > 0 ? 'started' : 'pending' },
+  ];
+
+  const funnel = [
+    { label: t('dashboard.learnersOnRecord'), value: data.students ?? 0, color: 'var(--accent)' },
+    { label: t('dashboard.enrolledToSection'), value: data.enrolled ?? 0, color: 'var(--accent-2)' },
+    { label: t('dashboard.enrolledWithSubjects'), value: data.with_subjects ?? 0, color: 'var(--accent-3)' },
+  ];
+
+  const gradeData = Object.entries(data.enrolled_by_grade_level || {}).map(([g, v]) => ({
     grade: g, Male: v.male, Female: v.female,
   }));
-  const sexData = [
-    { name: 'Male', value: data.by_sex?.male || 0 },
-    { name: 'Female', value: data.by_sex?.female || 0 },
-  ];
-  const trendData = {};
-  for (const r of trend) {
-    trendData[r.date] = trendData[r.date] || { date: r.date, present: 0, absent: 0, late: 0 };
-    trendData[r.date][r.status] = (trendData[r.date][r.status] || 0) + r.n;
-  }
-  const trendChart = Object.values(trendData).sort((a, b) => a.date.localeCompare(b.date));
 
   const quick = [
-    { to: '/interventions', label: t('dashboard.reviewRisk', 'Review at-risk learners'), icon: ShieldAlert },
-    { to: '/assessment', label: t('dashboard.buildExam', 'Build exam / TOS'), icon: Wand2 },
     { to: '/enroll', label: t('dashboard.enrollStudent', 'Enroll a student'), icon: Users },
-    { to: '/grades', label: t('dashboard.enterGrades', 'Enter class grades'), icon: Activity },
     { to: '/attendance', label: t('dashboard.recordAttendance', 'Record attendance'), icon: CalendarCheck },
+    { to: '/grades', label: t('dashboard.enterGrades', 'Enter class grades'), icon: Activity },
+    { to: '/aral', label: t('dashboard.aralProgram'), icon: GraduationCap },
+    { to: '/immersion', label: t('dashboard.workImmersion'), icon: Briefcase },
+    { to: '/discipline', label: t('dashboard.manageRecords'), icon: ShieldAlert },
   ];
+
+  const maxFunnel = Math.max(1, ...funnel.map((f) => f.value));
 
   return (
     <>
-      <PageHead title={t('dashboard.title')} sub={`${t('dashboard.schoolYearSnapshot')} ${data.date}`} />
-      <div className="grid grid-4">
+      <PageHead
+        title={t('dashboard.title')}
+        sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
+      />
+
+      <div className="grid grid-3">
         {kpis.map((k) => (
-          <div className="card kpi" key={k.label}>
+          <Link className="card kpi" style={{ textDecoration: 'none' }} to={k.to} key={k.label}>
             <div className="icon" style={{ background: `${k.color}22`, color: k.color }}><k.icon size={20} /></div>
             <div className="value">{k.value}</div>
             <div className="label">{k.label}</div>
-          </div>
+            <div className="sub" style={{ fontSize: 12, marginTop: 4 }}>{k.sub}</div>
+          </Link>
         ))}
       </div>
 
       <div style={{ height: 18 }} />
 
-      <div className="grid grid-3">
+      <div className="grid grid-2">
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>{t('dashboard.studentsByGrade')}</h3>
-          {R ? (
-            <R.ResponsiveContainer width="100%" height={230}>
+          <h3 style={{ marginTop: 0 }}>{t('dashboard.enrollmentPipeline')}</h3>
+          <div style={{ display: 'grid', gap: 14 }}>
+            {funnel.map((f, i) => (
+              <div key={f.label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text-dim)' }}>{f.label}</span>
+                  <strong>{f.value}</strong>
+                </div>
+                <div style={{ background: 'var(--card-hover)', borderRadius: 8, height: 12, overflow: 'hidden' }}>
+                  <div
+                    style={{ width: `${Math.round(f.value / maxFunnel * 100)}%`, height: '100%', background: f.color, borderRadius: 8 }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="sub" style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <History size={13} />
+            {t('dashboard.pipelineHint')}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>{t('dashboard.enrolledByGrade')}</h3>
+          {gradeData.length > 0 ? (R ? (
+            <R.ResponsiveContainer width="100%" height={190}>
               <R.BarChart data={gradeData}>
                 <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
                 <R.XAxis dataKey="grade" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
-                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
+                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
                 <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-                <R.Bar dataKey="Male" fill="#4D96FF" radius={[4, 4, 0, 0]} />
-                <R.Bar dataKey="Female" fill="#2FD6A0" radius={[4, 4, 0, 0]} />
+                <R.Bar dataKey="Male" fill={SEX_COLORS.Male} radius={[4, 4, 0, 0]} />
+                <R.Bar dataKey="Female" fill={SEX_COLORS.Female} radius={[4, 4, 0, 0]} />
               </R.BarChart>
             </R.ResponsiveContainer>
-          ) : R === null ? <div className="sub" style={{ height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div> : <div style={{ height: 230 }}><Spinner /></div>}
-        </div>
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>{t('dashboard.attendanceTrend')}</h3>
-          {R ? (
-            <R.ResponsiveContainer width="100%" height={230}>
-              <R.LineChart data={trendChart}>
-                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-                <R.XAxis dataKey="date" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} tickFormatter={(d) => d.slice(5)} />
-                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
-                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-                <R.Line type="monotone" dataKey="present" stroke="#34C77B" strokeWidth={2} dot={false} />
-                <R.Line type="monotone" dataKey="late" stroke="#F5B942" strokeWidth={2} dot={false} />
-                <R.Line type="monotone" dataKey="absent" stroke="#F2555A" strokeWidth={2} dot={false} />
-              </R.LineChart>
-            </R.ResponsiveContainer>
-          ) : R === null ? <div className="sub" style={{ height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div> : <div style={{ height: 230 }}><Spinner /></div>}
-        </div>
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>{t('dashboard.genderDistribution')}</h3>
-          {R ? (
-            <R.ResponsiveContainer width="100%" height={230}>
-              <R.PieChart>
-                <R.Pie data={sexData} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                  {sexData.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </R.Pie>
-                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
-              </R.PieChart>
-            </R.ResponsiveContainer>
-          ) : R === null ? <div className="sub" style={{ height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div> : <div style={{ height: 230 }}><Spinner /></div>}
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', fontSize: 13 }}>
-            {sexData.map((s, i) => (
-              <span key={s.name} style={{ color: 'var(--text-dim)' }}>
-                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i], marginRight: 6 }} />
-                {s.name}: <strong style={{ color: 'var(--text)' }}>{s.value}</strong>
+          ) : R === null ? (
+            <div className="sub" style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {t('dashboard.chartUnavailable', 'Chart could not be loaded.')}
+            </div>
+          ) : <div style={{ height: 190 }}><Spinner /></div>) : (
+            <Empty text={t('dashboard.noEnrolledGrade', 'No enrolled learners for the current school year yet.')} />
+          )}
+          <div className="sub" style={{ display: 'flex', gap: 16, justifyContent: 'center', fontSize: 13, marginTop: 8 }}>
+            {Object.entries(SEX_COLORS).map(([sex, color]) => (
+              <span key={sex} style={{ color: 'var(--text-dim)' }}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: color, marginRight: 6 }} />
+                {sex}: <strong style={{ color: 'var(--text)' }}>{data.enrolled_by_grade_level ? Object.values(data.enrolled_by_grade_level).reduce((a, v) => a + (sex === 'Male' ? v.male : v.female), 0) : 0}</strong>
               </span>
             ))}
           </div>
@@ -151,59 +205,32 @@ export default function Dashboard() {
 
       <div style={{ height: 18 }} />
 
-      <DashboardSections />
+      <div className="card">
+        <div className="dashboard-block-head">
+          <h3 style={{ margin: 0 }}><Activity size={16} /> {t('dashboard.dataReadiness')}</h3>
+        </div>
+        <div className="split-2" style={{ marginTop: 12 }}>
+          {readinessItems.map((item) => {
+            const st = READINESS_STATUS[item.status] || READINESS_STATUS.note;
+            return (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--card-hover)', border: '1px solid var(--border)' }}>
+                <div className="icon" style={{ background: 'var(--card)', color: 'var(--text-dim)', flexShrink: 0 }}><item.icon size={18} /></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Link to={item.to} style={{ fontWeight: 600, color: 'var(--text)' }}>{item.label}</Link>
+                    <span className={`badge ${st.badge}`}>{t(st.tri)}</span>
+                  </div>
+                  <div className="sub" style={{ fontSize: 12.5, marginTop: 2 }}>{item.detail}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div style={{ height: 18 }} />
 
-      <div className="card">
-        <div className="dashboard-block-head">
-          <h3 style={{ margin: 0 }}><ShieldAlert size={16} /> {t('dashboard.conductMonitoring')}</h3>
-          <Link to="/discipline" className="btn btn-sm">{t('dashboard.manageRecords')}</Link>
-        </div>
-        {conduct === null ? (
-          <Empty text={t('dashboard.conductUnavailable', 'Conduct summary could not be loaded right now.')} />
-        ) : !conduct ? <Spinner /> : (
-          <>
-            <div className="kpi-row">
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--warn)' }}>{conduct.by_status?.open ?? 0}</div><div className="kpi-mini-label">{t('dashboard.openCases')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--accent)' }}>{conduct.by_status?.under_review ?? 0}</div><div className="kpi-mini-label">{t('dashboard.underReview')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--accent-2)' }}>{conduct.by_status?.resolved ?? 0}</div><div className="kpi-mini-label">{t('dashboard.resolved')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--purple)' }}>{conduct.cases_this_month ?? 0}</div><div className="kpi-mini-label">{t('dashboard.thisMonth')}</div></div>
-              <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--danger)' }}>{conduct.by_severity?.major ?? 0}</div><div className="kpi-mini-label">{t('dashboard.majorIncidents')}</div></div>
-            </div>
-            <div className="table-wrap" style={{ marginTop: 12 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('dashboard.student')}</th><th>{t('dashboard.incident')}</th><th style={{ textAlign: 'center' }}>{t('dashboard.severity')}</th>
-                    <th style={{ textAlign: 'center' }}>{t('common.date')}</th><th style={{ textAlign: 'center' }}>{t('common.status')}</th>
-                    <th style={{ textAlign: 'center' }}>{t('dashboard.openFor')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {conduct.recent?.length === 0 ? (
-                    <tr><td colSpan={6} className="sub">{t('dashboard.noConductRecords')}</td></tr>
-                  ) : conduct.recent?.map((r) => (
-                    <tr key={r.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{r.student_name}</div>
-                        <div className="sub" style={{ fontSize: 12 }}>{r.grade_level || ''} {r.section_name ? `· ${r.section_name}` : ''}</div>
-                      </td>
-                      <td>{CONDUCT_TYPE_LABEL[r.incident_type] || r.incident_type}</td>
-                      <td style={{ textAlign: 'center' }}><span className={`badge ${CONDUCT_SEVERITY_BADGE[r.severity] || 'badge-gray'}`}>{r.severity}</span></td>
-                      <td style={{ textAlign: 'center' }} className="sub">{r.incident_date?.slice(0, 10)}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${CONDUCT_STATUS_BADGE[r.status] || 'badge-gray'}`}>{(r.status || '').replace('_', ' ')}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }} className="sub">{r.status === 'resolved' ? '—' : `${r.days_open}d`}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
+      <DashboardSections />
 
       <div style={{ height: 18 }} />
 
@@ -228,6 +255,34 @@ export default function Dashboard() {
 
         <div className="card">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <History size={16} /> {t('dashboard.recentActivity')}
+          </h3>
+          {activity === null ? <Spinner /> : activity.length === 0 ? <Empty text={t('dashboard.noActivity')} /> : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {activity.map((a) => {
+                const detail = (() => {
+                  try {
+                    const d = JSON.parse(a.details || '{}');
+                    return d.name || d.title || d.username || d.lrn || '';
+                  } catch { return ''; }
+                })();
+                return (
+                  <div key={a.id} style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ color: 'var(--text-dim)', marginTop: 2 }}><Activity size={14} /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
+                      <div className="sub" style={{ fontSize: 12 }}>{fmtWhen(a.created_at)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Link to="/audit" className="btn btn-sm" style={{ marginTop: 14 }}>{t('dashboard.auditLogs')}</Link>
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Activity size={16} /> {t('dashboard.quickActions')}
           </h3>
           <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
@@ -235,8 +290,9 @@ export default function Dashboard() {
               <Link className="btn btn-sm quick-link" to={q.to} key={q.to}><q.icon size={13} /> {q.label}</Link>
             ))}
           </div>
-          <h3 style={{ marginTop: 22 }}>{t('dashboard.subjectsOffered')}</h3>
-          <div style={{ fontSize: 14 }}>{data.subjects} {t('dashboard.activeSubjects')}</div>
+          <div className="sub" style={{ marginTop: 16 }}>
+            {t('dashboard.auditLast7', { n: r.audit?.last7 ?? 0 })}
+          </div>
         </div>
       </div>
     </>

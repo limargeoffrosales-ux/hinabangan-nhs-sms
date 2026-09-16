@@ -29,30 +29,81 @@ async function teacherSectionScope(req) {
 }
 
 router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
-  const [students, teachers, sections, subjects, enrollments] = await Promise.all([
+  const t = today();
+  const sy = String(req.query.school_year || '').trim() ||
+    ((await q('SELECT school_year FROM enrollments ORDER BY school_year DESC LIMIT 1'))?.school_year) || null;
+  const last7 = db.dialect === 'pg' ? `CURRENT_DATE - INTERVAL '7 days'` : `date('now', '-7 days')`;
+  const [
+    students, teachers, sections, subjects, enrollments,
+    enrolledByGrade, gradeLearners, attendanceDays, teacherMarking,
+    conductCount, aralTagged, aralSessions, assessments, immersion,
+    jdvpCount, audit,
+  ] = await Promise.all([
     qa('SELECT grade_level, sex, COUNT(*) AS n FROM students GROUP BY grade_level, sex'),
     qa('SELECT COUNT(*) AS n FROM teachers WHERE status = \'active\''),
     qa('SELECT COUNT(*) AS n FROM sections WHERE status = \'active\''),
     qa('SELECT COUNT(*) AS n FROM subjects'),
     qa('SELECT school_year, COUNT(*) AS n FROM enrollments GROUP BY school_year ORDER BY school_year DESC LIMIT 5'),
+    sy ? qa(
+      `SELECT sec.grade_level,
+              COUNT(DISTINCT CASE WHEN st.sex = 'Male' THEN e.student_id END) AS male,
+              COUNT(DISTINCT CASE WHEN st.sex = 'Female' THEN e.student_id END) AS female,
+              COUNT(DISTINCT e.student_id) AS total
+       FROM enrollments e
+       JOIN sections sec ON sec.id = e.section_id
+       JOIN students st ON st.id = e.student_id
+       WHERE e.status = 'enrolled' AND e.school_year = ?
+       GROUP BY sec.grade_level`, [sy]) : Promise.resolve([]),
+    sy ? qa('SELECT COUNT(DISTINCT student_id) AS n FROM grades WHERE school_year = ?', [sy]) : Promise.resolve([]),
+    qa('SELECT COUNT(DISTINCT date) AS days, COUNT(*) AS records FROM attendance'),
+    qa(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN ta.date = ? THEN 1 ELSE 0 END) AS marked
+       FROM teachers t
+       LEFT JOIN teacher_attendance ta ON ta.teacher_id = t.id AND ta.date = ?
+       WHERE t.status = 'active'`, [t, t]),
+    qa('SELECT COUNT(*) AS n FROM student_conduct_records'),
+    sy ? qa('SELECT COUNT(*) AS n FROM enrollments WHERE status = \'enrolled\' AND is_aral = TRUE AND school_year = ?', [sy]) : Promise.resolve([]),
+    qa('SELECT COUNT(*) AS n FROM aral_sessions'),
+    qa('SELECT COUNT(*) AS n FROM learner_assessments'),
+    qa('SELECT status, COUNT(*) AS n FROM work_immersion GROUP BY status'),
+    qa('SELECT COUNT(*) AS n FROM jdvp_recipients'),
+    qa(`SELECT COUNT(*) AS last7 FROM audit_logs WHERE created_at >= ${last7}`),
   ]);
-  const t = today();
+  const totalStudents = students.reduce((a, r) => a + Number(r.n), 0);
+  const enrolled = enrolledByGrade.reduce((a, r) => a + Number(r.total || 0), 0);
   const attendance = await qa(
     `SELECT a.status, COUNT(*) AS n FROM attendance a WHERE a.date = ? GROUP BY a.status`, [t]);
-  const totalStudents = students.reduce((a, r) => a + Number(r.n), 0);
   const present = attendance.find((r) => r.status === 'present')?.n || 0;
   const absences = await qa(
     'SELECT COUNT(*) AS n FROM attendance WHERE date = ? AND status = \'absent\'', [t]);
+  const markedToday = Number(teacherMarking[0]?.marked || 0);
+  const activeTeachers = Number(teacherMarking[0]?.total || teachers[0]?.n || 0);
+  const immersionMap = {};
+  for (const r of immersion) immersionMap[r.status] = Number(r.n);
+  const immersionTotal = Object.values(immersionMap).reduce((a, b) => a + b, 0);
   res.json({
     students: totalStudents,
-    teachers: Number(teachers[0]?.n || 0),
+    enrolled,
+    waitlisted: Math.max(0, totalStudents - enrolled),
+    with_subjects: sy
+      ? Number((await q(`SELECT COUNT(DISTINCT e.student_id) AS n FROM enrollment_subjects es JOIN enrollments e ON e.id = es.enrollment_id WHERE e.status = 'enrolled' AND e.school_year = ?`, [sy]))?.n || 0)
+      : 0,
+    teachers: activeTeachers,
     sections: Number(sections[0]?.n || 0),
     subjects: Number(subjects[0]?.n || 0),
+    school_year: sy,
     attendance_rate: totalStudents ? Math.round(present / totalStudents * 100) : 0,
     absences_today: Number(absences[0]?.n || 0),
+    attendance_logged_today: Number((await q('SELECT COUNT(*) AS n FROM attendance WHERE date = ?', [t]))?.n || 0),
+    teacher_marked_today: markedToday,
     by_grade_level: students.reduce((m, r) => {
       if (!m[r.grade_level]) m[r.grade_level] = { male: 0, female: 0 };
       m[r.grade_level][r.sex === 'Male' ? 'male' : 'female'] += Number(r.n);
+      return m;
+    }, {}),
+    enrolled_by_grade_level: enrolledByGrade.reduce((m, r) => {
+      m[r.grade_level] = { male: Number(r.male || 0), female: Number(r.female || 0), total: Number(r.total || 0) };
       return m;
     }, {}),
     by_sex: {
@@ -60,6 +111,23 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
       female: students.filter((r) => r.sex === 'Female').reduce((a, r) => a + Number(r.n), 0),
     },
     enrollment_by_year: enrollments,
+    readiness: {
+      grades: { learners: Number(gradeLearners[0]?.n || 0), expected: enrolled },
+      attendance: { days: Number(attendanceDays[0]?.days || 0), records: Number(attendanceDays[0]?.records || 0) },
+      teacher_attendance: { marked: markedToday, total: activeTeachers },
+      conduct: { records: Number(conductCount[0]?.n || 0) },
+      aral: { tagged: Number(aralTagged[0]?.n || 0), sessions: Number(aralSessions[0]?.n || 0) },
+      assessments: { records: Number(assessments[0]?.n || 0) },
+      immersion: {
+        total: immersionTotal,
+        pending: immersionMap.pending || 0,
+        ongoing: immersionMap.ongoing || 0,
+        completed: immersionMap.completed || 0,
+        withdrawn: immersionMap.withdrawn || 0,
+      },
+      jdvp: { total: Number(jdvpCount[0]?.n || 0) },
+      audit: { last7: Number(audit[0]?.last7 || 0) },
+    },
     date: t,
   });
 }));
