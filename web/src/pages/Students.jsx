@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
@@ -38,6 +38,7 @@ export default function Students() {
   const [importOpen, setImportOpen] = useState(false);
   const [importCsv, setImportCsv] = useState('');
   const [importTerm, setImportTerm] = useState('first');
+  const [importTemplateBusy, setImportTemplateBusy] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
@@ -143,6 +144,33 @@ export default function Students() {
     setForm(EMPTY_FORM);
     setEditing(null);
     setShowModal(true);
+  }
+
+  async function loadImportTemplate() {
+    setImportTemplateBusy(true);
+    try {
+      const [stRes, secRes] = await Promise.all([api('/students?limit=200'), api('/sections?limit=200')]);
+      const students = (stRes.data || []).filter((s) => s.lrn && /^\d{12}$/.test(String(s.lrn)) && s.grade_level);
+      const sections = secRes.data || [];
+      if (!students.length || !sections.length) { setError('No students or sections available to build a template.'); return; }
+      const byGrade = {};
+      for (const sec of sections) {
+        if (!sec.name || !sec.grade_level) continue;
+        (byGrade[sec.grade_level] = byGrade[sec.grade_level] || []).push(sec);
+      }
+      const sy = sections.find((s) => s.school_year)?.school_year || '2026-2027';
+      const lines = ['lrn,section_name,school_year,grade_level'];
+      for (const st of students.slice(0, 10)) {
+        const sec = byGrade[st.grade_level]?.[0];
+        if (!sec) continue;
+        lines.push(`${st.lrn},${sec.name},${sec.school_year || sy},${st.grade_level}`);
+      }
+      setImportCsv(lines.join('\n'));
+    } catch (e) {
+      setError(e.message || 'Failed to load template data');
+    } finally {
+      setImportTemplateBusy(false);
+    }
   }
 
   async function importEnrollments() {
@@ -251,6 +279,12 @@ export default function Students() {
                 The students must <strong>already exist</strong> with those exact LRNs — this enrolls existing learners into sections; it does not create new students.
                 Section names must exactly match the Sections list.
               </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <button className="btn" onClick={loadImportTemplate} disabled={importTemplateBusy}>
+                  <RefreshCw size={13} /> {importTemplateBusy ? 'Loading…' : 'Fill with real students and sections'}
+                </button>
+                <span className="sub" style={{ alignSelf: 'center' }}>Builds the CSV from your actual learner LRNs and section names — no typos, no invented data.</span>
+              </div>
               <textarea
                 className="input"
                 rows={6}
@@ -285,8 +319,17 @@ export default function Students() {
                 )}
               </div>
               {importResult?.errors?.length > 0 && (
-                <div style={{ marginTop: 6, fontSize: 12, color: '#e74c3c' }}>
-                  {importResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                <div style={{ marginTop: 8, padding: 10, border: '1px solid #e74c3c', borderRadius: 8, background: 'rgba(231,76,60,0.07)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <AlertTriangle size={14} style={{ color: '#e74c3c', flexShrink: 0 }} />
+                    <strong style={{ fontSize: 13, color: '#e74c3c' }}>{importResult.errors.length} row(s) were skipped</strong>
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 12, color: '#c0392b', maxHeight: 140, overflowY: 'auto', fontFamily: 'monospace' }}>
+                    {importResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                  </div>
+                  {importResult.imported === 0 && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: '#c0392b' }}>Nothing was imported — fix the rows above and try again.</div>
+                  )}
                 </div>
               )}
             </div>
