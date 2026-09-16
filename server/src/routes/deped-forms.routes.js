@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { q, qa, qr, qi, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, maskPII } = require('../utils');
+const { asyncH } = require('../utils');
 
 const router = express.Router();
 router.use(authenticate);
