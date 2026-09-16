@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Search } from 'lucide-react';
+import { Search, RotateCcw, FileText, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { SHS_TRACKS, ENROLLMENT_STATUSES } from '../lib/constants';
+import { SHS_TRACKS, ENROLLMENT_STATUSES, ENROLLMENT_DOC_TYPES, CURRENT_SCHOOL_YEAR } from '../lib/constants';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge } from '../components/ui';
 import { useToast } from '../components/Toast';
+
+const STATUS_MAP = Object.fromEntries(ENROLLMENT_STATUSES.map((s) => [s.value, s.label]));
+const statusLabel = (v) => STATUS_MAP[v] || v || '—';
+const DOC_LABELS = Object.fromEntries(ENROLLMENT_DOC_TYPES.map((d) => [d.value, d.label]));
 
 const CATEGORIES = [
   { cat: 'core', label: 'Core Subjects' },
@@ -132,6 +136,11 @@ export default function Enroll() {
   const [editSelected, setEditSelected] = useState([]);
   const [editSearch, setEditSearch] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [docs, setDocs] = useState([]);
+  const [newDocType, setNewDocType] = useState('psa_birth');
+  const [docUploading, setDocUploading] = useState(false);
+  const [autoFillInfo, setAutoFillInfo] = useState('');
+  const skipNextAutoFill = useRef(false);
 
   const load = useCallback(async (q, quiet) => {
     if (!quiet) setLoading(true);
@@ -205,6 +214,36 @@ export default function Enroll() {
 
   const isShsGrade = /^Grade 1[12]$/.test(form.grade_level || '');
 
+  // Pre-tick the standard subject set (cores + the strand's sector electives)
+  // from the curriculum whenever the grade/strand/term change. The registrar
+  // adjusts from a sane baseline instead of re-ticking every subject.
+  const applyDefaults = useCallback(async () => {
+    const g = form.grade_level;
+    if (!g || !/^Grade 1[12]$/.test(g)) return false;
+    try {
+      const qs = new URLSearchParams({ grade_level: g });
+      if (form.term) qs.set('term', form.term);
+      if (form.strand) qs.set('strand', form.strand);
+      const res = await retryFetch(() => api(`/enrollments/default-subjects?${qs}`), 2);
+      const ids = (res.data || []).map(Number);
+      setSelectedSubjects(ids);
+      setAutoFillInfo(form.strand && ids.length
+        ? `Auto-filled ${ids.length} ${ids.length === 1 ? 'subject' : 'subjects'} from the ${form.strand} curriculum — adjust below if needed.`
+        : ids.length
+          ? `Auto-filled ${ids.length} core ${ids.length === 1 ? 'subject' : 'subjects'} for ${g}.`
+          : 'No default subjects found for this grade, strand and term.');
+      return ids.length > 0;
+    } catch (e) {
+      setError(e.status === 500 ? 'Default subjects could not be loaded — refresh to try again.' : e.message);
+      return false;
+    }
+  }, [form.grade_level, form.term, form.strand]);
+
+  useEffect(() => {
+    if (skipNextAutoFill.current) { skipNextAutoFill.current = false; return; }
+    if (isShsGrade && form.term) applyDefaults();
+  }, [applyDefaults, isShsGrade]);
+
   const group = useMemo(() => {
     if (!isShsGrade) return [];
     const q = search.trim().toLowerCase();
@@ -216,10 +255,12 @@ export default function Enroll() {
   const totalAvailable = useMemo(() => (isShsGrade ? subjects.length : 0), [subjects, isShsGrade]);
 
   function toggleSubject(id) {
+    setAutoFillInfo('');
     setSelectedSubjects((sel) => (sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]));
   }
 
   function toggleGroup(list) {
+    setAutoFillInfo('');
     const ids = list.map((s) => s.id);
     const allSelected = ids.every((id) => selectedSubjects.includes(id));
     setSelectedSubjects((sel) => (allSelected ? sel.filter((x) => !ids.includes(x)) : [...new Set([...sel, ...ids])]));
@@ -245,6 +286,7 @@ export default function Enroll() {
       toast.success('Student enrolled successfully.');
       setForm((f) => ({ ...f, student_id: '', section_id: '', is_aral: false }));
       setSelectedSubjects([]);
+      setAutoFillInfo('');
       load(studentSearch.trim(), true);
     } catch (e2) {
       setError(e2.message);
@@ -261,6 +303,50 @@ export default function Enroll() {
     }
   }
 
+  // One-click re-enrollment: copy the learner's most recent enrollment into
+  // the main form for the current school year. Section is left blank so the
+  // registrar picks the right one; strand/term/subjects/Aral carry over.
+  async function prefillReEnroll(r) {
+    setError(null);
+    try {
+      const res = await retryFetch(() => api(`/enrollments/student/${r.student_id}`), 2);
+      const rows = (res.data || []).filter((x) => x.school_year !== CURRENT_SCHOOL_YEAR);
+      const latest = rows[0];
+      if (!latest) {
+        const current = (res.data || [])[0];
+        if (current && current.school_year === CURRENT_SCHOOL_YEAR) {
+          return setError(`This learner is already enrolled for ${CURRENT_SCHOOL_YEAR}.`);
+        }
+        return setError('No previous enrollment to copy.');
+      }
+      const student = students.find((s) => s.id === Number(r.student_id)) || history?.student
+        || { last_name: '', first_name: '' };
+      const isShs1 = /^Grade 1[12]$/.test(latest.grade_level || '');
+      skipNextAutoFill.current = true;
+      setForm((f) => ({
+        ...f,
+        student_id: String(r.student_id),
+        grade_level: latest.grade_level,
+        strand: latest.strand || f.strand,
+        term: latest.term || 'first',
+        school_year: CURRENT_SCHOOL_YEAR,
+        section_id: '',
+        is_aral: !!latest.is_aral,
+        status: 'enrolled',
+      }));
+      setSelectedSubjects(isShs1 ? (latest.subjects || []).map((s) => s.subject_id) : []);
+      setAutoFillInfo(isShs1 && latest.subjects?.length
+        ? `Re-enrolling ${student.last_name}, ${student.first_name} — copied ${latest.subjects.length} subjects from ${latest.school_year}. Pick a section and press Enroll.`
+        : `Re-enrolling ${student.last_name}, ${student.first_name} — copied from ${latest.school_year}. Pick a section and press Enroll.`);
+      setShowHistory(false);
+      setStudentSearch(student.last_name ? `${student.last_name}, ${student.first_name}`.trim() : '');
+      toast.success(`Re-enrollment drafted from ${latest.school_year} — confirm and enroll.`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function startEdit(r) {
     setError(null);
     try {
@@ -269,6 +355,7 @@ export default function Enroll() {
       if (!enr) throw new Error('Enrollment record not found');
       const isShsGrade = /^Grade 1[12]$/.test(enr.grade_level || '');
       setEditing(enr);
+      loadDocs(enr.id);
       setEditForm({
         section_id: enr.section_id,
         term: enr.term || 'first',
@@ -308,11 +395,56 @@ export default function Enroll() {
       await api(`/enrollments/${editing.id}`, { method: 'PATCH', body });
       toast.success('Enrollment updated.');
       setEditing(null);
+      setDocs([]);
       load(studentSearch.trim(), true);
     } catch (e) {
       setError(e.message);
     } finally {
       setEditSaving(false);
+    }
+  }
+
+  async function loadDocs(id) {
+    try {
+      const res = await retryFetch(() => api(`/enrollments/${id}/documents`), 2);
+      setDocs(res.data || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleDocUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !editing) return;
+    setDocUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await api('/uploads/file?folder=enrollment_docs', { method: 'POST', body: fd });
+      await api(`/enrollments/${editing.id}/documents`, {
+        method: 'POST',
+        body: { doc_type: newDocType, url: up.url, key: up.key, name: up.name || file.name },
+      });
+      toast.success('Requirement uploaded.');
+      loadDocs(editing.id);
+    } catch (e2) {
+      setError(e2.message);
+    } finally {
+      setDocUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function deleteDoc(doc) {
+    if (!window.confirm('Remove this requirement file from the enrollment?')) return;
+    setError(null);
+    try {
+      await api(`/enrollments/documents/${doc.id}`, { method: 'DELETE' });
+      toast.success('Requirement removed.');
+      loadDocs(editing.id);
+    } catch (e) {
+      setError(e.message);
     }
   }
 
@@ -456,11 +588,19 @@ export default function Enroll() {
 
               {isShsGrade ? (
                 <>
-                  <div style={{ margin: '12px 0 4px' }}>
+                  <div style={{ margin: '12px 0 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                     <label style={{ fontWeight: 600 }}>Enrolled subjects — tick the cores and electives for this term</label>
-                    <div className="hint">
-                      Full SSHS catalog for Grade 11 and 12 · available in all three terms · {selectedCount} of {totalAvailable} selected
+                    <button type="button" className="btn btn-sm" onClick={() => applyDefaults()} title="Restore the standard subject set from the curriculum">
+                      <RotateCcw size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Refill curriculum defaults
+                    </button>
+                  </div>
+                  {autoFillInfo && (
+                    <div className="hint" style={{ padding: '6px 10px', background: 'var(--bg-soft, #f0f7f2)', borderRadius: 6, marginBottom: 8 }}>
+                      {autoFillInfo}
                     </div>
+                  )}
+                  <div className="hint">
+                    Full SSHS catalog for Grade 11 and 12 · available in all three terms · {selectedCount} of {totalAvailable} selected
                   </div>
                   <div style={{ position: 'relative', marginBottom: 8 }}>
                     <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
@@ -508,10 +648,13 @@ export default function Enroll() {
                       <td>{r.last_name}, {r.first_name}</td>
                       <td>{r.section_name || '—'}</td>
                       <td>{r.grade_level}{r.term ? ` · ${r.term[0].toUpperCase() + r.term.slice(1)}` : ''}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button className="btn btn-sm" onClick={() => startEdit({ id: r.id, student_id: r.student_id })}>Edit</button>
-                        <button className="btn btn-sm" style={{ marginLeft: 4 }} onClick={() => viewHistory({ id: r.student_id, last_name: r.last_name, first_name: r.first_name, lrn: r.lrn })}>History</button>
-                      </td>
+<td style={{ textAlign: 'right' }}>
+  <button className="btn btn-sm" onClick={() => startEdit({ id: r.id, student_id: r.student_id })}>Edit</button>
+  <button className="btn btn-sm" style={{ marginLeft: 4 }} onClick={() => viewHistory({ id: r.student_id, last_name: r.last_name, first_name: r.first_name, lrn: r.lrn })}>History</button>
+  {r.school_year !== CURRENT_SCHOOL_YEAR && (
+    <button className="btn btn-sm" style={{ marginLeft: 4 }} onClick={() => prefillReEnroll(r)}>Re-enroll</button>
+  )}
+</td>
                     </tr>
                   ))}
                 </tbody>
@@ -550,10 +693,13 @@ export default function Enroll() {
                         </div>
                       ) : '—'}
                     </td>
-                    <td>{r.status}</td>
+                    <td>{statusLabel(r.status)}</td>
                     <td>{r.enrolled_at || '—'}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="btn btn-sm" onClick={() => { setShowHistory(false); startEdit({ id: r.id, student_id: r.student_id }); }}>Edit</button>
+                      {r.school_year !== CURRENT_SCHOOL_YEAR && (
+                        <button className="btn btn-sm" style={{ marginLeft: 4 }} onClick={() => prefillReEnroll(r)}>Re-enroll</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -567,7 +713,7 @@ export default function Enroll() {
         <Modal
           title="Edit Enrollment"
           sub="Correct any wrong data for this enrollment record."
-          onClose={() => { if (!editSaving) setEditing(null); }}
+          onClose={() => { if (!editSaving) { setEditing(null); setDocs([]); } }}
           wide
         >
           {(() => {
@@ -656,8 +802,41 @@ export default function Enroll() {
                   <div className="hint" style={{ marginTop: 10 }}>Subject checklist is available for Senior High School learners.</div>
                 )}
 
+                <div style={{ marginTop: 16 }}>
+                  <label style={{ fontWeight: 600 }}>Requirements (PSA, Form 138, ...)</label>
+                  <div className="hint">Upload scanned copies — attached to this enrollment record.</div>
+                  {docs.length === 0 ? (
+                    <Empty text="No requirement files attached yet." />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                      {docs.map((d) => (
+                        <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6 }}>
+                          <FileText size={14} style={{ opacity: 0.6, flexShrink: 0 }} />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: 13 }}>{DOC_LABELS[d.doc_type] || d.doc_type}</div>
+                            <div className="hint">{d.file_name || d.file_url}{d.uploaded_by_name ? ` · ${d.uploaded_by_name}` : ''}</div>
+                          </div>
+                          <a className="btn btn-sm" href={d.file_url} target="_blank" rel="noreferrer">View</a>
+                          <button className="btn btn-sm" aria-label="Remove requirement" onClick={() => deleteDoc(d)}><Trash2 size={13} style={{ verticalAlign: -2 }} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="form-row" style={{ marginTop: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <select value={newDocType} onChange={(e) => setNewDocType(e.target.value)} aria-label="Requirement type">
+                        {ENROLLMENT_DOC_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 2 }}>
+                      <input type="file" className="input" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" onChange={handleDocUpload} disabled={docUploading} aria-label="Select requirement file to upload" />
+                    </div>
+                  </div>
+                  {docUploading && <div className="hint" style={{ marginTop: 6 }}>Uploading…</div>}
+                </div>
+
                 <div className="modal-actions" style={{ marginTop: 16 }}>
-                  <button className="btn" onClick={() => { if (!editSaving) setEditing(null); }}>Cancel</button>
+                  <button className="btn" onClick={() => { if (!editSaving) { setEditing(null); setDocs([]); } }}>Cancel</button>
                   <button className="btn btn-primary" onClick={saveEdit} disabled={editSaving}>
                     {editSaving ? 'Saving…' : 'Save changes'}
                   </button>

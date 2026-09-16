@@ -8,8 +8,45 @@ const router = express.Router();
 router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const ENROLL_WRITE = [...WRITE, 'teacher'];
+const DOC_TYPES = ['psa_birth', 'form_138', 'good_moral', 'report_card', 'other'];
 const TERMS = ['first', 'second', 'third'];
 const isShs = (g) => /^Grade 1[12]$/.test(String(g || ''));
+
+// Map the school's official strand picker labels to their catalog category
+// so the enrollment form can pre-tick the right sector subjects. Academic and
+// unknown strands only pre-tick the core curriculum subjects.
+const STRAND_CATEGORIES = {
+  'TechPro - Electrical Installation and Maintenance': 'tvl-industrial',
+  'TechPro - Computer System and Servicing': 'tvl-ict',
+  'TechPro - Garment Artisanry': 'tvl-artisanry',
+};
+
+// The "standard" subject set for an SHS enrollment: the grade's mandatory core
+// subjects (category core / track general / CORE-* / SSHS-* codes) plus, when a
+// TechPro strand is chosen, that strand's sector electives — filtered by term.
+async function defaultSubjectIds(gradeLevel, strand, term) {
+  const termOk = TERMS.includes(term) || term === 'all';
+  const termClause = termOk ? "AND (term = ? OR term = 'all' OR term IS NULL)" : '';
+  const termParam = termOk ? term : null;
+  const ids = new Set();
+  const core = await qa(
+    `SELECT id FROM subjects
+     WHERE grade_level = ? AND is_offered = TRUE
+       AND (category = 'core' OR track = 'general' OR code LIKE 'CORE-%' OR code LIKE 'SSHS-%')
+       ${termClause}`,
+    termOk ? [gradeLevel, termParam] : [gradeLevel]);
+  for (const r of core) ids.add(Number(r.id));
+  const category = STRAND_CATEGORIES[strand] || null;
+  if (category) {
+    const sector = await qa(
+      `SELECT id FROM subjects
+       WHERE grade_level = ? AND is_offered = TRUE AND category = ?
+         ${termClause}`,
+      termOk ? [gradeLevel, category, termParam] : [gradeLevel, category]);
+    for (const r of sector) ids.add(Number(r.id));
+  }
+  return [...ids];
+}
 
 function normTerm(t) {
   if (!t) return null;
@@ -133,6 +170,62 @@ router.get('/student/:studentId', requireRole(...WRITE, 'teacher'), asyncH(async
   res.json({ data: rows });
 }));
 
+// Auto-fill the SHS subject checklist from the curriculum. Returns the subject
+// ids that should be pre-ticked for a grade level + strand + term so the
+// registrar only has to adjust, not re-tick every core.
+router.get('/default-subjects', requireRole(...WRITE), asyncH(async (req, res) => {
+  const gradeLevel = String(req.query.grade_level || '').trim();
+  if (!gradeLevel) return res.status(400).json({ error: 'grade_level is required' });
+  const strand = String(req.query.strand || '').trim() || null;
+  const term = normTerm(req.query.term);
+  const ids = await defaultSubjectIds(gradeLevel, strand, term);
+  res.json({ data: ids });
+}));
+
+// ── Requirement documents (PSA birth cert, Form 138/SF9, Good Moral, ...) ──
+// Files are uploaded first via POST /uploads/file?folder=enrollment_docs; the
+// returned key/url are then linked to an enrollment here.
+
+router.get('/:id/documents', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+  const id = Number(req.params.id);
+  const row = await q('SELECT id FROM enrollments WHERE id = ?', [id]);
+  if (!row) return res.status(404).json({ error: 'Enrollment not found' });
+  const rows = await qa(
+    `SELECT d.*, u.name AS uploaded_by_name
+     FROM enrollment_documents d
+     LEFT JOIN users u ON u.id = d.uploaded_by
+     WHERE d.enrollment_id = ?
+     ORDER BY d.id DESC`,
+    [id]);
+  res.json({ data: rows });
+}));
+
+router.post('/:id/documents', requireRole(...WRITE), asyncH(async (req, res) => {
+  const id = Number(req.params.id);
+  const row = await q('SELECT id FROM enrollments WHERE id = ?', [id]);
+  if (!row) return res.status(404).json({ error: 'Enrollment not found' });
+  const b = req.body || {};
+  const docType = String(b.doc_type || 'other').toLowerCase().replace(/\s+/g, '_');
+  if (!DOC_TYPES.includes(docType)) {
+    return res.status(400).json({ error: `doc_type must be one of: ${DOC_TYPES.join(', ')}` });
+  }
+  const url = String(b.url || '').trim();
+  if (!url) return res.status(400).json({ error: 'url is required — upload the file first via /uploads/file' });
+  const docId = await qi(
+    'INSERT INTO enrollment_documents (enrollment_id, doc_type, file_key, file_url, file_name, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, docType, b.key ? String(b.key) : null, url, b.name ? String(b.name).slice(0, 255) : null, req.user.id]);
+  await audit(req, 'ENROLL_DOC_ADD', 'enrollments', id, { doc_type: docType });
+  res.status(201).json({ id: docId });
+}));
+
+router.delete('/documents/:docId', requireRole(...WRITE), asyncH(async (req, res) => {
+  const doc = await q('SELECT * FROM enrollment_documents WHERE id = ?', [req.params.docId]);
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  await qr('DELETE FROM enrollment_documents WHERE id = ?', [doc.id]);
+  await audit(req, 'ENROLL_DOC_DELETE', 'enrollments', doc.enrollment_id, { doc_id: doc.id });
+  res.json({ ok: true });
+}));
+
 router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM enrollments WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Enrollment not found' });
@@ -247,6 +340,7 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
   const fallbackSy = b.school_year || '2026-2027';
   let imported = 0;
   let skipped = 0;
+  let subjectsAuto = 0;
   const errors = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(',').map(c => c.trim());
@@ -288,19 +382,28 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
           skipped++; continue;
         }
       }
-      await qr(
+      const enrId = await qi(
         'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [student.id, section.id, sy, gradeLevel, section.strand || null, term, 'enrolled']
       );
       await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', student.id]);
+      // Auto-fill the standard subject set for SHS learners so a bulk paste
+      // never produces subject-less enrollment records.
+      if (isShs(gradeLevel)) {
+        const defaults = await defaultSubjectIds(gradeLevel, section.strand || null, term);
+        if (defaults.length) {
+          await saveSubjects(null, enrId, defaults);
+          subjectsAuto += defaults.length;
+        }
+      }
       imported++;
     } catch (e) {
       errors.push(`Row ${i + 1}: ${e.message}`);
       skipped++;
     }
   }
-  await audit(req, 'ENROLL_IMPORT', 'enrollments', null, { imported, skipped, errors: errors.length });
-  res.json({ ok: true, imported, skipped, errors: errors.slice(0, 20) });
+  await audit(req, 'ENROLL_IMPORT', 'enrollments', null, { imported, skipped, errors: errors.length, subjects_auto: subjectsAuto });
+  res.json({ ok: true, imported, skipped, subjects_auto: subjectsAuto, errors: errors.slice(0, 20) });
 }));
 
 module.exports = router;

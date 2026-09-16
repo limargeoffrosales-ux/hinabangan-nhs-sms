@@ -23,9 +23,20 @@ export const STUDENT_STATUSES = [
 ];
 
 export const ENROLLMENT_STATUSES = [
-  { value: 'enrolled', label: 'Enrolled' },
+  { value: 'pre_registered', label: 'Pre-registered (Early Enrolment)' },
+  { value: 'pending', label: 'Pending' },
   { value: 'provisional', label: 'Provisional' },
   { value: 'conditional', label: 'Conditional' },
+  { value: 'enrolled', label: 'Enrolled' },
+];
+
+// Requirement documents a registrar can attach to an enrollment record.
+export const ENROLLMENT_DOC_TYPES = [
+  { value: 'psa_birth', label: 'PSA Birth Certificate' },
+  { value: 'form_138', label: 'Form 138 / SF9 (Report Card)' },
+  { value: 'good_moral', label: 'Good Moral Certificate' },
+  { value: 'report_card', label: 'Report Card' },
+  { value: 'other', label: 'Other' },
 ];
 
 export const TEACHER_STATUSES = [
