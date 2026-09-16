@@ -28,7 +28,10 @@ async function init() {
     const connUrl = new URL(process.env.DATABASE_URL);
     const sslMode = connUrl.searchParams.get('sslmode');
     const useSsl = sslMode === 'disable' ? false : { rejectUnauthorized: false };
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl, max: 20, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 });
+    // Pin search_path on every new backend connection and keep the pool small:
+    // backups historically leaked a SET search_path into Neon's pooler which
+    // then behaved as if search_path pointed at a schema that had been dropped.
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl, max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000, options: '-c search_path=public' });
     pool.on('error', (err) => {
       logger.error({ err }, 'PostgreSQL pool idle client error');
     });
