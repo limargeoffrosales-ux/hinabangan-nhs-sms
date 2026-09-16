@@ -18,7 +18,7 @@ export default function Dashboard() {
   const [trend, setTrend] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [error, setError] = useState(null);
-  const [conduct, setConduct] = useState(null);
+  const [conduct, setConduct] = useState(false);
   const [R, setR] = useState(null);
 
   useEffect(() => { loadRecharts().then(setR); }, []);
@@ -29,23 +29,22 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [s, trendRes, a, c] = await Promise.allSettled([
-          api('/dashboard/summary'),
-          api('/dashboard/attendance-trend?days=7'),
-          api('/announcements?limit=5'),
-          api('/conduct/summary'),
-        ]);
-        if (s.status === 'fulfilled') setData(s.value);
-        if (trendRes.status === 'fulfilled') setTrend(trendRes.value?.data || []);
-        if (a.status === 'fulfilled') setAnnouncements(a.value?.data || []);
-        if (c.status === 'fulfilled') setConduct(c.value);
-        if (s.status !== 'fulfilled') setError(s.reason?.message || 'Failed to load dashboard');
-      } catch (e) {
-        setError(e.message);
-      }
-    })();
+    // Each widget loads on its own: the core summary renders as soon as it
+    // lands and the side panels fill in behind it, so one slow call can never
+    // hold the whole dashboard on a spinner. Widget calls use a short timeout
+    // and no network retries so they fail fast into their empty states.
+    api('/dashboard/summary')
+      .then(setData)
+      .catch((e) => setError(e.message));
+    api('/dashboard/attendance-trend?days=7', { timeoutMs: 30000, retryNetwork: false })
+      .then((r) => setTrend(r?.data || []))
+      .catch(() => {});
+    api('/announcements?limit=5', { timeoutMs: 30000, retryNetwork: false })
+      .then((r) => setAnnouncements(r?.data || []))
+      .catch(() => {});
+    api('/conduct/summary', { timeoutMs: 30000, retryNetwork: false })
+      .then(setConduct)
+      .catch(() => setConduct(null));
   }, []);
 
   if (error && !data) return <PageHead title={t('dashboard.title')}><div className="err-banner">{error}</div></PageHead>;
@@ -109,7 +108,7 @@ export default function Dashboard() {
                 <R.Bar dataKey="Female" fill="#2FD6A0" radius={[4, 4, 0, 0]} />
               </R.BarChart>
             </R.ResponsiveContainer>
-          ) : <div style={{ height: 230 }}><Spinner /></div>}
+          ) : R === null ? <div className="sub" style={{ height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div> : <div style={{ height: 230 }}><Spinner /></div>}
         </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>{t('dashboard.attendanceTrend')}</h3>
@@ -125,7 +124,7 @@ export default function Dashboard() {
                 <R.Line type="monotone" dataKey="absent" stroke="#F2555A" strokeWidth={2} dot={false} />
               </R.LineChart>
             </R.ResponsiveContainer>
-          ) : <div style={{ height: 230 }}><Spinner /></div>}
+          ) : R === null ? <div className="sub" style={{ height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div> : <div style={{ height: 230 }}><Spinner /></div>}
         </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>{t('dashboard.genderDistribution')}</h3>
@@ -138,7 +137,7 @@ export default function Dashboard() {
                 <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
               </R.PieChart>
             </R.ResponsiveContainer>
-          ) : <div style={{ height: 230 }}><Spinner /></div>}
+          ) : R === null ? <div className="sub" style={{ height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div> : <div style={{ height: 230 }}><Spinner /></div>}
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', fontSize: 13 }}>
             {sexData.map((s, i) => (
               <span key={s.name} style={{ color: 'var(--text-dim)' }}>
@@ -161,7 +160,9 @@ export default function Dashboard() {
           <h3 style={{ margin: 0 }}><ShieldAlert size={16} /> {t('dashboard.conductMonitoring')}</h3>
           <Link to="/discipline" className="btn btn-sm">{t('dashboard.manageRecords')}</Link>
         </div>
-        {!conduct ? <Spinner /> : (
+        {conduct === null ? (
+          <Empty text={t('dashboard.conductUnavailable', 'Conduct summary could not be loaded right now.')} />
+        ) : !conduct ? <Spinner /> : (
           <>
             <div className="kpi-row">
               <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--warn)' }}>{conduct.by_status?.open ?? 0}</div><div className="kpi-mini-label">{t('dashboard.openCases')}</div></div>
