@@ -351,7 +351,7 @@ export default function Enroll() {
     setEditSelected((sel) => (allSelected ? sel.filter((x) => !ids.includes(x)) : [...new Set([...sel, ...ids])]));
   }
 
-  const eligible = students.filter((s) => s.status === 'enrolled' && !s.has_enrollment);
+  const eligible = students.filter((s) => s.status === 'enrolled' && !s.has_subjects);
   const searchActive = studentSearch.trim().length > 0;
   const visibleStudents = searchActive ? students.filter((s) => s.status === 'enrolled') : eligible;
   const eligibleHint = searchActive
@@ -390,7 +390,7 @@ export default function Enroll() {
               <select required value={form.student_id} onChange={(e) => onStudentChange(e.target.value)}>
                 <option value="">— select learner —</option>
                 {visibleStudents.map((s) => (
-                  <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.lrn}){s.has_enrollment ? ' — already enrolled' : ''}</option>
+                  <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.lrn}){s.has_subjects ? ' — already enrolled' : ''}</option>
                 ))}
               </select>
               <label>Section</label>
