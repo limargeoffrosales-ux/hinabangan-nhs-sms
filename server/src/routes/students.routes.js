@@ -61,7 +61,7 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
     // one student with several enrollments only counts once.
     const core = `SELECT st.id, st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.sex, st.birth_date, st.religion, st.address, st.contact, st.guardian_name, st.guardian_contact, st.guardian_relation, st.grade_level, st.track_strand, st.status, st.photo_url
       FROM students st
-      LEFT JOIN (SELECT student_id, MAX(COALESCE(NULLIF(enrolled_at, ''), created_at)) AS last_enrolled_at FROM enrollments GROUP BY student_id) e ON e.student_id = st.id
+      LEFT JOIN (SELECT student_id, MAX(COALESCE(enrolled_at, created_at)) AS last_enrolled_at FROM enrollments GROUP BY student_id) e ON e.student_id = st.id
       WHERE (st.last_name LIKE ? OR st.first_name LIKE ? OR st.lrn LIKE ?)`;
     sql = core;
     if (req.role === 'teacher') {
