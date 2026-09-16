@@ -55,7 +55,29 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
     sql += ' AND grade_level = ?';
     params.push(gradeLevel);
   }
-  sql += ' ORDER BY last_name, first_name LIMIT ? OFFSET ?';
+  if (req.query.sort === 'recent_enrolled') {
+    // Recency-order: learners with the most recent enrollment first, newest
+    // sign-up next, then name as a tie-breaker. Uses an aggregate subquery so
+    // one student with several enrollments only counts once.
+    const core = `SELECT st.id, st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.sex, st.birth_date, st.religion, st.address, st.contact, st.guardian_name, st.guardian_contact, st.guardian_relation, st.grade_level, st.track_strand, st.status, st.photo_url
+      FROM students st
+      LEFT JOIN (SELECT student_id, MAX(COALESCE(NULLIF(enrolled_at, ''), created_at)) AS last_enrolled_at FROM enrollments GROUP BY student_id) e ON e.student_id = st.id
+      WHERE (st.last_name LIKE ? OR st.first_name LIKE ? OR st.lrn LIKE ?)`;
+    sql = core;
+    if (req.role === 'teacher') {
+      const scope = await teacherScope(req.user);
+      const f = studentInScope(scope, 'st');
+      if (!f.sql) return res.json({ data: [], limit, offset });
+      sql += ' AND ' + f.sql;
+    }
+    if (gradeLevel) {
+      sql += ' AND st.grade_level = ?';
+      params.push(gradeLevel);
+    }
+    sql += ' ORDER BY e.last_enrolled_at DESC NULLS LAST, st.last_name, st.first_name LIMIT ? OFFSET ?';
+  } else {
+    sql += ' ORDER BY last_name, first_name LIMIT ? OFFSET ?';
+  }
   params.push(limit, offset);
   const rows = await qa(sql, params);
   if (req.role === 'teacher' || req.role === 'guidance') {

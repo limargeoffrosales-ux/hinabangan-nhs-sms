@@ -136,7 +136,7 @@ export default function Enroll() {
   const load = useCallback(async (q, quiet) => {
     if (!quiet) setLoading(true);
     try {
-      const qs = new URLSearchParams({ limit: '300' });
+      const qs = new URLSearchParams({ limit: '300', sort: 'recent_enrolled' });
       if (q) qs.set('q', q);
       const [st, se, rec] = await Promise.all([
         retryFetch(() => api('/students?' + qs)),
