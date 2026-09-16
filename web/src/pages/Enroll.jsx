@@ -126,6 +126,12 @@ export default function Enroll() {
   const [search, setSearch] = useState('');
   const [history, setHistory] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [editSubjects, setEditSubjects] = useState([]);
+  const [editSelected, setEditSelected] = useState([]);
+  const [editSearch, setEditSearch] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = useCallback(async (q, quiet) => {
     if (!quiet) setLoading(true);
@@ -252,6 +258,96 @@ export default function Enroll() {
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  async function startEdit(r) {
+    setError(null);
+    try {
+      const full = await retryFetch(() => api(`/enrollments/student/${r.student_id}`));
+      const enr = (full.data || []).find((x) => x.id === r.id) || full.data?.[0];
+      if (!enr) throw new Error('Enrollment record not found');
+      const isShsGrade = /^Grade 1[12]$/.test(enr.grade_level || '');
+      setEditing(enr);
+      setEditForm({
+        section_id: enr.section_id,
+        term: enr.term || 'first',
+        strand: enr.strand || '',
+        status: enr.status || 'enrolled',
+        is_aral: !!enr.is_aral,
+        grade_level: enr.grade_level,
+      });
+      setEditSearch('');
+      if (isShsGrade) {
+        const q = new URLSearchParams({ grade_level: enr.grade_level, limit: '500' });
+        const subRes = await retryFetch(() => api(`/subjects?${q}`), 2);
+        setEditSubjects(subRes.data);
+        setEditSelected((enr.subjects || []).map((s) => s.subject_id));
+      } else {
+        setEditSubjects([]);
+        setEditSelected([]);
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    setEditSaving(true);
+    setError(null);
+    try {
+      const body = {
+        section_id: Number(editForm.section_id),
+        term: editForm.term,
+        strand: editForm.strand,
+        status: editForm.status,
+        is_aral: editForm.is_aral,
+        subject_ids: editSelected,
+      };
+      await api(`/enrollments/${editing.id}`, { method: 'PATCH', body });
+      toast.success('Enrollment updated.');
+      setEditing(null);
+      load(studentSearch.trim(), true);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  function onEditSectionChange(v) {
+    const sec = sections.find((x) => x.id === Number(v));
+    setEditForm((f) => {
+      const next = { ...f, section_id: v, strand: sec?.strand || f.strand };
+      const prevGl = f.grade_level;
+      const newGl = sec?.grade_level || prevGl;
+      if (newGl !== prevGl && /^Grade 1[12]$/.test(newGl)) {
+        retryFetch(() => api(`/subjects?${new URLSearchParams({ grade_level: newGl, limit: '500' })}`), 2)
+          .then((res) => { setEditSubjects(res.data); setEditSelected([]); })
+          .catch(() => {});
+      }
+      next.grade_level = newGl;
+      return next;
+    });
+  }
+
+  const editGroups = useMemo(() => {
+    const isShs = /^Grade 1[12]$/.test(editForm.grade_level || '');
+    if (!isShs || !editSubjects.length) return [];
+    const q = editSearch.trim().toLowerCase();
+    const list = editSubjects.filter((s) => !q || `${s.code} ${s.title}`.toLowerCase().includes(q));
+    return CATEGORIES.map(({ cat, label }) => ({ cat, label, items: list.filter((s) => catOf(s) === cat) }))
+      .filter((g) => g.items.length > 0);
+  }, [editSubjects, editSearch, editForm.grade_level]);
+
+  function toggleEditSubject(id) {
+    setEditSelected((sel) => (sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]));
+  }
+
+  function toggleEditGroup(list) {
+    const ids = list.map((s) => s.id);
+    const allSelected = ids.every((id) => editSelected.includes(id));
+    setEditSelected((sel) => (allSelected ? sel.filter((x) => !ids.includes(x)) : [...new Set([...sel, ...ids])]));
   }
 
   const eligible = students.filter((s) => s.status === 'enrolled');
@@ -409,7 +505,8 @@ export default function Enroll() {
                       <td>{r.section_name || '—'}</td>
                       <td>{r.grade_level}{r.term ? ` · ${r.term[0].toUpperCase() + r.term.slice(1)}` : ''}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn btn-sm" onClick={() => viewHistory({ id: r.student_id, last_name: r.last_name, first_name: r.first_name, lrn: r.lrn })}>History</button>
+                        <button className="btn btn-sm" onClick={() => startEdit({ id: r.id, student_id: r.student_id })}>Edit</button>
+                        <button className="btn btn-sm" style={{ marginLeft: 4 }} onClick={() => viewHistory({ id: r.student_id, last_name: r.last_name, first_name: r.first_name, lrn: r.lrn })}>History</button>
                       </td>
                     </tr>
                   ))}
@@ -420,7 +517,7 @@ export default function Enroll() {
         </div>
       )}
 
-      {showHistory && history && (
+{showHistory && history && (
         <Modal
           title={`Enrollment History — ${history.student.last_name}, ${history.student.first_name}`}
           sub={`LRN ${history.student.lrn}`}
@@ -430,7 +527,7 @@ export default function Enroll() {
           {history.rows.length === 0 ? <Empty text="No enrollment records." /> : (
             <table>
               <thead>
-                <tr><th>School Year</th><th>Term</th><th>Section</th><th>Grade</th><th>Aral</th><th>Subjects</th><th>Status</th><th>Date</th></tr>
+                <tr><th>School Year</th><th>Term</th><th>Section</th><th>Grade</th><th>Aral</th><th>Subjects</th><th>Status</th><th>Date</th><th></th></tr>
               </thead>
               <tbody>
                 {history.rows.map((r) => (
@@ -451,11 +548,119 @@ export default function Enroll() {
                     </td>
                     <td>{r.status}</td>
                     <td>{r.enrolled_at || '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="btn btn-sm" onClick={() => { setShowHistory(false); startEdit({ id: r.id, student_id: r.student_id }); }}>Edit</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+        </Modal>
+      )}
+
+      {editing && (
+        <Modal
+          title="Edit Enrollment"
+          sub="Correct any wrong data for this enrollment record."
+          onClose={() => { if (!editSaving) setEditing(null); }}
+          wide
+        >
+          {(() => {
+            const editIsShs = /^Grade 1[12]$/.test(editForm.grade_level || '');
+            return (
+              <div>
+                <div className="form-row">
+                  <div>
+                    <label>Section</label>
+                    <select value={editForm.section_id || ''} onChange={(e) => onEditSectionChange(e.target.value)}>
+                      <option value="">— select —</option>
+                      {sections.filter((s) => s.status === 'active' && s.school_year === editing.school_year && s.grade_level === editForm.grade_level).map((s) => (
+                        <option key={s.id} value={s.id}>{s.name} — {s.grade_level} ({s.school_year})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Term (SHS)</label>
+                    <select value={editForm.term || 'first'} onChange={(e) => setEditForm((f) => ({ ...f, term: e.target.value }))} disabled={!editIsShs}>
+                      <option value="first">First Term</option>
+                      <option value="second">Second Term</option>
+                      <option value="third">Third Term</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Strand (SHS)</label>
+                    <select value={editForm.strand || ''} onChange={(e) => setEditForm((f) => ({ ...f, strand: e.target.value }))} disabled={!editIsShs}>
+                      <option value="">— select —</option>
+                      {SHS_TRACKS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Status</label>
+                    <select value={editForm.status || 'enrolled'} onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}>
+                      {ENROLLMENT_STATUSES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setEditForm((f) => ({ ...f, is_aral: !f.is_aral }))}
+                  role="checkbox"
+                  aria-checked={!!editForm.is_aral}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditForm((f) => ({ ...f, is_aral: !f.is_aral })); } }}
+                  style={{
+                    marginTop: 12, display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px',
+                    border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer',
+                    background: editForm.is_aral ? 'var(--bg-soft, #f0f7f2)' : 'transparent',
+                  }}
+                >
+                  <input type="checkbox" checked={!!editForm.is_aral} onChange={(e) => setEditForm((f) => ({ ...f, is_aral: e.target.checked }))} style={{ marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>Enroll to Aral Program</div>
+                    <div className="hint">Reading &amp; numeracy remediation tracking — PHIL-IRI baseline, intervention sessions and progress monitoring.</div>
+                  </div>
+                </div>
+
+                {editIsShs ? (
+                  <>
+                    <div style={{ margin: '12px 0 4px' }}>
+                      <label style={{ fontWeight: 600 }}>Enrolled subjects — tick the cores and electives for this term</label>
+                      <div className="hint">{editSelected.length} of {editSubjects.length} selected</div>
+                    </div>
+                    <div style={{ position: 'relative', marginBottom: 8 }}>
+                      <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                      <input
+                        className="input"
+                        placeholder="Search subjects by code or title…"
+                        value={editSearch}
+                        onChange={(e) => setEditSearch(e.target.value)}
+                        style={{ paddingLeft: 30 }}
+                      />
+                    </div>
+                    {editGroups.length === 0 ? (
+                      <div className="hint">No subjects found for this grade level.</div>
+                    ) : (
+                      <>
+                        {editGroups.map((g) => (
+                          <CheckGroup key={g.cat} label={g.label} items={g.items} selectedSubjects={editSelected} toggleSubject={toggleEditSubject} toggleGroup={toggleEditGroup} />
+                        ))}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <div className="hint" style={{ marginTop: 10 }}>Subject checklist is available for Senior High School learners.</div>
+                )}
+
+                <div className="modal-actions" style={{ marginTop: 16 }}>
+                  <button className="btn" onClick={() => { if (!editSaving) setEditing(null); }}>Cancel</button>
+                  <button className="btn btn-primary" onClick={saveEdit} disabled={editSaving}>
+                    {editSaving ? 'Saving…' : 'Save changes'}
+                  </button>
+                </div>
+</div>
+            );
+          })()}
         </Modal>
       )}
     </>
