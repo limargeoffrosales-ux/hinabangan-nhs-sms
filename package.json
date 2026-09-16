@@ -4,12 +4,11 @@
   "private": true,
   "description": "Hinabangan National High School — Cloud School Management System",
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.9.0"
   },
   "scripts": {
     "build": "cd web && npm ci && npm run build && cd ../server && npm ci && npm test",
     "test": "cd server && npm test",
-    "lint": "cd web && npm run lint && cd ../server && npm run lint",
     "start": "cd server && npm start"
   }
 }

@@ -12,11 +12,10 @@
     "backup:list": "node scripts/backup.js --list",
     "backup:cleanup": "node scripts/backup.js --cleanup",
     "backup:drill": "node scripts/backup.js --drill",
-    "test": "node --test \"test/**/*.test.js\"",
-    "lint": "eslint src test"
+    "test": "node --test \"test/**/*.test.js\""
   },
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.9.0"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1115.0",
@@ -42,8 +41,5 @@
     "pino-http": "^11.0.0",
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0"
-  },
-  "devDependencies": {
-    "eslint": "^8.57.1"
   }
 }
