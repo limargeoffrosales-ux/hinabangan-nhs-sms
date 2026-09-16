@@ -138,16 +138,27 @@ function isCsrfFailure(status, message) {
 }
 
 const RETRY_DELAYS_MS = [6000, 12000, 18000];
+const BOOT_DELAYS_MS = [15000, 30000, 45000];
 let warmLast = 0;
+
+// Render's free tier sleeps the instance when idle. While it boots, the edge
+// proxy can answer with gateway codes (502/503/504/520/408) instead of waiting
+// for the app to come up. Those are transient — the boot usually completes
+// within a minute — so they deserve the longest, boot-aware backoff rather than
+// an instant "Request failed" error.
+const BOOT_STATUSES = new Set([408, 502, 503, 504, 520]);
 
 function isRetryableNetworkFail(err) {
   if (!err) return false;
   if (friendlyAbortMessage(err)) return false; // user/browser cancel — never retry
   const status = Number(err.status);
-  if (status && status >= 400 && status !== 408) return false; // a real HTTP error
+  if (status) {
+    if (BOOT_STATUSES.has(status)) return true;
+    if (status >= 400) return false; // a real HTTP error
+  }
   const m = String(err.message || '');
   const name = String(err.name || '');
-  return status === 408 || status === 0
+  return status === 0
     || name === 'TypeError'
     || /timed out|failed to fetch|fetch failed|networkerror|network error|load failed/i.test(m);
 }
@@ -252,7 +263,8 @@ export async function api(path, opts = {}) {
         }
       }
     }
-    const delay = RETRY_DELAYS_MS[attempt];
+    const boot = BOOT_STATUSES.has(Number(lastErr.status));
+    const delay = boot ? BOOT_DELAYS_MS[attempt] : RETRY_DELAYS_MS[attempt];
     if (!allowRetry || delay === undefined || !isRetryableNetworkFail(lastErr)) break;
     await sleep(delay);
   }
@@ -260,6 +272,13 @@ export async function api(path, opts = {}) {
   // surface the opaque "signal is aborted without reason" text to the UI.
   const abortMsg = friendlyAbortMessage(lastErr);
   if (abortMsg) throw new Error(abortMsg);
+  // A sleeping instance that never finished booting should say so, not show a
+  // bare "Request failed (NNN)".
+  if (BOOT_STATUSES.has(Number(lastErr.status))) {
+    const e = new Error('The server is starting up — please wait a moment and try again.');
+    e.status = lastErr.status;
+    throw e;
+  }
   throw lastErr;
 }
 

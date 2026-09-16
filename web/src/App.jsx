@@ -7,6 +7,7 @@ import AIChatbot from './components/AIChatbot';
 import { Spinner } from './components/ui';
 import { isNative, registerForPushNotifications } from './lib/capacitor';
 import { Sentry } from './sentry';
+import { warmServer } from './lib/api';
 import './i18n';
 
 class ErrorBoundary extends Component {
@@ -150,6 +151,16 @@ export default function App() {
     if (isNative() && user) {
       registerForPushNotifications().catch(() => {});
     }
+  }, [user]);
+
+  // Keep the free-tier instance awake while a logged-in tab is open, so staff
+  // never hit a cold-start gateway error (520/504) mid-session. warmServer() has
+  // its own 60s cooldown, so the 4-minute tick is never a spam source.
+  useEffect(() => {
+    if (!user) return undefined;
+    warmServer();
+    const t = setInterval(warmServer, 4 * 60 * 1000);
+    return () => clearInterval(t);
   }, [user]);
 
   return (
