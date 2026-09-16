@@ -315,6 +315,7 @@
   "students.deleteConfirm": "Delete student record of",
   "students.status": "Status",
   "students.autoGenerateLrn": "Auto-generate LRN",
+  "students.lrnInvalid": "LRN must be exactly 12 digits",
 
   "teachers.title": "Teachers",
   "teachers.subtitle": "Faculty directory with positions and PRC records",

@@ -324,6 +324,7 @@
   "students.deleteConfirm": "Tanggalin ang rekord ng mag-aaral na",
   "students.status": "Estado",
   "students.autoGenerateLrn": "Awtomatikong lumikha ng LRN",
+  "students.lrnInvalid": "Ang LRN ay dapat eksaktong 12 digit",
 
   "teachers.title": "Mga Guro",
   "teachers.subtitle": "Direktoryo ng faculty na may mga posisyon at rekord ng PRC",
