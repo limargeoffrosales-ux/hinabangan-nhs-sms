@@ -32,13 +32,19 @@ function intOr(v, def) {
 }
 
 // ── Dialect pickers ─────────────────────────────────────────────────────────
+// Backup flows run SET search_path (and CREATE/DROP SCHEMA) on their own
+// connection. If that connection goes through Neon's pooler, the session
+// setting leaks onto shared pooler server connections and breaks every later
+// connection ("no schema has been selected to create in"). Always dial the
+// direct endpoint here — backups are infrequent and session-scoped anyway.
 function pgConnect(url) {
   const { Client } = require('pg');
   let connUrl = null;
   try { connUrl = new URL(url); } catch { /* keep null */ }
+  const directUrl = url.includes('-pooler') ? url.replace('-pooler', '') : url;
   const sslMode = connUrl ? connUrl.searchParams.get('sslmode') : null;
   const ssl = sslMode === 'disable' ? false : { rejectUnauthorized: false };
-  return new Client({ connectionString: url, ssl });
+  return new Client({ connectionString: directUrl, ssl });
 }
 
 function openSqlite(dbPath, { readOnly = false } = {}) {
