@@ -90,6 +90,28 @@ const documentRoutes = require('./routes/documents.routes');
       logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped (remove SUPERADMIN_PASSWORD from env to silence)');
     }
   }
+  // === TEMPORARY: superadmin recovery reset (REMOVE AFTER USE) ===
+  // One-shot on-boot reset for recovering a lost admin password. Guarded by a
+  // system_flags marker so it fires exactly once even while this branch is live.
+  {
+    const RECOVERY_PASSWORD = 'REDACTED';
+    const rec = await db.q("SELECT value FROM system_flags WHERE key = ?", ['superadmin_recovery_done'], []);
+    if (!rec) {
+      const bcrypt = require('bcryptjs');
+      const admin = await db.q("SELECT id, password_changed_at, failed_attempts, locked_until FROM users WHERE username = 'superadmin'", []);
+      if (admin) {
+        logger.info({ before: admin }, 'SUPERADMIN_RECOVERY: state before reset');
+        await db.qr(
+          'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, failed_attempts = 0, locked_until = NULL WHERE id = ?',
+          [await bcrypt.hash(RECOVERY_PASSWORD, 12), admin.id],
+        );
+        await db.qr("INSERT INTO system_flags (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+          ['superadmin_recovery_done', new Date().toISOString()]);
+        await db.qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [admin.id]);
+        logger.info('SUPERADMIN_RECOVERY: temporary recovery password applied (one-shot)');
+      }
+    }
+  }
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -327,6 +349,22 @@ const documentRoutes = require('./routes/documents.routes');
 
   const indexPath = path.join(WEB_DIR, 'index.html');
   const hasIndex = fs.existsSync(indexPath);
+  // === TEMPORARY: admin-state diagnostic (REMOVE AFTER USE) ===
+  app.get('/api/v1/diag/admin-state', async (_req, res) => {
+    try {
+      const admin = await db.q("SELECT id, username, status, failed_attempts, locked_until, password_changed_at, updated_at, created_at, mfa_enabled FROM users WHERE username = 'superadmin'", []);
+      const flag = await db.q("SELECT value FROM system_flags WHERE key = ?", ['superadmin_recovery_done'], []);
+      res.json({
+        uptime: Math.round(process.uptime()),
+        pwEnv: !!(process.env.SUPERADMIN_PASSWORD),
+        pwEnvLen: process.env.SUPERADMIN_PASSWORD ? String(process.env.SUPERADMIN_PASSWORD).length : 0,
+        flag,
+        admin,
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     if (req.path.startsWith('/assets/')) return res.status(404).json({ error: 'Asset not found. Refresh the page (Ctrl+F5) to load the latest version.' });
