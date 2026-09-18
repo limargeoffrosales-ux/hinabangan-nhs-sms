@@ -49,7 +49,7 @@ const NAV = [
   { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
   { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
   { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
-  { to: '/immersion-map', labelKey: 'nav.immersionMap', icon: Map },
+  { to: '/career-tvl', labelKey: 'nav.careerTvl', icon: Map },
   { to: '/analytics', labelKey: 'nav.analytics', icon: TrendingUp },
   { to: '/curriculum', labelKey: 'nav.curriculum', icon: BookOpen },
   { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },

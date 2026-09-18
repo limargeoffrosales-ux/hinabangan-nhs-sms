@@ -4,16 +4,12 @@ import { useTranslation } from 'react-i18next';
 import {
   Users, UserCog, Layers, CalendarCheck, Megaphone, Activity,
   BookOpenCheck, ShieldAlert, GraduationCap, Target, Briefcase,
-  BadgeCheck, UserCheck, History, MapPin,
+  BadgeCheck, UserCheck, History, ArrowRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
-import PlacementMap from '../components/PlacementMap';
 import { loadRecharts } from '../lib/lazy-recharts';
-
-const MAP_WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
 const READINESS_STATUS = {
   done: { badge: 'badge-green', tri: 'dashboard.readinessDone' },
@@ -51,34 +47,13 @@ function actionLabel(action, t) {
 
 export default function Dashboard() {
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const canSeeMap = can(user?.role, ...MAP_WRITE);
   const [data, setData] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [activity, setActivity] = useState(null);
-  const [placed, setPlaced] = useState([]);
   const [error, setError] = useState(null);
   const [R, setR] = useState(null);
 
   useEffect(() => { loadRecharts().then(setR); }, []);
-
-  useEffect(() => {
-    if (!canSeeMap) return;
-    let cancelled = false;
-    Promise.all([
-      api('/immersion/map', { timeoutMs: 30000, retryNetwork: false }),
-      api('/jdvp/map', { timeoutMs: 30000, retryNetwork: false }),
-    ])
-      .then(([imm, jdvp]) => {
-        if (cancelled) return;
-        setPlaced([
-          ...(imm?.data || []).map((r) => ({ type: 'immersion', ...r })),
-          ...(jdvp?.data || []).map((r) => ({ type: 'jdvp', ...r })),
-        ]);
-      })
-      .catch(() => { if (!cancelled) setPlaced([]); });
-    return () => { cancelled = true; };
-  }, [canSeeMap]);
 
   useEffect(() => {
     api('/dashboard/summary')
@@ -171,28 +146,16 @@ export default function Dashboard() {
         ))}
       </div>
 
-        {canSeeMap && (
-          <div className="card" style={{ marginTop: 18 }}>
-            <div className="dashboard-block-head">
-              <h3 style={{ margin: 0 }}><MapPin size={16} /> {t('dashboard.placementMap')}</h3>
-            </div>
-            <div className="sub" style={{ margin: '8px 0 12px' }}>{t('dashboard.placementMapSub')}</div>
-            {placed.length > 0 ? (
-              <PlacementMap rows={placed} height={340} />
-            ) : (
-              <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Empty text={t('dashboard.placementMapEmpty')} />
-              </div>
-            )}
-            <div className="sub" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#2563eb' }} /> {t('dashboard.legendImmersion')}
-              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#0d9488', marginLeft: 12 }} /> {t('dashboard.legendJdvp')}
-              {placed.length > 0 && (
-                <Link to="/immersion-map" className="btn btn-sm" style={{ marginLeft: 'auto' }}>{t('dashboard.viewFullMap')}</Link>
-              )}
+        <Link to="/career-tvl" className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 18, textDecoration: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <div className="icon" style={{ background: 'var(--accent-2)22', color: 'var(--accent-2)', flexShrink: 0 }}><Briefcase size={20} /></div>
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--text)' }}>{t('dashboard.careerTvl')}</div>
+              <div className="sub" style={{ fontSize: 12.5, marginTop: 2 }}>{t('dashboard.careerTvlSub')}</div>
             </div>
           </div>
-        )}
+          <ArrowRight size={16} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+        </Link>
 
       <div style={{ height: 18 }} />
 

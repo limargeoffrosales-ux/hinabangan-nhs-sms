@@ -33,7 +33,7 @@
   "nav.users": "Users & Roles",
   "nav.auditLogs": "Audit Logs",
   "nav.immersion": "Immersion & JDVP",
-  "nav.immersionMap": "Tracing Map",
+  "nav.careerTvl": "Career & TVL",
   "nav.analytics": "Analytics & Reports",
   "nav.curriculum": "Curriculum",
   "nav.rooms": "Rooms",
@@ -321,6 +321,8 @@
   "dashboard.legendImmersion": "Work immersion",
   "dashboard.legendJdvp": "JDVP",
   "dashboard.viewFullMap": "Open full map",
+  "dashboard.careerTvl": "Career & TVL — Work Immersion & JDVP",
+  "dashboard.careerTvlSub": "Tracing map, placement graphs, and partner summaries in one dashboard.",
 
   "students.title": "Student Information System",
   "students.subtitle": "Complete learner profiles with LRN, guardians, and enrollment status",
