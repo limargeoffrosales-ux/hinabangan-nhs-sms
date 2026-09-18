@@ -673,8 +673,8 @@ router.get('/quarterly-report', requireRole(...DASH_READ), asyncH(async (req, re
   const sy = String(req.query.school_year || '').trim();
   if (!sy) return res.status(400).json({ error: 'school_year is required' });
   const qtrNum = Number(req.query.quarter);
-  if (!Number.isFinite(qtrNum) || qtrNum < 1 || qtrNum > 3) {
-    return res.status(400).json({ error: 'quarter must be 1, 2, or 3' });
+  if (!Number.isFinite(qtrNum) || qtrNum < 1 || qtrNum > 4) {
+    return res.status(400).json({ error: 'quarter must be 1, 2, 3, or 4' });
   }
   const sectionId = String(req.query.section_id || '').trim();
   const scope = await teacherSectionScope(req);

@@ -741,7 +741,7 @@ export default function DashboardSections() {
         </div>
         <div className="filter-row" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap', display: 'flex', alignItems: 'center' }}>
           <div className="seg">
-            {[1, 2, 3].map((q) => (
+            {[1, 2, 3, 4].map((q) => (
               <button key={q} type="button" className={quarter === q ? 'on' : ''} onClick={() => { setQuarter(q); setQReport(null); }}>Q{q}</button>
             ))}
           </div>
