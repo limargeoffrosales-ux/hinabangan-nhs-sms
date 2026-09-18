@@ -250,8 +250,14 @@ function nowSql() {
   return dialect === 'pg' ? 'now()' : "datetime('now')";
 }
 
+// Drivers return booleans in different shapes: PG BOOLEAN columns come back as
+// JS true/false, PG COUNT/BIGINT values come back as STRINGS ("0", "7"), and
+// SQLite returns 0/1 numbers. A raw `!!v` would treat the string "0" as truthy
+// — always coerce through Number() so "0" is falsy on every dialect.
 function bool(v) {
-  return usePg ? !!v : (v ? 1 : 0);
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'boolean') return v;
+  return Number(v) > 0;
 }
 
 module.exports = { init, q, qa, qr, qi, close, nowSql, bool, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
