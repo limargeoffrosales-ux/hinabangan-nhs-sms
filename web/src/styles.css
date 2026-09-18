@@ -1489,22 +1489,59 @@ tr.row-active td { background: rgba(var(--rgb-accent), 0.08); }
 .stat-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--text-dim); }
 .stat-chip b { color: var(--text); font-variant-numeric: tabular-nums; }
 .stat-chip-warn { border-color: rgba(var(--rgb-accent), 0.4); }
-.map-layout { display: flex; gap: 14px; align-items: stretch; }
+.map-wrap { display: flex; gap: 14px; align-items: stretch; }
+.map-stage { position: relative; flex: 1 1 auto; min-width: 0; }
 .map-card { flex: 1 1 auto; min-width: 0; padding: 0; overflow: hidden; }
-.map-canvas { height: 62vh; min-height: 420px; width: 100%; z-index: 0; }
+.map-canvas { height: 62vh; min-height: 420px; width: 100%; z-index: 0; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
 .map-side { flex: 0 0 300px; max-height: 62vh; min-height: 420px; overflow: auto; padding: 16px; }
 .map-side-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
 .map-side-list li { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; background: var(--bg-page); }
 .imm-pin-wrap { background: transparent; border: none; }
 .imm-pin { width: 18px; height: 18px; margin: 4px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
 .imm-pin-wrap.leaflet-marker-icon { display: flex; align-items: flex-end; }
+.imm-pin-tag { position: absolute; top: -18px; left: 50%; transform: rotate(45deg) translateX(-50%); transform-origin: left bottom; background: #2563eb; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
+.imm-cluster-wrap { background: transparent; border: none; }
+.imm-cluster { width: 36px; height: 36px; border-radius: 50%; background: rgba(37, 99, 235, 0.92); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; border: 3px solid rgba(255, 255, 255, 0.85); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); cursor: pointer; }
 .leaflet-container { background: #dde8f2; font: inherit; }
 .leaflet-popup-content { font-size: 13px; }
 .leaflet-popup-content strong { color: var(--text); }
 .leaflet-container a.leaflet-popup-close-button { color: var(--text-dim); }
 .leaflet-control-attribution { font-size: 10px; }
+.popup-link { color: var(--accent); font-weight: 600; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.popup-link:hover { text-decoration: underline; }
+
+/* Google-maps-style overlay controls */
+.gm-search-ctl, .gm-layers-ctl, .gm-legend, .gm-locate-ctl {
+  position: absolute; z-index: 1000; background: var(--bg-card, #fff);
+  border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+.gm-search-ctl { top: 10px; left: 10px; width: 290px; display: flex; align-items: center; gap: 7px; padding: 7px 11px; }
+.gm-search-icon { color: var(--text-dim); flex: 0 0 auto; }
+.gm-search-input { border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13px; width: 100%; }
+.gm-search-results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 5px; list-style: none; max-height: 260px; overflow: auto; background: var(--bg-card, #fff); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2); }
+.gm-search-results li { display: flex; gap: 7px; align-items: flex-start; padding: 7px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--text); }
+.gm-search-results li:hover { background: var(--bg-page); }
+.gm-search-results li svg { margin-top: 2px; flex: 0 0 auto; color: var(--accent); }
+.gm-search-none { position: absolute; top: calc(100% + 6px); left: 0; right: 0; padding: 8px 11px; background: var(--bg-card, #fff); border: 1px solid var(--border); border-radius: 9px; }
+.gm-search-spin { width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: gm-spin 0.7s linear infinite; flex: 0 0 auto; }
+@keyframes gm-spin { to { transform: rotate(360deg); } }
+.gm-locate-ctl { right: 10px; bottom: 34px; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; cursor: pointer; color: var(--text); }
+.gm-locate-ctl:hover { color: var(--accent); }
+.gm-layers-ctl { top: 10px; right: 10px; padding: 7px 8px; display: grid; gap: 6px; }
+.gm-layers-row { display: flex; align-items: center; gap: 6px; }
+.gm-layer-btn { border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 11px; padding: 3px 8px; border-radius: 6px; cursor: pointer; }
+.gm-layer-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.gm-legend { bottom: 10px; left: 10px; padding: 8px 10px; display: grid; gap: 4px; }
+.gm-legend-title { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.gm-legend-sch { background: #2563eb; color: #fff; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 4px; }
+.gm-legend-row { display: flex; align-items: center; gap: 6px; }
+.gm-legend-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.75); }
+.gm-cluster-hint { position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); bottom: 12px; background: rgba(15, 23, 42, 0.82); color: #fff; font-size: 11.5px; padding: 5px 12px; border-radius: 999px; pointer-events: none; }
+.gm-chip-green { color: #16a34a; }
 @media (max-width: 860px) {
-  .map-layout { flex-direction: column; }
-  .map-side { flex: 1 1 auto; max-height: 300px; min-height: 0; order: -1; }
+  .map-wrap { flex-direction: column; }
+  .map-side { flex: 1 1 auto; max-height: 320px; min-height: 0; order: -1; }
   .map-canvas { height: 52vh; min-height: 320px; }
+  .gm-search-ctl { width: calc(100% - 20px); }
+  .gm-layers-ctl { top: 54px; }
 }
