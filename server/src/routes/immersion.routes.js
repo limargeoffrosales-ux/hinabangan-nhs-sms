@@ -101,17 +101,18 @@ immersion.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ data: rows, limit, offset });
 }));
 
-// Map tracing data — all placements that have coordinates (WRITE roles only).
+// Map tracing data — all placements; the client splits placed vs missing.
 immersion.get('/map', requireRole(...WRITE), asyncH(async (req, res) => {
-  const where = ['wi.lat IS NOT NULL AND wi.lng IS NOT NULL'];
+  const where = [];
   const params = [];
   if (req.query.batch) { where.push('wi.batch = ?'); params.push(req.query.batch); }
+  const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await qa(
     `SELECT wi.id, wi.student_id, wi.batch, wi.program, wi.partner_institution, wi.status,
             wi.start_date, wi.end_date, wi.remarks, wi.address, wi.lat, wi.lng,
             st.lrn, st.first_name || ' ' || st.last_name AS student_name, st.grade_level
      FROM work_immersion wi JOIN students st ON st.id = wi.student_id
-     WHERE ${where.join(' AND ')} ORDER BY wi.batch DESC, st.last_name`,
+     ${filter} ORDER BY wi.batch DESC, st.last_name`,
     params);
   res.json({ data: rows });
 }));
@@ -277,16 +278,16 @@ tracking.post('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!placement) return res.status(404).json({ error: 'No immersion placement found for this student' });
 
   // Check if attendance already recorded for this student/date/venue
-  const exists = await q('SELECT id FROM work_imersion_attendance WHERE student_id = ? AND date = ? AND venue_id = ?',
+  const exists = await q('SELECT id FROM work_immersion_attendance WHERE student_id = ? AND date = ? AND venue_id = ?',
     [b.student_id, dateStr, b.venue_id]);
   if (exists) {
-    await qr('UPDATE work_imersion_attendance SET status = ?, arrival_time = ?, departure_time = ?, hours_worked = ?, remarks = ?, recorded_by = ? WHERE id = ?',
+    await qr('UPDATE work_immersion_attendance SET status = ?, arrival_time = ?, departure_time = ?, hours_worked = ?, remarks = ?, recorded_by = ? WHERE id = ?',
       [b.status, b.arrival_time || null, b.departure_time || null, b.hours_worked || null, b.remarks || null, req.user.id, exists.id]);
   } else {
-    await qi('INSERT INTO work_imersion_attendance (student_id, date, venue_id, status, arrival_time, departure_time, hours_worked, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    await qi('INSERT INTO work_immersion_attendance (student_id, date, venue_id, status, arrival_time, departure_time, hours_worked, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [b.student_id, dateStr, b.venue_id, b.status, b.arrival_time || null, b.departure_time || null, b.hours_worked || null, b.remarks || null, req.user.id]);
   }
-  await audit(req, 'IMMERSION_ATTENDANCE', 'work_imersion_attendance', null, { student_id: b.student_id, date: dateStr, venue_id: b.venue_id, status: b.status, recorded_by: req.user.id });
+  await audit(req, 'IMMERSION_ATTENDANCE', 'work_immersion_attendance', null, { student_id: b.student_id, date: dateStr, venue_id: b.venue_id, status: b.status, recorded_by: req.user.id });
   res.json({ ok: true, date: dateStr, status: b.status });
 }));
 
@@ -295,8 +296,8 @@ tracking.get('/:studentId/attendance', requireRole(...WRITE), asyncH(async (req,
   const rows = await qa(
     `SELECT a.id, a.date, a.status, a.arrival_time, a.departure_time, a.hours_worked, a.remarks, a.created_at,
             v.name AS venue_name, v.address AS venue_address
-     FROM work_imersion_attendance a
-     LEFT JOIN work_imersion_venues v ON v.id = a.venue_id
+     FROM work_immersion_attendance a
+     LEFT JOIN work_immersion_venues v ON v.id = a.venue_id
      WHERE a.student_id = ?
      ORDER BY a.date DESC`,
     [req.params.studentId]);
@@ -321,16 +322,16 @@ tracking.post('/performance', requireRole(...WRITE), asyncH(async (req, res) => 
   if (!placement) return res.status(404).json({ error: 'No immersion placement found for this student' });
 
   // Check if appraisal already recorded for this date
-  const exists = await q('SELECT id FROM work_imersion_performance WHERE student_id = ? AND appraisal_date = ?',
+  const exists = await q('SELECT id FROM work_immersion_performance WHERE student_id = ? AND appraisal_date = ?',
     [b.student_id, dateStr]);
   if (exists) {
-    await qr('UPDATE work_imersion_performance SET performance_level = ?, competency_rating = ?, attendance_rate = ?, hours_completed = ?, strengths = ?, areas_for_improvement = ?, evaluated_by = ? WHERE student_id = ? AND appraisal_date = ?',
+    await qr('UPDATE work_immersion_performance SET performance_level = ?, competency_rating = ?, attendance_rate = ?, hours_completed = ?, strengths = ?, areas_for_improvement = ?, evaluated_by = ? WHERE student_id = ? AND appraisal_date = ?',
       [b.performance_level, b.competency_rating || null, b.attendance_rate || null, b.hours_completed || null, b.strengths || null, b.areas_for_improvement || null, req.user.id, b.student_id, dateStr]);
   } else {
-    await qi('INSERT INTO work_imersion_performance (student_id, venue_id, appraisal_date, performance_level, competency_rating, attendance_rate, hours_completed, strengths, areas_for_improvement, evaluated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    await qi('INSERT INTO work_immersion_performance (student_id, venue_id, appraisal_date, performance_level, competency_rating, attendance_rate, hours_completed, strengths, areas_for_improvement, evaluated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [b.student_id, b.venue_id || null, dateStr, b.performance_level, b.competency_rating || null, b.attendance_rate || null, b.hours_completed || null, b.strengths || null, b.areas_for_improvement || null, req.user.id]);
   }
-  await audit(req, 'IMMERSION_PERFORMANCE', 'work_imersion_performance', null, { student_id: b.student_id, date: dateStr, performance_level: b.performance_level, evaluated_by: req.user.id });
+  await audit(req, 'IMMERSION_PERFORMANCE', 'work_immersion_performance', null, { student_id: b.student_id, date: dateStr, performance_level: b.performance_level, evaluated_by: req.user.id });
   res.json({ ok: true, date: dateStr, performance_level: b.performance_level });
 }));
 
@@ -339,8 +340,8 @@ tracking.get('/:studentId/performance', requireRole(...WRITE), asyncH(async (req
   const rows = await qa(
     `SELECT p.id, p.appraisal_date, p.performance_level, p.competency_rating, p.attendance_rate, p.hours_completed, p.strengths, p.areas_for_improvement, p.created_at,
             v.name AS venue_name
-     FROM work_imersion_performance p
-     LEFT JOIN work_imersion_venues v ON v.id = p.venue_id
+     FROM work_immersion_performance p
+     LEFT JOIN work_immersion_venues v ON v.id = p.venue_id
      WHERE p.student_id = ?
      ORDER BY p.appraisal_date DESC`,
     [req.params.studentId]);
@@ -367,9 +368,9 @@ tracking.post('/issues', requireRole(...WRITE), asyncH(async (req, res) => {
   const placement = await q('SELECT id FROM work_immersion WHERE student_id = ?', [b.student_id]);
   if (!placement) return res.status(404).json({ error: 'No immersion placement found for this student' });
 
-  await qi('INSERT INTO work_imersion_issues (student_id, venue_id, issue_type, severity, description, reported_date, reported_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  await qi('INSERT INTO work_immersion_issues (student_id, venue_id, issue_type, severity, description, reported_date, reported_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [b.student_id, b.venue_id || null, b.issue_type, b.severity, b.description, String(b.reported_date), req.user.id]);
-  await audit(req, 'IMMERSION_ISSUE', 'work_imersion_issues', null, { student_id: b.student_id, issue_type: b.issue_type, severity: b.severity, reported_by: req.user.id });
+  await audit(req, 'IMMERSION_ISSUE', 'work_immersion_issues', null, { student_id: b.student_id, issue_type: b.issue_type, severity: b.severity, reported_by: req.user.id });
   res.json({ ok: true, issue_type: b.issue_type, severity: b.severity });
 }));
 
@@ -379,8 +380,8 @@ tracking.get('/:studentId/issues', requireRole(...WRITE), asyncH(async (req, res
     `SELECT i.id, i.issue_type, i.severity, i.description, i.reported_date, i.resolved, i.resolved_date, i.resolved_by,
             v.name AS venue_name,
             u_reported.username AS reported_by_name, u_resolved.username AS resolved_by_name
-     FROM work_imersion_issues i
-     LEFT JOIN work_imersion_venues v ON v.id = i.venue_id
+     FROM work_immersion_issues i
+     LEFT JOIN work_immersion_venues v ON v.id = i.venue_id
      LEFT JOIN users u_reported ON u_reported.id = i.reported_by
      LEFT JOIN users u_resolved ON u_resolved.id = i.resolved_by
      WHERE i.student_id = ?
@@ -395,24 +396,24 @@ tracking.post('/venues', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!b.name) return res.status(400).json({ error: 'venue name is required' });
 
   const venueId = await qi(
-    `INSERT INTO work_imersion_venues (name, institution_type, address, lat, lng, contact_person, contact_phone, email, safety_rating, security_level, status, noted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO work_immersion_venues (name, institution_type, address, lat, lng, contact_person, contact_phone, email, safety_rating, security_level, status, noted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [b.name, b.institution_type || null, b.address || null, b.lat || null, b.lng || null, b.contact_person || null, b.contact_phone || null, b.email || null, b.safety_rating || null, b.security_level || null, b.status || 'active', req.user.id]
   );
 
-  await audit(req, 'CREATE_VENUE', 'work_imersion_venues', venueId, { name: b.name, created_by: req.user.id });
+  await audit(req, 'CREATE_VENUE', 'work_immersion_venues', venueId, { name: b.name, created_by: req.user.id });
   res.status(201).json({ id: venueId });
 }));
 
 // Get venue by ID
 tracking.get('/venues/:venueId', requireRole(...WRITE), asyncH(async (req, res) => {
-  const row = await q('SELECT * FROM work_imersion_venues WHERE id = ?', [req.params.venueId]);
+  const row = await q('SELECT * FROM work_immersion_venues WHERE id = ?', [req.params.venueId]);
   if (!row) return res.status(404).json({ error: 'Venue not found' });
   res.json({ data: row });
 }));
 
 // Get all venues
 tracking.get('/venues', requireRole(...WRITE), asyncH(async (req, res) => {
-  const rows = await qa('SELECT * FROM work_imersion_venues ORDER BY name');
+  const rows = await qa('SELECT * FROM work_immersion_venues ORDER BY name');
   res.json({ data: rows });
 }));
 
@@ -424,17 +425,17 @@ tracking.post('/reports', requireRole(...WRITE), asyncH(async (req, res) => {
   }
 
   const reportId = await qi(
-    `INSERT INTO work_imersion_reports (teacher_id, venue_id, report_date, period_covered, students_count, attendance_rate, performance_summary, issues_raised, recommendations, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO work_immersion_reports (teacher_id, venue_id, report_date, period_covered, students_count, attendance_rate, performance_summary, issues_raised, recommendations, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [req.user.id, b.venue_id, new Date().toISOString().slice(0, 10), b.period_covered, b.students_count, b.attendance_rate || null, b.performance_summary || null, b.issues_raised || null, b.recommendations || null, req.user.id]
   );
 
-  await audit(req, 'SUBMIT_REPORT', 'work_imersion_reports', reportId, { venue_id: b.venue_id, teacher_id: req.user.id, students_count: b.students_count });
+  await audit(req, 'SUBMIT_REPORT', 'work_immersion_reports', reportId, { venue_id: b.venue_id, teacher_id: req.user.id, students_count: b.students_count });
   res.status(201).json({ id: reportId });
 }));
 
 // Get report by ID
 tracking.get('/reports/:reportId', requireRole(...WRITE), asyncH(async (req, res) => {
-  const row = await q('SELECT * FROM work_imersion_reports WHERE id = ?', [req.params.reportId]);
+  const row = await q('SELECT * FROM work_immersion_reports WHERE id = ?', [req.params.reportId]);
   if (!row) return res.status(404).json({ error: 'Report not found' });
   res.json({ data: row });
 }));
@@ -443,7 +444,7 @@ tracking.get('/reports/:reportId', requireRole(...WRITE), asyncH(async (req, res
 tracking.get('/reports/venue/:venueId', requireRole(...WRITE), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT r.*, u.username AS teacher_name
-     FROM work_imersion_reports r
+     FROM work_immersion_reports r
      LEFT JOIN users u ON u.id = r.teacher_id
      WHERE r.venue_id = ?
      ORDER BY r.report_date DESC`,
@@ -472,16 +473,17 @@ jdvp.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ data: rows, limit, offset });
 }));
 
-// Map tracing data — all JDVP recipients that have coordinates.
+// Map tracing data — all JDVP recipients; the client splits placed vs missing.
 jdvp.get('/map', requireRole(...WRITE), asyncH(async (req, res) => {
-  const where = ['j.lat IS NOT NULL AND j.lng IS NOT NULL'];
+  const where = [];
   const params = [];
   if (req.query.batch) { where.push('j.batch = ?'); params.push(req.query.batch); }
+  const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await qa(
     `SELECT j.id, j.student_id, j.batch, j.program, j.status, j.remarks, j.address, j.lat, j.lng,
             st.lrn, st.first_name || ' ' || st.last_name AS student_name, st.grade_level
      FROM jdvp_recipients j JOIN students st ON st.id = j.student_id
-     WHERE ${where.join(' AND ')} ORDER BY j.batch DESC, st.last_name`,
+     ${filter} ORDER BY j.batch DESC, st.last_name`,
     params);
   res.json({ data: rows });
 }));

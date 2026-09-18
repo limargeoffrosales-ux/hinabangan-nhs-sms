@@ -12,12 +12,12 @@ ALTER TABLE work_immersion ADD COLUMN parent_name TEXT;
 ALTER TABLE work_immersion ADD COLUMN parent_contact TEXT;
 
 -- ============================================================
--- work_imersion_attendance - Daily student attendance tracking
+-- work_immersion_attendance - Daily student attendance tracking
 -- ============================================================
-CREATE TABLE IF NOT EXISTS work_imersion_attendance (
+CREATE TABLE IF NOT EXISTS work_immersion_attendance (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id       INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  venue_id         INTEGER REFERENCES work_imersion_venues(id) ON DELETE SET NULL,
+  venue_id         INTEGER REFERENCES work_immersion_venues(id) ON DELETE SET NULL,
   date             DATE NOT NULL,
   status           TEXT NOT NULL DEFAULT 'present',
   arrival_time     TEXT,
@@ -30,12 +30,12 @@ CREATE TABLE IF NOT EXISTS work_imersion_attendance (
 );
 
 -- ============================================================
--- work_imersion_performance - Student performance appraisal
+-- work_immersion_performance - Student performance appraisal
 -- ============================================================
-CREATE TABLE IF NOT EXISTS work_imersion_performance (
+CREATE TABLE IF NOT EXISTS work_immersion_performance (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id       INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  venue_id         INTEGER REFERENCES work_imersion_venues(id) ON DELETE SET NULL,
+  venue_id         INTEGER REFERENCES work_immersion_venues(id) ON DELETE SET NULL,
   appraisal_date   DATE NOT NULL,
   performance_level TEXT NOT NULL, -- outstanding, satisfactory, needs_improvement
   competency_rating TEXT,
@@ -49,12 +49,12 @@ CREATE TABLE IF NOT EXISTS work_imersion_performance (
 );
 
 -- ============================================================
--- work_imersion_issues - Security and concern reporting
+-- work_immersion_issues - Security and concern reporting
 -- ============================================================
-CREATE TABLE IF NOT EXISTS work_imersion_issues (
+CREATE TABLE IF NOT EXISTS work_immersion_issues (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id       INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  venue_id         INTEGER REFERENCES work_imersion_venues(id) ON DELETE SET NULL,
+  venue_id         INTEGER REFERENCES work_immersion_venues(id) ON DELETE SET NULL,
   issue_type       TEXT NOT NULL, -- safety, security, behavioral, academic, other
   severity         TEXT NOT NULL, -- low, medium, high, critical
   description      TEXT NOT NULL,
@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS work_imersion_issues (
 );
 
 -- ============================================================
--- work_imersion_venues - Partner institution tracking
+-- work_immersion_venues - Partner institution tracking
 -- ============================================================
-CREATE TABLE IF NOT EXISTS work_imersion_venues (
+CREATE TABLE IF NOT EXISTS work_immersion_venues (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   name             TEXT NOT NULL,
   institution_type TEXT,
@@ -90,12 +90,12 @@ CREATE TABLE IF NOT EXISTS work_imersion_venues (
 );
 
 -- ============================================================
--- work_imersion_reports - Teacher submission reports
+-- work_immersion_reports - Teacher submission reports
 -- ============================================================
-CREATE TABLE IF NOT EXISTS work_imersion_reports (
+CREATE TABLE IF NOT EXISTS work_immersion_reports (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   teacher_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  venue_id         INTEGER REFERENCES work_imersion_venues(id) ON DELETE SET NULL,
+  venue_id         INTEGER REFERENCES work_immersion_venues(id) ON DELETE SET NULL,
   report_date      DATE NOT NULL,
   period_covered   TEXT,
   students_count   INTEGER DEFAULT 0,
@@ -111,12 +111,12 @@ CREATE TABLE IF NOT EXISTS work_imersion_reports (
 -- ============================================================
 -- Indexes for performance
 -- ============================================================
-CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON work_imersion_attendance (student_id, date);
-CREATE INDEX IF NOT EXISTS idx_attendance_venue ON work_imersion_attendance (venue_id, date);
-CREATE INDEX IF NOT EXISTS idx_performance_student ON work_imersion_performance (student_id);
-CREATE INDEX IF NOT EXISTS idx_issues_student ON work_imersion_issues (student_id);
-CREATE INDEX IF NOT EXISTS idx_issues_venue ON work_imersion_issues (venue_id);
-CREATE INDEX IF NOT EXISTS idx_issues_resolved ON work_imersion_issues (resolved);
-CREATE INDEX IF NOT EXISTS idx_venues_status ON work_imersion_venues (status);
-CREATE INDEX IF NOT EXISTS idx_reports_teacher ON work_imersion_reports (teacher_id);
-CREATE INDEX IF NOT EXISTS idx_reports_venue ON work_imersion_reports (venue_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON work_immersion_attendance (student_id, date);
+CREATE INDEX IF NOT EXISTS idx_attendance_venue ON work_immersion_attendance (venue_id, date);
+CREATE INDEX IF NOT EXISTS idx_performance_student ON work_immersion_performance (student_id);
+CREATE INDEX IF NOT EXISTS idx_issues_student ON work_immersion_issues (student_id);
+CREATE INDEX IF NOT EXISTS idx_issues_venue ON work_immersion_issues (venue_id);
+CREATE INDEX IF NOT EXISTS idx_issues_resolved ON work_immersion_issues (resolved);
+CREATE INDEX IF NOT EXISTS idx_venues_status ON work_immersion_venues (status);
+CREATE INDEX IF NOT EXISTS idx_reports_teacher ON work_immersion_reports (teacher_id);
+CREATE INDEX IF NOT EXISTS idx_reports_venue ON work_immersion_reports (venue_id);
