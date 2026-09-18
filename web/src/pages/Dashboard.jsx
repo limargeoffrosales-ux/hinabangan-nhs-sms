@@ -104,7 +104,7 @@ export default function Dashboard() {
       status: (r.immersion?.total ?? 0) > 0 ? ((r.immersion?.pending ?? 0) > 0 ? 'pending' : 'done') : 'note' },
     { key: 'jdvp', label: t('dashboard.jdvp'), to: '/immersion', icon: BadgeCheck,
       detail: `${r.jdvp?.total ?? 0} ${t('dashboard.recipientPlural')}`,
-      status: (r.jdvp?.total ?? 0) > 0 ? 'started' : 'pending' },
+      status: (r.jdvp?.total ?? 0) > 0 ? 'started' : 'note' },
   ];
 
   const funnel = [
@@ -137,7 +137,7 @@ export default function Dashboard() {
 
       <div className="grid grid-3">
         {kpis.map((k) => (
-          <Link className="card kpi" style={{ textDecoration: 'none' }} to={k.to} key={k.label}>
+          <Link className="card kpi" style={{ textDecoration: 'none', cursor: 'pointer' }} to={k.to} key={k.label}>
             <div className="icon" style={{ background: `${k.color}22`, color: k.color }}><k.icon size={20} /></div>
             <div className="value">{k.value}</div>
             <div className="label">{k.label}</div>
