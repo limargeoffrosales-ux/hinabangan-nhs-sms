@@ -14,11 +14,20 @@ const SCHOOL_CONTEXT =
 let client = null;
 let clientProvider = null;
 
+// Default model per provider (2026 comparison-informed picks for school Q&A:
+// small context in, concise answers out — cheap, fast, strong reasoning):
+//   groq  -> openai/gpt-oss-120b  flagship open reasoning model, $0.15/$0.60/M, 131k ctx, ~500 tok/s
+//            (openai/gpt-oss-20b is 2x faster and half the cost if latency matters more;
+//             qwen/qwen3.6-27b has the highest intelligence index on Groq but costs more)
+//   openai-> gpt-4o               hosted frontier default (falls back from Groq)
+//   ollama-> qwen3:14b            best open-weight general family for local serving
+//   hf    -> Qwen/Qwen3-14B       same family on HF Inference
+// All models can be overridden per-deploy with AI_MODEL; PROD runs groq (AI_PROVIDER default).
 const PROVIDERS = {
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o', keyEnv: 'OPENAI_API_KEY' },
   groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'openai/gpt-oss-120b', keyEnv: 'GROQ_API_KEY' },
-  ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyEnv: '' },
-  hf:     { baseUrl: 'https://api-inference.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct', keyEnv: 'HF_API_KEY' },
+  ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'qwen3:14b', keyEnv: '' },
+  hf:     { baseUrl: 'https://api-inference.huggingface.co/v1', defaultModel: 'Qwen/Qwen3-14B', keyEnv: 'HF_API_KEY' },
 };
 
 const MODEL_ALIASES = {};
@@ -69,7 +78,8 @@ VOICE AND TONE
 - Use simple, everyday language. Avoid jargon; if a technical or DepEd term is necessary, explain it in plain terms right after using it.
 - When someone sounds worried or confused (e.g., "did I fail?", "what do I do now?"), acknowledge their concern briefly before explaining — reassure first, then inform.
 - Keep answers concise and well-organized. Use short paragraphs or simple lists. Only use tables when comparing multiple items side by side.
-- Do NOT use asterisks or markdown asterisks around words (no "**bold**" or "*italics*"). Write plain text only. If you want to emphasise a word or number, just capitalise it (e.g., "you MUST submit it") or use plain wording — never wrap text in asterisks.
+- Match the language the user writes in: answer in English, Filipino, or Taglish (code-switching) to mirror how the user asked the question.
+- Do NOT use any markdown at all: no asterisks (no "**", "*", "***"), no underscores for emphasis (no "_…_"), no hash headings ("#"), no backticks, no "> " quotes, no tildes. Emphasise with plain wording or by capitalising a word (e.g., "you MUST submit it"). Extra asterisks WILL be removed automatically, so write clean plain text only.
 - When walking through a calculation or a multi-step process, explain it step by step, the way a teacher would on the board — don't just give a final answer with no reasoning.
 - Be encouraging and constructive, especially with students. Frame setbacks (failing grades, missed requirements) in terms of what can be done next, not just the bad news.
 - Never make up facts, scores, weights, or policies. If you don't have specific information (e.g., a subject's assessment weights, a school event's date), say so and ask for it or point them to who can help (adviser, registrar, guidance office).
@@ -105,6 +115,29 @@ DO NOT
 - Do not give a bare answer with no context or next step.
 - Do not guess at information you don't have (dates, individual records, subject-specific weights) — ask or redirect instead.`;
 
+// Defense-in-depth for the "**" problem: hosted models still emit markdown
+// emphasis (**, *, __, _, headers, backticks) despite the system prompt. This
+// strips those artifacts from every AI response flowing through chat().
+// Deliberately conservative so genuine content survives:
+//   - arithmetic is preserved: "5 * 3", "5*3", "x_1", "a/b" stay intact
+//   - only paired delimiters touching word characters are removed
+//   - JSON syntax (quotes, braces, commas) is never touched
+function cleanUpMarkdown(text) {
+  if (typeof text !== 'string' || !text) return text;
+  return text
+    .replace(/__([^_]+?)__/g, '$1')                                       // __bold__
+    .replace(/\*{2,}([^*]+?)\*{2,}/g, '$1')                               // **bold** / ***both***
+    .replace(/\*([^\s*][^*\n]*?)\*(?!\*)/g, '$1')                         // *emphasis* (not "5 * 3")
+    .replace(/(^|[\s([{])_(\S[^_\n]*?)_(?=[\s.,!?;:)}\]\-]|$)/g, '$1$2')  // _emphasis_ (not "a_b")
+    .replace(/^#{1,6}\s+/gm, '')                                          // markdown headings
+    .replace(/^>\s?/gm, '')                                               // blockquote markers
+    .replace(/^(\s*)\*[ \t]+/gm, '$1- ')                                  // " * item" bullets -> "- item"
+    .replace(/`([^`]*?)`/g, '$1')                                         // inline code backticks
+    .replace(/\*{2,}/g, '')                                               // stray leftover ** runs
+    .replace(/[ \t]+$/gm, '')                                             // trailing whitespace per line
+    .trim();
+}
+
 async function chat(messages, opts = {}) {
   const c = getClient();
   if (!c) throw new Error('AI not configured. Set GROQ_API_KEY (free) or AI_PROVIDER + provider key.');
@@ -114,7 +147,7 @@ async function chat(messages, opts = {}) {
     max_tokens: opts.maxTokens || 2048,
     temperature: opts.temperature ?? 0.7,
   });
-  return res.choices[0].message.content;
+  return cleanUpMarkdown(res.choices[0].message.content);
 }
 
 function safeParse(text) {
@@ -329,5 +362,5 @@ async function generateForm137(studentId) {
 module.exports = {
   isEnabled, chat, generateStudentReport, generateLessonPlan,
   generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage, generateForm137,
-  getProviderInfo, PROVIDERS,
+  getProviderInfo, PROVIDERS, cleanUpMarkdown,
 };
