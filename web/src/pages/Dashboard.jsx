@@ -160,27 +160,15 @@ export default function Dashboard() {
         sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
       />
 
-      <div className="max-w-7xl mx-auto pt-6">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {kpis.map((k) => (
-            <a
-              className="kpi-card border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
-              href={k.to}
-              key={k.label}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-lg flex-shrink-0" style={{ background: `${k.color}22`, color: k.color }}>
-                  <k.icon size={20} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-medium text-[var(--text)] mb-1">{k.label}</h3>
-                  <p className="text-3xl font-bold text-[var(--text)] mb-1">{k.value}</p>
-                  <p className="text-sm text-[var(--text-dim)] mb-0">{k.sub}</p>
-                </div>
-              </div>
-            </a>
-          ))}
-        </div>
+      <div className="grid grid-3">
+        {kpis.map((k) => (
+          <Link className="card kpi" style={{ textDecoration: 'none', cursor: 'pointer' }} to={k.to} key={k.label}>
+            <div className="icon" style={{ background: `${k.color}22`, color: k.color }}><k.icon size={20} /></div>
+            <div className="value">{k.value}</div>
+            <div className="label">{k.label}</div>
+          </Link>
+        ))}
+      </div>
 
         {canSeeMap && (
           <div className="card" style={{ marginTop: 18 }}>
@@ -204,7 +192,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-      </div>
 
       <div style={{ height: 18 }} />
 
