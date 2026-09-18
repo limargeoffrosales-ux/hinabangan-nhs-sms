@@ -90,34 +90,6 @@ const documentRoutes = require('./routes/documents.routes');
       logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped (remove SUPERADMIN_PASSWORD from env to silence)');
     }
   }
-  // === TEMPORARY: superadmin recovery reset (REMOVE AFTER USE) ===
-  // One-shot on-boot reset for recovering a lost admin password. Guarded by a
-  // system_flags marker so it fires exactly once even while this branch is live;
-  // the immediate follow-up commit deletes this block entirely.
-  {
-    const RECOVERY_PASSWORD = 'REDACTED';
-    const rec = await db.q("SELECT value FROM system_flags WHERE key = ?", ['superadmin_recovery_done'], []);
-    if (!rec) {
-      const bcrypt = require('bcryptjs');
-      const admin = await db.q("SELECT id FROM users WHERE username = 'superadmin'", []);
-      if (admin) {
-        await db.qr(
-          'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, failed_attempts = 0, locked_until = NULL WHERE id = ?',
-          [await bcrypt.hash(RECOVERY_PASSWORD, 12), admin.id],
-        );
-        await db.qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [admin.id]);
-        await db.qr(
-          "INSERT INTO system_flags (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-          ['superadmin_recovery_done', new Date().toISOString()],
-        );
-        await db.qi(
-          'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
-          ['SUPERADMIN_RECOVERY', 'warning', 'server-startup', 'system', admin.id, JSON.stringify({ note: 'Temporary recovery password applied — rotate immediately' })],
-        );
-        logger.info('SUPERADMIN_RECOVERY: temporary recovery password applied (one-shot)');
-      }
-    }
-  }
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
