@@ -9,6 +9,7 @@ import {
   FileCheck2,
   Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award, BookMarked, Stethoscope,
   Brain,
+  Map,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal } from './ui';
@@ -48,6 +49,7 @@ const NAV = [
   { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
   { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
   { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
+  { to: '/immersion-map', labelKey: 'nav.immersionMap', icon: Map },
   { to: '/analytics', labelKey: 'nav.analytics', icon: TrendingUp },
   { to: '/curriculum', labelKey: 'nav.curriculum', icon: BookOpen },
   { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },

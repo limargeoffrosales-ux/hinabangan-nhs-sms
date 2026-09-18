@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Briefcase, BadgeCheck, Plus, Trash2, Pencil } from 'lucide-react';
+import { Briefcase, BadgeCheck, Plus, Trash2, Pencil, MapPin } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Empty, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
+import MapPicker from '../components/MapPicker';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const PROGRAMS = ['EIM', 'CSS', 'Garment Artisanry', 'Academic'];
@@ -10,8 +11,13 @@ const IMMERSION_STATUSES = ['pending', 'ongoing', 'completed', 'withdrawn'];
 const JDVP_STATUSES = ['pending', 'served', 'withdrawn'];
 const STATUS_CLASS = { pending: 'badge-yellow', ongoing: 'badge-blue', completed: 'badge-green', served: 'badge-green', withdrawn: 'badge-red' };
 
+function numOrNull(v) {
+  if (v == null || String(v).trim() === '') return null;
+  return Number(v);
+}
+
 function emptyForm(isImmersion) {
-  return { student_id: '', batch: 'Batch 1', program: PROGRAMS[0], partner_institution: '', status: isImmersion ? 'ongoing' : 'pending', start_date: '', end_date: '', remarks: '' };
+  return { student_id: '', batch: 'Batch 1', program: PROGRAMS[0], partner_institution: '', status: isImmersion ? 'ongoing' : 'pending', start_date: '', end_date: '', remarks: '', address: '', lat: '', lng: '' };
 }
 
 export default function Immersion() {
@@ -47,6 +53,7 @@ export default function Immersion() {
       student_id: String(r.student_id), batch: r.batch, program: r.program || PROGRAMS[0],
       partner_institution: r.partner_institution || '', status: r.status, start_date: r.start_date || '',
       end_date: r.end_date || '', remarks: r.remarks || '',
+      address: r.address || '', lat: r.lat != null ? String(r.lat) : '', lng: r.lng != null ? String(r.lng) : '',
     });
     setEditId(r.id);
     setModal(true);
@@ -62,6 +69,7 @@ export default function Immersion() {
           student_id: Number(form.student_id), batch: form.batch, program: form.program,
           partner_institution: form.partner_institution, status: form.status,
           start_date: form.start_date || null, end_date: form.end_date || null, remarks: form.remarks || null,
+          address: form.address || null, lat: numOrNull(form.lat), lng: numOrNull(form.lng),
         };
         if (editId) await api(`${path}/${editId}`, { method: 'PATCH', body });
         else await api(path, { method: 'POST', body });
@@ -69,6 +77,7 @@ export default function Immersion() {
         const body = {
           student_id: Number(form.student_id), batch: form.batch, program: form.program,
           status: form.status, remarks: form.remarks || null,
+          address: form.address || null, lat: numOrNull(form.lat), lng: numOrNull(form.lng),
         };
         if (editId) await api(`${path}/${editId}`, { method: 'PATCH', body });
         else await api(path, { method: 'POST', body });
@@ -205,6 +214,24 @@ export default function Immersion() {
               </label>
             </div>
           )}
+          <div style={{ marginTop: 12 }}>
+            <div className="section-title"><MapPin size={14} /> Placement location <span className="sub">(optional — used for the tracing map)</span></div>
+            <div className="form-row">
+              <label style={{ flex: 2 }}>Address
+                <input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="e.g. Purok 3, Brgy. Hinabangan, Eastern Samar" />
+              </label>
+              <label>Latitude
+                <input className="input" type="number" step="any" value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} placeholder="11.7000" />
+              </label>
+              <label>Longitude
+                <input className="input" type="number" step="any" value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} placeholder="125.3000" />
+              </label>
+            </div>
+            <MapPicker
+              lat={numOrNull(form.lat)} lng={numOrNull(form.lng)}
+              onChange={(la, ln) => setForm({ ...form, lat: la, lng: ln })} />
+            <div className="hint" style={{ marginTop: 6 }}>Click anywhere on the map to set the pin, or type coordinates directly.</div>
+          </div>
           <label style={{ marginTop: 12 }}>Remarks
             <textarea className="input" rows={2} value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} placeholder="Optional notes" />
           </label>
