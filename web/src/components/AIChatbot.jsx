@@ -1,6 +1,7 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
 import { api } from '../lib/api';
+import AIText from './AIText';
 
 const CHAT_KEY = 'meridianed_ai_chat';
 const MAX_STORED = 100;
@@ -147,7 +148,7 @@ export default function AIChatbot() {
                   color: m.role === 'user' ? '#fff' : 'var(--text, #1a1a1a)',
                   whiteSpace: 'pre-wrap',
                 }}>
-                  {m.content}
+                  {m.role === 'user' ? m.content : <AIText text={m.content} />}
                 </div>
               </div>
             ))}

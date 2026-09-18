@@ -1255,6 +1255,10 @@ body.dark .program-preview { background: #fff; color: #111; }
 
 /* ============ Dashboard layout polish ============ */
 
+.ai-p { margin: 4px 0 8px; }
+.ai-list { margin: 2px 0 8px; padding-left: 18px; }
+.ai-list li { margin-bottom: 3px; }
+
 .card + .card { margin-top: 16px; }
 .grid > .card + .card,
 .two-col > .card + .card,
@@ -1278,6 +1282,7 @@ body.dark .program-preview { background: #fff; color: #111; }
 }
 .card.kpi .value { margin: 14px 0 4px; padding-right: 44px; }
 .card.kpi .label { padding-right: 44px; }
+.card.kpi .kpi-sub { padding-right: 44px; margin-top: 4px; color: var(--text-dim); font-size: 12px; line-height: 1.4; }
 
 .dashboard-block-head h3 { font-size: 15.5px; }
 .dashboard-block-head { margin-bottom: 12px; }

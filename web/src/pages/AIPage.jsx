@@ -6,6 +6,7 @@ import { PageHead } from '../components/ui';
 import { renderSF9Card, esc, CORE_VALUES } from './DepedForms';
 import { printElementHtml } from '../lib/export';
 import DOMPurify from 'dompurify';
+import AIText from '../components/AIText';
 
 const TABS = [
   { id: 'report', label: 'Report Card', icon: FileText },
@@ -172,7 +173,7 @@ function ReportCard() {
               {result.remarks && (
                 <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg, #f8fafc)', border: '1px solid var(--border, #e2e8f0)' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #6b7280)', marginBottom: 4 }}>Overall Remarks</div>
-                  <div style={{ fontSize: 12 }}>{typeof result.remarks === 'string' ? result.remarks : result.remarks.overall || '—'}</div>
+                  <div style={{ fontSize: 12 }}>{typeof result.remarks === 'string' ? <AIText text={result.remarks} /> : result.remarks.overall || '—'}</div>
                 </div>
               )}
             </div>
@@ -371,9 +372,9 @@ function LessonPlan() {
       {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
       {result && (
         <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, marginTop: 16, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.competencies && <Section title="Learning Competencies">{result.competencies}</Section>}
-          {result.content && <Section title="Content">{result.content}</Section>}
-          {result.learning_resources && <Section title="Learning Resources">{result.learning_resources}</Section>}
+          {result.competencies && <Section title="Learning Competencies"><AIText text={result.competencies} /></Section>}
+          {result.content && <Section title="Content"><AIText text={result.content} /></Section>}
+          {result.learning_resources && <Section title="Learning Resources"><AIText text={result.learning_resources} /></Section>}
           {result.procedures && (
             <Section title="Procedures">
               {['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(k => result.procedures[k] && (
@@ -381,8 +382,8 @@ function LessonPlan() {
               ))}
             </Section>
           )}
-          {result.reflection && <Section title="Reflection">{result.reflection}</Section>}
-          {result.remarks && <Section title="Remarks">{result.remarks}</Section>}
+          {result.reflection && <Section title="Reflection"><AIText text={result.reflection} /></Section>}
+          {result.remarks && <Section title="Remarks"><AIText text={result.remarks} /></Section>}
           {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
         </div>
       )}
@@ -493,7 +494,7 @@ function StudentAnalytics() {
               <span className={`badge badge-${result.risk_level === 'high' || result.risk_level === 'critical' ? 'red' : result.risk_level === 'moderate' ? 'yellow' : 'green'}`}>{result.risk_level}</span>
             </div>
           )}
-          {result.reasoning && <Section title="Reasoning">{result.reasoning}</Section>}
+          {result.reasoning && <Section title="Reasoning"><AIText text={result.reasoning} /></Section>}
           {result.factors && result.factors.length > 0 && (
             <Section title="Contributing Factors">
               <ul style={{ margin: 0, paddingLeft: 18 }}>{result.factors.map((f, i) => <li key={i} style={{ marginBottom: 4 }}>{f}</li>)}</ul>
@@ -507,7 +508,7 @@ function StudentAnalytics() {
               </table>
             </Section>
           )}
-          {result.parent_recommendations && <Section title="Parent Recommendations">{result.parent_recommendations}</Section>}
+          {result.parent_recommendations && <Section title="Parent Recommendations"><AIText text={result.parent_recommendations} /></Section>}
           {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
         </div>
       )}
@@ -550,8 +551,8 @@ function EnrollmentSuggestions() {
       {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
       {result && (
         <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.recommended_strand && <Section title="Recommended Strand">{result.recommended_strand}</Section>}
-          {result.reasoning && <Section title="Reasoning">{result.reasoning}</Section>}
+          {result.recommended_strand && <Section title="Recommended Strand"><AIText text={result.recommended_strand} /></Section>}
+          {result.reasoning && <Section title="Reasoning"><AIText text={result.reasoning} /></Section>}
           {result.focus_areas && result.focus_areas.length > 0 && (
             <Section title="Focus Areas"><ul style={{ margin: 0, paddingLeft: 18 }}>{result.focus_areas.map((f, i) => <li key={i}>{f}</li>)}</ul></Section>
           )}

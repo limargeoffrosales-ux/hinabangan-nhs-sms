@@ -42,7 +42,10 @@ consent and only for non-PII workloads.
 > **As-built (deployed today):** the MVP already ships generative AI behind
 > `GROQ_API_KEY` (policy Q&A chatbot, draft report cards / Form 137 / lesson
 > plans / exams, student analytics, enrollment tips). Role access is a
-> deliberate per-route decision — see §2a below.
+> deliberate per-route decision — see §2a below. All AI replies are sanitized
+> server-side (`cleanUpMarkdown` in `server/src/ai.js`) so markdown artifacts
+> (`**`, `__`, `*`, `#`, `>` , backticks) never reach the UI; default models
+> were refreshed in 2026 (officially `groq` → `openai/gpt-oss-120b`).
 
 ## 2a. AI role access matrix (as built)
 

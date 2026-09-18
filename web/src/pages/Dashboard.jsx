@@ -166,6 +166,7 @@ export default function Dashboard() {
             <div className="icon" style={{ background: `${k.color}22`, color: k.color }}><k.icon size={20} /></div>
             <div className="value">{k.value}</div>
             <div className="label">{k.label}</div>
+            {k.sub && <div className="kpi-sub">{k.sub}</div>}
           </Link>
         ))}
       </div>
