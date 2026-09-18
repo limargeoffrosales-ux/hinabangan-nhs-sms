@@ -10,6 +10,8 @@ import PlacementMap, { BADGE_FOR } from '../components/PlacementMap';
 const MAP_WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const BATCHES = ['Batch 1', 'Batch 2', 'Batch 3', 'Batch 4'];
 
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 const STATUS_COLORS = {
   pending: '#F5B942',
   ongoing: '#3b82f6',
