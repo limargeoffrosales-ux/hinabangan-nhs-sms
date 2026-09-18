@@ -91,25 +91,20 @@ const documentRoutes = require('./routes/documents.routes');
     }
   }
   // === TEMPORARY: superadmin recovery reset (REMOVE AFTER USE) ===
-  // One-shot on-boot reset for recovering a lost admin password. Guarded by a
-  // system_flags marker so it fires exactly once even while this branch is live.
+  // Unconditional for this deploy so it wins over any concurrent credential
+  // changes until the account is verified reachable again.
   {
     const RECOVERY_PASSWORD = 'REDACTED';
-    const rec = await db.q("SELECT value FROM system_flags WHERE key = ?", ['superadmin_recovery_done'], []);
-    if (!rec) {
-      const bcrypt = require('bcryptjs');
-      const admin = await db.q("SELECT id, password_changed_at, failed_attempts, locked_until FROM users WHERE username = 'superadmin'", []);
-      if (admin) {
-        logger.info({ before: admin }, 'SUPERADMIN_RECOVERY: state before reset');
-        await db.qr(
-          'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, failed_attempts = 0, locked_until = NULL WHERE id = ?',
-          [await bcrypt.hash(RECOVERY_PASSWORD, 12), admin.id],
-        );
-        await db.qr("INSERT INTO system_flags (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-          ['superadmin_recovery_done', new Date().toISOString()]);
-        await db.qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [admin.id]);
-        logger.info('SUPERADMIN_RECOVERY: temporary recovery password applied (one-shot)');
-      }
+    const bcrypt = require('bcryptjs');
+    const admin = await db.q("SELECT id, password_changed_at, failed_attempts, locked_until FROM users WHERE username = 'superadmin'", []);
+    if (admin) {
+      logger.info({ before: admin, pwEnv: !!process.env.SUPERADMIN_PASSWORD }, 'SUPERADMIN_RECOVERY: enforcing temporary password');
+      await db.qr(
+        'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, failed_attempts = 0, locked_until = NULL WHERE id = ?',
+        [await bcrypt.hash(RECOVERY_PASSWORD, 12), admin.id],
+      );
+      await db.qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [admin.id]);
+      logger.info('SUPERADMIN_RECOVERY: temporary recovery password enforced on boot');
     }
   }
   const app = express();
