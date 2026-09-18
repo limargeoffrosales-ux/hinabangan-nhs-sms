@@ -10,7 +10,22 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 const ENROLL_WRITE = [...WRITE, 'teacher'];
 const DOC_TYPES = ['psa_birth', 'form_138', 'good_moral', 'report_card', 'other'];
 const TERMS = ['first', 'second', 'third'];
+const STATUSES = ['pre_registered', 'pending', 'provisional', 'conditional', 'enrolled'];
 const isShs = (g) => /^Grade 1[12]$/.test(String(g || ''));
+
+function normStatus(s) {
+  if (s === undefined || s === null) return null;
+  const v = String(s).trim().toLowerCase().replace(/[-\s]+/g, '_');
+  return STATUSES.includes(v) ? v : null;
+}
+
+// The app pre-checks for duplicate enrollments, but a concurrent double-submit
+// (or a direct DB collision) still trips the unique index. Both drivers raise a
+// unique-violation error that would otherwise surface as a generic 500 — map it
+// back to the same friendly 409 the pre-check uses.
+function isUniqueViolation(e) {
+  return e && (e.code === '23505' || /unique constraint/i.test(e.message || ''));
+}
 
 // Map the school's official strand picker labels to their catalog category
 // so the enrollment form can pre-tick the right sector subjects. Academic and
@@ -73,10 +88,13 @@ async function saveSubjects(conn, enrollmentId, subjectIds) {
 async function validateSubjects(gradeLevel, subjectIds) {
   const ids = Array.isArray(subjectIds) ? [...new Set(subjectIds.map(Number).filter(Boolean))] : [];
   if (!ids.length) return { ok: true, ids: [] };
-  const rows = await qa(`SELECT id, grade_level FROM subjects WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+  const rows = await qa(`SELECT id, code, title, grade_level FROM subjects WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
   if (rows.length !== ids.length) return { ok: false, error: 'One or more selected subjects do not exist in the catalog' };
   const bad = rows.filter((r) => r.grade_level && r.grade_level !== gradeLevel);
-  if (bad.length) return { ok: false, error: `Selected subjects do not match ${gradeLevel} (ids: ${bad.map((r) => r.id).join(', ')})` };
+  if (bad.length) {
+    const names = bad.map((r) => r.code || `${r.title} (${r.id})`).join(', ');
+    return { ok: false, error: `Selected subjects do not match ${gradeLevel}: ${names}. Pick the checklist for the correct grade level or tap "Refill curriculum defaults".` };
+  }
   return { ok: true, ids };
 }
 
@@ -104,6 +122,12 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   const term = normTerm(b.term);
   if (isShs(b.grade_level) && !TERMS.includes(term)) {
     return res.status(400).json({ error: 'term is required for SHS enrollment (first, second or third)' });
+  }
+  const status = b.status === undefined || b.status === null || b.status === ''
+    ? 'enrolled'
+    : normStatus(b.status);
+  if (status === null) {
+    return res.status(400).json({ error: `status must be one of: ${STATUSES.join(', ')}` });
   }
   const student = await q('SELECT id FROM students WHERE id = ?', [b.student_id]);
   const section = await q('SELECT id, school_year, grade_level, strand, capacity FROM sections WHERE id = ?', [b.section_id]);
@@ -146,13 +170,21 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   if (!subChk.ok) return res.status(400).json({ error: subChk.error });
   const isAral = bool(b.is_aral);
   let id;
-  const subjects = await tx(async (conn) => {
-    id = await conn.runId(
-      'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [b.student_id, section.id, b.school_year, gradeLevel, strand, term, isAral, b.status || 'enrolled', b.enrolled_at || null]);
-    await conn.run('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', b.student_id]);
-    return await saveSubjects(conn, id, subChk.ids);
-  });
+  let subjects;
+  try {
+    subjects = await tx(async (conn) => {
+      id = await conn.runId(
+        'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [b.student_id, section.id, b.school_year, gradeLevel, strand, term, isAral, status, b.enrolled_at || null]);
+      await conn.run('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', b.student_id]);
+      return await saveSubjects(conn, id, subChk.ids);
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      return res.status(409).json({ error: `Student already enrolled for ${b.school_year}${term ? ` (${term} term)` : ''}` });
+    }
+    throw e;
+  }
   await audit(req, 'ENROLL_STUDENT', 'enrollments', id, { student_id: b.student_id, section_id: b.section_id, school_year: b.school_year, term, is_aral: isAral, subjects });
   res.status(201).json({ id });
 }));
@@ -278,12 +310,23 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     if (!subChk.ok) return res.status(400).json({ error: subChk.error });
     checkedSubjectIds = subChk.ids;
   }
+  const newStatus = b.status === undefined ? row.status : normStatus(b.status);
+  if (newStatus === null) {
+    return res.status(400).json({ error: `status must be one of: ${STATUSES.join(', ')}` });
+  }
   const isAral = bool(b.is_aral !== undefined ? b.is_aral : row.is_aral);
-  await tx(async (conn) => {
-    await conn.run('UPDATE enrollments SET section_id = ?, status = ?, strand = ?, term = ?, is_aral = ?, enrolled_at = ? WHERE id = ?',
-      [f('section_id', row.section_id), f('status', row.status), f('strand', row.strand), term, isAral, f('enrolled_at', row.enrolled_at), row.id]);
-    if (b.subject_ids !== undefined) await saveSubjects(conn, row.id, checkedSubjectIds);
-  });
+  try {
+    await tx(async (conn) => {
+      await conn.run('UPDATE enrollments SET section_id = ?, status = ?, strand = ?, term = ?, is_aral = ?, enrolled_at = ? WHERE id = ?',
+        [f('section_id', row.section_id), newStatus, f('strand', row.strand), term, isAral, f('enrolled_at', row.enrolled_at), row.id]);
+      if (b.subject_ids !== undefined) await saveSubjects(conn, row.id, checkedSubjectIds);
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      return res.status(409).json({ error: 'Another enrollment already exists for this student, school year and term' });
+    }
+    throw e;
+  }
   await audit(req, 'UPDATE_ENROLLMENT', 'enrollments', row.id, { status: b.status, term, is_aral: isAral });
   res.json({ ok: true });
 }));

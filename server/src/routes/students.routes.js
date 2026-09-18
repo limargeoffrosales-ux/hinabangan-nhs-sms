@@ -4,6 +4,7 @@ const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page, logAccess, maskPII } = require('../utils');
 const { teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
+const { getCurrentSchoolYear } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
@@ -41,9 +42,46 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
   const { limit, offset } = page(req);
   const q2 = req.query.q ? `%${req.query.q}%` : '%';
   const gradeLevel = req.query.grade_level ? req.query.grade_level : null;
-  const params = [q2, q2];
-  let sql = 'SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status, photo_url, (SELECT COUNT(*) FROM enrollment_subjects es JOIN enrollments en ON en.id = es.enrollment_id WHERE en.student_id = students.id) AS subject_count FROM students WHERE (last_name LIKE ? OR first_name LIKE ? OR lrn LIKE ?)';
-  params.push(q2);
+  // "Has subjects this year" is the signal Enroll uses to tell enrolled vs
+  // not-yet-enrolled learners apart. Scope it to the current school year so a
+  // returner whose subjects belong to a past year is still enrollable.
+  const sy = await getCurrentSchoolYear();
+  const subjectCountSql = (stuAlias) =>
+    `(SELECT COUNT(*) FROM enrollment_subjects es JOIN enrollments en ON en.id = es.enrollment_id
+      WHERE en.student_id = ${stuAlias}.id AND en.school_year = ?)`;
+  if (req.query.sort === 'recent_enrolled') {
+    // Recency-order: learners with the most recent enrollment first, newest
+    // sign-up next, then name as a tie-breaker. Uses an aggregate subquery so
+    // one student with several enrollments only counts once.
+    const params = [sy, q2, q2, q2];
+    let sql = `SELECT st.id, st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.sex, st.birth_date, st.religion, st.address, st.contact, st.guardian_name, st.guardian_contact, st.guardian_relation, st.grade_level, st.track_strand, st.status, st.photo_url,
+      ${subjectCountSql('st')} AS subject_count
+      FROM students st
+      LEFT JOIN (SELECT student_id, MAX(COALESCE(enrolled_at, created_at)) AS last_enrolled_at FROM enrollments GROUP BY student_id) e ON e.student_id = st.id
+      WHERE (st.last_name LIKE ? OR st.first_name LIKE ? OR st.lrn LIKE ?)`;
+    if (req.role === 'teacher') {
+      const scope = await teacherScope(req.user);
+      const f = studentInScope(scope, 'st');
+      if (!f.sql) return res.json({ data: [], limit, offset });
+      sql += ' AND ' + f.sql;
+      params.push(...f.params);
+    }
+    if (gradeLevel) {
+      sql += ' AND st.grade_level = ?';
+      params.push(gradeLevel);
+    }
+    sql += ' ORDER BY e.last_enrolled_at DESC NULLS LAST, st.last_name, st.first_name LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+    const rows = await qa(sql, params);
+    for (const r of rows) r.has_subjects = bool(r.subject_count) > 0;
+    if (req.role === 'teacher' || req.role === 'guidance') {
+      rows.forEach((r, i, arr) => { arr[i] = maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']); });
+    }
+    return res.json({ data: rows, limit, offset });
+  }
+  const params = [sy, q2, q2, q2];
+  let sql = `SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status, photo_url, ${subjectCountSql('students')} AS subject_count
+     FROM students WHERE (last_name LIKE ? OR first_name LIKE ? OR lrn LIKE ?)`;
   if (req.role === 'teacher') {
     const scope = await teacherScope(req.user);
     const f = studentInScope(scope, 'students');
@@ -55,30 +93,7 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
     sql += ' AND grade_level = ?';
     params.push(gradeLevel);
   }
-  if (req.query.sort === 'recent_enrolled') {
-    // Recency-order: learners with the most recent enrollment first, newest
-    // sign-up next, then name as a tie-breaker. Uses an aggregate subquery so
-    // one student with several enrollments only counts once.
-    const core = `SELECT st.id, st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.sex, st.birth_date, st.religion, st.address, st.contact, st.guardian_name, st.guardian_contact, st.guardian_relation, st.grade_level, st.track_strand, st.status, st.photo_url,
-      (SELECT COUNT(*) FROM enrollment_subjects es JOIN enrollments en ON en.id = es.enrollment_id WHERE en.student_id = st.id) AS subject_count
-      FROM students st
-      LEFT JOIN (SELECT student_id, MAX(COALESCE(enrolled_at, created_at)) AS last_enrolled_at FROM enrollments GROUP BY student_id) e ON e.student_id = st.id
-      WHERE (st.last_name LIKE ? OR st.first_name LIKE ? OR st.lrn LIKE ?)`;
-    sql = core;
-    if (req.role === 'teacher') {
-      const scope = await teacherScope(req.user);
-      const f = studentInScope(scope, 'st');
-      if (!f.sql) return res.json({ data: [], limit, offset });
-      sql += ' AND ' + f.sql;
-    }
-    if (gradeLevel) {
-      sql += ' AND st.grade_level = ?';
-      params.push(gradeLevel);
-    }
-    sql += ' ORDER BY e.last_enrolled_at DESC NULLS LAST, st.last_name, st.first_name LIMIT ? OFFSET ?';
-  } else {
-    sql += ' ORDER BY last_name, first_name LIMIT ? OFFSET ?';
-  }
+  sql += ' ORDER BY last_name, first_name LIMIT ? OFFSET ?';
   params.push(limit, offset);
   const rows = await qa(sql, params);
   for (const r of rows) r.has_subjects = bool(r.subject_count) > 0;
