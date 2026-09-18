@@ -198,12 +198,27 @@ export default function Enroll() {
 
   function onSectionChange(v) {
     const sec = sections.find((x) => x.id === Number(v));
+    const prevGl = form.grade_level;
+    const glChanged = !!sec?.grade_level && sec.grade_level !== prevGl;
     setForm((f) => ({ ...f, section_id: v, grade_level: sec?.grade_level || f.grade_level, strand: sec?.strand || f.strand }));
-    setSelectedSubjects([]);
+    if (glChanged) {
+      // Promoting (or demoting) through a re-enrollment: last year's subjects
+      // no longer fit this grade level, so drop the baseline and let the
+      // defaults effect refill the checklist for the new grade. Same-grade
+      // section changes keep the copied set — the checklist is unchanged.
+      skipNextAutoFill.current = false;
+      setSelectedSubjects([]);
+    }
   }
 
   function onTermChange(v) {
+    skipNextAutoFill.current = false;
     setForm((f) => ({ ...f, term: v }));
+  }
+
+  function onStrandChange(v) {
+    skipNextAutoFill.current = false;
+    setForm((f) => ({ ...f, strand: v }));
   }
 
   useEffect(() => {
@@ -554,7 +569,7 @@ export default function Enroll() {
                 </div>
                 <div>
                   <label>Strand (SHS)</label>
-                  <select value={form.strand} onChange={(e) => set('strand', e.target.value)} disabled={!isShsGrade}>
+                  <select value={form.strand} onChange={(e) => onStrandChange(e.target.value)} disabled={!isShsGrade}>
                     <option value="">— select —</option>
                     {SHS_TRACKS.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
