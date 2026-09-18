@@ -158,6 +158,29 @@ router.get('/my-immersion', requireRole(...PORTAL), asyncH(async (req, res) => {
   const rows = await qa(
     `SELECT wi.* FROM work_immersion wi WHERE wi.student_id = ? ORDER BY wi.batch DESC, wi.program`,
     [studentId]);
+  if (rows.length) {
+    const attRows = await qa(
+      `SELECT ia.immersion_id, ia.date, ia.status, ia.time_in, ia.time_out, ia.hours, ia.remarks
+       FROM immersion_attendance ia
+       JOIN work_immersion wi ON wi.id = ia.immersion_id
+       WHERE wi.student_id = ? ORDER BY ia.date`,
+      [studentId]);
+    const byPlacement = {};
+    for (const a of attRows) {
+      (byPlacement[a.immersion_id] = byPlacement[a.immersion_id] || []).push(a);
+    }
+    for (const r of rows) {
+      const att = byPlacement[r.id] || [];
+      const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+      for (const a of att) counts[a.status] = (counts[a.status] || 0) + 1;
+      const total = att.length;
+      const presentAndLate = counts.present + counts.late;
+      r.attendance = att;
+      r.attendance_counts = counts;
+      r.attendance_total = total;
+      r.attendance_rate = total ? Math.round((presentAndLate / total) * 100) : null;
+    }
+  }
   res.json({ data: rows });
 }));
 

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Briefcase, BadgeCheck, Plus, Trash2, Pencil, MapPin } from 'lucide-react';
+import { Briefcase, BadgeCheck, CalendarCheck, Plus, Trash2, Pencil, MapPin } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Empty, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 import MapPicker from '../components/MapPicker';
+import ImmersionDailyAttendance from '../components/ImmersionDailyAttendance';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const PROGRAMS = ['EIM', 'CSS', 'Garment Artisanry', 'Academic'];
@@ -34,6 +35,7 @@ export default function Immersion() {
   const [confirmAction, setConfirmAction] = useState(null);
 
   const load = useCallback(async () => {
+    if (tab === 'attendance') return;
     setError(null);
     try {
       const path = tab === 'immersion' ? '/immersion?limit=200' : '/jdvp?limit=200';
@@ -118,18 +120,23 @@ export default function Immersion() {
           <button className={`tab-btn ${isImmersion ? 'active' : ''}`} onClick={() => setTab('immersion')}>
             <Briefcase size={14} /> Work Immersion
           </button>
-          <button className={`tab-btn ${!isImmersion ? 'active' : ''}`} onClick={() => setTab('jdvp')}>
+          <button className={`tab-btn ${!isImmersion && tab !== 'attendance' ? 'active' : ''}`} onClick={() => setTab('jdvp')}>
             <BadgeCheck size={14} /> JDVP Recipients
           </button>
+          <button className={`tab-btn ${tab === 'attendance' ? 'active' : ''}`} onClick={() => setTab('attendance')}>
+            <CalendarCheck size={14} /> Daily Attendance
+          </button>
         </div>
-        {canWrite && (
+        {canWrite && tab !== 'attendance' && (
           <button className="btn btn-primary btn-sm" onClick={openAdd}><Plus size={13} /> Add {isImmersion ? 'immersion record' : 'recipient'}</button>
         )}
       </div>
 
       <div style={{ height: 14 }} />
-      {error && <ErrorBanner error={error} />}
-      {!rows.length && !error ? <Empty text={`No ${isImmersion ? 'work immersion' : 'JDVP'} records yet.`} /> : (
+      {tab === 'attendance' ? <ImmersionDailyAttendance /> : (
+        <>
+          {error && <ErrorBanner error={error} />}
+          {!rows.length && !error ? <Empty text={`No ${isImmersion ? 'work immersion' : 'JDVP'} records yet.`} /> : (
         <div className="table-wrap card">
           <table>
             <thead>
@@ -167,7 +174,9 @@ export default function Immersion() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+          )}
+        </>
       )}
 
       {modal && (

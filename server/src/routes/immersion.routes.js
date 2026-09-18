@@ -8,6 +8,24 @@ const { geocodeAddress } = require('../geocode');
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const IMMERSION_STATUSES = ['pending', 'ongoing', 'completed', 'withdrawn'];
 const JDVP_STATUSES = ['pending', 'served', 'withdrawn'];
+const ATTENDANCE_STATUSES = ['present', 'absent', 'late', 'excused'];
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function computeHours(timeIn, timeOut) {
+  if (!timeIn || !timeOut) return null;
+  const t = (s) => {
+    const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(s).trim());
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  };
+  const a = t(timeIn);
+  const b = t(timeOut);
+  if (a == null || b == null || b < a) return null;
+  return Math.round(((b - a) / 60) * 100) / 100;
+}
 
 // Fill missing coordinates from the partner address so staff only need to type
 // an address. Explicitly supplied coordinates always win.
@@ -98,6 +116,88 @@ immersion.get('/map', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ data: rows });
 }));
 
+// Roster for a batch + date with each placement's attendance record for that
+// day (LEFT JOIN, so unmarked placements still show up).
+immersion.get('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+  const d = req.query.date || today();
+  const batch = req.query.batch || null;
+  const where = [];
+  const params = [];
+  if (batch) { where.push('wi.batch = ?'); params.push(batch); }
+  const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const rows = await qa(
+    `SELECT wi.id AS immersion_id, wi.student_id, wi.batch, wi.program, wi.partner_institution, wi.status AS placement_status,
+            wi.start_date, wi.end_date,
+            st.lrn, st.first_name || ' ' || st.last_name AS student_name, st.sex, st.grade_level,
+            ia.id AS attendance_id, ia.status, ia.time_in, ia.time_out, ia.hours, ia.remarks, ia.date AS attendance_date
+     FROM work_immersion wi
+     JOIN students st ON st.id = wi.student_id
+     LEFT JOIN immersion_attendance ia ON ia.immersion_id = wi.id AND ia.date = ?
+     ${filter} ORDER BY st.last_name, st.first_name`,
+    [d, ...params]);
+  const counts = { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 };
+  for (const r of rows) {
+    if (r.status) counts[r.status] = (counts[r.status] || 0) + 1;
+    else counts.unmarked += 1;
+  }
+  res.json({ date: d, batch, rows, counts });
+}));
+
+// Bulk upsert daily attendance for a batch. Each record keys on the placement's
+// immersion_id + date; marking the same day twice overwrites the first entry.
+immersion.post('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.batch || !b.date || !Array.isArray(b.records) || b.records.length === 0) {
+    return res.status(400).json({ error: 'batch, date and non-empty records are required' });
+  }
+  const dateStr = String(b.date).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return res.status(400).json({ error: 'Invalid date' });
+  const placements = await qa('SELECT id FROM work_immersion WHERE batch = ?', [String(b.batch).trim()]);
+  const allowed = new Set(placements.map((p) => Number(p.id)));
+  if (allowed.size === 0) return res.status(400).json({ error: 'Batch has no placements' });
+
+  let recorded = 0;
+  for (const rec of b.records) {
+    const immersionId = Number(rec.immersion_id);
+    if (!allowed.has(immersionId)) continue;
+    const status = String(rec.status || 'present').toLowerCase().replace(/\s+/g, '_');
+    if (!ATTENDANCE_STATUSES.includes(status)) continue;
+    const hours = computeHours(rec.time_in, rec.time_out);
+    const exists = await q('SELECT id FROM immersion_attendance WHERE immersion_id = ? AND date = ?', [immersionId, dateStr]);
+    if (exists) {
+      await qr('UPDATE immersion_attendance SET status = ?, time_in = ?, time_out = ?, hours = ?, remarks = ?, recorded_by = ? WHERE id = ?',
+        [status, rec.time_in || null, rec.time_out || null, hours, rec.remarks || null, req.user.id, exists.id]);
+    } else {
+      await qi('INSERT INTO immersion_attendance (immersion_id, date, status, time_in, time_out, hours, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [immersionId, dateStr, status, rec.time_in || null, rec.time_out || null, hours, rec.remarks || null, req.user.id]);
+    }
+    recorded += 1;
+  }
+  await audit(req, 'IMMERSION_ATTENDANCE', 'immersion_attendance', null, { batch: String(b.batch).trim(), date: dateStr, recorded });
+  res.json({ ok: true, date: dateStr, recorded });
+}));
+
+// Daily Time Record history for a single placement.
+immersion.get('/:id/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+  const cur = await q('SELECT wi.*, st.lrn, st.first_name || \' \' || st.last_name AS student_name FROM work_immersion wi JOIN students st ON st.id = wi.student_id WHERE wi.id = ?', [req.params.id]);
+  if (!cur) return res.status(404).json({ error: 'Placement not found' });
+  const rows = await qa(
+    `SELECT id, date, status, time_in, time_out, hours, remarks, recorded_by, created_at
+     FROM immersion_attendance WHERE immersion_id = ? ORDER BY date DESC`,
+    [req.params.id]);
+  const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+  for (const r of rows) counts[r.status] = (counts[r.status] || 0) + 1;
+  const total = rows.length;
+  const presentAndLate = counts.present + counts.late;
+  res.json({
+    placement: cur,
+    data: rows,
+    counts,
+    total,
+    rate: total ? Math.round((presentAndLate / total) * 100) : null,
+  });
+}));
+
 immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.student_id || !b.batch || !b.program) {
@@ -150,92 +250,6 @@ immersion.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const r = await qr('DELETE FROM work_immersion WHERE id = ?', [req.params.id]);
   if (!r.changes) return res.status(404).json({ error: 'Record not found' });
   await audit(req, 'DELETE_IMMERSION', 'work_immersion', req.params.id);
-  res.json({ ok: true });
-}));
-
-// ------------------------------------------------------------
-// JDVP recipient registry — /api/v1/jdvp
-// ------------------------------------------------------------
-const jdvp = express.Router();
-jdvp.use(authenticate);
-
-jdvp.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
-  const { limit, offset } = page(req);
-  const where = [];
-  const params = [];
-  if (req.query.batch) { where.push('j.batch = ?'); params.push(req.query.batch); }
-  if (req.query.status) { where.push('j.status = ?'); params.push(req.query.status); }
-  const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
-  const rows = await qa(
-    `SELECT j.*, st.lrn, st.first_name || ' ' || st.last_name AS student_name, st.sex, st.grade_level
-     FROM jdvp_recipients j JOIN students st ON st.id = j.student_id
-     ${filter} ORDER BY j.batch DESC, st.last_name LIMIT ? OFFSET ?`,
-    [...params, limit, offset]);
-  res.json({ data: rows, limit, offset });
-}));
-
-// Map tracing data — all JDVP recipients that have coordinates.
-jdvp.get('/map', requireRole(...WRITE), asyncH(async (req, res) => {
-  const where = ['j.lat IS NOT NULL AND j.lng IS NOT NULL'];
-  const params = [];
-  if (req.query.batch) { where.push('j.batch = ?'); params.push(req.query.batch); }
-  const rows = await qa(
-    `SELECT j.id, j.student_id, j.batch, j.program, j.status, j.remarks, j.address, j.lat, j.lng,
-            st.lrn, st.first_name || ' ' || st.last_name AS student_name, st.grade_level
-     FROM jdvp_recipients j JOIN students st ON st.id = j.student_id
-     WHERE ${where.join(' AND ')} ORDER BY j.batch DESC, st.last_name`,
-    params);
-  res.json({ data: rows });
-}));
-
-jdvp.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
-  const b = req.body || {};
-  if (!b.student_id || !b.batch) {
-    return res.status(400).json({ error: 'student_id and batch are required' });
-  }
-  if (!(await q('SELECT id FROM students WHERE id = ?', [b.student_id]))) {
-    return res.status(404).json({ error: 'Student not found' });
-  }
-  if (b.status && !JDVP_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
-  const exists = await q('SELECT id FROM jdvp_recipients WHERE student_id = ? AND batch = ?',
-    [b.student_id, String(b.batch).trim()]);
-  if (exists) return res.status(409).json({ error: 'Student already listed in this batch' });
-  const status = b.status || 'pending';
-  const loc = locForInsert(b);
-  const resolved = await resolveLocation(loc.address, loc.lat, loc.lng);
-  const id = await qi(
-    `INSERT INTO jdvp_recipients (student_id, batch, program, status, remarks, address, lat, lng, recorded_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [b.student_id, String(b.batch).trim(), b.program || null, status, b.remarks || null,
-      loc.address, resolved.lat, resolved.lng, req.user.id]);
-  await audit(req, 'CREATE_JDVP', 'jdvp_recipients', id, { student_id: b.student_id, batch: b.batch, has_location: !!resolved.lat });
-  res.status(201).json({ id });
-}));
-
-jdvp.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
-  const b = req.body || {};
-  if (b.status && !JDVP_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
-  const cur = await q('SELECT * FROM jdvp_recipients WHERE id = ?', [req.params.id]);
-  if (!cur) return res.status(404).json({ error: 'Record not found' });
-  const loc = locForUpdate(b, cur);
-  const resolved = await resolveLocationForUpdate(
-    loc.address, loc.lat, loc.lng, cur.address,
-    b.lat !== undefined || b.lng !== undefined);
-  await qr(
-    'UPDATE jdvp_recipients SET program = ?, status = ?, remarks = ?, address = ?, lat = ?, lng = ? WHERE id = ?',
-    [b.program !== undefined ? b.program : cur.program,
-      b.status !== undefined ? b.status : cur.status,
-      b.remarks !== undefined ? b.remarks : cur.remarks,
-      loc.address, resolved.lat, resolved.lng,
-      req.params.id]);
-  await audit(req, 'UPDATE_JDVP', 'jdvp_recipients', req.params.id, { status: b.status, has_location: !!resolved.lat });
-  res.json({ ok: true });
-}));
-
-jdvp.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
-  const r = await qr('DELETE FROM jdvp_recipients WHERE id = ?', [req.params.id]);
-  if (!r.changes) return res.status(404).json({ error: 'Record not found' });
-  await audit(req, 'DELETE_JDVP', 'jdvp_recipients', req.params.id);
   res.json({ ok: true });
 }));
 
