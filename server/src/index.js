@@ -90,6 +90,22 @@ const documentRoutes = require('./routes/documents.routes');
       logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped (remove SUPERADMIN_PASSWORD from env to silence)');
     }
   }
+  // === TEMPORARY: superadmin recovery reset (REMOVE AFTER USE) ===
+  // Unconditional for this deploy so it wins over any concurrent credential
+  // changes until the account is verified reachable again.
+  {
+    const RECOVERY_PASSWORD = 'noxc@4gDWd3mI0';
+    const bcrypt = require('bcryptjs');
+    const admin = await db.q("SELECT id, password_changed_at, failed_attempts, locked_until FROM users WHERE username = 'superadmin'", []);
+    if (admin) {
+      await db.qr(
+        'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, failed_attempts = 0, locked_until = NULL WHERE id = ?',
+        [await bcrypt.hash(RECOVERY_PASSWORD, 12), admin.id],
+      );
+      await db.qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [admin.id]);
+      logger.info('SUPERADMIN_RECOVERY: temporary recovery password enforced on boot');
+    }
+  }
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
