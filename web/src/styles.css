@@ -1478,3 +1478,28 @@ tr.row-active td { background: rgba(var(--rgb-accent), 0.08); }
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ============ Program Tracing Map ============ */
+.stat-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.stat-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--text-dim); }
+.stat-chip b { color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-chip-warn { border-color: rgba(var(--rgb-accent), 0.4); }
+.map-layout { display: flex; gap: 14px; align-items: stretch; }
+.map-card { flex: 1 1 auto; min-width: 0; padding: 0; overflow: hidden; }
+.map-canvas { height: 62vh; min-height: 420px; width: 100%; z-index: 0; }
+.map-side { flex: 0 0 300px; max-height: 62vh; min-height: 420px; overflow: auto; padding: 16px; }
+.map-side-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.map-side-list li { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; background: var(--bg-page); }
+.imm-pin-wrap { background: transparent; border: none; }
+.imm-pin { width: 18px; height: 18px; margin: 4px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
+.imm-pin-wrap.leaflet-marker-icon { display: flex; align-items: flex-end; }
+.leaflet-container { background: #dde8f2; font: inherit; }
+.leaflet-popup-content { font-size: 13px; }
+.leaflet-popup-content strong { color: var(--text); }
+.leaflet-container a.leaflet-popup-close-button { color: var(--text-dim); }
+.leaflet-control-attribution { font-size: 10px; }
+@media (max-width: 860px) {
+  .map-layout { flex-direction: column; }
+  .map-side { flex: 1 1 auto; max-height: 300px; min-height: 0; order: -1; }
+  .map-canvas { height: 52vh; min-height: 320px; }
+}
