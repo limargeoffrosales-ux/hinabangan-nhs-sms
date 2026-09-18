@@ -315,6 +315,12 @@
   "dashboard.noActivity": "No system activity recorded yet.",
   "dashboard.auditLogs": "View audit logs",
   "dashboard.auditLast7": "{{n}} system actions recorded in the last 7 days",
+  "dashboard.placementMap": "Work Immersion & JDVP Tracing Map",
+  "dashboard.placementMapSub": "Learner placements mapped from the partner address you enter on each record.",
+  "dashboard.placementMapEmpty": "No placed learners yet — add an address to an Immersion or JDVP record to see it here.",
+  "dashboard.legendImmersion": "Work immersion",
+  "dashboard.legendJdvp": "JDVP",
+  "dashboard.viewFullMap": "Open full map",
 
   "students.title": "Student Information System",
   "students.subtitle": "Complete learner profiles with LRN, guardians, and enrollment status",

@@ -215,9 +215,9 @@ export default function Immersion() {
             </div>
           )}
           <div style={{ marginTop: 12 }}>
-            <div className="section-title"><MapPin size={14} /> Placement location <span className="sub">(optional — used for the tracing map)</span></div>
+            <div className="section-title"><MapPin size={14} /> Placement location <span className="sub">(address is enough — the map pin is set automatically)</span></div>
             <div className="form-row">
-              <label style={{ flex: 2 }}>Address
+              <label style={{ flex: 2 }}>Address of partner site
                 <input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="e.g. Purok 3, Brgy. Hinabangan, Eastern Samar" />
               </label>
               <label>Latitude
@@ -230,7 +230,7 @@ export default function Immersion() {
             <MapPicker
               lat={numOrNull(form.lat)} lng={numOrNull(form.lng)}
               onChange={(la, ln) => setForm({ ...form, lat: la, lng: ln })} />
-            <div className="hint" style={{ marginTop: 6 }}>Click anywhere on the map to set the pin, or type coordinates directly.</div>
+            <div className="hint" style={{ marginTop: 6 }}>Type the address and the system pins it automatically. Coordinates and the map are only for fine-tuning.</div>
           </div>
           <label style={{ marginTop: 12 }}>Remarks
             <textarea className="input" rows={2} value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} placeholder="Optional notes" />

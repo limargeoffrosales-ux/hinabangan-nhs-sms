@@ -325,6 +325,12 @@
   "dashboard.noActivity": "Wala pang naitalang aktibidad sa sistema.",
   "dashboard.auditLogs": "Tingnan ang mga audit log",
   "dashboard.auditLast7": "{{n}} aksyon sa sistema naitala sa huling 7 araw",
+  "dashboard.placementMap": "Mapa ng Pagsubaybay sa Work Immersion at JDVP",
+  "dashboard.placementMapSub": "Nakamapa ang mga estudyante mula sa address ng partner na inilagay sa bawat rekord.",
+  "dashboard.placementMapEmpty": "Wala pang nakamapa — maglagay ng address sa rekord ng Immersion o JDVP para makita ito rito.",
+  "dashboard.legendImmersion": "Work immersion",
+  "dashboard.legendJdvp": "JDVP",
+  "dashboard.viewFullMap": "Buksan ang buong mapa",
 
   "students.title": "Sistema ng Impormasyon ng Mag-aaral",
   "students.subtitle": "Kumpletong profile ng mag-aaral kasama ang LRN, tagapangalaga, at status ng pagpapatala",

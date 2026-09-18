@@ -3,9 +3,31 @@ const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
+const { geocodeAddress } = require('../geocode');
+
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const IMMERSION_STATUSES = ['pending', 'ongoing', 'completed', 'withdrawn'];
 const JDVP_STATUSES = ['pending', 'served', 'withdrawn'];
+
+// Fill missing coordinates from the partner address so staff only need to type
+// an address. Explicitly supplied coordinates always win.
+async function resolveLocation(address, lat, lng) {
+  if (address && (lat == null || lng == null)) {
+    const g = await geocodeAddress(address);
+    if (g) { lat = lat ?? g.lat; lng = lng ?? g.lng; }
+  }
+  return { lat, lng };
+}
+
+// When an address changes and coordinates were not explicitly sent, re-pin from
+// the new address. Unresolved or cleared addresses drop stale pins.
+async function resolveLocationForUpdate(address, lat, lng, curAddress, coordsSent) {
+  if (coordsSent) return { lat, lng };
+  if (address === (curAddress || null)) return { lat, lng };
+  if (!address) return { lat: null, lng: null };
+  const g = await geocodeAddress(address);
+  return g ? { lat: g.lat, lng: g.lng } : { lat: null, lng: null };
+}
 
 // Normalize an optional numeric lat/lng field.
 // undefined -> fallback (used on PATCH), ''/null -> null, otherwise a finite number.
@@ -90,13 +112,14 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (exists) return res.status(409).json({ error: 'Student already has this program in this batch' });
   const status = b.status || 'ongoing';
   const loc = locForInsert(b);
+  const resolved = await resolveLocation(loc.address, loc.lat, loc.lng);
   const id = await qi(
     `INSERT INTO work_immersion (student_id, batch, program, partner_institution, status, start_date, end_date, remarks, address, lat, lng, recorded_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [b.student_id, String(b.batch).trim(), String(b.program).trim(),
       b.partner_institution || null, status, b.start_date || null, b.end_date || null,
-      b.remarks || null, loc.address, loc.lat, loc.lng, req.user.id]);
-  await audit(req, 'CREATE_IMMERSION', 'work_immersion', id, { student_id: b.student_id, batch: b.batch, program: b.program, has_location: !!loc.lat });
+      b.remarks || null, loc.address, resolved.lat, resolved.lng, req.user.id]);
+  await audit(req, 'CREATE_IMMERSION', 'work_immersion', id, { student_id: b.student_id, batch: b.batch, program: b.program, has_location: !!resolved.lat });
   res.status(201).json({ id });
 }));
 
@@ -106,6 +129,9 @@ immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const cur = await q('SELECT * FROM work_immersion WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
   const loc = locForUpdate(b, cur);
+  const resolved = await resolveLocationForUpdate(
+    loc.address, loc.lat, loc.lng, cur.address,
+    b.lat !== undefined || b.lng !== undefined);
   await qr(
     `UPDATE work_immersion SET partner_institution = ?, status = ?, start_date = ?, end_date = ?, remarks = ?,
           address = ?, lat = ?, lng = ? WHERE id = ?`,
@@ -114,9 +140,9 @@ immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
       b.start_date !== undefined ? b.start_date : cur.start_date,
       b.end_date !== undefined ? b.end_date : cur.end_date,
       b.remarks !== undefined ? b.remarks : cur.remarks,
-      loc.address, loc.lat, loc.lng,
+      loc.address, resolved.lat, resolved.lng,
       req.params.id]);
-  await audit(req, 'UPDATE_IMMERSION', 'work_immersion', req.params.id, { status: b.status, has_location: !!loc.lat });
+  await audit(req, 'UPDATE_IMMERSION', 'work_immersion', req.params.id, { status: b.status, has_location: !!resolved.lat });
   res.json({ ok: true });
 }));
 
@@ -176,12 +202,13 @@ jdvp.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   if (exists) return res.status(409).json({ error: 'Student already listed in this batch' });
   const status = b.status || 'pending';
   const loc = locForInsert(b);
+  const resolved = await resolveLocation(loc.address, loc.lat, loc.lng);
   const id = await qi(
     `INSERT INTO jdvp_recipients (student_id, batch, program, status, remarks, address, lat, lng, recorded_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [b.student_id, String(b.batch).trim(), b.program || null, status, b.remarks || null,
-      loc.address, loc.lat, loc.lng, req.user.id]);
-  await audit(req, 'CREATE_JDVP', 'jdvp_recipients', id, { student_id: b.student_id, batch: b.batch, has_location: !!loc.lat });
+      loc.address, resolved.lat, resolved.lng, req.user.id]);
+  await audit(req, 'CREATE_JDVP', 'jdvp_recipients', id, { student_id: b.student_id, batch: b.batch, has_location: !!resolved.lat });
   res.status(201).json({ id });
 }));
 
@@ -191,14 +218,17 @@ jdvp.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const cur = await q('SELECT * FROM jdvp_recipients WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
   const loc = locForUpdate(b, cur);
+  const resolved = await resolveLocationForUpdate(
+    loc.address, loc.lat, loc.lng, cur.address,
+    b.lat !== undefined || b.lng !== undefined);
   await qr(
     'UPDATE jdvp_recipients SET program = ?, status = ?, remarks = ?, address = ?, lat = ?, lng = ? WHERE id = ?',
     [b.program !== undefined ? b.program : cur.program,
       b.status !== undefined ? b.status : cur.status,
       b.remarks !== undefined ? b.remarks : cur.remarks,
-      loc.address, loc.lat, loc.lng,
+      loc.address, resolved.lat, resolved.lng,
       req.params.id]);
-  await audit(req, 'UPDATE_JDVP', 'jdvp_recipients', req.params.id, { status: b.status, has_location: !!loc.lat });
+  await audit(req, 'UPDATE_JDVP', 'jdvp_recipients', req.params.id, { status: b.status, has_location: !!resolved.lat });
   res.json({ ok: true });
 }));
 

@@ -4,12 +4,16 @@ import { useTranslation } from 'react-i18next';
 import {
   Users, UserCog, Layers, CalendarCheck, Megaphone, Activity,
   BookOpenCheck, ShieldAlert, GraduationCap, Target, Briefcase,
-  BadgeCheck, UserCheck, History,
+  BadgeCheck, UserCheck, History, MapPin,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
+import PlacementMap from '../components/PlacementMap';
 import { loadRecharts } from '../lib/lazy-recharts';
+
+const MAP_WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
 const READINESS_STATUS = {
   done: { badge: 'badge-green', tri: 'dashboard.readinessDone' },
@@ -47,13 +51,34 @@ function actionLabel(action, t) {
 
 export default function Dashboard() {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const canSeeMap = can(user?.role, ...MAP_WRITE);
   const [data, setData] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [activity, setActivity] = useState(null);
+  const [placed, setPlaced] = useState([]);
   const [error, setError] = useState(null);
   const [R, setR] = useState(null);
 
   useEffect(() => { loadRecharts().then(setR); }, []);
+
+  useEffect(() => {
+    if (!canSeeMap) return;
+    let cancelled = false;
+    Promise.all([
+      api('/immersion/map', { timeoutMs: 30000, retryNetwork: false }),
+      api('/jdvp/map', { timeoutMs: 30000, retryNetwork: false }),
+    ])
+      .then(([imm, jdvp]) => {
+        if (cancelled) return;
+        setPlaced([
+          ...(imm?.data || []).map((r) => ({ type: 'immersion', ...r })),
+          ...(jdvp?.data || []).map((r) => ({ type: 'jdvp', ...r })),
+        ]);
+      })
+      .catch(() => { if (!cancelled) setPlaced([]); });
+    return () => { cancelled = true; };
+  }, [canSeeMap]);
 
   useEffect(() => {
     api('/dashboard/summary')
@@ -135,15 +160,50 @@ export default function Dashboard() {
         sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
       />
 
-      <div className="grid grid-3">
-        {kpis.map((k) => (
-          <Link className="card kpi" style={{ textDecoration: 'none', cursor: 'pointer' }} to={k.to} key={k.label}>
-            <div className="icon" style={{ background: `${k.color}22`, color: k.color }}><k.icon size={20} /></div>
-            <div className="value">{k.value}</div>
-            <div className="label">{k.label}</div>
-            <div className="sub" style={{ fontSize: 12, marginTop: 4 }}>{k.sub}</div>
-          </Link>
-        ))}
+      <div className="max-w-7xl mx-auto pt-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {kpis.map((k) => (
+            <a
+              className="kpi-card border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+              href={k.to}
+              key={k.label}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg flex-shrink-0" style={{ background: `${k.color}22`, color: k.color }}>
+                  <k.icon size={20} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-medium text-[var(--text)] mb-1">{k.label}</h3>
+                  <p className="text-3xl font-bold text-[var(--text)] mb-1">{k.value}</p>
+                  <p className="text-sm text-[var(--text-dim)] mb-0">{k.sub}</p>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        {canSeeMap && (
+          <div className="card" style={{ marginTop: 18 }}>
+            <div className="dashboard-block-head">
+              <h3 style={{ margin: 0 }}><MapPin size={16} /> {t('dashboard.placementMap')}</h3>
+            </div>
+            <div className="sub" style={{ margin: '8px 0 12px' }}>{t('dashboard.placementMapSub')}</div>
+            {placed.length > 0 ? (
+              <PlacementMap rows={placed} height={340} />
+            ) : (
+              <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Empty text={t('dashboard.placementMapEmpty')} />
+              </div>
+            )}
+            <div className="sub" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#2563eb' }} /> {t('dashboard.legendImmersion')}
+              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#0d9488', marginLeft: 12 }} /> {t('dashboard.legendJdvp')}
+              {placed.length > 0 && (
+                <Link to="/immersion-map" className="btn btn-sm" style={{ marginLeft: 'auto' }}>{t('dashboard.viewFullMap')}</Link>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ height: 18 }} />
