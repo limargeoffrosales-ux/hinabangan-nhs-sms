@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
 import { printElementHtml } from '../lib/export';
+import DOMPurify from 'dompurify';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const DURATIONS = [60, 90, 120];
@@ -534,7 +535,7 @@ export default function Programs() {
           </div>
           {viewId && view === 'section' && (
             <div className="program-preview" dangerouslySetInnerHTML={{
-              __html: programSheetHtml({
+              __html: DOMPurify.sanitize(programSheetHtml({
                 kind: 'section',
                 item: sections.find((x) => String(x.id) === viewId),
                 entries: viewedEntries,
@@ -543,12 +544,12 @@ export default function Programs() {
                 lunchEnd: genOpts.lunch_end,
                 recessStart: genOpts.recess_start,
                 recessEnd: genOpts.recess_end,
-              }),
+              }), { USE_PROFILES: { html: true } }),
             }} />
           )}
           {viewId && view === 'teacher' && (
             <div className="program-preview" dangerouslySetInnerHTML={{
-              __html: programSheetHtml({
+              __html: DOMPurify.sanitize(programSheetHtml({
                 kind: 'teacher',
                 item: teachers.find((x) => String(x.id) === viewId),
                 entries: viewedEntries,
@@ -557,7 +558,7 @@ export default function Programs() {
                 lunchEnd: genOpts.lunch_end,
                 recessStart: genOpts.recess_start,
                 recessEnd: genOpts.recess_end,
-              }),
+              }), { USE_PROFILES: { html: true } }),
             }} />
           )}
           </>

@@ -31,6 +31,20 @@ export function getStoredApiBase() {
   return getApiBase();
 }
 
+// Rewrites a legacy Cloudflare R2 public-bucket URL (https://*.r2.dev/<key>)
+// back to the authenticated serve proxy. Keeps stored photo/document URLs
+// working after the bucket is flipped private — the proxy then redirects to a
+// short-lived presigned URL instead of the CDN.
+const R2_HOST_RE = /^https?:\/\/[^/]+\.r2\.dev\//i;
+export function fileUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (R2_HOST_RE.test(url)) {
+    const key = url.replace(R2_HOST_RE, '');
+    if (key) return `${getApiBase()}/uploads/file/${key}`;
+  }
+  return url;
+}
+
 let refreshPromise = null;
 
 export function getToken() {

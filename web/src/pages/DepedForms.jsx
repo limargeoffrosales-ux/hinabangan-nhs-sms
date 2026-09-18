@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Download, Printer, Pencil } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, fileUrl } from '../lib/api';
 import { PageHead, Spinner, ErrorBanner } from '../components/ui';
 import { printElementHtml, downloadBlob } from '../lib/export';
 import DOMPurify from 'dompurify';
@@ -2010,7 +2010,7 @@ function renderSID(data, info) {
     <hr style="border:none;border-top:1.5pt solid #1a5276;margin:6pt 0;"/>
     <div style="font-size:9pt;font-weight:bold;margin:6pt 0;">STUDENT IDENTIFICATION CARD</div>
     <div style="width:80pt;height:80pt;border:1pt solid #ccc;margin:8pt auto;display:flex;align-items:center;justify-content:center;background:#f5f5f5;">
-      ${s.photo_url ? `<img src="${esc(s.photo_url)}" style="width:80pt;height:80pt;object-fit:cover;" alt="Photo"/>` : '<span style="font-size:8pt;color:#999;">No Photo</span>'}
+      ${s.photo_url ? `<img src="${esc(fileUrl(s.photo_url))}" style="width:80pt;height:80pt;object-fit:cover;" alt="Photo"/>` : '<span style="font-size:8pt;color:#999;">No Photo</span>'}
     </div>
     <div style="text-align:left;font-size:8pt;margin-top:8pt;">
       <div style="margin-bottom:3pt;"><strong>Name:</strong> ${esc(s.last_name)}, ${esc(s.first_name)}${s.suffix ? ', ' + esc(s.suffix) : ''}${s.middle_name ? ', ' + esc(s.middle_name) : ''}</div>
