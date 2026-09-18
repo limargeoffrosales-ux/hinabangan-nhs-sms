@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../lib/api';
+import { api, fileUrl } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
@@ -191,7 +191,7 @@ export default function Students() {
   function openEdit(s) {
     setForm({ ...EMPTY_FORM, ...s, birth_date: (s.birth_date || '').slice(0, 10) });
     setEditing(s.id);
-    setPhotoUrl(s.photo_url || null);
+    setPhotoUrl(fileUrl(s.photo_url) || null);
     setPhotoError(null);
     setShowModal(true);
   }

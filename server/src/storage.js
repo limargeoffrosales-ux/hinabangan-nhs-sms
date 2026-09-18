@@ -26,7 +26,10 @@ async function uploadBuffer(key, buffer, mime) {
     Body: buffer,
     ContentType: mime || 'application/octet-stream',
   }));
-  return { key, url: PUBLIC_URL ? `${PUBLIC_URL}/${key}` : null };
+  // Stored URLs always reference the authenticated serve proxy so DB values stay
+  // bucket-agnostic. The proxy redirects to the public bucket when one is
+  // configured, or to a short-lived presigned URL once the bucket is private.
+  return { key, url: `/api/v1/uploads/file/${key}` };
 }
 
 async function uploadFile(folder, file, originalName) {
@@ -70,4 +73,12 @@ async function getSignedDownloadUrl(key, expiresIn = 3600) {
   return getSignedUrl(r2, cmd, { expiresIn });
 }
 
-module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, genKey, fileKeyFromUrl };
+// Resolve a key to a fetchable URL. With a public bucket configured this is the
+// plain CDN URL; once the bucket is private we fall back to a presigned GET.
+async function getDownloadUrl(key, expiresIn = 3600) {
+  if (!key) return null;
+  if (PUBLIC_URL) return `${PUBLIC_URL}/${key}`;
+  return getSignedDownloadUrl(key, expiresIn);
+}
+
+module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, getDownloadUrl, genKey, fileKeyFromUrl };
