@@ -455,9 +455,10 @@ router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf8', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, school_year } = req.query;
+  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], section: null });
-  const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
-  const sy = school_year || null;
+  const section = await q('SELECT * FROM sections WHERE id = ?', [secId]);
+  const sy = school_year ? validateYear(school_year) : null;
   const students = await qa(
     db.dialect === 'pg'
       ? `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex,
@@ -835,9 +836,11 @@ router.get('/student-id', requireRole(...ADMIN_ONLY), asyncH(async (req, res) =>
 
 router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id } = req.query;
+  const stuId = validateStudentId(student_id);
   if (!student_id) return res.json({ learners: [] });
-  const student = await q('SELECT * FROM students WHERE id = ?', [student_id]);
+  const student = await q('SELECT * FROM students WHERE id = ?', [stuId]);
   if (!student) return res.json({ learner: null });
+  const maskedStudent = maskPII(student);
   const enrollments = await qa(
     `SELECT e.*, sec.name as section_name, sec.grade_level
      FROM enrollments e
@@ -870,14 +873,16 @@ router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY sec.grade_level`,
     [student_id]
   );
-  res.json({ learner: { student: withAge(student), enrollments, grades: allGrades, attendance: allAttendance } });
+  res.json({ learner: { student: withAge(maskedStudent), enrollments, grades: allGrades, attendance: allAttendance } });
 }));
 
 router.get('/sf11', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id } = req.query;
+  const stuId = validateStudentId(student_id);
   if (!student_id) return res.json({ learner: null });
-  const student = await q('SELECT * FROM students WHERE id = ?', [student_id]);
+  const student = await q('SELECT * FROM students WHERE id = ?', [stuId]);
   if (!student) return res.json({ learner: null });
+  const maskedStudent = maskPII(student);
   const enrollments = await qa(
     `SELECT e.*, sec.name as section_name, sec.grade_level
      FROM enrollments e
