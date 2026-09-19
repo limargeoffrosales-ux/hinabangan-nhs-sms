@@ -12,6 +12,31 @@ ALTER TABLE work_immersion ADD COLUMN IF NOT EXISTS parent_name TEXT;
 ALTER TABLE work_immersion ADD COLUMN IF NOT EXISTS parent_contact TEXT;
 
 -- ============================================================
+-- work_immersion_venues - Partner institution tracking
+-- (created first: attendance/performance/issues/reports FK to it)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS work_immersion_venues (
+  id               BIGSERIAL PRIMARY KEY,
+  name             TEXT NOT NULL,
+  institution_type TEXT, -- school, office, workshop, laboratory, etc.
+  address          TEXT,
+  lat              DOUBLE PRECISION,
+  lng              DOUBLE PRECISION,
+  contact_person   TEXT,
+  contact_phone    TEXT,
+  email            TEXT,
+  safety_rating    TEXT, -- excellent, good, satisfactory, needs_improvement
+  security_level   TEXT, -- low, medium, high
+  status           TEXT NOT NULL DEFAULT 'active', -- active, suspended, closed
+  inspection_date  DATE,
+  next_inspection  DATE,
+  notes            TEXT,
+  noted_by         BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ
+);
+
+-- ============================================================
 -- work_immersion_attendance - Daily student attendance tracking
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_immersion_attendance (
@@ -67,29 +92,6 @@ CREATE TABLE IF NOT EXISTS work_immersion_issues (
 );
 
 -- ============================================================
--- work_immersion_venues - Partner institution tracking
--- ============================================================
-CREATE TABLE IF NOT EXISTS work_immersion_venues (
-  id               BIGSERIAL PRIMARY KEY,
-  name             TEXT NOT NULL,
-  institution_type TEXT, -- school, office, workshop, laboratory, etc.
-  address          TEXT,
-  lat              DOUBLE PRECISION,
-  lng              DOUBLE PRECISION,
-  contact_person   TEXT,
-  contact_phone    TEXT,
-  email            TEXT,
-  safety_rating    TEXT, -- excellent, good, satisfactory, needs_improvement
-  security_level   TEXT, -- low, medium, high
-  status           TEXT NOT NULL DEFAULT 'active', -- active, suspended, closed
-  inspection_date  DATE,
-  next_inspection  DATE,
-  notes            TEXT,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ
-);
-
--- ============================================================
 -- work_immersion_reports - Teacher submission reports
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_immersion_reports (
@@ -105,6 +107,7 @@ CREATE TABLE IF NOT EXISTS work_immersion_reports (
   recommendations  TEXT,
   submitted        BOOLEAN NOT NULL DEFAULT FALSE,
   submitted_at     TIMESTAMPTZ,
+  submitted_by     BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

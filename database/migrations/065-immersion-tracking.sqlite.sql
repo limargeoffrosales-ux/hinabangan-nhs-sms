@@ -12,6 +12,31 @@ ALTER TABLE work_immersion ADD COLUMN parent_name TEXT;
 ALTER TABLE work_immersion ADD COLUMN parent_contact TEXT;
 
 -- ============================================================
+-- work_immersion_venues - Partner institution tracking
+-- (created first: attendance/performance/issues/reports FK to it)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS work_immersion_venues (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  name             TEXT NOT NULL,
+  institution_type TEXT,
+  address          TEXT,
+  lat              REAL,
+  lng              REAL,
+  contact_person   TEXT,
+  contact_phone    TEXT,
+  email            TEXT,
+  safety_rating    TEXT, -- excellent, good, satisfactory, needs_improvement
+  security_level   TEXT, -- low, medium, high
+  status           TEXT NOT NULL DEFAULT 'active',
+  inspection_date  DATE,
+  next_inspection  DATE,
+  notes            TEXT,
+  noted_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
 -- work_immersion_attendance - Daily student attendance tracking
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_immersion_attendance (
@@ -67,29 +92,6 @@ CREATE TABLE IF NOT EXISTS work_immersion_issues (
 );
 
 -- ============================================================
--- work_immersion_venues - Partner institution tracking
--- ============================================================
-CREATE TABLE IF NOT EXISTS work_immersion_venues (
-  id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  name             TEXT NOT NULL,
-  institution_type TEXT,
-  address          TEXT,
-  lat              REAL,
-  lng              REAL,
-  contact_person   TEXT,
-  contact_phone    TEXT,
-  email            TEXT,
-  safety_rating    TEXT, -- excellent, good, satisfactory, needs_improvement
-  security_level   TEXT, -- low, medium, high
-  status           TEXT NOT NULL DEFAULT 'active',
-  inspection_date  DATE,
-  next_inspection  DATE,
-  notes            TEXT,
-  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- ============================================================
 -- work_immersion_reports - Teacher submission reports
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_immersion_reports (
@@ -105,6 +107,7 @@ CREATE TABLE IF NOT EXISTS work_immersion_reports (
   recommendations  TEXT,
   submitted        INTEGER NOT NULL DEFAULT 0,
   submitted_at     TIMESTAMP,
+  submitted_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
