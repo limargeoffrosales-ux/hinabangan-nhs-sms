@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v4.1.0';
+const CACHE_VERSION = 'v4.1.1';
 const CACHE_NAME = `meridianed-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
@@ -83,6 +83,13 @@ self.addEventListener('fetch', (event) => {
 
   // Never intercept the service worker script itself; let it update from network.
   if (url.pathname === '/sw.js') return;
+
+  // Pass everything cross-origin straight through. Tile layers
+  // (tile.openstreetmap.org, Esri), fonts and CDN assets are intercepted by
+  // the Cache API path below, but cache.match() rejects cross-origin URLs —
+  // the respondWith promise never settles and every tile dies with
+  // ERR_FAILED, leaving the map gray/blank. The browser handles them natively.
+  if (url.origin !== self.location.origin) return;
 
   const isStaticAsset = url.pathname.startsWith('/assets/') ||
     url.pathname.endsWith('.js') ||
