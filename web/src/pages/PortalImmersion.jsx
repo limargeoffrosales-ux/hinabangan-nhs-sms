@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Badge, Empty, ErrorBanner, Spinner } from '../components/ui';
+import PortalLiveTracker from '../components/PortalLiveTracker';
 
 export default function PortalImmersion() {
   const { t } = useTranslation();
@@ -94,6 +95,12 @@ export default function PortalImmersion() {
                 <div className="sub" style={{ marginTop: 8 }}>{t('immersion.noAttendance', 'No attendance recorded yet.')}</div>
               )}
               {rec.remarks && <div className="sub" style={{ marginTop: 8 }}><strong>{t('immersion.remarks', 'Remarks')}:</strong> {rec.remarks}</div>}
+
+              {rec.consent_status && (
+                <div style={{ marginTop: 10 }}>
+                  <PortalLiveTracker studentId={rec.student_id} placement={rec} />
+                </div>
+              )}
             </div>
           ))}
         </div>

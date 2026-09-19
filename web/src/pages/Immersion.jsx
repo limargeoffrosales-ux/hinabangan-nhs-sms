@@ -18,7 +18,7 @@ function numOrNull(v) {
 }
 
 function emptyForm(isImmersion) {
-  return { student_id: '', batch: 'Batch 1', program: PROGRAMS[0], partner_institution: '', status: isImmersion ? 'ongoing' : 'pending', start_date: '', end_date: '', remarks: '', address: '', lat: '', lng: '' };
+  return { student_id: '', batch: 'Batch 1', program: PROGRAMS[0], partner_institution: '', status: isImmersion ? 'ongoing' : 'pending', start_date: '', end_date: '', remarks: '', address: '', lat: '', lng: '', consent_status: 'pending' };
 }
 
 export default function Immersion() {
@@ -56,6 +56,7 @@ export default function Immersion() {
       partner_institution: r.partner_institution || '', status: r.status, start_date: r.start_date || '',
       end_date: r.end_date || '', remarks: r.remarks || '',
       address: r.address || '', lat: r.lat != null ? String(r.lat) : '', lng: r.lng != null ? String(r.lng) : '',
+      consent_status: r.consent_status || 'pending',
     });
     setEditId(r.id);
     setModal(true);
@@ -72,6 +73,7 @@ export default function Immersion() {
           partner_institution: form.partner_institution, status: form.status,
           start_date: form.start_date || null, end_date: form.end_date || null, remarks: form.remarks || null,
           address: form.address || null, lat: numOrNull(form.lat), lng: numOrNull(form.lng),
+          consent_status: form.consent_status || 'pending',
         };
         if (editId) await api(`${path}/${editId}`, { method: 'PATCH', body });
         else await api(path, { method: 'POST', body });
@@ -146,6 +148,7 @@ export default function Immersion() {
                 {isImmersion && <th>Partner Institution</th>}
                 {isImmersion && <th>Dates</th>}
                 <th style={{ textAlign: 'center' }}>Status</th>
+                {isImmersion && <th style={{ textAlign: 'center' }}>Live consent</th>}
                 <th>Remarks</th>
                 {canWrite && <th></th>}
               </tr>
@@ -163,6 +166,13 @@ export default function Immersion() {
                   <td style={{ textAlign: 'center' }}>
                     <span className={`badge ${STATUS_CLASS[r.status] || 'badge-gray'}`}>{r.status}</span>
                   </td>
+                  {isImmersion && (
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${r.consent_status === 'granted' ? 'badge-green' : r.consent_status === 'denied' ? 'badge-red' : 'badge-yellow'}`}>
+                        {r.consent_status || 'pending'}
+                      </span>
+                    </td>
+                  )}
                   <td className="sub">{r.remarks || '—'}</td>
                   {canWrite && (
                     <td className="row-actions">
@@ -209,6 +219,13 @@ export default function Immersion() {
                 {(isImmersion ? IMMERSION_STATUSES : JDVP_STATUSES).map((s) => <option key={s}>{s}</option>)}
               </select>
             </label>
+            {isImmersion && (
+              <label>Live tracking consent
+                <select className="input" value={form.consent_status} onChange={(e) => setForm({ ...form, consent_status: e.target.value })}>
+                  {['pending', 'granted', 'denied'].map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </label>
+            )}
           </div>
           {isImmersion && (
             <div className="form-row">

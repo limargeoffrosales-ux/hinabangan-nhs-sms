@@ -1500,6 +1500,12 @@ tr.row-active td { background: rgba(var(--rgb-accent), 0.08); }
 .imm-pin { width: 18px; height: 18px; margin: 4px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
 .imm-pin-wrap.leaflet-marker-icon { display: flex; align-items: flex-end; }
 .imm-pin-tag { position: absolute; top: -18px; left: 50%; transform: rotate(45deg) translateX(-50%); transform-origin: left bottom; background: #2563eb; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
+.imm-live-wrap.leaflet-marker-icon { align-items: center !important; }
+.imm-live-pin { position: relative; width: 20px; height: 20px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2.5px solid #fff; box-shadow: 0 1px 6px rgba(239, 68, 68, 0.55); }
+.imm-live-pin .imm-live-ring { position: absolute; inset: -7px; border-radius: 50% 50% 50% 0; transform: rotate(45deg); border: 2px solid rgba(239, 68, 68, 0.45); animation: imm-live-pulse 1.6s ease-out infinite; }
+@keyframes imm-live-pulse { 0% { opacity: 1; transform: rotate(45deg) scale(1); } 80% { opacity: 0; transform: rotate(45deg) scale(1.6); } 100% { opacity: 0; } }
+.imm-live-tag { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); background: #ef4444; color: #fff; font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; padding: 1px 5px; border-radius: 8px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.gm-legend-live { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.28); }
 .imm-cluster-wrap { background: transparent; border: none; }
 .imm-cluster { width: 36px; height: 36px; border-radius: 50%; background: rgba(37, 99, 235, 0.92); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; border: 3px solid rgba(255, 255, 255, 0.85); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); cursor: pointer; }
 .leaflet-container { background: #dde8f2; font: inherit; }

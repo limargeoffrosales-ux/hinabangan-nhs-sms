@@ -198,7 +198,7 @@ export default function App() {
       <Route path="/assessment" element={<Protected><Page><Assessment /></Page></Protected>} />
       <Route path="/immersion" element={<Protected><Page><Immersion /></Page></Protected>} />
       <Route path="/career-tvl" element={<Protected><Page><CareerTVL /></Page></Protected>} />
-      <Route path "/immersion-map" element={<Protected><Page><ImmersionMap /></Page></Protected>} />
+      <Route path="/immersion-map" element={<Protected><Page><ImmersionMap /></Page></Protected>} />
       <Route path="/discipline" element={<Protected><Page><Discipline /></Page></Protected>} />
       <Route path="/notifications" element={<Protected><AdminOnly><Page><Notifications /></Page></AdminOnly></Protected>} />
       <Route path="/portal/portfolio" element={<PortalProtected><Page><PortalPortfolio /></Page></PortalProtected>} />

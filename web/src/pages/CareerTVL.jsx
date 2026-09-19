@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, BadgeCheck, MapPin, LocateFixed, Users, CheckCircle2, XCircle } from 'lucide-react';
+import { Briefcase, BadgeCheck, MapPin, LocateFixed, Users, CheckCircle2, XCircle, Radio } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, ErrorBanner, Spinner } from '../components/ui';
@@ -45,6 +45,48 @@ export default function CareerTVL() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [R, setR] = useState(null);
+
+  // Live location tracking overlay (polled while enabled)
+  const [liveOn, setLiveOn] = useState(false);
+  const [liveRows, setLiveRows] = useState([]);
+  const [liveErr, setLiveErr] = useState(null);
+  const pollRef = useRef(null);
+
+  const stopLive = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    setLiveOn(false);
+    setLiveRows([]);
+  }, []);
+
+  const pollLive = useCallback(async () => {
+    if (!canMap) return;
+    try {
+      const qp = batch ? `?batch=${encodeURIComponent(batch)}` : '';
+      const r = await api(`/immersion/tracking/live${qp}`, { timeoutMs: 15000, retryNetwork: false });
+      setLiveRows(r?.data || []);
+      setLiveErr(null);
+    } catch (e) {
+      setLiveErr(e.message);
+    }
+  }, [canMap, batch]);
+
+  const toggleLive = useCallback(() => {
+    if (liveOn) { stopLive(); return; }
+    setLiveOn(true);
+    pollLive();
+    pollRef.current = setInterval(pollLive, 15000);
+  }, [liveOn, pollLive, stopLive]);
+
+  // Re-arm interval when pollLive changes (e.g. batch filter), keep a fresh call.
+  useEffect(() => {
+    if (!liveOn) return;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollLive();
+    pollRef.current = setInterval(pollLive, 15000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [pollLive, liveOn]);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   useEffect(() => { loadRecharts().then(setR); }, []);
 
@@ -258,10 +300,21 @@ export default function CareerTVL() {
               <option value="">All batches</option>
               {BATCHES.map((b) => <option key={b}>{b}</option>)}
             </select>
+            <button className={`btn btn-sm ${liveOn ? 'btn-danger' : ''}`} type="button" onClick={toggleLive} aria-label={liveOn ? 'Stop live tracking' : 'Show live tracking'}>
+              <Radio size={13} /> {liveOn ? (liveRows.length ? `Live · ${liveRows.length}` : 'Live…') : 'Live'}
+            </button>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/immersion')}>
               <LocateFixed size={13} /> Set locations
             </button>
           </div>
+
+          {liveErr && <ErrorBanner error={liveErr} />}
+          {liveOn && !liveErr && (
+            <div className="hint" style={{ margin: '10px 0' }}>
+              <Radio size={13} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Live location view is on — refreshing every 15s. Showing students who opted in and currently fit the selected batch. Pin colors pulse for check-ins in the last 10 minutes.
+            </div>
+          )}
 
           <div className="stat-row" style={{ margin: '12px 0' }}>
             <span className="stat-chip">Total learners <b>{rows.length}</b></span>
@@ -269,7 +322,7 @@ export default function CareerTVL() {
             {missing.length > 0 && <span className="stat-chip stat-chip-warn">Need coordinates <b>{missing.length}</b></span>}
           </div>
 
-          <PlacementMap rows={placed} missing={missing} isImmersion={isImmersion} />
+          <PlacementMap rows={placed} missing={missing} isImmersion={isImmersion} live={liveOn ? liveRows : []} />
         </>
       ) : (
         <div className="hint" style={{ marginTop: 10 }}>

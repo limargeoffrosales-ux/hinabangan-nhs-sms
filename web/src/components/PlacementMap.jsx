@@ -70,10 +70,22 @@ const OUTPUT_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &middot; ' +
   '<a href="https://www.esri.com">Esri</a>';
 
-export default function PlacementMap({ rows = [], missing = [], isImmersion = true }) {
+export const LIVE_COLOR = '#ef4444';
+
+function liveIcon(recent) {
+  return L.divIcon({
+    className: 'imm-pin-wrap imm-live-wrap',
+    html: `<div class="imm-live-pin" style="background:${LIVE_COLOR}"><span class="imm-live-ring"></span></div>${recent ? '<span class="imm-live-tag">LIVE</span>' : ''}`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 34],
+  });
+}
+
+export default function PlacementMap({ rows = [], missing = [], isImmersion = true, live = [] }) {
   const mapEl = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
+  const liveLayerRef = useRef(null);
   const tl = useRef({ street: null, satellite: null, labels: null });
   const schoolMarkerRef = useRef(null);
   const searchMarkerRef = useRef(null);
@@ -106,6 +118,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     L.control.scale({ position: 'bottomright' }).addTo(map);
 
     layerRef.current = L.layerGroup().addTo(map);
+    liveLayerRef.current = L.layerGroup().addTo(map);
     schoolMarkerRef.current = L.marker([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], {
       icon: pinIcon('#2563eb', 'SCH'),
     }).bindPopup(DOMPurify.sanitize(
@@ -118,7 +131,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     mapRef.current = map;
     return () => {
       map.remove();
-      mapRef.current = null; layerRef.current = null; schoolMarkerRef.current = null; searchMarkerRef.current = null;
+      mapRef.current = null; layerRef.current = null; liveLayerRef.current = null; schoolMarkerRef.current = null; searchMarkerRef.current = null;
       tl.current = { street: null, satellite: null, labels: null };
     };
   }, []);
@@ -214,6 +227,37 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   }, [rows, zoom, addPin, rowsKey]);
 
   useEffect(() => { rowsKeyRef.current = null; }, [isImmersion]);
+
+  // --- live tracking pins (overlay, never clustered) -----------------------
+  useEffect(() => {
+    const map = mapRef.current, layer = liveLayerRef.current;
+    if (!map || !layer) return;
+    layer.clearLayers();
+    if (!live.length) return;
+    const now = Date.now();
+    live.forEach((m) => {
+      const capturedMs = Date.parse(m.captured_at);
+      const recent = Number.isFinite(capturedMs) && (now - capturedMs) < 10 * 60 * 1000;
+      const popup = DOMPurify.sanitize(
+        `<div style="min-width:210px">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+            <strong>${esc(m.student_name)}</strong> <span class="badge badge-red">LIVE</span>
+          </div>
+          <div class="sub" style="font-family:monospace;font-size:11px">LRN ${esc(m.lrn)}</div>
+          <div style="margin-top:6px">${esc(m.partner_institution || m.program || '')}</div>
+          <div class="sub">${esc(m.batch)} · Last seen <b>${recent ? 'just now' : esc(new Date(capturedMs).toLocaleTimeString())}</b></div>
+          ${m.accuracy_m != null ? `<div class="sub">Accuracy ±${Math.round(m.accuracy_m)} m</div>` : ''}
+          <div class="sub">${cap(m.source)} report</div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gmapsLink(Number(m.lat).toFixed(6), Number(m.lng).toFixed(6))}">Open in Google Maps</a>
+          </div>
+        </div>`,
+      );
+      L.marker([Number(m.lat), Number(m.lng)], { icon: liveIcon(recent), zIndexOffset: 1000 })
+        .bindPopup(popup)
+        .addTo(layer);
+    });
+  }, [live]);
 
   // --- search (Nominatim) -----------------------------------------------------
   const doSearch = useCallback(async (term) => {
@@ -327,6 +371,12 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
             <span className="sub" style={{ fontSize: 11 }}>{cap(s)}</span>
           </div>
         ))}
+        {live.length > 0 && (
+          <div className="gm-legend-row">
+            <span className="gm-legend-dot gm-legend-live" style={{ background: LIVE_COLOR }} />
+            <span className="sub" style={{ fontSize: 11 }}>Live now ({live.length})</span>
+          </div>
+        )}
       </div>
 
       <div ref={mapEl} className="map-canvas" />
@@ -358,6 +408,27 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
                 <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                   <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gmapsLink(Number(r.lat), Number(r.lng))}>Map</a>
                   <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gdirsLink(Number(r.lat), Number(r.lng))}>Directions</a>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="section-title" style={{ marginTop: 16 }}><LocateFixed size={14} /> Live now</div>
+        {!live.length ? (
+          <span className="sub">No live location check-ins right now. Students share their location from the portal during immersion hours.</span>
+        ) : (
+          <ul className="map-side-list">
+            {live.map((m) => (
+              <li key={m.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <strong>{m.student_name}</strong>
+                  <span className="badge badge-red">LIVE</span>
+                </div>
+                <div className="sub">{m.batch}{m.partner_institution ? ` · ${m.partner_institution}` : ''}</div>
+                <div className="sub">{new Date(m.captured_at).toLocaleTimeString()}</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gmapsLink(Number(m.lat), Number(m.lng))}>Map</a>
                 </div>
               </li>
             ))}
