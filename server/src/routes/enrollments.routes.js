@@ -2,7 +2,10 @@ const express = require('express');
 const { q, qa, qi, qr, bool, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { ensureTeacherSeesSection, ensureTeacherSeesStudent } = require('../scope');
+const { ensureTeacherSeesSection, ensureTeacherSeesStudent, linkedStudentIds } = require('../scope');
+const { getCurrentSchoolYear } = require('../schoolYear');
+const { notifyEvent } = require('../notify');
+const { APP_URL } = require('../config');
 
 const router = express.Router();
 router.use(authenticate);
@@ -202,6 +205,108 @@ router.get('/student/:studentId', requireRole(...WRITE, 'teacher'), asyncH(async
   res.json({ data: rows });
 }));
 
+// ── Student self-service enrollment (portal) ────────────────────────────────
+// A portal student applies for the NEXT school year themselves; the record is
+// created as 'pending' and the registrar finalizes it through the normal flow.
+// Current-year transfers/re-enrollment stay registrar-only.
+
+async function portalStudentFor(req) {
+  const ids = await linkedStudentIds(req.user);
+  if (!ids || !ids.length) return null;
+  const raw = req.body && req.body.student_id != null ? req.body.student_id : (req.query && req.query.student_id);
+  if (raw != null && raw !== '') {
+    const n = Number(raw);
+    if (!ids.includes(n)) return null;
+    return { id: n };
+  }
+  return { id: ids[0] };
+}
+
+router.post('/self-apply', requireRole('student', 'parent'), asyncH(async (req, res) => {
+  const portal = await portalStudentFor(req);
+  if (!portal) return res.status(403).json({ error: "You do not have access to this learner's records" });
+  const studentId = portal.id;
+  const b = req.body || {};
+  if (!b.section_id || !b.school_year) {
+    return res.status(400).json({ error: 'section_id and school_year are required' });
+  }
+  const currentSy = await getCurrentSchoolYear();
+  if (String(b.school_year).trim() === String(currentSy).trim()) {
+    return res.status(400).json({ error: 'Self-service applications are for an upcoming school year. For the current school year, contact the registrar to enroll you.' });
+  }
+  const section = await q('SELECT id, school_year, grade_level, strand, capacity FROM sections WHERE id = ?', [b.section_id]);
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+  if (section.school_year && String(section.school_year) !== String(b.school_year)) {
+    return res.status(400).json({ error: `Section belongs to ${section.school_year}, not ${b.school_year}` });
+  }
+  const gradeLevel = section.grade_level || String(b.grade_level || '').trim();
+  if (!gradeLevel) return res.status(400).json({ error: 'grade_level is required' });
+  const term = normTerm(b.term);
+  if (isShs(gradeLevel) && !TERMS.includes(term)) {
+    return res.status(400).json({ error: 'term is required for SHS enrollment (first, second or third)' });
+  }
+  const student = await q('SELECT id, lrn, first_name, last_name FROM students WHERE id = ?', [studentId]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  const existing = await q(
+    `SELECT id, status FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
+    term ? [studentId, b.school_year, term] : [studentId, b.school_year]);
+  if (existing) {
+    return res.status(409).json({ error: 'An application for this school year already exists' });
+  }
+  const capacity = Number(section.capacity) || 40;
+  if (capacity > 0) {
+    const tally = await q(
+      'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?',
+      [section.id, b.school_year, 'enrolled']);
+    if (Number(tally.n) >= capacity) {
+      return res.status(409).json({ error: `Section is at full capacity (${capacity} learners)` });
+    }
+  }
+  const strand = b.strand || section.strand || null;
+  const isAral = bool(b.is_aral);
+  // Resolve auto-fill subjects OUTSIDE the transaction: on SQLite every query
+  // (including tx contents) runs on one serialized queue, so awaiting a module
+  // query inside the tx callback would deadlock.
+  const defaults = isShs(gradeLevel) ? await defaultSubjectIds(gradeLevel, strand, term) : [];
+  let id;
+  try {
+    await tx(async (conn) => {
+      id = await conn.runId(
+        'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [studentId, section.id, b.school_year, gradeLevel, strand, term, isAral, 'pending']);
+      // Do NOT touch students.grade_level/status — the learner's current-year
+      // record must keep reflecting reality until the registrar confirms.
+      if (defaults.length) await saveSubjects(conn, id, defaults);
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      return res.status(409).json({ error: 'An application for this school year already exists' });
+    }
+    throw e;
+  }
+  await audit(req, 'ENROLL_SELF_APPLY', 'enrollments', id, { student_id: studentId, section_id: section.id, school_year: b.school_year, term });
+  await notifyEvent('enrollment_applied', {
+    data: {
+      student: `${student.last_name}, ${student.first_name}`,
+      lrn: student.lrn,
+      school_year: b.school_year,
+      grade_level: gradeLevel,
+      strand: strand ? ` (${strand})` : '',
+    },
+  });
+  res.status(201).json({ id, status: 'pending' });
+}));
+
+router.get('/self-apply', requireRole('student', 'parent'), asyncH(async (req, res) => {
+  const portal = await portalStudentFor(req);
+  if (!portal) return res.status(403).json({ error: "You do not have access to this learner's records" });
+  const rows = await qa(
+    `SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id
+     WHERE e.student_id = ? ORDER BY e.school_year DESC, e.id DESC`,
+    [portal.id]);
+  res.json({ data: rows });
+}));
+
 // Auto-fill the SHS subject checklist from the curriculum. Returns the subject
 // ids that should be pre-ticked for a grade level + strand + term so the
 // registrar only has to adjust, not re-tick every core.
@@ -328,6 +433,16 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     throw e;
   }
   await audit(req, 'UPDATE_ENROLLMENT', 'enrollments', row.id, { status: b.status, term, is_aral: isAral });
+  if (row.status !== 'enrolled' && newStatus === 'enrolled') {
+    // Confirmation email/SMS to the learner's portal account holder.
+    const stu = await q('SELECT user_id FROM students WHERE id = ?', [row.student_id]);
+    if (stu && stu.user_id) {
+      await notifyEvent('enrollment_approved', {
+        user_id: stu.user_id,
+        data: { school_year: row.school_year, grade_level: row.grade_level, section: '' },
+      });
+    }
+  }
   res.json({ ok: true });
 }));
 

@@ -336,4 +336,90 @@ router.post('/reset-password',
     res.json({ ok: true });
   }));
 
+// --- Public self-registration (student portal accounts) ----------------------
+// A learner already in the school records creates their own login by proving
+// they know their LRN + birth date + last name. The link to their record stays
+// 'pending' until a registrar/school_admin approves it (Students module), then
+// the whole student portal unlocks.
+
+const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
+
+async function registrationEnabled() {
+  const row = await q('SELECT value FROM app_settings WHERE key = ?', ['registration_enabled']);
+  const v = String((row && row.value) || '1');
+  return v === '1' || /^true$/i.test(v);
+}
+
+router.post('/register',
+  userRateLimit({ windowMs: 15 * 60 * 1000, limit: 12, message: { error: 'Too many registration attempts. Try again later.' } }),
+  asyncH(async (req, res) => {
+    const b = req.body || {};
+    const lrn = String(b.lrn || '').trim();
+    const lastName = String(b.last_name || '').trim();
+    const birthDate = String(b.birth_date || '').trim().slice(0, 10);
+    const username = String(b.username || '').trim();
+    const password = String(b.password || '');
+    const firstName = String(b.first_name || '').trim();
+    const email = String(b.email || '').trim().slice(0, 200);
+    const phone = String(b.phone || '').trim().slice(0, 40);
+
+    if (!lrn || !lastName || !birthDate || !username || !password) {
+      return res.status(400).json({ error: 'lrn, last_name, birth_date, username and password are required' });
+    }
+    if (!/^\d{12}$/.test(lrn)) return res.status(400).json({ error: 'LRN must be exactly 12 digits' });
+    if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'Username must be 3-64 characters using letters, numbers, dots, dashes or underscores' });
+    if (String(password).length > 128) return res.status(400).json({ error: 'Password too long' });
+
+    if (!(await registrationEnabled())) {
+      return res.status(403).json({ error: 'Self-registration is currently closed. Contact the school registrar to create your portal account.' });
+    }
+
+    const policy = await getPasswordPolicy();
+    const policyErr = checkPasswordPolicy(policy, password);
+    if (policyErr) return res.status(400).json({ error: policyErr });
+
+    const student = await q('SELECT id, first_name, last_name, birth_date, user_id FROM students WHERE lrn = ?', [lrn]);
+    const verified = [];
+    let studentId = null;
+    if (student) {
+      verified.push('lrn');
+      if (String(student.last_name || '').trim().toLowerCase() === lastName.toLowerCase()) verified.push('last_name');
+      if (String(student.birth_date || '').slice(0, 10) === birthDate) verified.push('birth_date');
+      if (!firstName || String(student.first_name || '').trim().toLowerCase() === firstName.toLowerCase()) verified.push('first_name');
+      if (verified.includes('last_name') && verified.includes('birth_date')) studentId = student.id;
+    }
+    if (!studentId) {
+      await logSecurityIncident('REGISTER_MISMATCH', 'medium', req.ip, username, student ? student.id : null, { reason: 'verification-failed', student_matched: !!student });
+      return res.status(400).json({ error: "We couldn't verify your learner record. Check that the LRN, birth date and last name match the school's records." });
+    }
+
+    if (student.user_id) {
+      return res.status(409).json({ error: 'This learner already has a portal account.' });
+    }
+    const existingPending = await q("SELECT id FROM student_link_requests WHERE student_id = ? AND status = 'pending'", [studentId]);
+    if (existingPending) {
+      return res.status(409).json({ error: 'A registration for this learner is already waiting for approval.' });
+    }
+
+    const taken = await q('SELECT id FROM users WHERE username = ?', [username]);
+    if (taken) return res.status(409).json({ error: 'That username is already taken' });
+    if (email && /^\S+@\S+\.\S+$/.test(email)) {
+      const takenEmail = await q('SELECT id FROM users WHERE email = ?', [email]);
+      if (takenEmail) return res.status(409).json({ error: 'That email is already used by another account' });
+    }
+
+    const hash = await bcrypt.hash(password, 12);
+    const name = [firstName, lastName].filter(Boolean).join(' ');
+    const userId = await qi('INSERT INTO users (username, password_hash, name, role, email, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [username, hash, name, 'student', email || null, phone || null, 'active']);
+    await qi('INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)', [userId, userId, 'created', req.ip]);
+    await qi(
+      'INSERT INTO student_link_requests (student_id, user_id, status, verified, email, phone) VALUES (?, ?, ?, ?, ?, ?)',
+      [studentId, userId, 'pending', JSON.stringify(verified), email || null, phone || null]);
+
+await audit(req, 'STUDENT_REGISTER', 'auth', userId, { student_id: studentId, username });
+  await notifyEvent('account_registered', { user_id: userId, data: { username, url: APP_URL ? APP_URL.replace(/\/+$/, '') : '' } });
+  res.status(201).json({ ok: true, status: 'pending', message: 'Registration submitted. The registrar will approve the link to your learner record.' });
+  }));
+
 module.exports = router;

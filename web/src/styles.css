@@ -868,6 +868,11 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
   border: 1px solid rgba(var(--rgb-accent), 0.18); font-size: 12.5px; line-height: 1.5; color: var(--text-dim);
 }
 .login-request-box svg { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.login-request-link { color: var(--accent); font-weight: 600; }
+
+/* Register (self-service student portal account) */
+.register-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.register-grid .full { grid-column: 1 / -1; }
 .login-form-links button.login-forgot { background: none; border: none; padding: 0; font-family: inherit; font-size: 13px; color: var(--accent); cursor: pointer; }
 .login-form-links button.login-forgot:hover { text-decoration: underline; }
 .login-forgot-title { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 600; }

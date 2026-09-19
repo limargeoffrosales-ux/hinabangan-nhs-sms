@@ -61,6 +61,17 @@ export default function Portal() {
       </div>
       <ErrorBanner error={err} />
 
+      {me?.user?.role === 'student' && me?.link_request && me?.link_request.status === 'pending' && (
+        <div className="notice warn" role="status" style={{ marginBottom: 16 }}>
+          {t('portal.linkPending', 'Your portal account is awaiting registrar approval. You will be able to view grades and other records once it is approved.')}
+        </div>
+      )}
+      {me?.user?.role === 'student' && me?.link_request && me?.link_request.status === 'rejected' && (
+        <div className="notice warn" role="status" style={{ marginBottom: 16 }}>
+          {t('portal.linkRejected', 'Your portal account request was not approved{{note}} Contact the school registrar if you believe this is a mistake.', { note: me.link_request.notes ? ` (${me.link_request.notes})` : '' })}
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ margin: 0, alignItems: 'end' }}>
           <div><label>School year</label>

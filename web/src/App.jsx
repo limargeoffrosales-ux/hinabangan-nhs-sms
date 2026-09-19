@@ -38,6 +38,7 @@ class ErrorBoundary extends Component {
 }
 
 const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Consent = lazy(() => import('./pages/Consent'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -51,6 +52,7 @@ const GradingScales = lazy(() => import('./pages/GradingScales'));
 const Rankings = lazy(() => import('./pages/Rankings'));
 const Portal = lazy(() => import('./pages/Portal'));
 const PortalGrades = lazy(() => import('./pages/PortalGrades'));
+const PortalEnroll = lazy(() => import('./pages/PortalEnroll'));
 const PortalAttendance = lazy(() => import('./pages/PortalAttendance'));
 const PortalSchedule = lazy(() => import('./pages/PortalSchedule'));
 const PortalAssignments = lazy(() => import('./pages/PortalAssignments'));
@@ -169,6 +171,7 @@ export default function App() {
     <ErrorBoundary>
     <Routes>
       <Route path="/login" element={<Page><Login /></Page>} />
+      <Route path="/register" element={<Page><Register /></Page>} />
       <Route path="/reset-password" element={<Page><ResetPassword /></Page>} />
       <Route path="/" element={<Protected><Page><Dashboard /></Page></Protected>} />
       <Route path="/students" element={<Protected><Page><Students /></Page></Protected>} />
@@ -185,6 +188,7 @@ export default function App() {
       <Route path="/rankings" element={<Protected><Page><Rankings /></Page></Protected>} />
       <Route path="/portal" element={<PortalProtected><Page><Portal /></Page></PortalProtected>} />
       <Route path="/portal/grades" element={<PortalProtected><Page><PortalGrades /></Page></PortalProtected>} />
+      <Route path="/portal/enroll" element={<PortalProtected><Page><PortalEnroll /></Page></PortalProtected>} />
       <Route path="/portal/attendance" element={<PortalProtected><Page><PortalAttendance /></Page></PortalProtected>} />
       <Route path="/portal/schedule" element={<PortalProtected><Page><PortalSchedule /></Page></PortalProtected>} />
       <Route path="/portal/assignments" element={<PortalProtected><Page><PortalAssignments /></Page></PortalProtected>} />

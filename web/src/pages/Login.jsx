@@ -274,7 +274,12 @@ export default function Login() {
               {showRequest && (
                 <div className="login-request-box">
                   <Info size={14} />
-                  <span>{t('login.requestAccountDesc')}</span>
+                  <span>
+                    {t('login.requestAccountDesc')}
+                    {' '}<button type="button" className="login-request-btn login-request-link" onClick={() => navigate('/register')}>
+                      {t('login.createAccount')}
+                    </button>
+                  </span>
                 </div>
               )}
             </form>

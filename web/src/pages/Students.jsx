@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera, RefreshCw, AlertTriangle, UserPlus, CheckCircle2, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, fileUrl } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
@@ -46,6 +46,64 @@ export default function Students() {
   const [photoError, setPhotoError] = useState(null);
   const photoInputRef = useRef(null);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [reqOpen, setReqOpen] = useState(false);
+  const [requests, setRequests] = useState([]);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [reqBusy, setReqBusy] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectNote, setRejectNote] = useState('');
+
+  async function loadRequests() {
+    setReqLoading(true);
+    try {
+      const res = await api('/students/link-requests');
+      setRequests(res.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setReqLoading(false);
+    }
+  }
+
+  async function openRequests() {
+    setReqOpen(true);
+    setRejectTarget(null);
+    setRejectNote('');
+    await loadRequests();
+  }
+
+  async function approveRequest(id) {
+    setReqBusy(true);
+    try {
+      await api(`/students/link-requests/${id}/approve`, { method: 'POST', body: {} });
+      await loadRequests();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setReqBusy(false);
+    }
+  }
+
+  async function rejectRequest(id) {
+    setReqBusy(true);
+    try {
+      await api(`/students/link-requests/${id}/reject`, { method: 'POST', body: { note: rejectNote } });
+      setRejectTarget(null);
+      setRejectNote('');
+      await loadRequests();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setReqBusy(false);
+    }
+  }
+
+  const pendingRequests = requests.filter((r) => r.status === 'pending');
+
+  useEffect(() => {
+    if (canManageAccounts) loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadAccounts(id) {
     setAccountsLoading(true);
@@ -256,6 +314,14 @@ export default function Students() {
   return (
     <>
       <PageHead title={t('students.title')} sub={t('students.subtitle')}>
+        {canManageAccounts && (
+          <button className="btn" onClick={openRequests} title={t('students.linkRequestsTitle', 'Approve or reject self-service portal registrations')}>
+            <UserPlus size={15} /> {t('students.linkRequests')}
+            {pendingRequests.length > 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, marginLeft: 6, padding: '0 5px', borderRadius: 9, background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700 }}>{pendingRequests.length}</span>
+            )}
+          </button>
+        )}
         {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('students.newStudent')}</button>}
       </PageHead>
       <ErrorBanner error={error} />
@@ -526,6 +592,53 @@ export default function Students() {
         </Modal>
       )}
       {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
+
+      {reqOpen && (
+        <Modal
+          title={t('students.linkRequestsTitle', 'Portal Registration Requests')}
+          sub={t('students.linkRequestsSub', 'Students created these accounts on the public sign-up page. Approving links the account to the learner record and activates their portal access.')}
+          onClose={() => setReqOpen(false)}
+          wide
+        >
+          {reqLoading ? <Spinner /> : pendingRequests.length === 0 ? (
+            <Empty text={t('students.linkRequestsEmpty', 'No pending registration requests.')} />
+          ) : (
+            pendingRequests.map((r) => (
+              <div key={r.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div><strong>{r.last_name}, {r.first_name} {r.middle_name || ''}</strong> <span className="sub" style={{ fontFamily: 'monospace' }}> — {r.lrn}</span></div>
+                    <div className="sub" style={{ marginTop: 2 }}>
+                      {[r.grade_level, r.track_strand].filter(Boolean).join(' · ')}{r.grade_level ? ' · ' : ''}
+                      submitted {String(r.created_at).replace('T', ' ').slice(0, 16)} · username <strong>{r.username}</strong>
+                    </div>
+                    <div className="sub" style={{ marginTop: 2 }}>
+                      {[r.email, r.phone].filter(Boolean).join(' · ') || 'No contact info'}
+                      {' · verified: '}{(() => { try { const v = JSON.parse(r.verified || '[]'); return v.map((f) => f.replace(/_/g, ' ')).join(', ') || '—'; } catch { return '—'; } })()}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button className="btn btn-sm" disabled={reqBusy} onClick={() => approveRequest(r.id)}>
+                      <CheckCircle2 size={13} /> {t('students.approve')}
+                    </button>
+                    <button className="btn btn-sm" disabled={reqBusy} onClick={() => { setRejectTarget(r.id); setRejectNote(''); }}>
+                      <XCircle size={13} /> {t('students.reject')}
+                    </button>
+                  </div>
+                </div>
+                {rejectTarget === r.id && (
+                  <div className="form-row" style={{ marginTop: 10 }}>
+                    <div style={{ flex: 3 }}>
+                      <input placeholder={t('students.rejectNote', 'Optional note to the student (reason for rejection)')} value={rejectNote} onChange={(e) => setRejectNote(e.target.value.slice(0, 500))} />
+                    </div>
+                    <button className="btn btn-danger" disabled={reqBusy} onClick={() => rejectRequest(r.id)}>{t('students.confirmReject')}</button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </Modal>
+      )}
     </>
   );
 }

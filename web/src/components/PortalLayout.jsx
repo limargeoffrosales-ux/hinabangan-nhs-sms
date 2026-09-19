@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound, NotebookPen, Globe, Briefcase, BookOpen, BarChart3, Award } from 'lucide-react';
+import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound, NotebookPen, Globe, Briefcase, BookOpen, BarChart3, Award, ClipboardList } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Modal, initials } from './ui';
 import { api } from '../lib/api';
@@ -9,6 +9,7 @@ import { api } from '../lib/api';
 const PORTAL_NAV = [
   { to: '/portal', labelKey: 'portal.home', icon: Home, end: true },
   { to: '/portal/grades', labelKey: 'portal.grades', icon: GraduationCap },
+  { to: '/portal/enroll', labelKey: 'portal.enroll', icon: ClipboardList },
   { to: '/portal/attendance', labelKey: 'portal.attendance', icon: CalendarCheck },
   { to: '/portal/schedule', labelKey: 'portal.schedule', icon: CalendarRange },
   { to: '/portal/assignments', labelKey: 'portal.assignments', icon: NotebookPen },

@@ -4,11 +4,28 @@ const { q, qa } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 const { linkedStudentIds } = require('../scope');
+const { getCurrentSchoolYear } = require('../schoolYear');
 const { finalsForStudents, round2 } = require('../grading/analytics');
 
 const router = express.Router();
 router.use(authenticate);
 const PORTAL = ['student', 'parent'];
+
+// "2026-2027" -> "2027-2028"
+function nextSchoolYear(sy) {
+  const m = String(sy || '').match(/^(\d{4})-(\d{4})$/);
+  if (!m) return '2027-2028';
+  const start = Number(m[1]);
+  return `${start + 1}-${start + 2}`;
+}
+
+// Latest registration / link-request status for a role='student' caller.
+async function portalLinkRequest(userId) {
+  const row = await q(
+    `SELECT status, notes, created_at FROM student_link_requests
+     WHERE user_id = ? ORDER BY id DESC LIMIT 1`, [userId]);
+  return row || null;
+}
 
 // Resolve the target student for a portal request. Honors an explicit
 // student_id query param (multi-child parents) but only when it belongs to
@@ -113,6 +130,7 @@ router.get('/me', requireRole(...PORTAL), asyncH(async (req, res) => {
   res.json({
     user: { id: req.user.id, username: req.user.username, name: req.user.name, role: req.user.role },
     students,
+    link_request: req.user.role === 'student' ? await portalLinkRequest(req.user.id) : null,
   });
 }));
 
@@ -148,7 +166,36 @@ router.get('/overview', requireRole(...PORTAL), asyncH(async (req, res) => {
         attendance: attMap.get(idNum) || { counts: { present: 0, absent: 0, late: 0, excused: 0 }, total: 0, rate: null },
       };
     });
-  res.json({ school_year, announcements, students });
+  res.json({ school_year, announcements, students, link_request: req.user.role === 'student' ? await portalLinkRequest(req.user.id) : null });
+}));
+
+// GET /enrollment-options — sections open for SELF-SERVICE application to the
+// next (upcoming) school year, plus the caller's past applications.
+router.get('/enrollment-options', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = await resolvePortalStudent(ids, req, res);
+  if (!studentId) return res.json({ current_school_year: null, next_school_year: null, sections: [] });
+  const currentSy = await getCurrentSchoolYear();
+  const enrollments = await qa(
+    `SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id
+     WHERE e.student_id = ? ORDER BY e.school_year DESC`,
+    [studentId]);
+  const sections = await qa(
+    `SELECT sec.id, sec.name, sec.grade_level, sec.strand, sec.school_year, sec.capacity,
+            (SELECT COUNT(*) FROM enrollments e
+              WHERE e.section_id = sec.id AND e.school_year = sec.school_year AND e.status = 'enrolled') AS enrolled_count,
+            (SELECT COUNT(*) FROM enrollments e
+              WHERE e.section_id = sec.id AND e.school_year = sec.school_year AND e.status = 'pending') AS pending_count
+     FROM sections sec
+     WHERE sec.school_year = ? AND sec.status = 'active'
+     ORDER BY sec.grade_level, sec.name`,
+    [nextSchoolYear(currentSy)]);
+  res.json({
+    current_school_year: currentSy,
+    next_school_year: nextSchoolYear(currentSy),
+    sections: sections.map((s) => ({ ...s, capacity: Number(s.capacity || 0), enrolled_count: Number(s.enrolled_count || 0), pending_count: Number(s.pending_count || 0) })),
+    enrollments,
+  });
 }));
 
 router.get('/my-immersion', requireRole(...PORTAL), asyncH(async (req, res) => {

@@ -5,11 +5,14 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page, logAccess, maskPII } = require('../utils');
 const { teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
 const { getCurrentSchoolYear } = require('../schoolYear');
+const { notifyEvent } = require('../notify');
+const { APP_URL } = require('../config');
 
 const router = express.Router();
 router.use(authenticate);
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const ACCOUNT_ROLES = ['super_admin', 'school_admin'];
 
 async function normalizeLrn(raw, excludeId) {
   if (!raw || !String(raw).trim()) return null;
@@ -113,6 +116,66 @@ function computeAge(birthdate) {
   return age;
 }
 
+// --- Self-registration approval --------------------------------------------------
+// Students create their own portal logins (POST /auth/register); the learner
+// link only ACTIVATES once a registrar/school_admin approves the request here.
+// Registered BEFORE GET /:id so the literal "/link-requests" path wins.
+
+router.get('/link-requests', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+  const status = String(req.query.status || '').trim();
+  const params = [];
+  let where = '';
+  if (status === 'pending' || status === 'approved' || status === 'rejected') {
+    where = 'WHERE r.status = ?';
+    params.push(status);
+  }
+  const rows = await qa(
+    `SELECT r.id, r.student_id, r.user_id, r.status, r.verified, r.email, r.phone, r.notes, r.created_at,
+            st.lrn, st.first_name, st.middle_name, st.last_name, st.sex, st.birth_date, st.grade_level, st.track_strand,
+            u.username, u.name AS user_name
+     FROM student_link_requests r
+     JOIN students st ON st.id = r.student_id
+     JOIN users u ON u.id = r.user_id
+     ${where}
+     ORDER BY (r.status = 'pending') DESC, r.created_at DESC
+     LIMIT 200`,
+    params);
+  res.json({ data: rows });
+}));
+
+router.post('/link-requests/:id/approve', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+  const reqRow = await q('SELECT * FROM student_link_requests WHERE id = ?', [req.params.id]);
+  if (!reqRow) return res.status(404).json({ error: 'Request not found' });
+  if (reqRow.status !== 'pending') return res.status(409).json({ error: 'This request was already decided' });
+  const student = await q('SELECT id, lrn, user_id FROM students WHERE id = ?', [reqRow.student_id]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  if (student.user_id) return res.status(409).json({ error: 'This learner is already linked to a portal account' });
+  const u = await q('SELECT id, role, status FROM users WHERE id = ?', [reqRow.user_id]);
+  if (!u) return res.status(404).json({ error: 'The applicant account no longer exists' });
+  if (u.role !== 'student') return res.status(400).json({ error: 'The applicant is not a student-role account' });
+  if (u.status !== 'active') return res.status(400).json({ error: 'The applicant account is not active' });
+
+  await db.tx(async (conn) => {
+    await conn.qr('UPDATE students SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [reqRow.user_id, student.id]);
+    await conn.qr("UPDATE student_link_requests SET status = 'approved', decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?", [req.user.id, reqRow.id]);
+  });
+  await audit(req, 'STUDENT_LINK_APPROVE', 'students', student.id, { request_id: reqRow.id, user_id: reqRow.user_id });
+  await notifyEvent('link_approved', { user_id: reqRow.user_id, data: { url: APP_URL ? APP_URL.replace(/\/+$/, '') : '' } });
+  res.json({ ok: true });
+}));
+
+router.post('/link-requests/:id/reject', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+  const reqRow = await q('SELECT * FROM student_link_requests WHERE id = ?', [req.params.id]);
+  if (!reqRow) return res.status(404).json({ error: 'Request not found' });
+  if (reqRow.status !== 'pending') return res.status(409).json({ error: 'This request was already decided' });
+  const note = String((req.body && req.body.note) || '').trim().slice(0, 500) || null;
+  await qr("UPDATE student_link_requests SET status = 'rejected', notes = ?, decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?",
+    [note, req.user.id, reqRow.id]);
+  await audit(req, 'STUDENT_LINK_REJECT', 'students', reqRow.student_id, { request_id: reqRow.id, user_id: reqRow.user_id, note });
+  await notifyEvent('link_rejected', { user_id: reqRow.user_id, data: { url: APP_URL ? APP_URL.replace(/\/+$/, '') : '', note: note ? ` (${note})` : '' } });
+  res.json({ ok: true });
+}));
+
 router.get('/:id', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
   const row = await q('SELECT * FROM students WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
@@ -189,8 +252,6 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 }));
 
 // --- Portal account linking -------------------------------------------------
-
-const ACCOUNT_ROLES = ['super_admin', 'school_admin'];
 
 router.get('/:id/accounts', requireRole(...WRITE), asyncH(async (req, res) => {
   const row = await q('SELECT id, lrn, user_id FROM students WHERE id = ?', [req.params.id]);

@@ -84,6 +84,51 @@ const DEFAULT_TEMPLATES = {
       body: 'Your reset code is {{code}}. Valid for 15 minutes. — {{school}}',
     },
   },
+  account_registered: {
+    email: {
+      subject: 'Welcome to {{school}} — account created',
+      body: 'Hi {{name}},\n\nA portal account was created for username {{username}}. Your request has been submitted for review by the registrar. Once approved, you can sign in to view grades, attendance, schedules and more.\n\nSign in here: {{url}}\n\n— {{school}}',
+    },
+    sms: {
+      body: 'Account for {{username}} created. The registrar will review your portal request. — {{school}}',
+    },
+  },
+  link_approved: {
+    email: {
+      subject: 'Your portal account is now linked',
+      body: 'Hi {{name}},\n\nYour student portal account has been approved and linked to your learner record. You can now sign in to view grades, attendance, schedules and assignments.\n\nSign in: {{url}}\n\n— {{school}}',
+    },
+    sms: {
+      body: 'Portal account approved — you can now view grades and schedules in the school portal. — {{school}}',
+    },
+  },
+  link_rejected: {
+    email: {
+      subject: 'Portal account request update',
+      body: 'Hi {{name}},\n\nYour portal account request was not approved{{note}}.\n\nPlease contact the school registrar if you believe this is a mistake.\n— {{school}}',
+    },
+    sms: {
+      body: 'Your portal account request was not approved. Contact the school registrar for help. — {{school}}',
+    },
+  },
+  enrollment_applied: {
+    email: {
+      subject: 'New enrollment application: {{student}} ({{school_year}})',
+      body: 'Hi {{name}},\n\n{{student}} (LRN {{lrn}}) applied for enrollment for school year {{school_year}} ({{grade_level}}{{strand}}).\nPlease review the application in the Enrollment module.\n— {{school}}',
+    },
+    sms: {
+      body: 'Enrollment application: {{student}} ({{lrn}}) for {{school_year}}. Review in Enrollment. — {{school}}',
+    },
+  },
+  enrollment_approved: {
+    email: {
+      subject: 'Enrollment confirmed — {{school_year}}',
+      body: 'Hi {{name}},\n\nYour enrollment for school year {{school_year}} has been confirmed{{section}}.\n\n— {{school}}',
+    },
+    sms: {
+      body: 'Enrollment for {{school_year}} confirmed{{section}}. — {{school}}',
+    },
+  },
 };
 
 function render(template, data) {
@@ -360,9 +405,43 @@ async function resolveRecipientsFor(event, ctx) {
     case 'password_reset':
       if (!ctx.user_id) return { emails: [], phones: [] };
       return resolveUserRecipients(ctx.user_id);
+    case 'account_registered':
+    case 'link_approved':
+    case 'link_rejected':
+    case 'enrollment_approved':
+      if (!ctx.user_id) return { emails: [], phones: [] };
+      return resolveUserRecipients(ctx.user_id);
+    case 'enrollment_applied':
+      return resolveRoleRecipients(['super_admin', 'school_admin', 'registrar']);
     default:
       return { emails: [], phones: [] };
   }
+}
+
+// Deliver to every active holder of a given set of roles (registrars etc.).
+async function resolveRoleRecipients(roles) {
+  const out = { emails: [], phones: [] };
+  if (!roles || !roles.length) return out;
+  const placeholders = roles.map(() => '?').join(',');
+  const rows = await qa(
+    `SELECT id, email, phone, name, role FROM users
+     WHERE status = 'active' AND role IN (${placeholders})
+       AND ((email IS NOT NULL AND email <> '') OR (phone IS NOT NULL AND phone <> ''))`,
+    roles);
+  const seenE = new Set();
+  const seenP = new Set();
+  for (const r of rows) {
+    const label = r.name || r.role;
+    if (r.email && isEmail(r.email)) {
+      const a = r.email.trim().toLowerCase();
+      if (!seenE.has(a)) { seenE.add(a); out.emails.push({ address: r.email.trim(), user_id: r.id, label }); }
+    }
+    if (r.phone && !isEmail(r.phone)) {
+      const p = r.phone.trim();
+      if (!seenP.has(p)) { seenP.add(p); out.phones.push({ address: p, user_id: r.id, label }); }
+    }
+  }
+  return out;
 }
 
 // Password reset goes to the account holder's own contact details.
