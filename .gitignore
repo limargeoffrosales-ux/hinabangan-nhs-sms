@@ -17,3 +17,5 @@ apk-output/
 *-Mary_Anthonette.*
 server/data/
 server/.env
+
+search_recently.py

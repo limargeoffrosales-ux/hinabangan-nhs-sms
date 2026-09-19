@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
-const { linkedStudentIds, ensurePortalSeesStudent } = require('../scope');
+const { linkedStudentIds, ensurePortalSeesStudent, teacherScope, studentInScope } = require('../scope');
 
 const { geocodeAddress } = require('../geocode');
 
@@ -112,10 +112,18 @@ immersion.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
 }));
 
 // Map tracing data — all placements; the client splits placed vs missing.
-immersion.get('/map', requireRole(...WRITE), asyncH(async (req, res) => {
+// Teachers see only students in their advisory/assigned sections.
+immersion.get('/map', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const where = [];
   const params = [];
   if (req.query.batch) { where.push('wi.batch = ?'); params.push(req.query.batch); }
+  if (req.user.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    if (!scope || !scope.sections.length) return res.json({ data: [] });
+    const sc = studentInScope(scope, 'st');
+    where.push(sc.sql);
+    params.push(...sc.params);
+  }
   const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await qa(
     `SELECT wi.id, wi.student_id, wi.batch, wi.program, wi.partner_institution, wi.status,

@@ -16,7 +16,6 @@ const BASE = {
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       className: 'tile-street',
-      // Prevent tiles from being requested too quickly
       minZoom: 0,
       maxZoom: 19,
     }
@@ -66,6 +65,15 @@ function pinIcon(color, label) {
   });
 }
 
+function companyIcon(count) {
+  return L.divIcon({
+    className: 'imm-pin-wrap',
+    html: `<div class="imm-pin" style="background:#7c3aed;min-width:30px;text-align:center"><span class="imm-pin-tag">${count} student${count > 1 ? 's' : ''}</span></div>`,
+    iconSize: [36, 26],
+    iconAnchor: [18, 26],
+  });
+}
+
 function clusterIcon(count) {
   return L.divIcon({
     className: 'imm-cluster-wrap',
@@ -87,25 +95,32 @@ const OUTPUT_ATTR =
   '<a href="https://www.esri.com">Esri</a>';
 
 export const LIVE_COLOR = '#ef4444';
+const LIVE_INSIDE_COLOR = '#22c55e';
+const GEOFENCE_RADIUS_M = 300;
+const GEOFENCE_COLOR = '#3b82f6';
 
-function liveIcon(recent) {
+function liveIcon(recent, inside) {
+  const color = inside == null ? LIVE_COLOR : inside ? LIVE_INSIDE_COLOR : LIVE_COLOR;
   return L.divIcon({
     className: 'imm-pin-wrap imm-live-wrap',
-    html: `<div class="imm-live-pin" style="background:${LIVE_COLOR}"><span class="imm-live-ring"></span></div>${recent ? '<span class="imm-live-tag">LIVE</span>' : ''}`,
+    html: `<div class="imm-live-pin" style="background:${color}"><span class="imm-live-ring"></span></div>${recent ? '<span class="imm-live-tag">LIVE</span>' : ''}`,
     iconSize: [34, 34],
     iconAnchor: [17, 34],
   });
 }
 
-export default function PlacementMap({ rows = [], missing = [], isImmersion = true, live = [], total = rows.length }) {
+export default function PlacementMap({ rows = [], missing = [], isImmersion = true, live = [], total = rows.length, companyMode = false }) {
   const mapEl = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const liveLayerRef = useRef(null);
+  const geofenceLayerRef = useRef(null);
+  const companyLayerRef = useRef(null);
   const tl = useRef({ street: null, satellite: null, labels: null, streetFB: null });
   const schoolMarkerRef = useRef(null);
   const searchMarkerRef = useRef(null);
   const rowsKeyRef = useRef(null);
+  const markerMapRef = useRef(new Map());
 
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
@@ -118,6 +133,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const [fallbackNote, setFallbackNote] = useState(false);
   const [searchMsg, setSearchMsg] = useState(null);
   const [geoNote, setGeoNote] = useState(null);
+  const [sidebarSearch, setSidebarSearch] = useState('');
 
   const labelRef = useRef('immersion');
   labelRef.current = isImmersion ? 'immersion' : 'JDVP';
@@ -144,6 +160,8 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
 
     layerRef.current = L.layerGroup().addTo(map);
     liveLayerRef.current = L.layerGroup().addTo(map);
+    geofenceLayerRef.current = L.layerGroup().addTo(map);
+    companyLayerRef.current = L.layerGroup().addTo(map);
     schoolMarkerRef.current = L.marker([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], {
       icon: pinIcon('#2563eb', 'SCH'),
     }).bindPopup(DOMPurify.sanitize(
@@ -156,8 +174,11 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     mapRef.current = map;
     return () => {
       map.remove();
-      mapRef.current = null; layerRef.current = null; liveLayerRef.current = null; schoolMarkerRef.current = null; searchMarkerRef.current = null;
+      mapRef.current = null; layerRef.current = null; liveLayerRef.current = null;
+      geofenceLayerRef.current = null; companyLayerRef.current = null;
+      schoolMarkerRef.current = null; searchMarkerRef.current = null;
       tl.current = { street: null, satellite: null, labels: null, streetFB: null };
+      markerMapRef.current.clear();
     };
   }, []);
 
@@ -194,19 +215,21 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         </div>
         <div class="sub" style="font-family:monospace;font-size:11px">LRN ${esc(m.lrn)}</div>
         <div style="margin-top:6px">${isImmersion ? esc(m.partner_institution || m.program) : esc(m.program || m.batch)}</div>
-        ${m.address ? `<div class="sub">📍 ${esc(m.address)}</div>` : ''}
+        ${m.address ? `<div class="sub">\u{1F4CD} ${esc(m.address)}</div>` : ''}
         <div class="sub">${esc(m.batch)} · <span class="badge ${BADGE_FOR[m.status] || 'badge-gray'}">${esc(m.status)}</span></div>
-        ${m.start_date ? `<div class="sub">${esc(m.start_date)}${m.end_date ? ' → ' + esc(m.end_date) : ''}</div>` : ''}
-        <div class="sub" style="margin-top:6px">🏫 ${fmtKm(km)} from school</div>
+        ${m.start_date ? `<div class="sub">${esc(m.start_date)}${m.end_date ? ' \u2192 ' + esc(m.end_date) : ''}</div>` : ''}
+        <div class="sub" style="margin-top:6px">\u{1F3EB} ${fmtKm(km)} from school</div>
         <div style="display:flex;gap:8px;margin-top:8px">
           <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gmapsLink(Number(m.lat).toFixed(6), Number(m.lng).toFixed(6))}">Open in Google Maps</a>
           <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gdirsLink(Number(m.lat).toFixed(6), Number(m.lng).toFixed(6))}">Directions from school</a>
         </div>
       </div>`,
     );
-    L.marker([Number(m.lat), Number(m.lng)], { icon: pinIcon(color) })
+    const marker = L.marker([Number(m.lat), Number(m.lng)], { icon: pinIcon(color) })
       .bindPopup(popup)
       .addTo(layerRef.current);
+    markerMapRef.current.set(m.student_id, marker);
+    return marker;
   }, [isImmersion]);
 
   const rowsKey = useCallback((list) => list.map((x) => x.id).join(','), []);
@@ -215,78 +238,158 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     const map = mapRef.current, layer = layerRef.current;
     if (!map || !layer) return;
     layer.clearLayers();
+    companyLayerRef.current.clearLayers();
+    markerMapRef.current.clear();
     if (!rows.length) return;
 
-    const doCluster = zoom < 12 && rows.length > 40;
-    setClusterHint(doCluster);
-
-    if (doCluster) {
-      const metersPerPx = 156543.03392 * Math.cos(SCHOOL_COORDS.lat * Math.PI / 180) / Math.pow(2, zoom);
-      const cell = (70 * metersPerPx) / 111320;
+    if (companyMode) {
       const groups = {};
-      rows.forEach((m) => {
-        const k = `${Math.round(Number(m.lat) / cell)}|${Math.round(Number(m.lng) / cell)}`;
-        (groups[k] = groups[k] || []).push(m);
+      rows.forEach((r) => {
+        const key = r.partner_institution || 'Unknown';
+        if (!groups[key]) groups[key] = { name: key, students: [], lat: null, lng: null };
+        groups[key].students.push(r);
+        if (groups[key].lat == null && r.lat != null) { groups[key].lat = Number(r.lat); groups[key].lng = Number(r.lng); }
       });
       Object.values(groups).forEach((g) => {
-        if (g.length < 2) { g.forEach((m) => addPin(m)); return; }
-        const lat = g.reduce((a, m) => a + Number(m.lat), 0) / g.length;
-        const lng = g.reduce((a, m) => a + Number(m.lng), 0) / g.length;
-        L.marker([lat, lng], { icon: clusterIcon(g.length) })
-          .bindPopup(DOMPurify.sanitize(
-            `<div style="min-width:180px"><strong>${g.length} students</strong><div class="sub">Zoom in to see individual pins — approximate locations for ${labelRef.current} placements in this area.</div></div>`,
-          ))
-          .on('click', () => map.flyTo([lat, lng], Math.min(zoom + 2, 17)))
-          .addTo(layer);
+        if (g.lat == null) return;
+        const popup = DOMPurify.sanitize(
+          `<div style="min-width:250px">
+            <strong>${esc(g.name)}</strong>
+            <div class="sub">${g.students.length} student${g.students.length > 1 ? 's' : ''} placed here</div>
+            <ul style="margin:8px 0;padding-left:16px;font-size:12px;list-style:disc">
+              ${g.students.map((s) => `<li>${esc(s.student_name)} <span class="sub">(${esc(s.grade_level || '')}) \u00b7 ${esc(s.batch)}</span></li>`).join('')}
+            </ul>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gmapsLink(g.lat, g.lng)}">Open in Google Maps</a>
+            </div>
+          </div>`,
+        );
+        L.marker([g.lat, g.lng], { icon: companyIcon(g.students.length) })
+          .bindPopup(popup)
+          .addTo(companyLayerRef.current);
+        g.students.forEach((s) => { markerMapRef.current.set(s.student_id, null); });
       });
+      const coords = Object.values(groups).filter((g) => g.lat != null).map((g) => [g.lat, g.lng]);
+      if (coords.length) map.fitBounds(L.latLngBounds(coords).pad(0.1));
     } else {
-      rows.forEach((m) => addPin(m));
-    }
+      const doCluster = zoom < 12 && rows.length > 40;
+      setClusterHint(doCluster);
 
-    const key = rowsKey(rows);
-    if (rowsKeyRef.current !== key) {
-      rowsKeyRef.current = key;
-      const ok = rows.filter((r) => {
-        if (r.lat == null || r.lng == null) return false;
-        if (String(r.lat).trim() === '' || String(r.lng).trim() === '') return false;
-        return Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng));
-      });
-      if (ok.length) map.fitBounds(L.latLngBounds(ok.map((r) => [Number(r.lat), Number(r.lng)])).pad(0.06));
+      if (doCluster) {
+        const metersPerPx = 156543.03392 * Math.cos(SCHOOL_COORDS.lat * Math.PI / 180) / Math.pow(2, zoom);
+        const cell = (70 * metersPerPx) / 111320;
+        const groups = {};
+        rows.forEach((m) => {
+          const k = `${Math.round(Number(m.lat) / cell)}|${Math.round(Number(m.lng) / cell)}`;
+          (groups[k] = groups[k] || []).push(m);
+        });
+        Object.values(groups).forEach((g) => {
+          if (g.length < 2) { g.forEach((m) => addPin(m)); return; }
+          const lat = g.reduce((a, m) => a + Number(m.lat), 0) / g.length;
+          const lng = g.reduce((a, m) => a + Number(m.lng), 0) / g.length;
+          L.marker([lat, lng], { icon: clusterIcon(g.length) })
+            .bindPopup(DOMPurify.sanitize(
+              `<div style="min-width:180px"><strong>${g.length} students</strong><div class="sub">Zoom in to see individual pins \u2014 approximate locations for ${labelRef.current} placements in this area.</div></div>`,
+            ))
+            .on('click', () => map.flyTo([lat, lng], Math.min(zoom + 2, 17)))
+            .addTo(layer);
+        });
+      } else {
+        rows.forEach((m) => addPin(m));
+      }
+
+      const key = rowsKey(rows);
+      if (rowsKeyRef.current !== key) {
+        rowsKeyRef.current = key;
+        const ok = rows.filter((r) => {
+          if (r.lat == null || r.lng == null) return false;
+          if (String(r.lat).trim() === '' || String(r.lng).trim() === '') return false;
+          return Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng));
+        });
+        if (ok.length) map.fitBounds(L.latLngBounds(ok.map((r) => [Number(r.lat), Number(r.lng)])).pad(0.06));
+      }
     }
-  }, [rows, zoom, addPin, rowsKey]);
+  }, [rows, zoom, addPin, rowsKey, companyMode]);
 
   useEffect(() => { rowsKeyRef.current = null; }, [isImmersion]);
 
-  // --- live tracking pins (overlay, never clustered) -----------------------
+  // --- geofence circles (300m around each company) --------------------------
+  useEffect(() => {
+    const layer = geofenceLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    const groups = {};
+    rows.forEach((r) => {
+      if (r.lat == null || r.lng == null) return;
+      const key = r.partner_institution || 'Unknown';
+      if (!groups[key]) groups[key] = { lat: Number(r.lat), lng: Number(r.lng) };
+    });
+    Object.values(groups).forEach((g) => {
+      L.circle([g.lat, g.lng], {
+        radius: GEOFENCE_RADIUS_M,
+        color: GEOFENCE_COLOR,
+        weight: 1.5,
+        fillColor: GEOFENCE_COLOR,
+        fillOpacity: 0.07,
+        dashArray: '6 4',
+        interactive: false,
+      }).addTo(layer);
+    });
+  }, [rows]);
+
+  // --- live tracking pins with geofence coloring ----------------------------
   useEffect(() => {
     const map = mapRef.current, layer = liveLayerRef.current;
     if (!map || !layer) return;
     layer.clearLayers();
     if (!live.length) return;
+
+    const companyMap = {};
+    rows.forEach((r) => {
+      if (r.partner_institution && r.lat != null) {
+        companyMap[r.partner_institution] = { lat: Number(r.lat), lng: Number(r.lng) };
+      }
+    });
+
     const now = Date.now();
     live.forEach((m) => {
       const capturedMs = Date.parse(m.captured_at);
       const recent = Number.isFinite(capturedMs) && (now - capturedMs) < 10 * 60 * 1000;
+
+      let inside = null;
+      const company = m.partner_institution ? companyMap[m.partner_institution] : null;
+      if (company) {
+        const d = haversine(company.lat, company.lng, Number(m.lat), Number(m.lng));
+        inside = d * 1000 <= GEOFENCE_RADIUS_M;
+      }
+
+      const badgeHtml = inside == null
+        ? '<span class="badge badge-red">LIVE</span>'
+        : inside
+          ? '<span class="badge badge-green">LIVE</span>'
+          : '<span class="badge badge-red">LIVE</span>';
+
       const popup = DOMPurify.sanitize(
         `<div style="min-width:210px">
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-            <strong>${esc(m.student_name)}</strong> <span class="badge badge-red">LIVE</span>
+            <strong>${esc(m.student_name)}</strong> ${badgeHtml}
           </div>
           <div class="sub" style="font-family:monospace;font-size:11px">LRN ${esc(m.lrn)}</div>
           <div style="margin-top:6px">${esc(m.partner_institution || m.program || '')}</div>
-          <div class="sub">${esc(m.batch)} · Last seen <b>${recent ? 'just now' : esc(new Date(capturedMs).toLocaleTimeString())}</b></div>
-          ${m.accuracy_m != null ? `<div class="sub">Accuracy ±${Math.round(m.accuracy_m)} m</div>` : ''}
+          <div class="sub">${esc(m.batch)} \u00b7 Last seen <b>${recent ? 'just now' : esc(new Date(capturedMs).toLocaleTimeString())}</b></div>
+          ${m.accuracy_m != null ? `<div class="sub">Accuracy \u00b1${Math.round(m.accuracy_m)} m</div>` : ''}
+          ${inside != null ? `<div class="sub" style="color:${inside ? LIVE_INSIDE_COLOR : LIVE_COLOR}">${inside ? '\u2713 Inside' : '\u2717 Outside'} geofence (${GEOFENCE_RADIUS_M} m)</div>` : ''}
           <div class="sub">${cap(m.source)} report</div>
           <div style="display:flex;gap:8px;margin-top:8px">
             <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gmapsLink(Number(m.lat).toFixed(6), Number(m.lng).toFixed(6))}">Open in Google Maps</a>
           </div>
         </div>`,
       );
-      L.marker([Number(m.lat), Number(m.lng)], { icon: liveIcon(recent), zIndexOffset: 1000 })
+      L.marker([Number(m.lat), Number(m.lng)], { icon: liveIcon(recent, inside), zIndexOffset: 1000 })
         .bindPopup(popup)
         .addTo(layer);
     });
-  }, [live]);
+  }, [live, rows]);
 
   // --- search (Nominatim) -----------------------------------------------------
   const doSearch = useCallback(async (term) => {
@@ -332,6 +435,17 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     setResults([]); setOpen(false);
   }, []);
 
+  const panToStudent = useCallback((studentId) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const marker = markerMapRef.current.get(studentId);
+    if (marker) {
+      const ll = marker.getLatLng();
+      map.flyTo([ll.lat, ll.lng], Math.max(map.getZoom(), 14));
+      marker.openPopup();
+    }
+  }, []);
+
   const locate = useCallback(() => {
     if (!navigator.geolocation) { setGeoNote('no-gps'); return; }
     navigator.geolocation.getCurrentPosition(
@@ -347,6 +461,37 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const nearest = useMemo(() => dist.slice(0, 3), [dist]);
   const farthest = dist[dist.length - 1];
 
+  const liveInside = useMemo(() => {
+    if (!live.length) return { inside: 0, outside: 0 };
+    const companyMap = {};
+    rows.forEach((r) => {
+      if (r.partner_institution && r.lat != null) {
+        companyMap[r.partner_institution] = { lat: Number(r.lat), lng: Number(r.lng) };
+      }
+    });
+    let inside = 0, outside = 0;
+    live.forEach((m) => {
+      const c = m.partner_institution ? companyMap[m.partner_institution] : null;
+      if (c) {
+        const d = haversine(c.lat, c.lng, Number(m.lat), Number(m.lng));
+        if (d * 1000 <= GEOFENCE_RADIUS_M) inside++; else outside++;
+      }
+    });
+    return { inside, outside };
+  }, [live, rows]);
+
+  const filteredStudents = useMemo(() => {
+    if (!sidebarSearch.trim()) return dist;
+    const term = sidebarSearch.toLowerCase();
+    return dist.filter(({ r }) =>
+      (r.student_name || '').toLowerCase().includes(term) ||
+      (r.batch || '').toLowerCase().includes(term) ||
+      (r.partner_institution || '').toLowerCase().includes(term) ||
+      (r.grade_level || '').toLowerCase().includes(term) ||
+      (r.lrn || '').toLowerCase().includes(term)
+    );
+  }, [dist, sidebarSearch]);
+
   return (
     <div className="map-wrap">
       <div className="map-stage">
@@ -355,7 +500,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         <Search size={15} className="gm-search-icon" />
         <input
           className="gm-search-input"
-          placeholder="Search place or address…"
+          placeholder="Search place or address\u2026"
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
@@ -374,8 +519,8 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         {open && results.length === 0 && !searching && q.trim() && (
           <div className="gm-search-none sub">
             {searchMsg === 'blocked'
-              ? 'Search is unreachable — likely blocked by this network or an ad-blocker, or you are offline. Use "Locate me" or set pins from the Immersion page.'
-              : `No results for “${q}”. Try a town, barangay or landmark (e.g., Catbalogan).`}
+              ? 'Search is unreachable \u2014 likely blocked by this network or an ad-blocker, or you are offline. Use "Locate me" or set pins from the Immersion page.'
+              : `No results for \u201c${q}\u201d. Try a town, barangay or landmark (e.g., Catbalogan).`}
           </div>
         )}
       </div>
@@ -415,17 +560,23 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
           </div>
         ))}
         {live.length > 0 && (
-          <div className="gm-legend-row">
-            <span className="gm-legend-dot gm-legend-live" style={{ background: LIVE_COLOR }} />
-            <span className="sub" style={{ fontSize: 11 }}>Live now ({live.length})</span>
-          </div>
+          <>
+            <div className="gm-legend-row">
+              <span className="gm-legend-dot gm-legend-live" style={{ background: LIVE_INSIDE_COLOR }} />
+              <span className="sub" style={{ fontSize: 11 }}>Live \u2014 inside ({liveInside.inside})</span>
+            </div>
+            <div className="gm-legend-row">
+              <span className="gm-legend-dot gm-legend-live" style={{ background: LIVE_COLOR }} />
+              <span className="sub" style={{ fontSize: 11 }}>Live \u2014 outside ({liveInside.outside})</span>
+            </div>
+          </>
         )}
       </div>
 
       <div ref={mapEl} className="map-canvas" />
 
       {clusterHint && (
-        <div className="gm-cluster-hint">Clustered view — zoom in for individual students.</div>
+        <div className="gm-cluster-hint">Clustered view \u2014 zoom in for individual students.</div>
       )}
       {fallbackNote && (
         <div style={NOTE_STYLE}>
@@ -436,7 +587,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         <div style={NOTE_WARN_STYLE}>
           {geoNote === 'denied'
             ? 'Location is blocked by the browser. Click the shield/location icon in the address bar and allow location, then try "Locate me" again.'
-            : 'Could not get your position — no GPS signal or the request timed out.'}
+            : 'Could not get your position \u2014 no GPS signal or the request timed out.'}
         </div>
       )}
       </div>
@@ -450,20 +601,34 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
           {farthest?.r && <span className="stat-chip">Farthest <b>{fmtKm(farthest.km)}</b></span>}
         </div>
 
-        <div className="section-title"><Navigation size={14} /> Nearest students</div>
-        {!nearest.length ? <Empty text={`No plotted ${labelRef.current} records yet.`} /> : (
-          <ul className="map-side-list">
-            {nearest.map(({ r, km }) => (
-              <li key={r.id}>
+        {/* Student search */}
+        <div style={{ margin: '8px 0' }}>
+          <input
+            className="input"
+            type="text"
+            placeholder="Search students\u2026"
+            value={sidebarSearch}
+            onChange={(e) => setSidebarSearch(e.target.value)}
+            style={{ width: '100%', fontSize: 12 }}
+          />
+        </div>
+
+        <div className="section-title"><Navigation size={14} /> Students {!sidebarSearch ? '(nearest)' : `(${filteredStudents.length})`}</div>
+        {!filteredStudents.length ? <Empty text={sidebarSearch ? 'No students match your search.' : `No plotted ${labelRef.current} records yet.`} /> : (
+          <ul className="map-side-list" style={{ maxHeight: 280, overflowY: 'auto' }}>
+            {filteredStudents.map(({ r, km }) => (
+              <li key={r.id} style={{ cursor: 'pointer' }} onClick={() => r.lat != null && panToStudent(r.student_id)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <strong>{r.student_name}</strong>
-                  <span className="badge badge-green">{fmtKm(km)}</span>
+                  {r.lat != null && <span className="badge badge-green">{fmtKm(km)}</span>}
                 </div>
-                <div className="sub">{r.batch}{r.partner_institution ? ` · ${r.partner_institution}` : ''}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                  <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gmapsLink(Number(r.lat), Number(r.lng))}>Map</a>
-                  <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gdirsLink(Number(r.lat), Number(r.lng))}>Directions</a>
-                </div>
+                <div className="sub">{r.batch}{r.partner_institution ? ` \u00b7 ${r.partner_institution}` : ''}</div>
+                {r.lat != null && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                    <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gmapsLink(Number(r.lat), Number(r.lng))} onClick={(e) => e.stopPropagation()}>Map</a>
+                    <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gdirsLink(Number(r.lat), Number(r.lng))} onClick={(e) => e.stopPropagation()}>Directions</a>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -474,19 +639,20 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
           <span className="sub">No live location check-ins right now. Students share their location from the portal during immersion hours.</span>
         ) : (
           <ul className="map-side-list">
-            {live.map((m) => (
-              <li key={m.id}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{m.student_name}</strong>
-                  <span className="badge badge-red">LIVE</span>
-                </div>
-                <div className="sub">{m.batch}{m.partner_institution ? ` · ${m.partner_institution}` : ''}</div>
-                <div className="sub">{new Date(m.captured_at).toLocaleTimeString()}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                  <a className="popup-link" target="_blank" rel="noopener noreferrer" href={gmapsLink(Number(m.lat), Number(m.lng))}>Map</a>
-                </div>
-              </li>
-            ))}
+            {live.map((m) => {
+              const c = m.partner_institution ? rows.find((r) => r.partner_institution === m.partner_institution && r.lat != null) : null;
+              const inside = c ? haversine(Number(c.lat), Number(c.lng), Number(m.lat), Number(m.lng)) * 1000 <= GEOFENCE_RADIUS_M : null;
+              return (
+                <li key={m.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <strong>{m.student_name}</strong>
+                    <span className={`badge ${inside == null ? 'badge-red' : inside ? 'badge-green' : 'badge-red'}`}>LIVE</span>
+                  </div>
+                  <div className="sub">{m.batch}{m.partner_institution ? ` \u00b7 ${m.partner_institution}` : ''}</div>
+                  <div className="sub">{new Date(m.captured_at).toLocaleTimeString()}</div>
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -498,7 +664,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
             {missing.map((r) => (
               <li key={r.id}>
                 <div><strong>{r.student_name}</strong> <span className="sub">({r.grade_level})</span></div>
-                <div className="sub">{r.batch}{r.partner_institution ? ` · ${r.partner_institution}` : ''}</div>
+                <div className="sub">{r.batch}{r.partner_institution ? ` \u00b7 ${r.partner_institution}` : ''}</div>
                 <div className="sub">Open the {isImmersion ? 'Immersion' : 'JDVP'} page and set an address or pin.</div>
               </li>
             ))}
