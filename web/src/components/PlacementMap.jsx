@@ -231,7 +231,11 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     const key = rowsKey(rows);
     if (rowsKeyRef.current !== key) {
       rowsKeyRef.current = key;
-      const ok = rows.filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng)));
+      const ok = rows.filter((r) => {
+        if (r.lat == null || r.lng == null) return false;
+        if (String(r.lat).trim() === '' || String(r.lng).trim() === '') return false;
+        return Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng));
+      });
       if (ok.length) map.fitBounds(L.latLngBounds(ok.map((r) => [Number(r.lat), Number(r.lng)])).pad(0.06));
     }
   }, [rows, zoom, addPin, rowsKey]);

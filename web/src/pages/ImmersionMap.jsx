@@ -19,7 +19,11 @@ export default function ImmersionMap() {
 
   useEffect(() => { load(); }, []);
 
-  const hasCoord = (r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng));
+  const hasCoord = (r) => {
+    if (r.lat == null || r.lng == null) return false;
+    if (String(r.lat).trim() === '' || String(r.lng).trim() === '') return false;
+    return Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng));
+  };
   const placed = useMemo(() => rows.filter(hasCoord), [rows]);
   const missing = useMemo(() => rows.filter((r) => !hasCoord(r)), [rows]);
 
