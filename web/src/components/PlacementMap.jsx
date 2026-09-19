@@ -10,7 +10,17 @@ const SCHOOL_COORDS = { lat: 11.7056, lng: 125.2656 };
 const SCHOOL_LABEL = 'Hinabangan NHS (approx)';
 
 const BASE = {
-  street: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', label: 'Streets' },
+  street: {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    label: 'Streets',
+    options: {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      className: 'tile-street',
+      // Prevent tiles from being requested too quickly
+      minZoom: 0,
+      maxZoom: 19,
+    }
+  },
   satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite' },
   labels: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
 };
