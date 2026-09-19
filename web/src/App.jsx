@@ -68,6 +68,7 @@ const Interventions = lazy(() => import('./pages/Interventions'));
 const Assessment = lazy(() => import('./pages/Assessment'));
 const Immersion = lazy(() => import('./pages/Immersion'));
 const CareerTVL = lazy(() => import('./pages/CareerTVL'));
+const ImmersionMap = lazy(() => import('./pages/ImmersionMap'));
 const Discipline = lazy(() => import('./pages/Discipline'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Privacy = lazy(() => import('./pages/Privacy'));
@@ -197,7 +198,7 @@ export default function App() {
       <Route path="/assessment" element={<Protected><Page><Assessment /></Page></Protected>} />
       <Route path="/immersion" element={<Protected><Page><Immersion /></Page></Protected>} />
       <Route path="/career-tvl" element={<Protected><Page><CareerTVL /></Page></Protected>} />
-      <Route path="/immersion-map" element={<Navigate to="/career-tvl" replace />} />
+      <Route path "/immersion-map" element={<Protected><Page><ImmersionMap /></Page></Protected>} />
       <Route path="/discipline" element={<Protected><Page><Discipline /></Page></Protected>} />
       <Route path="/notifications" element={<Protected><AdminOnly><Page><Notifications /></Page></AdminOnly></Protected>} />
       <Route path="/portal/portfolio" element={<PortalProtected><Page><PortalPortfolio /></Page></PortalProtected>} />

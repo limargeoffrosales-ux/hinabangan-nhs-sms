@@ -1,9 +1,19 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
+const { linkedStudentIds, ensurePortalSeesStudent } = require('../scope');
 
 const { geocodeAddress } = require('../geocode');
+
+// UTC cutoff string for a "last N minutes" window — kept in the storage format
+// of each dialect so a plain >= comparison works (PG: ISO-with-Z; SQLite:
+// 'YYYY-MM-DD HH:MM:SS' UTC as stored by CURRENT_TIMESTAMP).
+function cutoffIsoAgo(minutes) {
+  const d = new Date(Date.now() - minutes * 60000);
+  if (dialect === 'pg') return d.toISOString();
+  return d.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+}
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const IMMERSION_STATUSES = ['pending', 'ongoing', 'completed', 'withdrawn'];
@@ -208,6 +218,9 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
     return res.status(404).json({ error: 'Student not found' });
   }
   if (b.status && !IMMERSION_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
+  if (b.consent_status !== undefined && !['pending', 'granted', 'denied'].includes(b.consent_status)) {
+    return res.status(400).json({ error: 'Invalid consent status' });
+  }
   const exists = await q('SELECT id FROM work_immersion WHERE student_id = ? AND batch = ? AND program = ?',
     [b.student_id, String(b.batch).trim(), String(b.program).trim()]);
   if (exists) return res.status(409).json({ error: 'Student already has this program in this batch' });
@@ -215,11 +228,12 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const loc = locForInsert(b);
   const resolved = await resolveLocation(loc.address, loc.lat, loc.lng);
   const id = await qi(
-    `INSERT INTO work_immersion (student_id, batch, program, partner_institution, status, start_date, end_date, remarks, address, lat, lng, recorded_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO work_immersion (student_id, batch, program, partner_institution, status, start_date, end_date, remarks, address, lat, lng, recorded_by, consent_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [b.student_id, String(b.batch).trim(), String(b.program).trim(),
       b.partner_institution || null, status, b.start_date || null, b.end_date || null,
-      b.remarks || null, loc.address, resolved.lat, resolved.lng, req.user.id]);
+      b.remarks || null, loc.address, resolved.lat, resolved.lng, req.user.id,
+      b.consent_status !== undefined ? b.consent_status : 'pending']);
   await audit(req, 'CREATE_IMMERSION', 'work_immersion', id, { student_id: b.student_id, batch: b.batch, program: b.program, has_location: !!resolved.lat });
   res.status(201).json({ id });
 }));
@@ -227,6 +241,9 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
   if (b.status && !IMMERSION_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
+  if (b.consent_status !== undefined && !['pending', 'granted', 'denied'].includes(b.consent_status)) {
+    return res.status(400).json({ error: 'Invalid consent status' });
+  }
   const cur = await q('SELECT * FROM work_immersion WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
   const loc = locForUpdate(b, cur);
@@ -235,15 +252,16 @@ immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
     b.lat !== undefined || b.lng !== undefined);
   await qr(
     `UPDATE work_immersion SET partner_institution = ?, status = ?, start_date = ?, end_date = ?, remarks = ?,
-          address = ?, lat = ?, lng = ? WHERE id = ?`,
+          address = ?, lat = ?, lng = ?, consent_status = ? WHERE id = ?`,
     [b.partner_institution !== undefined ? b.partner_institution : cur.partner_institution,
       b.status !== undefined ? b.status : cur.status,
       b.start_date !== undefined ? b.start_date : cur.start_date,
       b.end_date !== undefined ? b.end_date : cur.end_date,
       b.remarks !== undefined ? b.remarks : cur.remarks,
       loc.address, resolved.lat, resolved.lng,
+      b.consent_status !== undefined ? b.consent_status : (cur.consent_status || 'pending'),
       req.params.id]);
-  await audit(req, 'UPDATE_IMMERSION', 'work_immersion', req.params.id, { status: b.status, has_location: !!resolved.lat });
+  await audit(req, 'UPDATE_IMMERSION', 'work_immersion', req.params.id, { status: b.status, consent_status: b.consent_status, has_location: !!resolved.lat });
   res.json({ ok: true });
 }));
 
@@ -452,6 +470,186 @@ tracking.get('/reports/venue/:venueId', requireRole(...WRITE), asyncH(async (req
   res.json({ data: rows });
 }));
 
+// ============================================================
+// LIVE LOCATION TRACKING — /api/v1/immersion/tracking/...
+// Portal opt-in (student/parent) reports GPS check-ins during
+// immersion hours. Staff view the latest per student on a map.
+// ------------------------------------------------------------
+function dtMs(v) {
+  if (v instanceof Date) return v.getTime();
+  const s = String(v);
+  return new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`).getTime();
+}
+
+// Portal/GPS: student or parent reports a live check-in for a linked student.
+tracking.post('/location', requireRole('student', 'parent'), asyncH(async (req, res) => {
+  const b = req.body || {};
+  const studentId = Number(b.student_id);
+  if (!studentId) return res.status(400).json({ error: 'student_id is required' });
+
+  const scope = await ensurePortalSeesStudent(req.user, studentId);
+  if (!scope.ok) return res.status(403).json({ error: scope.reason });
+
+  const lat = Number(b.lat);
+  const lng = Number(b.lng);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) return res.status(400).json({ error: 'Invalid latitude' });
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) return res.status(400).json({ error: 'Invalid longitude' });
+  const accuracy = b.accuracy_m !== undefined && Number.isFinite(Number(b.accuracy_m))
+    ? Math.round(Number(b.accuracy_m)) : null;
+  const source = ['device', 'manual', 'map'].includes(b.source) ? b.source : 'device';
+
+  // Must have an ongoing placement with granted consent.
+  const wi = await q(
+    `SELECT * FROM work_immersion WHERE student_id = ? AND status = 'ongoing' ORDER BY id DESC LIMIT 1`,
+    [studentId]);
+  if (!wi) return res.status(400).json({ error: 'No ongoing work immersion placement for this student' });
+  if (wi.consent_status !== 'granted') {
+    return res.status(403).json({ error: 'Live tracking consent has not been granted' });
+  }
+  // Constrain to the placement window if dates are recorded.
+  if (wi.start_date && wi.end_date) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (today < wi.start_date || today > wi.end_date) {
+      return res.status(400).json({ error: 'Outside immersion schedule dates' });
+    }
+  }
+
+  // Rate-limit: at most one check-in per ~20 seconds per student.
+  const last = await q(
+    `SELECT captured_at FROM work_immersion_tracking WHERE student_id = ? ORDER BY captured_at DESC, id DESC LIMIT 1`,
+    [studentId]);
+  if (last && Date.now() - dtMs(last.captured_at) < 20000) {
+    return res.status(429).json({ error: 'Location check-in too frequent' });
+  }
+
+  const id = await qi(
+    `INSERT INTO work_immersion_tracking (student_id, immersion_id, lat, lng, accuracy_m, source, reported_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [studentId, wi.id, lat, lng, accuracy, source, req.user.id]);
+
+  // Prune history: keep the latest 500 check-ins per student.
+  await qr(
+    `DELETE FROM work_immersion_tracking
+     WHERE student_id = ? AND id NOT IN (
+       SELECT id FROM work_immersion_tracking WHERE student_id = ? ORDER BY captured_at DESC, id DESC LIMIT 500
+     )`,
+    [studentId, studentId]);
+
+  await audit(req, 'IMMERSION_LOCATION', 'work_immersion_tracking', id, { student_id: studentId, immersion_id: wi.id });
+  res.status(201).json({ ok: true, id, captured_at: new Date().toISOString() });
+}));
+
+// Portal opt-in: student/parent grants or revokes live-tracking consent.
+tracking.post('/opt-in', requireRole('student', 'parent'), asyncH(async (req, res) => {
+  const b = req.body || {};
+  const studentId = Number(b.student_id);
+  if (!studentId) return res.status(400).json({ error: 'student_id is required' });
+  const consent = b.consent_status === 'denied' ? 'denied' : 'granted';
+
+  const scope = await ensurePortalSeesStudent(req.user, studentId);
+  if (!scope.ok) return res.status(403).json({ error: scope.reason });
+
+  const wi = await q(
+    `SELECT * FROM work_immersion WHERE student_id = ? AND status = 'ongoing' ORDER BY id DESC LIMIT 1`,
+    [studentId]);
+  if (!wi) return res.status(400).json({ error: 'No ongoing work immersion placement for this student' });
+
+  await qr('UPDATE work_immersion SET consent_status = ? WHERE id = ?', [consent, wi.id]);
+  await audit(req, 'IMMERSION_CONSENT', 'work_immersion', wi.id, { student_id: studentId, consent_status: consent });
+  res.json({ ok: true, consent_status: consent });
+}));
+
+// Staff live map: latest check-in per student within the recency window.
+tracking.get('/live', requireRole(...WRITE), asyncH(async (req, res) => {
+  const windowMin = Math.min(Math.max(Number(req.query.window) || 120, 5), 360);
+  const cutoff = cutoffIsoAgo(windowMin);
+  const batch = req.query.batch || null;
+
+  const rows = await qa(
+    `SELECT t.id, t.student_id, t.lat, t.lng, t.accuracy_m, t.source, t.captured_at,
+            wi.id AS immersion_id, wi.batch, wi.program, wi.partner_institution,
+            s.lrn, s.first_name, s.middle_name, s.last_name, s.grade_level
+     FROM work_immersion_tracking t
+     JOIN work_immersion wi ON wi.id = t.immersion_id AND wi.status = 'ongoing' AND wi.consent_status = 'granted'
+     JOIN students s ON s.id = t.student_id
+     WHERE t.captured_at >= ?
+       AND t.id = (
+         SELECT t2.id FROM work_immersion_tracking t2
+         WHERE t2.student_id = t.student_id
+         ORDER BY t2.captured_at DESC, t2.id DESC LIMIT 1
+       )
+       ${batch ? 'AND wi.batch = ?' : ''}
+     ORDER BY s.last_name, s.first_name`,
+    batch ? [cutoff, batch] : [cutoff]);
+  res.json({ data: rows, window_min: windowMin });
+}));
+
+// Staff history: recent check-ins for one student.
+tracking.get('/:studentId/location', requireRole(...WRITE), asyncH(async (req, res) => {
+  const rows = await qa(
+    `SELECT t.id, t.lat, t.lng, t.accuracy_m, t.source, t.captured_at,
+            u.username AS reported_by_name
+     FROM work_immersion_tracking t
+     LEFT JOIN users u ON u.id = t.reported_by
+     WHERE t.student_id = ?
+     ORDER BY t.captured_at DESC, t.id DESC
+     LIMIT 100`,
+    [req.params.studentId]);
+  res.json({ data: rows });
+}));
+
+// ============================================================
+// WORK IMMERSION MAP — /api/v1/immersion/map
+// ------------------------------------------------------------
+const map = express.Router();
+map.use(authenticate);
+
+// Get all companies/venues with active placements and their student counts
+map.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
+  const rows = await qa(`
+    SELECT wi.id, wi.partner_institution, wi.batch, wi.program,
+           wi.status, wi.lat, wi.lng, wi.address,
+           COUNT(DISTINCT st.id) AS student_count
+    FROM work_immersion wi
+    JOIN students st ON st.id = wi.student_id
+    WHERE wi.lat IS NOT NULL AND wi.lng IS NOT NULL
+    GROUP BY wi.id, wi.partner_institution, wi.batch, wi.program,
+             wi.status, wi.lat, wi.lng, wi.address
+    ORDER BY wi.partner_institution
+  `);
+  res.json({ data: rows });
+}));
+
+// Get students placed at a specific venue/company
+map.get('/:venueId/students', requireRole(...WRITE), asyncH(async (req, res) => {
+  const venueId = Number(req.params.venueId);
+  const rows = await qa(`
+    SELECT wi.id AS immersion_id, wi.partner_institution, wi.batch, wi.program,
+           wi.status, st.id, st.lrn, st.first_name, st.last_name, st.grade_level,
+           st.section, st.strand
+    FROM work_immersion wi
+    JOIN students st ON st.id = wi.student_id
+    WHERE wi.id = ? AND wi.lat IS NOT NULL AND wi.lng IS NOT NULL
+    ORDER BY st.last_name, st.first_name
+  `, [venueId]);
+  res.json({ data: rows });
+}));
+
+// Get single student's immersion placement with venue coords
+map.get('/student/:studentId', requireRole(...WRITE), asyncH(async (req, res) => {
+  const rows = await qa(`
+    SELECT wi.id AS immersion_id, wi.partner_institution, wi.batch, wi.program,
+           wi.status, wi.lat, wi.lng, wi.address,
+           st.id, st.lrn, st.first_name, st.last_name, st.grade_level,
+           st.section, st.strand
+    FROM work_immersion wi
+    JOIN students st ON st.id = wi.student_id
+    WHERE st.id = ?
+    LIMIT 1
+  `, [req.params.studentId]);
+  res.json({ data: rows.length > 0 ? rows[0] : null });
+}));
+
 // ------------------------------------------------------------
 // JDVP recipient registry — /api/v1/jdvp
 // ------------------------------------------------------------
@@ -541,5 +739,8 @@ jdvp.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
 
 // Mount tracking sub-router under /tracking
 immersion.use('/tracking', tracking);
+
+// Mount map sub-router under /map
+immersion.use('/map', map);
 
 module.exports = { immersion, jdvp };
