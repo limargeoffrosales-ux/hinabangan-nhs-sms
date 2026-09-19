@@ -4,11 +4,7 @@
 -- ============================================================
 
 -- PostgreSQL: Add lat/lng with IF NOT EXISTS syntax
+-- (064 already adds these; kept as idempotent guards.)
 ALTER TABLE work_immersion ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE work_immersion ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
 ALTER TABLE work_immersion ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
-
--- SQLite: Add lat/lng columns
-ALTER TABLE work_immersion ADD COLUMN lat REAL;
-ALTER TABLE work_immersion ADD COLUMN lng REAL;
-ALTER TABLE work_immersion ADD COLUMN address TEXT;
