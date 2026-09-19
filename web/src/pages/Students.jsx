@@ -21,6 +21,7 @@ export default function Students() {
   const { user } = useAuth();
   const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
   const canManageAccounts = can(user?.role, 'super_admin', 'school_admin');
+  const canApproveRegistrations = can(user?.role, 'super_admin');
   const canViewPhoto = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +102,7 @@ export default function Students() {
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
   useEffect(() => {
-    if (canManageAccounts) loadRequests();
+    if (canApproveRegistrations) loadRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -314,7 +315,7 @@ export default function Students() {
   return (
     <>
       <PageHead title={t('students.title')} sub={t('students.subtitle')}>
-        {canManageAccounts && (
+        {canApproveRegistrations && (
           <button className="btn" onClick={openRequests} title={t('students.linkRequestsTitle', 'Approve or reject self-service portal registrations')}>
             <UserPlus size={15} /> {t('students.linkRequests')}
             {pendingRequests.length > 0 && (

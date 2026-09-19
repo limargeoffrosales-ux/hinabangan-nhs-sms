@@ -13,6 +13,8 @@ router.use(authenticate);
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const ACCOUNT_ROLES = ['super_admin', 'school_admin'];
+// Self-registered student accounts are ALWAYS decided by the super admin.
+const LINK_APPROVE_ROLES = ['super_admin'];
 
 async function normalizeLrn(raw, excludeId) {
   if (!raw || !String(raw).trim()) return null;
@@ -121,7 +123,7 @@ function computeAge(birthdate) {
 // link only ACTIVATES once a registrar/school_admin approves the request here.
 // Registered BEFORE GET /:id so the literal "/link-requests" path wins.
 
-router.get('/link-requests', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+router.get('/link-requests', requireRole(...LINK_APPROVE_ROLES), asyncH(async (req, res) => {
   const status = String(req.query.status || '').trim();
   const params = [];
   let where = '';
@@ -143,7 +145,7 @@ router.get('/link-requests', requireRole(...ACCOUNT_ROLES), asyncH(async (req, r
   res.json({ data: rows });
 }));
 
-router.post('/link-requests/:id/approve', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+router.post('/link-requests/:id/approve', requireRole(...LINK_APPROVE_ROLES), asyncH(async (req, res) => {
   const reqRow = await q('SELECT * FROM student_link_requests WHERE id = ?', [req.params.id]);
   if (!reqRow) return res.status(404).json({ error: 'Request not found' });
   if (reqRow.status !== 'pending') return res.status(409).json({ error: 'This request was already decided' });
@@ -164,7 +166,7 @@ router.post('/link-requests/:id/approve', requireRole(...ACCOUNT_ROLES), asyncH(
   res.json({ ok: true });
 }));
 
-router.post('/link-requests/:id/reject', requireRole(...ACCOUNT_ROLES), asyncH(async (req, res) => {
+router.post('/link-requests/:id/reject', requireRole(...LINK_APPROVE_ROLES), asyncH(async (req, res) => {
   const reqRow = await q('SELECT * FROM student_link_requests WHERE id = ?', [req.params.id]);
   if (!reqRow) return res.status(404).json({ error: 'Request not found' });
   if (reqRow.status !== 'pending') return res.status(409).json({ error: 'This request was already decided' });

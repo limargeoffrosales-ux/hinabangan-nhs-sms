@@ -419,7 +419,7 @@ router.post('/register',
 
 await audit(req, 'STUDENT_REGISTER', 'auth', userId, { student_id: studentId, username });
   await notifyEvent('account_registered', { user_id: userId, data: { username, url: APP_URL ? APP_URL.replace(/\/+$/, '') : '' } });
-  res.status(201).json({ ok: true, status: 'pending', message: 'Registration submitted. The registrar will approve the link to your learner record.' });
+  res.status(201).json({ ok: true, status: 'pending', message: 'Registration submitted. The school administrator will approve the link to your learner record.' });
   }));
 
 module.exports = router;
