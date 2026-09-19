@@ -120,11 +120,6 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     tl.current.street = L.tileLayer(BASE.street.url, { attribution: OUTPUT_ATTR, maxZoom: 19 }).addTo(map);
     tl.current.satellite = L.tileLayer(BASE.satellite.url, { attribution: OUTPUT_ATTR, maxZoom: 19 });
     tl.current.labels = L.tileLayer(BASE.labels.url, { attribution: OUTPUT_ATTR });
-    L.control.layers(
-      { [BASE.street.label]: tl.current.street, [BASE.satellite.label]: tl.current.satellite },
-      { 'Place labels': tl.current.labels },
-      { position: 'topright' },
-    ).addTo(map);
     L.control.scale({ position: 'bottomright' }).addTo(map);
 
     layerRef.current = L.layerGroup().addTo(map);
@@ -279,7 +274,8 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     setSearching(true);
     try {
       const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(term)}`,
+        `https://nominatim.openstreetmap.org/search?format=json&limit=6&dedupe=0&accept-language=fil,en` +
+          `&countrycodes=ph&viewbox=124.80,12.10,125.60,11.40&bounded=0&q=${encodeURIComponent(term)}`,
         { headers: { Accept: 'application/json' } },
       );
       const j = await r.json();
@@ -366,11 +362,13 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         </div>
         <div className="gm-layers-row">
           {Object.entries(BASE).filter(([k]) => k !== 'labels').map(([k, v]) => (
-            <button key={k} type="button" className={`gm-layer-btn ${baseKey === k ? 'active' : ''}`} onClick={() => setBaseKey(k)}>
+            <button key={k} type="button" className={`gm-layer-btn ${baseKey === k ? 'active' : ''}`}
+              onClick={() => { setBaseKey(k); if (k !== 'satellite') setShowLabels(false); }}>
               {v.label}
             </button>
           ))}
-          <button type="button" className={`gm-layer-btn ${showLabels ? 'active' : ''}`} onClick={() => setShowLabels((s) => !s)} title="Place labels">
+          <button type="button" className={`gm-layer-btn ${baseKey === 'satellite' && showLabels ? 'active' : ''}`}
+            onClick={() => { if (baseKey === 'street') setBaseKey('satellite'); setShowLabels((s) => !s); }} title="Place labels">
             Labels
           </button>
         </div>
