@@ -75,15 +75,17 @@ export default function CareerTVL() {
   // Tracing map — transferred from the standalone Immersion Map page.
   const rows = useMemo(() => isImmersion ? immRows : jdvpRows, [isImmersion, immRows, jdvpRows]);
 
-  const placed = useMemo(() => rows.filter((r) => {
-    const lt = Number(r.lat), ln = Number(r.lng);
-    return Number.isFinite(lt) && Number.isFinite(ln);
-  }).filter((r) => !batch || r.batch === batch), [rows, batch]);
+  const hasCoord = (r) => {
+    if (r.lat == null || r.lng == null) return false;
+    if (String(r.lat).trim() === '' || String(r.lng).trim() === '') return false;
+    return Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng));
+  };
 
-  const missing = useMemo(() => rows.filter((r) => {
-    const lt = Number(r.lat), ln = Number(r.lng);
-    return !(Number.isFinite(lt) && Number.isFinite(ln));
-  }).filter((r) => !batch || r.batch === batch), [rows, batch]);
+  const placed = useMemo(() => rows.filter((r) => hasCoord(r)).filter((r) => !batch || r.batch === batch), [rows, batch]);
+
+  const missing = useMemo(() => rows.filter((r) => !hasCoord(r)).filter((r) => !batch || r.batch === batch), [rows, batch]);
+
+  const mapPlaced = placed.length;
 
   // --- Graph data ----------------------------------------------------------
   const immStatusData = useMemo(() => {
@@ -124,7 +126,6 @@ export default function CareerTVL() {
   const immLearners = useMemo(() => (immSummary?.batches || []).reduce((a, b) => a + b.learners, 0), [immSummary]);
   const immWithdrawn = immStatusData.find((s) => s.name === 'withdrawn')?.value || 0;
   const jdvpTotal = (jdvpSummary?.batches || []).reduce((a, b) => a + b.total, 0);
-  const mapPlaced = placed.length;
 
   if (loading) return <Spinner />;
 
