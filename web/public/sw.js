@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v4.0.1';
+const CACHE_VERSION = 'v4.1.0';
 const CACHE_NAME = `meridianed-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
@@ -80,6 +80,10 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  // Never intercept the service worker script itself; let it update from network.
+  if (url.pathname === '/sw.js') return;
+
   const isStaticAsset = url.pathname.startsWith('/assets/') ||
     url.pathname.endsWith('.js') ||
     url.pathname.endsWith('.css') ||
@@ -146,18 +150,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML/navigation — stale-while-revalidate (shell works offline)
+  // HTML/navigation — network-first so a new deploy is picked up immediately
+  // (stale HTML referencing removed chunks is what breaks dynamic imports).
+  // Fall back to the cached shell only when offline.
   event.respondWith(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.match(request).then((cached) => {
-        const fetchPromise = fetch(request).then((response) => {
-          if (response && response.status === 200 && response.type === 'basic') {
-            cache.put(request, response.clone());
-          }
-          return response;
-        }).catch(() => cached || caches.match('/index.html'));
-        return cached || fetchPromise;
-      })
-    )
+    fetch(request).then((response) => {
+      if (response && response.status === 200 && response.type === 'basic') {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+      }
+      return response;
+    }).catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
   );
 });

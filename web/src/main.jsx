@@ -49,6 +49,23 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
+// Vite fires this when a chunk or modulepreload fails (typically a stale tab
+// referencing hashed assets removed by a newer deploy). Reload once to pick up
+// the current build instead of showing "Failed to fetch dynamically imported module".
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  if (typeof Sentry !== 'undefined') {
+    Sentry.captureException(event.payload);
+  }
+  const KEY = 'meridianed_chunk_reload_at';
+  let last = 0;
+  try { last = Number(sessionStorage.getItem(KEY) || 0); } catch { /* ignore */ }
+  if (Date.now() - last > 10000) {
+    try { sessionStorage.setItem(KEY, String(Date.now())); } catch { /* ignore */ }
+    window.location.reload();
+  }
+});
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((e) => { if (import.meta.env.DEV) console.warn('SW registration failed:', e); });

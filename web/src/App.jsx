@@ -37,59 +37,80 @@ class ErrorBoundary extends Component {
   }
 }
 
-const Login = lazy(() => import('./pages/Login'));
-const Register = lazy(() => import('./pages/Register'));
-const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-const Consent = lazy(() => import('./pages/Consent'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Students = lazy(() => import('./pages/Students'));
-const Teachers = lazy(() => import('./pages/Teachers'));
-const Subjects = lazy(() => import('./pages/Subjects'));
-const Sections = lazy(() => import('./pages/Sections'));
-const Enroll = lazy(() => import('./pages/Enroll'));
-const Grades = lazy(() => import('./pages/Grades'));
-const GradingScales = lazy(() => import('./pages/GradingScales'));
-const Rankings = lazy(() => import('./pages/Rankings'));
-const Portal = lazy(() => import('./pages/Portal'));
-const PortalGrades = lazy(() => import('./pages/PortalGrades'));
-const PortalEnroll = lazy(() => import('./pages/PortalEnroll'));
-const PortalAttendance = lazy(() => import('./pages/PortalAttendance'));
-const PortalSchedule = lazy(() => import('./pages/PortalSchedule'));
-const PortalAssignments = lazy(() => import('./pages/PortalAssignments'));
-const PortalAnnouncements = lazy(() => import('./pages/PortalAnnouncements'));
-const Attendance = lazy(() => import('./pages/Attendance'));
-const Announcements = lazy(() => import('./pages/Announcements'));
-const Assignments = lazy(() => import('./pages/Assignments'));
-const Users = lazy(() => import('./pages/Users'));
-const AuditLogs = lazy(() => import('./pages/AuditLogs'));
-const Programs = lazy(() => import('./pages/Programs'));
-const Submissions = lazy(() => import('./pages/Submissions'));
-const Compliance = lazy(() => import('./pages/Compliance'));
-const Aral = lazy(() => import('./pages/Aral'));
-const Interventions = lazy(() => import('./pages/Interventions'));
-const Assessment = lazy(() => import('./pages/Assessment'));
-const Immersion = lazy(() => import('./pages/Immersion'));
-const CareerTVL = lazy(() => import('./pages/CareerTVL'));
-const ImmersionMap = lazy(() => import('./pages/ImmersionMap'));
-const Discipline = lazy(() => import('./pages/Discipline'));
-const Notifications = lazy(() => import('./pages/Notifications'));
-const Privacy = lazy(() => import('./pages/Privacy'));
-const MFASetup = lazy(() => import('./pages/MFASetup'));
-const Analytics = lazy(() => import('./pages/Analytics'));
-const Curriculum = lazy(() => import('./pages/Curriculum'));
-const Rooms = lazy(() => import('./pages/Rooms'));
-const Lessons = lazy(() => import('./pages/Lessons'));
-const CompetencyTracker = lazy(() => import('./pages/CompetencyTracker'));
-const Certifications = lazy(() => import('./pages/Certifications'));
-const Library = lazy(() => import('./pages/Library'));
-const Clinic = lazy(() => import('./pages/Clinic'));
-const Guidance = lazy(() => import('./pages/Guidance'));
-const PortalPortfolio = lazy(() => import('./pages/PortalPortfolio'));
-const PortalImmersion = lazy(() => import('./pages/PortalImmersion'));
-const PortalAnalytics = lazy(() => import('./pages/PortalAnalytics'));
-const PortalCertifications = lazy(() => import('./pages/PortalCertifications'));
-const DepedForms = lazy(() => import('./pages/DepedForms'));
-const AIPage = lazy(() => import('./pages/AIPage'));
+const CHUNK_RELOAD_KEY = 'meridianed_chunk_reload_at';
+
+// React.lazy + one-shot recovery for the "Failed to fetch dynamically imported
+// module" error: after a deploy, an already-open tab can request a chunk whose
+// hash no longer exists. Reload once (guarded against loops) to pull the fresh
+// build; if it still fails, let the error surface to the ErrorBoundary.
+function lazyWithRetry(factory) {
+  return lazy(() =>
+    factory().catch((err) => {
+      let last = 0;
+      try { last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0); } catch { /* ignore */ }
+      if (Date.now() - last > 10000) {
+        try { sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now())); } catch { /* ignore */ }
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      throw err;
+    })
+  );
+}
+
+const Login = lazyWithRetry(() => import('./pages/Login'));
+const Register = lazyWithRetry(() => import('./pages/Register'));
+const ResetPassword = lazyWithRetry(() => import('./pages/ResetPassword'));
+const Consent = lazyWithRetry(() => import('./pages/Consent'));
+const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
+const Students = lazyWithRetry(() => import('./pages/Students'));
+const Teachers = lazyWithRetry(() => import('./pages/Teachers'));
+const Subjects = lazyWithRetry(() => import('./pages/Subjects'));
+const Sections = lazyWithRetry(() => import('./pages/Sections'));
+const Enroll = lazyWithRetry(() => import('./pages/Enroll'));
+const Grades = lazyWithRetry(() => import('./pages/Grades'));
+const GradingScales = lazyWithRetry(() => import('./pages/GradingScales'));
+const Rankings = lazyWithRetry(() => import('./pages/Rankings'));
+const Portal = lazyWithRetry(() => import('./pages/Portal'));
+const PortalGrades = lazyWithRetry(() => import('./pages/PortalGrades'));
+const PortalEnroll = lazyWithRetry(() => import('./pages/PortalEnroll'));
+const PortalAttendance = lazyWithRetry(() => import('./pages/PortalAttendance'));
+const PortalSchedule = lazyWithRetry(() => import('./pages/PortalSchedule'));
+const PortalAssignments = lazyWithRetry(() => import('./pages/PortalAssignments'));
+const PortalAnnouncements = lazyWithRetry(() => import('./pages/PortalAnnouncements'));
+const Attendance = lazyWithRetry(() => import('./pages/Attendance'));
+const Announcements = lazyWithRetry(() => import('./pages/Announcements'));
+const Assignments = lazyWithRetry(() => import('./pages/Assignments'));
+const Users = lazyWithRetry(() => import('./pages/Users'));
+const AuditLogs = lazyWithRetry(() => import('./pages/AuditLogs'));
+const Programs = lazyWithRetry(() => import('./pages/Programs'));
+const Submissions = lazyWithRetry(() => import('./pages/Submissions'));
+const Compliance = lazyWithRetry(() => import('./pages/Compliance'));
+const Aral = lazyWithRetry(() => import('./pages/Aral'));
+const Interventions = lazyWithRetry(() => import('./pages/Interventions'));
+const Assessment = lazyWithRetry(() => import('./pages/Assessment'));
+const Immersion = lazyWithRetry(() => import('./pages/Immersion'));
+const CareerTVL = lazyWithRetry(() => import('./pages/CareerTVL'));
+const ImmersionMap = lazyWithRetry(() => import('./pages/ImmersionMap'));
+const Discipline = lazyWithRetry(() => import('./pages/Discipline'));
+const Notifications = lazyWithRetry(() => import('./pages/Notifications'));
+const Privacy = lazyWithRetry(() => import('./pages/Privacy'));
+const MFASetup = lazyWithRetry(() => import('./pages/MFASetup'));
+const Analytics = lazyWithRetry(() => import('./pages/Analytics'));
+const Curriculum = lazyWithRetry(() => import('./pages/Curriculum'));
+const Rooms = lazyWithRetry(() => import('./pages/Rooms'));
+const Lessons = lazyWithRetry(() => import('./pages/Lessons'));
+const CompetencyTracker = lazyWithRetry(() => import('./pages/CompetencyTracker'));
+const Certifications = lazyWithRetry(() => import('./pages/Certifications'));
+const Library = lazyWithRetry(() => import('./pages/Library'));
+const Clinic = lazyWithRetry(() => import('./pages/Clinic'));
+const Guidance = lazyWithRetry(() => import('./pages/Guidance'));
+const PortalPortfolio = lazyWithRetry(() => import('./pages/PortalPortfolio'));
+const PortalImmersion = lazyWithRetry(() => import('./pages/PortalImmersion'));
+const PortalAnalytics = lazyWithRetry(() => import('./pages/PortalAnalytics'));
+const PortalCertifications = lazyWithRetry(() => import('./pages/PortalCertifications'));
+const DepedForms = lazyWithRetry(() => import('./pages/DepedForms'));
+const AIPage = lazyWithRetry(() => import('./pages/AIPage'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
