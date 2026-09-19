@@ -122,6 +122,7 @@ export default function Enroll() {
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [recent, setRecent] = useState([]);
+  const [recentSort, setRecentSort] = useState({ key: 'recent', dir: 'desc' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [studentSearch, setStudentSearch] = useState('');
@@ -150,7 +151,7 @@ export default function Enroll() {
       const [st, se, rec] = await Promise.all([
         retryFetch(() => api('/students?' + qs)),
         retryFetch(() => api('/sections?limit=200')),
-        retryFetch(() => api('/enrollments/recent?limit=8')).catch(() => ({ data: [] })),
+        retryFetch(() => api('/enrollments/recent?limit=50')).catch(() => ({ data: [] })),
       ]);
       setStudents(st.data);
       setSections(se.data);
@@ -506,6 +507,44 @@ export default function Enroll() {
     : `${eligible.length} ${eligible.length === 1 ? 'learner' : 'learners'} available to enroll`;
   const selectedCount = selectedSubjects.length;
 
+  // Sortable columns head the "Recently Enrolled" list so teachers can group
+  // records by section or grade level and spot (then edit) wrongly-recorded
+  // enrollments. Default stays newest-first.
+  const sortedRecent = useMemo(() => {
+    const { key, dir } = recentSort;
+    const list = [...recent];
+    const gradeNum = (g) => { const m = /(\d+)/.exec(String(g || '')); return m ? Number(m[1]) : 0; };
+    const secOf = (r) => String(r.section_name || '').toLowerCase();
+    const nameOf = (r) => `${String(r.last_name || '')}, ${String(r.first_name || '')}`.toLowerCase();
+    const cmp = (a, b) => {
+      if (key === 'section') {
+        return secOf(a).localeCompare(secOf(b)) || gradeNum(a.grade_level) - gradeNum(b.grade_level) || nameOf(a).localeCompare(nameOf(b));
+      }
+      if (key === 'grade') {
+        return gradeNum(a.grade_level) - gradeNum(b.grade_level) || secOf(a).localeCompare(secOf(b)) || nameOf(a).localeCompare(nameOf(b)) || (Number(a.id) || 0) - (Number(b.id) || 0);
+      }
+      if (key === 'name') {
+        return nameOf(a).localeCompare(nameOf(b));
+      }
+      return (Number(a.id) || 0) - (Number(b.id) || 0);
+    };
+    return dir === 'asc' ? list.sort(cmp) : list.sort((a, b) => -cmp(a, b));
+  }, [recent, recentSort]);
+
+  const recentSortMark = (key) => (recentSort.key === key
+    ? <span style={{ fontSize: 10, marginLeft: 3 }}>{recentSort.dir === 'asc' ? '▲' : '▼'}</span>
+    : null);
+
+  const recentAriaSort = (key) => (recentSort.key === key
+    ? (recentSort.dir === 'asc' ? 'ascending' : 'descending')
+    : 'none');
+
+  function toggleRecentSort(key) {
+    setRecentSort((s) => (s.key === key
+      ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: key === 'recent' ? 'desc' : 'asc' }));
+  }
+
   const gradeOptions = useMemo(() => {
     const set = new Set();
     sections.forEach((s) => { if (s.grade_level) set.add(s.grade_level); });
@@ -652,13 +691,21 @@ export default function Enroll() {
 
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Recently Enrolled</h3>
+            <div className="hint" style={{ marginTop: -6, marginBottom: 8 }}>
+              Tap a column heading to sort by student, section or grade — find and fix wrongly-recorded enrollments.
+            </div>
             {recent.length === 0 ? <Empty text="No enrollments recorded yet." /> : (
               <table>
                 <thead>
-                  <tr><th>Student</th><th>Section</th><th>Grade</th><th></th></tr>
+                  <tr>
+                    <th style={{ cursor: 'pointer', userSelect: 'none' }} aria-sort={recentAriaSort('name')} onClick={() => toggleRecentSort('name')}>Student{recentSortMark('name')}</th>
+                    <th style={{ cursor: 'pointer', userSelect: 'none' }} aria-sort={recentAriaSort('section')} onClick={() => toggleRecentSort('section')}>Section{recentSortMark('section')}</th>
+                    <th style={{ cursor: 'pointer', userSelect: 'none' }} aria-sort={recentAriaSort('grade')} onClick={() => toggleRecentSort('grade')}>Grade{recentSortMark('grade')}</th>
+                    <th></th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {recent.map((r) => (
+                  {sortedRecent.map((r) => (
                     <tr key={r.id}>
                       <td>{r.last_name}, {r.first_name}</td>
                       <td>{r.section_name || '—'}</td>
