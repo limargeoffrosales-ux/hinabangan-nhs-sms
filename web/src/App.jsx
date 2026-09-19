@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth, can } from './lib/auth';
 import Layout from './components/Layout';
 import PortalLayout from './components/PortalLayout';
-import AIChatbot from './components/AIChatbot';
 import { Spinner } from './components/ui';
 import { isNative, registerForPushNotifications } from './lib/capacitor';
 import { Sentry } from './sentry';
@@ -149,10 +148,16 @@ function AIWorkbenchOnly({ children }) {
   return children;
 }
 
+const LazyAIChatbot = lazy(() => import('./components/AIChatbot'));
+
 function AIChatbotGate() {
   const { user } = useAuth();
   if (!user || !can(user?.role, ...AI_STAFF, 'student', 'parent')) return null;
-  return <AIChatbot />;
+  return (
+    <Suspense fallback={null}>
+      <LazyAIChatbot />
+    </Suspense>
+  );
 }
 
 function Page({ children }) {

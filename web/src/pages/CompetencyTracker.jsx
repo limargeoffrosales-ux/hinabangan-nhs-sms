@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Target, BarChart3, Users } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
+import { loadRecharts } from '../lib/lazy-recharts';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, ErrorBanner } from '../components/ui';
 
@@ -18,6 +18,8 @@ export default function CompetencyTracker() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('overview');
+  const [R, setR] = useState(null);
+  useEffect(() => { loadRecharts().then(setR); }, []);
 
   useEffect(() => {
     Promise.all([api('/sections?limit=200'), api('/subjects?limit=300')])
@@ -58,6 +60,10 @@ export default function CompetencyTracker() {
   }, {}) || {};
 
   const levelPieData = Object.entries(levelDistribution).map(([name, value]) => ({ name, value })).filter((d) => d.value > 0);
+
+  if (!R) return <Spinner />;
+
+  const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } = R;
 
   return (
     <div>

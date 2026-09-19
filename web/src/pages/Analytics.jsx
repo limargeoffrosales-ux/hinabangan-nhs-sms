@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
-  LineChart, Line, CartesianGrid, Legend,
-} from 'recharts';
+import { loadRecharts } from '../lib/lazy-recharts';
 import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
 import { api, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
@@ -38,6 +35,8 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('overview');
+  const [R, setR] = useState(null);
+  useEffect(() => { loadRecharts().then(setR); }, []);
 
   useEffect(() => {
     (async () => {
@@ -132,6 +131,10 @@ export default function Analytics() {
   const riskData = studentRisk?.data || [];
   const filteredRisk = riskThreshold ? riskData.filter((r) => r.risk_score >= riskThreshold) : riskData;
   const riskSummary = studentRisk?.summary || {};
+
+  if (!R) return <Spinner />;
+
+  const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } = R;
 
   return (
     <div>

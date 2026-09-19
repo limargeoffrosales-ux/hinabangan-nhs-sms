@@ -22,14 +22,12 @@ export function initSentry() {
     replaysOnErrorSampleRate: 1.0,
     replaysSessionSampleRate: 0.1,
     beforeSend(event) {
-      // Scrub PII from error events
       if (event.user) {
         event.user = {
           id: event.user.id,
           role: event.user.role,
         };
       }
-      // Remove sensitive data from contexts
       if (event.contexts) {
         delete event.contexts.auth;
       }
