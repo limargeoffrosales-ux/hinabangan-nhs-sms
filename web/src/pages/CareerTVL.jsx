@@ -94,12 +94,13 @@ export default function CareerTVL() {
 
   const load = useCallback(async () => {
     setError(null);
+    const qp = batch ? `?batch=${encodeURIComponent(batch)}` : '';
     try {
       const settled = await Promise.allSettled([
-        api('/dashboard/immersion-summary', { timeoutMs: 30000, retryNetwork: false }),
-        api('/dashboard/jdvp-summary', { timeoutMs: 30000, retryNetwork: false }),
-        canMap ? api('/immersion/map', { timeoutMs: 30000, retryNetwork: false }) : Promise.resolve(null),
-        canMap ? api('/jdvp/map', { timeoutMs: 30000, retryNetwork: false }) : Promise.resolve(null),
+        api(`/dashboard/immersion-summary${qp}`, { timeoutMs: 30000, retryNetwork: false }),
+        api(`/dashboard/jdvp-summary${qp}`, { timeoutMs: 30000, retryNetwork: false }),
+        canMap ? api(`/immersion/map${qp}`, { timeoutMs: 30000, retryNetwork: false }) : Promise.resolve(null),
+        canMap ? api(`/jdvp/map${qp}`, { timeoutMs: 30000, retryNetwork: false }) : Promise.resolve(null),
       ]);
       const firstErr = settled.find((r) => r.status === 'rejected');
       if (firstErr) { setError(firstErr.reason?.message || 'Failed to load Career & TVL data.'); }
@@ -111,7 +112,7 @@ export default function CareerTVL() {
     } finally {
       setLoading(false);
     }
-  }, [canMap]);
+  }, [canMap, batch]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -134,7 +135,7 @@ export default function CareerTVL() {
   const immStatusData = useMemo(() => {
     const m = {};
     (immSummary?.rows || []).forEach((r) => { m[r.status] = (m[r.status] || 0) + Number(r.learners); });
-    const order = ['pending', 'ongoing', 'completed', 'withdrawn'];
+    const order = ['pending', 'ongoing', 'completed', 'served', 'withdrawn'];
     return Object.keys(m).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((k) => ({ name: k, value: m[k] }));
   }, [immSummary]);
 
@@ -253,7 +254,7 @@ export default function CareerTVL() {
                   <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
                   <R.Tooltip contentStyle={tooltipStyle} />
                   <R.Legend wrapperStyle={{ fontSize: 12 }} />
-                  {['Pending', 'Ongoing', 'Completed', 'Withdrawn'].filter((s) => immBatchData.some((b) => b[s] > 0)).map((s) => (
+                  {['Pending', 'Ongoing', 'Completed', 'Served', 'Withdrawn'].filter((s) => immBatchData.some((b) => b[s] > 0)).map((s) => (
                     <R.Bar key={s} dataKey={s} stackId="s" fill={STATUS_COLORS[s.toLowerCase()] || '#94a3b8'} radius={[0, 0, 0, 0]} />
                   ))}
                 </R.BarChart>
@@ -317,12 +318,12 @@ export default function CareerTVL() {
           )}
 
           <div className="stat-row" style={{ margin: '12px 0' }}>
-            <span className="stat-chip">Total learners <b>{rows.length}</b></span>
+            <span className="stat-chip">Total learners <b>{placed.length + missing.length}</b></span>
             <span className="stat-chip">Placed on map <b>{mapPlaced}</b></span>
             {missing.length > 0 && <span className="stat-chip stat-chip-warn">Need coordinates <b>{missing.length}</b></span>}
           </div>
 
-          <PlacementMap rows={placed} missing={missing} isImmersion={isImmersion} live={liveOn ? liveRows : []} />
+          <PlacementMap rows={placed} missing={missing} isImmersion={isImmersion} live={liveOn ? liveRows : []} total={placed.length + missing.length} />
         </>
       ) : (
         <div className="hint" style={{ marginTop: 10 }}>
@@ -338,11 +339,11 @@ export default function CareerTVL() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Batch</th><th>Program</th><th>Partner Institution</th><th style={{ textAlign: 'center' }}>Pending</th><th style={{ textAlign: 'center' }}>Ongoing</th><th style={{ textAlign: 'center' }}>Completed</th><th style={{ textAlign: 'center' }}>Withdrawn</th><th style={{ textAlign: 'center' }}>M / F</th><th style={{ textAlign: 'center' }}>Total</th></tr>
+              <tr><th>Batch</th><th>Program</th><th>Partner Institution</th><th style={{ textAlign: 'center' }}>Pending</th><th style={{ textAlign: 'center' }}>Ongoing</th><th style={{ textAlign: 'center' }}>Completed</th><th style={{ textAlign: 'center' }}>Served</th><th style={{ textAlign: 'center' }}>Withdrawn</th><th style={{ textAlign: 'center' }}>M / F</th><th style={{ textAlign: 'center' }}>Total</th></tr>
             </thead>
             <tbody>
               {(immSummary?.rows?.length || 0) === 0 && (
-                <tr><td colSpan={9} className="sub">No work immersion records yet — add them under Immersion &amp; JDVP.</td></tr>
+                <tr><td colSpan={10} className="sub">No work immersion records yet — add them under Immersion &amp; JDVP.</td></tr>
               )}
               {immSummary?.rows.map((r, i) => (
                 <tr key={i}>
@@ -350,6 +351,7 @@ export default function CareerTVL() {
                   <td style={{ textAlign: 'center' }}>{r.status === 'pending' ? r.learners : 0}</td>
                   <td style={{ textAlign: 'center' }}>{r.status === 'ongoing' ? r.learners : 0}</td>
                   <td style={{ textAlign: 'center' }}>{r.status === 'completed' ? r.learners : 0}</td>
+                  <td style={{ textAlign: 'center' }}>{r.status === 'served' ? r.learners : 0}</td>
                   <td style={{ textAlign: 'center' }}>{r.status === 'withdrawn' ? r.learners : 0}</td>
                   <td style={{ textAlign: 'center' }} className="sub">{r.male} / {r.female}</td>
                   <td style={{ textAlign: 'center' }}><strong>{r.learners}</strong></td>

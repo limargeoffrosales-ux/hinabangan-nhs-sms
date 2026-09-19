@@ -119,9 +119,12 @@ immersion.get('/map', requireRole(...WRITE), asyncH(async (req, res) => {
   const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await qa(
     `SELECT wi.id, wi.student_id, wi.batch, wi.program, wi.partner_institution, wi.status,
-            wi.start_date, wi.end_date, wi.remarks, wi.address, wi.lat, wi.lng,
+            wi.start_date, wi.end_date, wi.remarks,
+            COALESCE(wi.address, v.address) AS address,
+            COALESCE(wi.lat, v.lat) AS lat, COALESCE(wi.lng, v.lng) AS lng,
             st.lrn, st.first_name || ' ' || st.last_name AS student_name, st.grade_level
      FROM work_immersion wi JOIN students st ON st.id = wi.student_id
+     LEFT JOIN work_immersion_venues v ON v.name = wi.partner_institution
      ${filter} ORDER BY wi.batch DESC, st.last_name`,
     params);
   res.json({ data: rows });

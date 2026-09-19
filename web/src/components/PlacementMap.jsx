@@ -97,7 +97,7 @@ function liveIcon(recent) {
   });
 }
 
-export default function PlacementMap({ rows = [], missing = [], isImmersion = true, live = [] }) {
+export default function PlacementMap({ rows = [], missing = [], isImmersion = true, live = [], total = rows.length }) {
   const mapEl = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
@@ -445,7 +445,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
       <div className="card map-side">
         <div className="section-title"><MapPin size={14} /> Placement overview</div>
         <div className="stat-row" style={{ margin: '8px 0' }}>
-          <span className="stat-chip">Total <b>{rows.length}</b></span>
+          <span className="stat-chip">Total <b>{total}</b></span>
           {dist[0]?.r && <span className="stat-chip">Nearest <b className="gm-chip-green">{fmtKm(dist[0].km)}</b></span>}
           {farthest?.r && <span className="stat-chip">Farthest <b>{fmtKm(farthest.km)}</b></span>}
         </div>

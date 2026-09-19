@@ -734,14 +734,20 @@ router.get('/quarterly-report', requireRole(...DASH_READ), asyncH(async (req, re
 // Work Immersion summary — by batch, program, partner, status
 // ------------------------------------------------------------
 router.get('/immersion-summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
+  const params = [];
+  const where = [];
+  if (req.query.batch) { where.push('wi.batch = ?'); params.push(req.query.batch); }
+  const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await qa(
     `SELECT wi.batch, wi.program, wi.partner_institution, wi.status,
        COUNT(*) AS learners,
        SUM(CASE WHEN st.sex = 'Male' THEN 1 ELSE 0 END) AS male,
        SUM(CASE WHEN st.sex = 'Female' THEN 1 ELSE 0 END) AS female
      FROM work_immersion wi JOIN students st ON st.id = wi.student_id
+     ${filter}
      GROUP BY wi.batch, wi.program, wi.partner_institution, wi.status
-     ORDER BY wi.batch, wi.program, wi.partner_institution, wi.status`);
+     ORDER BY wi.batch, wi.program, wi.partner_institution, wi.status`,
+    params);
   const batches = {};
   for (const r of rows) {
     const b = batches[r.batch] = batches[r.batch] || { batch: r.batch, programs: {}, statuses: {}, learners: 0, male: 0, female: 0 };
@@ -757,11 +763,17 @@ router.get('/immersion-summary', requireRole(...DASH_READ), asyncH(async (req, r
 // JDVP summary — by batch, gender
 // ------------------------------------------------------------
 router.get('/jdvp-summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
+  const params = [];
+  const where = [];
+  if (req.query.batch) { where.push('j.batch = ?'); params.push(req.query.batch); }
+  const filter = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await qa(
     `SELECT j.batch, j.program, j.status, st.sex, COUNT(*) AS n
      FROM jdvp_recipients j JOIN students st ON st.id = j.student_id
+     ${filter}
      GROUP BY j.batch, j.program, j.status, st.sex
-     ORDER BY j.batch, j.program, j.status`);
+     ORDER BY j.batch, j.program, j.status`,
+    params);
   const batches = {};
   for (const r of rows) {
     const b = batches[r.batch] = batches[r.batch] || { batch: r.batch, programs: {}, statuses: {}, male: 0, female: 0, total: 0 };
