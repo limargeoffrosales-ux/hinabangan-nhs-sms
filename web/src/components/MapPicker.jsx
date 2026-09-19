@@ -11,10 +11,20 @@ export default function MapPicker({ lat, lng, onChange, height = 220 }) {
   useEffect(() => {
     if (!elRef.current || mapRef.current) return;
     const map = L.map(elRef.current, { zoomControl: false }).setView([lat || 11.7, lng || 125.3], 11);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }).addTo(map);
+    let tileFails = 0;
+    street.on('tileerror', () => {
+      tileFails += 1;
+      if (tileFails >= 3) {
+        map.removeLayer(street);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+          attribution: '&copy; <a href="https://www.esri.com">Esri</a>', maxZoom: 19,
+        }).addTo(map);
+      }
+    });
     mapRef.current = map;
     if (lat != null && lng != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
       markerRef.current = L.marker([Number(lat), Number(lng)]).addTo(map);

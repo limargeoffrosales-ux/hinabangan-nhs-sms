@@ -24,6 +24,12 @@ const BASE = {
   satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite' },
   labels: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
 };
+const STREET_FALLBACK = {
+  url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+};
+
+const NOTE_STYLE = { position: 'absolute', zIndex: 1000, left: '50%', transform: 'translateX(-50%)', bottom: 48, background: 'rgba(15,23,42,0.85)', color: '#fff', fontSize: 11.5, lineHeight: 1.45, padding: '7px 12px', borderRadius: 8, maxWidth: '85%', textAlign: 'center', pointerEvents: 'none' };
+const NOTE_WARN_STYLE = { ...NOTE_STYLE, background: 'rgba(185,28,28,0.92)' };
 
 export const PIN_COLOR = {
   pending: '#f59e0b', ongoing: '#3b82f6', completed: '#22c55e', served: '#22c55e', withdrawn: '#ef4444',
@@ -96,7 +102,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const liveLayerRef = useRef(null);
-  const tl = useRef({ street: null, satellite: null, labels: null });
+  const tl = useRef({ street: null, satellite: null, labels: null, streetFB: null });
   const schoolMarkerRef = useRef(null);
   const searchMarkerRef = useRef(null);
   const rowsKeyRef = useRef(null);
@@ -109,6 +115,9 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const [showLabels, setShowLabels] = useState(false);
   const [clusterHint, setClusterHint] = useState(false);
   const [zoom, setZoom] = useState(11);
+  const [fallbackNote, setFallbackNote] = useState(false);
+  const [searchMsg, setSearchMsg] = useState(null);
+  const [geoNote, setGeoNote] = useState(null);
 
   const labelRef = useRef('immersion');
   labelRef.current = isImmersion ? 'immersion' : 'JDVP';
@@ -118,6 +127,17 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     if (!mapEl.current || mapRef.current) return;
     const map = L.map(mapEl.current, { zoomControl: true, attributionControl: true }).setView([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], 11);
     tl.current.street = L.tileLayer(BASE.street.url, { attribution: OUTPUT_ATTR, maxZoom: 19 }).addTo(map);
+    let streetFails = 0;
+    tl.current.street.on('tileerror', () => {
+      streetFails += 1;
+      if (streetFails >= 3 && !tl.current.streetFB) {
+        tl.current.streetFB = L.tileLayer(STREET_FALLBACK.url, { attribution: OUTPUT_ATTR, maxZoom: 19 });
+        tl.current.streetFB.addTo(map);
+        map.removeLayer(tl.current.street);
+        tl.current.street = tl.current.streetFB;
+        setFallbackNote(true);
+      }
+    });
     tl.current.satellite = L.tileLayer(BASE.satellite.url, { attribution: OUTPUT_ATTR, maxZoom: 19 });
     tl.current.labels = L.tileLayer(BASE.labels.url, { attribution: OUTPUT_ATTR });
     L.control.scale({ position: 'bottomright' }).addTo(map);
@@ -137,7 +157,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     return () => {
       map.remove();
       mapRef.current = null; layerRef.current = null; liveLayerRef.current = null; schoolMarkerRef.current = null; searchMarkerRef.current = null;
-      tl.current = { street: null, satellite: null, labels: null };
+      tl.current = { street: null, satellite: null, labels: null, streetFB: null };
     };
   }, []);
 
@@ -279,16 +299,20 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         { headers: { Accept: 'application/json' } },
       );
       const j = await r.json();
-      setResults(Array.isArray(j) ? j : []);
+      const list = Array.isArray(j) ? j : [];
+      setResults(list);
+      setSearchMsg(list.length ? null : 'no-results');
     } catch {
       setResults([]);
+      setSearchMsg('blocked');
     } finally {
       setSearching(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!q.trim()) { setResults([]); setOpen(false); return; }
+    if (!q.trim()) { setResults([]); setSearchMsg(null); setOpen(false); return; }
+    setSearchMsg(null);
     const t = setTimeout(() => { if (open) doSearch(q); }, 450);
     return () => clearTimeout(t);
   }, [q, open, doSearch]);
@@ -309,10 +333,13 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   }, []);
 
   const locate = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) { setGeoNote('no-gps'); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => goTo(pos.coords.latitude, pos.coords.longitude, 'You are here'),
-      () => { /* denied — ignore */ },
+      (err) => {
+        setGeoNote(err && err.code === err.PERMISSION_DENIED ? 'denied' : 'no-gps');
+        setTimeout(() => setGeoNote(null), 9000);
+      },
       { enableHighAccuracy: true, timeout: 8000 },
     );
   }, [goTo]);
@@ -345,7 +372,11 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
           </ul>
         )}
         {open && results.length === 0 && !searching && q.trim() && (
-          <div className="gm-search-none sub">No results.</div>
+          <div className="gm-search-none sub">
+            {searchMsg === 'blocked'
+              ? 'Search is unreachable — likely blocked by this network or an ad-blocker, or you are offline. Use "Locate me" or set pins from the Immersion page.'
+              : `No results for “${q}”. Try a town, barangay or landmark (e.g., Catbalogan).`}
+          </div>
         )}
       </div>
 
@@ -395,6 +426,18 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
 
       {clusterHint && (
         <div className="gm-cluster-hint">Clustered view — zoom in for individual students.</div>
+      )}
+      {fallbackNote && (
+        <div style={NOTE_STYLE}>
+          Default street tiles are blocked on this network/device (often ad-blockers or a school firewall blocking tile.openstreetmap.org). Showing a fallback street map.
+        </div>
+      )}
+      {geoNote && (
+        <div style={NOTE_WARN_STYLE}>
+          {geoNote === 'denied'
+            ? 'Location is blocked by the browser. Click the shield/location icon in the address bar and allow location, then try "Locate me" again.'
+            : 'Could not get your position — no GPS signal or the request timed out.'}
+        </div>
       )}
       </div>
 
