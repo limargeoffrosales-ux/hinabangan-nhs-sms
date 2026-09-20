@@ -27,7 +27,7 @@
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
   --grid-line: rgba(255, 255, 255, 0.02);
   --font-ui: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-display: 'Space Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Outfit', 'Space Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
 [data-theme='midnight'] {
@@ -333,33 +333,68 @@ a { color: var(--accent); text-decoration: none; }
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 10px 20px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: 0.2px;
+  gap: 12px;
+  padding: 6px 8px 16px;
 }
 
-.brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
+.brand-seal {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
   background: var(--grad);
-  box-shadow: 0 6px 18px var(--glow);
+  padding: 2.5px;
+  box-shadow: 0 4px 14px var(--glow), 0 0 0 1px var(--border-strong);
   display: grid;
   place-items: center;
-  color: #fff;
+  transition: box-shadow 0.3s ease;
+}
+.brand-seal:hover {
+  box-shadow: 0 6px 20px var(--glow), 0 0 0 1px var(--accent);
 }
 
 .brand-logo {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--border-strong);
+  border: 2px solid var(--bg-soft);
   background: #fff;
-  box-shadow: 0 0 0 4px var(--glow-soft), 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.brand-text-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16.5px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brand-sub {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+.brand-divider {
+  height: 1px;
+  margin: 0 6px 8px;
+  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+  border: none;
 }
 
 .nav-label {

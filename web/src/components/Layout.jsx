@@ -200,9 +200,15 @@ export default function Layout({ children }) {
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
         <div className="brand">
-          <img className="brand-logo" src="/logo.jpg" alt="" />
-          <span className="brand-text">{t('brand')}</span>
+          <div className="brand-seal">
+            <img className="brand-logo" src="/logo.jpg" alt="" />
+          </div>
+          <div className="brand-text-group">
+            <span className="brand-name">Hinabangan NHS</span>
+            <span className="brand-sub">School Management System</span>
+          </div>
         </div>
+        <div className="brand-divider"></div>
         <div className="nav-label">{t('nav.main')}</div>
         {NAV_GROUPS.filter((g) => g.label !== 'nav.main').length > 0 && null}
         {NAV_GROUPS.map((group) => {
