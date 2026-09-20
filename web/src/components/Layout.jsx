@@ -209,8 +209,6 @@ export default function Layout({ children }) {
           </div>
         </div>
         <div className="brand-divider"></div>
-        <div className="nav-label">{t('nav.main')}</div>
-        {NAV_GROUPS.filter((g) => g.label !== 'nav.main').length > 0 && null}
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter((n) => {
             if (!isAdmin && STAFF_HIDDEN.includes(n.to)) return false;
