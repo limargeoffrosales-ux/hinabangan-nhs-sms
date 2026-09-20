@@ -8,6 +8,9 @@ const { teacherScope } = require('../scope');
 const router = express.Router();
 router.use(authenticate);
 
+const summaryCache = new Map();
+const SUMMARY_TTL_MS = 30_000;
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -32,6 +35,11 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const t = today();
   const sy = String(req.query.school_year || '').trim() ||
     ((await q('SELECT school_year FROM enrollments ORDER BY school_year DESC LIMIT 1'))?.school_year) || null;
+  const cacheKey = `${sy || 'none'}:${req.user}:${t}`;
+  const cached = summaryCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < SUMMARY_TTL_MS) {
+    return res.json(cached.data);
+  }
   const last7 = db.dialect === 'pg' ? `CURRENT_DATE - INTERVAL '7 days'` : `date('now', '-7 days')`;
   const [
     students, teachers, sections, subjects, enrollments,
@@ -129,7 +137,9 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
       audit: { last7: Number(audit[0]?.last7 || 0) },
     },
     date: t,
-  });
+  };
+  summaryCache.set(cacheKey, { data, ts: Date.now() });
+  res.json(data);
 }));
 
 router.get('/attendance-trend', requireRole(...DASH_READ), asyncH(async (req, res) => {

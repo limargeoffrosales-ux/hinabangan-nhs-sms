@@ -9,9 +9,11 @@ import { Empty } from './ui';
 const SCHOOL_COORDS = { lat: 11.7056, lng: 125.2656 };
 const SCHOOL_LABEL = 'Hinabangan NHS (approx)';
 
+// Esri's street layer is primary: some school networks and ad-blockers block
+// tile.openstreetmap.org, so OpenStreetMap is kept as the fallback instead.
 const BASE = {
   street: {
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
     label: 'Streets',
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -24,7 +26,7 @@ const BASE = {
   labels: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
 };
 const STREET_FALLBACK = {
-  url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+  url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
 };
 
 const NOTE_STYLE = { position: 'absolute', zIndex: 1000, left: '50%', transform: 'translateX(-50%)', bottom: 48, background: 'rgba(15,23,42,0.85)', color: '#fff', fontSize: 11.5, lineHeight: 1.45, padding: '7px 12px', borderRadius: 8, maxWidth: '85%', textAlign: 'center', pointerEvents: 'none' };
@@ -158,6 +160,34 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     tl.current.labels = L.tileLayer(BASE.labels.url, { attribution: OUTPUT_ATTR });
     L.control.scale({ position: 'bottomright' }).addTo(map);
 
+    // Ad-blockers / firewalls sometimes fail tiles silently (no 'tileerror'
+    // event). If no street tile has loaded within a few seconds, force an
+    // alternate street base so the map never stays gray.
+    const swappedRef = { current: false };
+    const trySwapStreet = () => {
+      if (swappedRef.current) return;
+      const loaded = document.querySelectorAll('.leaflet-container .leaflet-tile-loaded').length;
+      if (loaded === 0 && tl.current.street && !tl.current.streetFB) {
+        tl.current.streetFB = L.tileLayer(STREET_FALLBACK.url, { attribution: OUTPUT_ATTR, maxZoom: 19 });
+        tl.current.streetFB.addTo(map);
+        map.removeLayer(tl.current.street);
+        // keep live/sub-panes above the new base
+        map.removeLayer(liveLayerRef.current);
+        map.removeLayer(geofenceLayerRef.current);
+        map.removeLayer(companyLayerRef.current);
+        map.removeLayer(schoolMarkerRef.current);
+        tl.current.street = tl.current.streetFB;
+        swappedRef.current = true;
+        liveLayerRef.current.addTo(map);
+        geofenceLayerRef.current.addTo(map);
+        companyLayerRef.current.addTo(map);
+        schoolMarkerRef.current.addTo(map);
+        setFallbackNote(true);
+      }
+    };
+    const t1 = setTimeout(trySwapStreet, 4000);
+    const t2 = setTimeout(trySwapStreet, 8000);
+
     layerRef.current = L.layerGroup().addTo(map);
     liveLayerRef.current = L.layerGroup().addTo(map);
     geofenceLayerRef.current = L.layerGroup().addTo(map);
@@ -173,6 +203,8 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     syncZoom();
     mapRef.current = map;
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
       map.remove();
       mapRef.current = null; layerRef.current = null; liveLayerRef.current = null;
       geofenceLayerRef.current = null; companyLayerRef.current = null;
@@ -580,7 +612,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
       )}
       {fallbackNote && (
         <div style={NOTE_STYLE}>
-          Default street tiles are blocked on this network/device (often ad-blockers or a school firewall blocking tile.openstreetmap.org). Showing a fallback street map.
+          Street tiles were slow to load on this network — showing an alternate street map.
         </div>
       )}
       {geoNote && (
