@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import DOMPurify from 'dompurify';
-import { Search, Layers, LocateFixed, School, ExternalLink, Navigation, MapPin } from 'lucide-react';
+import { Search, Layers, LocateFixed, School, ExternalLink, Navigation, MapPin, Maximize2 } from 'lucide-react';
 import { Empty } from './ui';
 
 // School HQ used for "distance from school" figures (Hinabangan NHS — approx).
@@ -259,6 +259,9 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     );
     const marker = L.marker([Number(m.lat), Number(m.lng)], { icon: pinIcon(color) })
       .bindPopup(popup)
+      .bindTooltip(`<b>${esc(m.student_name)}</b><br/><span style="font-size:11px">${esc(m.partner_institution || m.program || '')}</span>`, {
+        direction: 'top', offset: [0, -28], opacity: 0.95, className: 'imm-tooltip',
+      })
       .addTo(layerRef.current);
     markerMapRef.current.set(m.student_id, marker);
     return marker;
@@ -478,6 +481,13 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     }
   }, []);
 
+  const fitAll = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !rows.length) return;
+    const ok = rows.filter((r) => r.lat != null && r.lng != null && Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng)));
+    if (ok.length) map.fitBounds(L.latLngBounds(ok.map((r) => [Number(r.lat), Number(r.lng)])).pad(0.08));
+  }, [rows]);
+
   const locate = useCallback(() => {
     if (!navigator.geolocation) { setGeoNote('no-gps'); return; }
     navigator.geolocation.getCurrentPosition(
@@ -556,6 +566,13 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
           </div>
         )}
       </div>
+
+      {/* Fit all students */}
+      {rows.length > 1 && (
+        <button className="gm-locate-ctl btn-icon" type="button" title="Fit all students on map" aria-label="Fit all students on map" onClick={fitAll}>
+          <Maximize2 size={16} />
+        </button>
+      )}
 
       {/* Locate me */}
       <button className="gm-locate-ctl btn-icon" type="button" title="My location" aria-label="Use my location" onClick={locate}>
