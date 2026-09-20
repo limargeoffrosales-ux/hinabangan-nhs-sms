@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Link2, Upload, Camera, RefreshCw, AlertTriangle, UserPlus, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Link2, Upload, Camera, RefreshCw, AlertTriangle, UserPlus, CheckCircle2, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, fileUrl } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput } from '../components/ui';
 
 const EMPTY_FORM = {
   lrn: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: 'Male',
@@ -319,7 +319,7 @@ export default function Students() {
           <button className="btn" onClick={openRequests} title={t('students.linkRequestsTitle', 'Approve or reject self-service portal registrations')}>
             <UserPlus size={15} /> {t('students.linkRequests')}
             {pendingRequests.length > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, marginLeft: 6, padding: '0 5px', borderRadius: 9, background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700 }}>{pendingRequests.length}</span>
+              <span className="count-pill">{pendingRequests.length}</span>
             )}
           </button>
         )}
@@ -327,10 +327,7 @@ export default function Students() {
       </PageHead>
       <ErrorBanner error={error} />
       <div className="search-row">
-        <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-dim)' }} />
-          <input style={{ paddingLeft: 32 }} placeholder={t('students.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
+        <SearchInput value={query} onChange={setQuery} placeholder={t('students.search')} />
       </div>
       {canWrite && (
         <div className="card" style={{ marginBottom: 12 }}>
@@ -386,16 +383,16 @@ export default function Students() {
                 )}
               </div>
               {importResult?.errors?.length > 0 && (
-                <div style={{ marginTop: 8, padding: 10, border: '1px solid #e74c3c', borderRadius: 8, background: 'rgba(231,76,60,0.07)' }}>
+                <div className="err-banner" style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <AlertTriangle size={14} style={{ color: '#e74c3c', flexShrink: 0 }} />
-                    <strong style={{ fontSize: 13, color: '#e74c3c' }}>{importResult.errors.length} row(s) were skipped</strong>
+                    <AlertTriangle size={14} />
+                    <strong style={{ fontSize: 13 }}>{importResult.errors.length} row(s) were skipped</strong>
                   </div>
-                  <div style={{ marginTop: 4, fontSize: 12, color: '#c0392b', maxHeight: 140, overflowY: 'auto', fontFamily: 'monospace' }}>
+                  <div style={{ marginTop: 4, fontSize: 12, maxHeight: 140, overflowY: 'auto', fontVariantNumeric: 'tabular-nums' }}>
                     {importResult.errors.map((e, i) => <div key={i}>{e}</div>)}
                   </div>
                   {importResult.imported === 0 && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: '#c0392b' }}>Nothing was imported — fix the rows above and try again.</div>
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)' }}>Nothing was imported — fix the rows above and try again.</div>
                   )}
                 </div>
               )}
@@ -409,13 +406,13 @@ export default function Students() {
             <thead>
               <tr>
                 <th>{t('students.lrn')}</th><th>{t('students.name')}</th><th>{t('students.sex')}</th><th>{t('students.gradeLevel')}</th><th>{t('students.strandTrack')}</th>
-                <th>{t('students.guardian')}</th><th>{t('students.status')}</th>{canWrite && <th style={{ textAlign: 'right' }}>{t('common.actions')}</th>}
+                <th>{t('students.guardian')}</th><th>{t('students.status')}</th>{canWrite && <th className="actions" style={{ textAlign: 'right' }}>{t('common.actions')}</th>}
               </tr>
             </thead>
             <tbody>
               {rows.map((s) => (
                 <tr key={s.id}>
-                  <td style={{ fontFamily: 'monospace' }}>{s.lrn}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{s.lrn}</td>
                   <td><strong>{s.last_name}, {s.first_name} {s.middle_name || ''}</strong> {s.suffix}</td>
                   <td>{s.sex}</td>
                   <td>{s.grade_level}</td>
@@ -423,7 +420,7 @@ export default function Students() {
                   <td>{s.guardian_name || '—'}</td>
                   <td><Badge status={s.status} /></td>
                   {canWrite && (
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td className="row-actions" style={{ textAlign: 'right' }}>
                       <button className="btn btn-sm" title={t('students.portalAccounts')} onClick={() => openAccounts(s)}><Link2 size={13} /></button>{' '}
                        {canViewPhoto && <button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit student"><Pencil size={13} aria-hidden="true" /></button>}{' '}
                        <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete student"><Trash2 size={13} aria-hidden="true" /></button>
@@ -464,7 +461,7 @@ export default function Students() {
                   </div>
                 </div>
                 <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 150, height: 180, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-alt)', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                  <div style={{ width: 150, height: 180, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-soft)', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
                     {photoUrl ? (
                       <img src={photoUrl} alt="Student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (

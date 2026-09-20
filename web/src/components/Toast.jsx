@@ -30,29 +30,17 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast, toast }}>
       {children}
-      <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 380 }}>
+      <div className="toast-stack">
         {toasts.map(t => (
           <div
             key={t.id}
             onClick={() => removeToast(t.id)}
-            style={{
-              padding: '10px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              animation: 'toast-in 0.25s ease-out',
-              background: t.type === 'success' ? '#f0fdf4' : t.type === 'error' ? '#fef2f2' : t.type === 'warning' ? '#fffbeb' : '#f0f9ff',
-              color: t.type === 'success' ? '#166534' : t.type === 'error' ? '#991b1b' : t.type === 'warning' ? '#92400e' : '#1e40af',
-              border: `1px solid ${t.type === 'success' ? '#bbf7d0' : t.type === 'error' ? '#fecaca' : t.type === 'warning' ? '#fde68a' : '#bfdbfe'}`,
-            }}
+            className={`toast toast-${t.type}`}
           >
             {t.message}
           </div>
         ))}
       </div>
-      <style>{`@keyframes toast-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
     </ToastContext.Provider>
   );
 }

@@ -7,7 +7,7 @@ import {
   BadgeCheck, UserCheck, History, ArrowRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Spinner, Empty, Badge } from '../components/ui';
+import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import { loadRecharts } from '../lib/lazy-recharts';
 
@@ -137,68 +137,51 @@ export default function Dashboard() {
 
       <div className="grid grid-3">
         {kpis.map((k) => (
-          <Link className="card kpi" style={{ textDecoration: 'none', cursor: 'pointer' }} to={k.to} key={k.label}>
-            <div className="icon" style={{ background: `${k.color}22`, color: k.color }}><k.icon size={20} /></div>
-            <div className="value">{k.value}</div>
-            <div className="label">{k.label}</div>
-            {k.sub && <div className="kpi-sub">{k.sub}</div>}
-          </Link>
+          <KPICard key={k.label} to={k.to} icon={k.icon} value={k.value} label={k.label} sub={k.sub} color={k.color} />
         ))}
       </div>
 
-        <Link to="/career-tvl" className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 18, textDecoration: 'none' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <div className="icon" style={{ background: 'var(--accent-2)22', color: 'var(--accent-2)', flexShrink: 0 }}><Briefcase size={20} /></div>
-            <div>
-              <div style={{ fontWeight: 600, color: 'var(--text)' }}>{t('dashboard.careerTvl')}</div>
-              <div className="sub" style={{ fontSize: 12.5, marginTop: 2 }}>{t('dashboard.careerTvlSub')}</div>
-            </div>
-          </div>
-          <ArrowRight size={16} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-        </Link>
+      <Link to="/career-tvl" className="info-card" style={{ marginTop: 18, textDecoration: 'none' }}>
+        <div className="kpi-icon" style={{ background: 'color-mix(in srgb, var(--accent-2) 14%, transparent)', color: 'var(--accent-2)' }}>
+          <Briefcase size={20} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, color: 'var(--text)' }}>{t('dashboard.careerTvl')}</div>
+          <div className="sub" style={{ fontSize: 12.5, marginTop: 2 }}>{t('dashboard.careerTvlSub')}</div>
+        </div>
+        <ArrowRight size={16} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+      </Link>
 
       <div style={{ height: 18 }} />
 
       <div className="grid grid-2">
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>{t('dashboard.enrollmentPipeline')}</h3>
+        <SectionCard title={t('dashboard.enrollmentPipeline')} icon={Activity}>
           <div style={{ display: 'grid', gap: 14 }}>
-            {funnel.map((f, i) => (
-              <div key={f.label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, marginBottom: 6 }}>
-                  <span style={{ color: 'var(--text-dim)' }}>{f.label}</span>
-                  <strong>{f.value}</strong>
-                </div>
-                <div style={{ background: 'var(--card-hover)', borderRadius: 8, height: 12, overflow: 'hidden' }}>
-                  <div
-                    style={{ width: `${Math.round(f.value / maxFunnel * 100)}%`, height: '100%', background: f.color, borderRadius: 8 }}
-                  />
-                </div>
-              </div>
+            {funnel.map((f) => (
+              <FunnelBar key={f.label} label={f.label} value={f.value} max={maxFunnel} color={f.color} />
             ))}
           </div>
           <div className="sub" style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
             <History size={13} />
             {t('dashboard.pipelineHint')}
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>{t('dashboard.enrolledByGrade')}</h3>
+        <SectionCard title={t('dashboard.enrolledByGrade')} icon={Layers}>
           {gradeData.length > 0 ? (R ? (
             <R.ResponsiveContainer width="100%" height={190}>
               <R.BarChart data={gradeData}>
                 <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
                 <R.XAxis dataKey="grade" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
                 <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border-strong)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }} />
                 <R.Bar dataKey="Male" fill={SEX_COLORS.Male} radius={[4, 4, 0, 0]} />
                 <R.Bar dataKey="Female" fill={SEX_COLORS.Female} radius={[4, 4, 0, 0]} />
               </R.BarChart>
             </R.ResponsiveContainer>
           ) : R === null ? (
-            <div className="sub" style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {t('dashboard.chartUnavailable', 'Chart could not be loaded.')}
+            <div className="empty-state" style={{ height: 190 }}>
+              <div className="empty-state-text">{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div>
             </div>
           ) : <div style={{ height: 190 }}><Spinner /></div>) : (
             <Empty text={t('dashboard.noEnrolledGrade', 'No enrolled learners for the current school year yet.')} />
@@ -211,24 +194,23 @@ export default function Dashboard() {
               </span>
             ))}
           </div>
-        </div>
+        </SectionCard>
       </div>
 
       <div style={{ height: 18 }} />
 
-      <div className="card">
-        <div className="dashboard-block-head">
-          <h3 style={{ margin: 0 }}><Activity size={16} /> {t('dashboard.dataReadiness')}</h3>
-        </div>
-        <div className="split-2" style={{ marginTop: 12 }}>
+      <SectionCard title={t('dashboard.dataReadiness')} icon={Activity}>
+        <div className="split-2">
           {readinessItems.map((item) => {
             const st = READINESS_STATUS[item.status] || READINESS_STATUS.note;
             return (
-              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--card-hover)', border: '1px solid var(--border)' }}>
-                <div className="icon" style={{ background: 'var(--card)', color: 'var(--text-dim)', flexShrink: 0 }}><item.icon size={18} /></div>
+              <div key={item.key} className="readiness-item">
+                <div className="kpi-icon" style={{ background: 'var(--card)', color: 'var(--text-dim)', flexShrink: 0 }}>
+                  <item.icon size={18} />
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <Link to={item.to} style={{ fontWeight: 600, color: 'var(--text)' }}>{item.label}</Link>
+                    <Link to={item.to} style={{ fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>{item.label}</Link>
                     <span className={`badge ${st.badge}`}>{t(st.tri)}</span>
                   </div>
                   <div className="sub" style={{ fontSize: 12.5, marginTop: 2 }}>{item.detail}</div>
@@ -237,7 +219,7 @@ export default function Dashboard() {
             );
           })}
         </div>
-      </div>
+      </SectionCard>
 
       <div style={{ height: 18 }} />
 
@@ -246,10 +228,7 @@ export default function Dashboard() {
       <div style={{ height: 18 }} />
 
       <div className="grid grid-3">
-        <div className="card">
-          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Megaphone size={16} /> {t('nav.announcements')}
-          </h3>
+        <SectionCard title={t('nav.announcements')} icon={Megaphone}>
           {announcements.length === 0 ? <Empty text={t('dashboard.noAnnouncements')} /> : (
             announcements.map((a) => (
               <div key={a.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
@@ -262,14 +241,11 @@ export default function Dashboard() {
               </div>
             ))
           )}
-        </div>
+        </SectionCard>
 
-        <div className="card">
-          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <History size={16} /> {t('dashboard.recentActivity')}
-          </h3>
+        <SectionCard title={t('dashboard.recentActivity')} icon={History}>
           {activity === null ? <Spinner /> : activity.length === 0 ? <Empty text={t('dashboard.noActivity')} /> : (
-            <div style={{ display: 'grid', gap: 12 }}>
+            <div>
               {activity.map((a) => {
                 const detail = (() => {
                   try {
@@ -278,33 +254,23 @@ export default function Dashboard() {
                   } catch { return ''; }
                 })();
                 return (
-                  <div key={a.id} style={{ display: 'flex', gap: 10 }}>
-                    <div style={{ color: 'var(--text-dim)', marginTop: 2 }}><Activity size={14} /></div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
-                      <div className="sub" style={{ fontSize: 12 }}>{fmtWhen(a.created_at)}</div>
-                    </div>
-                  </div>
+                  <FeedItem key={a.id} icon={Activity}>
+                    <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
+                    <div className="sub" style={{ fontSize: 12, marginTop: 2 }}>{fmtWhen(a.created_at)}</div>
+                  </FeedItem>
                 );
               })}
             </div>
           )}
           <Link to="/audit" className="btn btn-sm" style={{ marginTop: 14 }}>{t('dashboard.auditLogs')}</Link>
-        </div>
+        </SectionCard>
 
-        <div className="card">
-          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Activity size={16} /> {t('dashboard.quickActions')}
-          </h3>
-          <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
-            {quick.map((q) => (
-              <Link className="btn btn-sm quick-link" to={q.to} key={q.to}><q.icon size={13} /> {q.label}</Link>
-            ))}
-          </div>
+        <SectionCard title={t('dashboard.quickActions')} icon={Activity}>
+          <QuickActions items={quick} />
           <div className="sub" style={{ marginTop: 16 }}>
             {t('dashboard.auditLast7', { n: r.audit?.last7 ?? 0 })}
           </div>
-        </div>
+        </SectionCard>
       </div>
     </>
   );

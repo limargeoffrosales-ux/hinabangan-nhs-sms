@@ -4,7 +4,7 @@ import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, TEACHER_POSITIONS, TEACHER_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput } from '../components/ui';
 
 const EMPTY_FORM = {
   employee_no: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: '',
@@ -106,10 +106,7 @@ export default function Teachers() {
       </PageHead>
       <ErrorBanner error={error} />
       <div className="search-row">
-        <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-dim)' }} />
-          <input style={{ paddingLeft: 32 }} placeholder={t('teachers.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
+        <SearchInput value={query} onChange={setQuery} placeholder={t('teachers.search')} />
       </div>
       {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('teachers.noData')} /> : (
         <div className="card table-wrap">
@@ -119,13 +116,13 @@ export default function Teachers() {
                 <th>{t('teachers.employeeNo')}</th><th>{t('teachers.name')}</th><th>{t('teachers.position')}</th><th>{t('teachers.room')}</th><th>{t('teachers.prcNo')}</th>
                 <th>{t('teachers.email')}</th><th>{t('teachers.contact')}</th><th>{t('teachers.status')}</th>
                 {canLink && <th>{t('teachers.loginAccount')}</th>}
-                {canWrite && <th style={{ textAlign: 'right' }}>{t('common.actions')}</th>}
+                {canWrite && <th className="actions" style={{ textAlign: 'right' }}>{t('common.actions')}</th>}
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td style={{ fontFamily: 'monospace' }}>{row.employee_no || '—'}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.employee_no || '—'}</td>
                   <td><strong>{row.last_name}, {row.first_name} {row.middle_name || ''}</strong></td>
                   <td>{row.position || '—'}</td>
                   <td>{row.room || '—'}</td>
@@ -135,7 +132,7 @@ export default function Teachers() {
                   <td><Badge status={row.status} /></td>
                   {canLink && <td>{row.user_id ? <span className="muted">@{row.username || 'linked'}</span> : '—'}</td>}
                   {canWrite && (
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td className="row-actions" style={{ textAlign: 'right' }}>
                        <button className="btn btn-sm" onClick={() => openEdit(row)} aria-label="Edit teacher"><Pencil size={13} aria-hidden="true" /></button>{' '}
                        <button className="btn btn-sm btn-danger" onClick={() => remove(row)} aria-label="Delete teacher"><Trash2 size={13} aria-hidden="true" /></button>
                     </td>
@@ -195,7 +192,7 @@ export default function Teachers() {
             </div>
             {canLink && (
               <div className="form-row">
-                <div style={{ flex: 1 }}>
+                <div className="form-group">
                   <label>{t('teachers.loginAccountLabel')} <span className="muted">{t('teachers.loginAccountHint')}</span></label>
                   <select value={form.user_id} onChange={(e) => set('user_id', e.target.value)}>
                     <option value="">{t('common.none')}</option>
