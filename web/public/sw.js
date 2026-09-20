@@ -1,14 +1,10 @@
-const CACHE_VERSION = 'v4.1.1';
+const CACHE_VERSION = 'v5.0.0';
 const CACHE_NAME = `meridianed-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/logo.jpg',
   '/manifest.json',
 ];
 
-// API routes that can be cached for offline use (read-only, stale-while-revalidate)
-// These are read-only endpoints where stale data is acceptable for offline viewing
 const CACHEABLE_API_PATTERNS = [
   '/api/v1/analytics/kpi/',
   '/api/v1/portal/',
@@ -27,7 +23,6 @@ const CACHEABLE_API_PATTERNS = [
   '/api/v1/certifications',
 ];
 
-// API patterns that should NEVER be cached (mutating operations)
 const NON_CACHEABLE_API_PATTERNS = [
   '/api/v1/auth/',
   '/api/v1/assignments/',
@@ -50,13 +45,9 @@ const NON_CACHEABLE_API_PATTERNS = [
   '/api/v1/ai/',
 ];
 
-function isCacheableApi(url) {
-  // First check if it's a non-cacheable pattern
-  if (NON_CACHEABLE_API_PATTERNS.some((p) => url.includes(p))) {
-    return false;
-  }
-  // Then check if it's a cacheable pattern
-  return CACHEABLE_API_PATTERNS.some((p) => url.includes(p));
+function isCacheableApi(pathname) {
+  if (NON_CACHEABLE_API_PATTERNS.some((p) => pathname.includes(p))) return false;
+  return CACHEABLE_API_PATTERNS.some((p) => pathname.includes(p));
 }
 
 self.addEventListener('install', (event) => {
@@ -81,14 +72,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Never intercept the service worker script itself; let it update from network.
   if (url.pathname === '/sw.js') return;
-
-  // Pass everything cross-origin straight through. Tile layers
-  // (tile.openstreetmap.org, Esri), fonts and CDN assets are intercepted by
-  // the Cache API path below, but cache.match() rejects cross-origin URLs —
-  // the respondWith promise never settles and every tile dies with
-  // ERR_FAILED, leaving the map gray/blank. The browser handles them natively.
   if (url.origin !== self.location.origin) return;
 
   const isStaticAsset = url.pathname.startsWith('/assets/') ||
@@ -100,16 +84,13 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.woff2') ||
     url.pathname.endsWith('.woff');
 
-  // API requests
   if (url.pathname.startsWith('/api/')) {
     if (isCacheableApi(url.pathname)) {
-      // Stale-while-revalidate for read-only cacheable APIs
       event.respondWith(
         caches.open(CACHE_NAME).then((cache) =>
           cache.match(request).then((cached) => {
             const fetchPromise = fetch(request).then((response) => {
               if (response && response.status === 200) {
-                // Only cache successful responses
                 cache.put(request, response.clone());
               }
               return response;
@@ -126,11 +107,10 @@ self.addEventListener('fetch', (event) => {
       );
       return;
     }
-    // Non-cacheable API calls (writes) — network only with offline fallback
     event.respondWith(
-      fetch(request).catch(() => new Response(JSON.stringify({ 
-        offline: true, 
-        error: 'Network unavailable. Write operations require online connection.' 
+      fetch(request).catch(() => new Response(JSON.stringify({
+        offline: true,
+        error: 'Network unavailable. Write operations require online connection.'
       }), {
         status: 503,
         headers: { 'Content-Type': 'application/json' },
@@ -139,7 +119,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets - cache-first with background update
   if (isStaticAsset) {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) =>
@@ -157,16 +136,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML/navigation — network-first so a new deploy is picked up immediately
-  // (stale HTML referencing removed chunks is what breaks dynamic imports).
-  // Fall back to the cached shell only when offline.
-  event.respondWith(
-    fetch(request).then((response) => {
-      if (response && response.status === 200 && response.type === 'basic') {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-      }
-      return response;
-    }).catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
-  );
+  // HTML/navigation — NETWORK ONLY. Never serve cached HTML.
+  // Cached HTML references old chunk hashes that no longer exist on the server
+  // after a deploy, causing "Failed to fetch dynamically imported module" loops.
+  // Hashed static assets (JS/CSS) are still cached via the handler above.
+  event.respondWith(fetch(request));
 });

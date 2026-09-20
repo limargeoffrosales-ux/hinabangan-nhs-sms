@@ -38,10 +38,12 @@ class ErrorBoundary extends Component {
 
 const CHUNK_RELOAD_KEY = 'meridianed_chunk_reload_at';
 
-// React.lazy + one-shot recovery for the "Failed to fetch dynamically imported
-// module" error: after a deploy, an already-open tab can request a chunk whose
-// hash no longer exists. Reload once (guarded against loops) to pull the fresh
-// build; if it still fails, let the error surface to the ErrorBoundary.
+// React.lazy with stale-chunk recovery. After a deploy, an already-open tab can
+// request a chunk whose hash no longer exists. Instead of immediately reloading
+// (which races with the vite:preloadError handler in main.jsx and causes the
+// ErrorBoundary to flash), we return a hanging promise that keeps the Suspense
+// spinner visible while vite:preloadError handles the reload. As a safety net,
+// if neither mechanism resolves within 5s, we reload ourselves.
 function lazyWithRetry(factory) {
   return lazy(() =>
     factory().catch((err) => {
@@ -49,7 +51,12 @@ function lazyWithRetry(factory) {
       try { last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0); } catch { /* ignore */ }
       if (Date.now() - last > 10000) {
         try { sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now())); } catch { /* ignore */ }
-        window.location.reload();
+        // Safety net: reload after 5s if vite:preloadError hasn't already.
+        setTimeout(() => {
+          let ts = 0;
+          try { ts = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0); } catch { /* ignore */ }
+          if (Date.now() - ts > 4500) window.location.reload();
+        }, 5000);
         return new Promise(() => {});
       }
       throw err;
