@@ -85,7 +85,6 @@ DepEd School Forms|periodic|sf4_monthly_learner_movement|SF4 Monthly Learner Mov
 DepEd School Forms|periodic|sf5_report_on_promotion|SF5 Report on Promotion|1|0|1
 DepEd School Forms|periodic|sf6_summarized_promotion|SF6 Summarized Promotion Report|1|0|1
 DepEd School Forms|periodic|sf7_personnel_assignment|SF7 School Personnel Assignment|1|0|0
-DepEd School Forms|periodic|sf8_health_nutrition|SF8 Learner Basic Health and Nutrition Report|1|0|1
 DepEd School Forms|periodic|sf9_report_card|SF9 Report Card|1|1|1
 DepEd School Forms|periodic|sf10_permanent_record|SF10 Permanent Record|1|0|1
 Classroom Documents|periodic|seating_plan|Seating Plan|0|0|1

@@ -9,7 +9,6 @@ const ROOM_TYPES = [
   { value: 'classroom', label: 'Classroom', badgeColor: 'blue' },
   { value: 'laboratory', label: 'Laboratory', badgeColor: 'green' },
   { value: 'workshop', label: 'Workshop', badgeColor: 'yellow' },
-  { value: 'library', label: 'Library', badgeColor: 'purple' },
   { value: 'gymnasium', label: 'Gymnasium', badgeColor: 'red' },
   { value: 'office', label: 'Office', badgeColor: 'gray' },
   { value: 'other', label: 'Other', badgeColor: 'gray' },

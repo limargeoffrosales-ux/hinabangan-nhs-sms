@@ -401,35 +401,6 @@ router.get('/sf7', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   res.json({ teachers, assignments: byTeacher });
 }));
 
-router.get('/sf8', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
-  const { section_id, school_year } = req.query;
-  const secId = validateSectionId(section_id);
-  if (!section_id) return res.json({ students: [], section: null });
-  const section = await q('SELECT * FROM sections WHERE id = ?', [secId]);
-  const sy = school_year ? validateYear(school_year) : null;
-  const students = await qa(
-    db.dialect === 'pg'
-      ? `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex,
-              sh.height_cm, sh.weight_kg, sh.bmi, sh.nutritional_status, sh.cct
-       FROM students s
-       JOIN enrollments e ON e.student_id = s.id
-       LEFT JOIN student_health sh ON sh.student_id = s.id
-         AND (sh.school_year = $1::text OR $1::text IS NULL)
-       WHERE e.section_id = $2::bigint
-       ORDER BY s.last_name, s.first_name`
-      : `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex,
-              sh.height_cm, sh.weight_kg, sh.bmi, sh.nutritional_status, sh.cct
-       FROM students s
-       JOIN enrollments e ON e.student_id = s.id
-       LEFT JOIN student_health sh ON sh.student_id = s.id
-         AND (sh.school_year = ? OR ? IS NULL)
-       WHERE e.section_id = ?
-       ORDER BY s.last_name, s.first_name`,
-    [sy, sy, section_id]
-  );
-  res.json({ students, section });
-}));
-
 router.get('/sf9', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id, section_id, term } = req.query;
   if (!student_id && !section_id) return res.json({ learners: [] });

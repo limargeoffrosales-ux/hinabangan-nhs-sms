@@ -822,7 +822,7 @@
   "rooms.inactive": "Inactive",
   "rooms.classroom": "Classroom",
   "rooms.laboratory": "Laboratory",
-  "rooms.library": "Library",
+
   "rooms.gymnasium": "Gymnasium",
   "rooms.office": "Office",
   "rooms.workshop": "Workshop",
@@ -885,7 +885,7 @@
   "depedForms.sf5": "SF5 – Report on Promotion",
   "depedForms.sf6": "SF6 – Summarized Promotion",
   "depedForms.sf7": "SF7 – Personnel Assignment",
-  "depedForms.sf8": "SF8 – Health & Nutrition",
+
   "depedForms.sf9": "SF9 – Report Card",
   "depedForms.sf10": "SF10 – Permanent Record",
   "depedForms.sog": "Summary of Grades",

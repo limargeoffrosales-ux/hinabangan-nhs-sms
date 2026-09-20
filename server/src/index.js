@@ -52,7 +52,6 @@ const guidanceRoutes = require('./routes/guidance.routes');
 const uploadsRoutes = require('./routes/uploads.routes');
 const aiRoutes = require('./routes/ai.routes');
 const consentsRoutes = require('./routes/consents.routes');
-const documentRoutes = require('./routes/documents.routes');
 
 (async () => {
   await db.init();
@@ -306,7 +305,6 @@ const documentRoutes = require('./routes/documents.routes');
   app.use('/api/v1/uploads', uploadsRoutes);
   app.use('/api/v1/ai', aiRoutes);
   app.use('/api/v1/consents', consentsRoutes);
-  app.use('/api/v1/documents', documentRoutes);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',

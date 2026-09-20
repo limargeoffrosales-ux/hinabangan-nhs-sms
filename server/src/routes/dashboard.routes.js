@@ -16,7 +16,7 @@ function today() {
 }
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
-const DASH_READ = [...WRITE, 'teacher', 'guidance', 'nurse', 'librarian', 'accounting', 'hr'];
+const DASH_READ = [...WRITE, 'teacher', 'guidance', 'accounting', 'hr'];
 const SHS_GRADES = ['Grade 11', 'Grade 12'];
 
 // ARAL dashboard endpoints are shared with teachers (DASH_READ). Scope their

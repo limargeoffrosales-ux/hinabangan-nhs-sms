@@ -246,7 +246,6 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
     await conn.qr('DELETE FROM work_immersion WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM jdvp_recipients WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_competency_scores WHERE student_id = ?', [studentId]);
-    await conn.qr('DELETE FROM student_health WHERE student_id = ?', [studentId]);
     // AI chat history is free-text and has no student column, so any message may
     // reference the erased student (or anyone) — removing it entirely is the only
     // way to guarantee the student's data no longer exists in it.
@@ -278,7 +277,7 @@ async function gatherStudentPii(studentId) {
   const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
   if (!student) return { student: null };
   const [contacts, attendance, grades, enrollments, guidance, plans, immersion, certs, ratings, access,
-    assessments, aral, submissions, health, conduct, jdvp, consents] =
+    assessments, aral, submissions, conduct, jdvp, consents] =
     await Promise.all([
       qa('SELECT * FROM parent_students WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM attendance WHERE student_id = ?', [studentId]),
@@ -293,12 +292,11 @@ async function gatherStudentPii(studentId) {
       qa('SELECT * FROM learner_assessments WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM aral_session_attendance WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM assignment_submissions WHERE student_id = ?', [studentId]),
-      qa('SELECT * FROM student_health WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM student_conduct_records WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM jdvp_recipients WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM consent_responses WHERE student_id = ? OR (student_id IS NULL AND user_id IN (SELECT parent_user_id FROM parent_students WHERE student_id = ?))', [studentId, studentId]),
     ]);
-  return { student, contacts, attendance, grades, enrollments, guidance, plans, immersion, certs, ratings, access, assessments, aral, submissions, health, conduct, jdvp, consents };
+  return { student, contacts, attendance, grades, enrollments, guidance, plans, immersion, certs, ratings, access, assessments, aral, submissions, conduct, jdvp, consents };
 }
 
 // Redact a gathered PII bundle into a non-personal receipt for the audit trail.

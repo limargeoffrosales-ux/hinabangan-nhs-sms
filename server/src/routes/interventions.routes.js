@@ -9,7 +9,7 @@ const { ensureTeacherSeesStudent, teacherScope } = require('../scope');
 const router = express.Router();
 router.use(authenticate);
 
-const WRITE = [...ADMIN_ROLES, 'teacher', 'guidance', 'nurse'];
+const WRITE = [...ADMIN_ROLES, 'teacher', 'guidance'];
 
 const CATEGORIES = [
   'academic_recovery', 'remediation', 'enrichment', 'attendance', 'behavior',

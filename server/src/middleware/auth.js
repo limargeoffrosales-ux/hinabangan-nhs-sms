@@ -140,8 +140,8 @@ async function authenticate(req, res, next) {
 }
 
 const ROLES = ['super_admin', 'region_admin', 'division_admin', 'school_admin',
-  'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance', 'nurse',
-  'librarian', 'cashier', 'accounting', 'hr', 'property_custodian', 'ict',
+  'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance',
+  'cashier', 'accounting', 'hr', 'property_custodian', 'ict',
   'security', 'student', 'parent'];
 
 const ADMIN_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];

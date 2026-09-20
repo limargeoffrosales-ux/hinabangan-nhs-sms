@@ -14,7 +14,6 @@ const FORMS = [
   { code: 'sf5', label: 'SF5', title: 'Report on Promotion', orient: 'landscape' },
   { code: 'sf6', label: 'SF6', title: 'Summarized Promotion', orient: 'landscape' },
   { code: 'sf7', label: 'SF7', title: 'Personnel Assignment', orient: 'landscape' },
-  { code: 'sf8', label: 'SF8', title: 'Health & Nutrition', orient: 'landscape' },
   { code: 'sf9', label: 'SF9', title: 'Report Card', orient: 'landscape' },
   { code: 'sf10', label: 'SF10', title: 'Permanent Record (JHS)', orient: 'portrait' },
   { code: 'sf11', label: 'SF11', title: 'Permanent Record (SHS)', orient: 'portrait' },
@@ -148,9 +147,6 @@ export default function DepedForms() {
     } else if (tab === 'sf7' && schoolYear) {
       setLoading(true);
       api(`/deped-forms/sf7?school_year=${schoolYear}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
-    } else if (tab === 'sf8' && sectionId) {
-      setLoading(true);
-      api(`/deped-forms/sf8?section_id=${sectionId}&school_year=${schoolYear || ''}`).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     } else if (tab === 'sf9' && (studentId || sectionId)) {
       setLoading(true);
       const url = studentId ? `/deped-forms/sf9/full?student_id=${studentId}` : `/deped-forms/sf9/full?section_id=${sectionId}`;
@@ -222,7 +218,7 @@ export default function DepedForms() {
         ))}
       </div>
 
-      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf3' || tab === 'sf4' || tab === 'sf5' || tab === 'sf8' || tab === 'sf9' || tab === 'sog' || tab === 'sas') && (
+      {(tab === 'sf1' || tab === 'sf2' || tab === 'sf3' || tab === 'sf4' || tab === 'sf5' || tab === 'sf9' || tab === 'sog' || tab === 'sas') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ fontSize: 13 }}>Section
@@ -379,7 +375,6 @@ function renderForm(tab, data, info, ctx) {
     case 'sf5': return renderSF5(data, info, ctx);
     case 'sf6': return renderSF6(data, info);
     case 'sf7': return renderSF7(data, info);
-    case 'sf8': return renderSF8(data, info);
     case 'sf9': return renderSF9(data, info);
     case 'sf10': return renderSF10(data, info);
     case 'sf11': return renderSF11(data, info);
@@ -399,7 +394,6 @@ function renderBlankForm(tab, info, ctx) {
     case 'sf5': return renderSF5Blank(info);
     case 'sf6': return renderSF6Blank(info);
     case 'sf7': return renderSF7Blank(info);
-    case 'sf8': return renderSF8Blank(info);
     case 'sf9': return renderSF9Blank(info);
     case 'sf10': return renderSF10Blank(info);
     case 'sf11': return renderSF11Blank(info);
@@ -879,66 +873,6 @@ ${signatureBlockHtml('', 'School Head', '', 'HR Officer')}`;
 }
 
 function renderSF7Blank(info) { return renderSF7(null, info); }
-
-/* -- SF8: Health & Nutrition ------------------------------- */
-
-function renderSF8(data, info) {
-  const students = data?.students || [];
-  const section = data?.section;
-  const sy = info.school_year || '____-____';
-  function whoBmiStatus(bmi, _age) {
-    if (!bmi) return '';
-    const b = Number(bmi);
-    if (b < 18.5) return 'UW';
-    if (b < 25) return 'N';
-    if (b < 30) return 'OW';
-    return 'OB';
-  }
-  return `
-${formHeaderHtml(info, 'sf8', "School Form 8 (SF8) � Learner's Basic Health and Nutrition Report")}
-<table style="font-size:8pt;margin-bottom:6pt;">
-  <tr><td style="border:none;width:50%"><strong>School Name:</strong> ${esc(info?.school_name || 'Hinabangan National High School')}</td>
-      <td style="border:none;width:50%"><strong>School Year:</strong> ${esc(sy)}</td></tr>
-  <tr><td style="border:none"><strong>Grade Level:</strong> ${section ? esc(section.grade_level) : '____'}</td>
-      <td style="border:none"><strong>Section:</strong> ${section ? esc(section.name) : '____'}</td></tr>
-</table>
-<table style="font-size:7pt;">
-<thead><tr>
-  <th style="width:25pt">LRN</th><th style="min-width:70pt">Name (LN, FN, MN)</th><th style="width:14pt">Sex</th>
-  <th style="width:18pt">Age</th>
-  <th style="width:30pt">Height<br/>(cm)</th><th style="width:30pt">Weight<br/>(kg)</th>
-  <th style="width:25pt">BMI</th><th style="width:30pt">Nutritional<br/>Status</th>
-  <th style="width:40pt">Home Address</th>
-  <th style="width:25pt">CCT</th>
-</tr></thead>
-<tbody>
-${students.length ? students.map(s => {
-  const bmi = s.bmi != null ? Number(s.bmi).toFixed(1) : (s.height_cm && s.weight_kg ? (s.weight_kg / ((s.height_cm / 100) ** 2)).toFixed(1) : '');
-  let status = s.nutritional_status || '';
-  if (!status && bmi) status = whoBmiStatus(bmi, s.age);
-  const statusLabel = { UW: 'Underweight', N: 'Normal', OW: 'Overweight', OB: 'Obese' }[status] || status;
-  return `<tr>
-    <td>${esc(s.lrn || '')}</td>
-    <td class="small">${esc(s.last_name)}, ${esc(s.first_name)}${s.middle_name ? ', ' + esc(s.middle_name) : ''}</td>
-    <td class="c">${esc(s.sex || '')}</td>
-    <td class="c">${esc(String(s.age || ''))}</td>
-    <td class="c">${s.height_cm != null ? Number(s.height_cm).toFixed(1) : ''}</td>
-    <td class="c">${s.weight_kg != null ? Number(s.weight_kg).toFixed(1) : ''}</td>
-    <td class="c"><strong>${bmi}</strong></td>
-    <td class="c">${esc(statusLabel)}</td>
-    <td class="small">${esc(s.address || '')}</td>
-    <td class="c">${s.cct ? '\u2713' : ''}</td>
-  </tr>`;
-}).join('') : blankRows(30, 10)}
-</tbody></table>
-<div class="small" style="margin:6pt 0;">
-  <strong>Nutritional Status (WHO BMI-for-age 10-19):</strong> UW=Underweight | N=Normal Weight | OW=Overweight | OB=Obese<br/>
-  <strong>BMI Categories:</strong> Underweight (&lt;18.5) | Normal (18.5-24.9) | Overweight (25-29.9) | Obese (&#8805;30)
-</div>
-${signatureBlockHtml('', 'Class Adviser / School Nurse', '', 'School Head')}`;
-}
-
-function renderSF8Blank(info) { return renderSF8(null, info); }
 
 /* -- SF9: Report Card --------------------------------------- */
 

@@ -31,7 +31,7 @@ const GROUP_WORKFLOWS = {
   'School Activities': [['assistant_principal'], ['principal']],
   'Property and Inventory': [['property_custodian'], ['principal']],
   'Guidance and Discipline': [['guidance'], ['principal']],
-  'Health and Safety': [['nurse'], ['principal']],
+  'Health and Safety': [['guidance'], ['principal']],
   'Finance': [['cashier'], ['principal']],
   'Human Resource': [['hr'], ['principal']],
   'AI-Assisted Documents': [['assistant_principal'], ['principal']],
