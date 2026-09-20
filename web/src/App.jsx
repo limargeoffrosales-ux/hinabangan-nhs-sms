@@ -108,8 +108,6 @@ const Rooms = lazyWithRetry(() => import('./pages/Rooms'));
 const Lessons = lazyWithRetry(() => import('./pages/Lessons'));
 const CompetencyTracker = lazyWithRetry(() => import('./pages/CompetencyTracker'));
 const Certifications = lazyWithRetry(() => import('./pages/Certifications'));
-const Library = lazyWithRetry(() => import('./pages/Library'));
-const Clinic = lazyWithRetry(() => import('./pages/Clinic'));
 const Guidance = lazyWithRetry(() => import('./pages/Guidance'));
 const PortalPortfolio = lazyWithRetry(() => import('./pages/PortalPortfolio'));
 const PortalImmersion = lazyWithRetry(() => import('./pages/PortalImmersion'));
@@ -251,8 +249,6 @@ export default function App() {
       <Route path="/lessons" element={<Protected><Page><Lessons /></Page></Protected>} />
       <Route path="/competency-tracker" element={<Protected><Page><CompetencyTracker /></Page></Protected>} />
       <Route path="/certifications" element={<Protected><Page><Certifications /></Page></Protected>} />
-      <Route path="/library" element={<Protected><Page><Library /></Page></Protected>} />
-      <Route path="/clinic" element={<Protected><Page><Clinic /></Page></Protected>} />
       <Route path="/guidance" element={<Protected><Page><Guidance /></Page></Protected>} />
       <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
       <Route path="/ai" element={<Protected><AIWorkbenchOnly><Page><AIPage /></Page></AIWorkbenchOnly></Protected>} />

@@ -222,8 +222,6 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
   const photoKey = fileKeyFromUrl(student && student.photo_url);
   await db.tx(async (conn) => {
     await conn.qr('DELETE FROM intervention_contacts WHERE plan_id IN (SELECT id FROM intervention_plans WHERE student_id = ?)', [studentId]);
-    // medicine_dispenses link through clinic_visits, so clear them BEFORE deleting the visits.
-    await conn.qr('DELETE FROM medicine_dispenses WHERE visit_id IN (SELECT id FROM clinic_visits WHERE student_id = ?)', [studentId]);
     // Consent responses must be erased too: either directly by student_id (newer
     // rows) or, for legacy rows signed before consent binds a student and that
     // are not yet linked to another student, by any of this student's parents.
@@ -243,14 +241,12 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
     await conn.qr('DELETE FROM student_conduct_ratings WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_conduct_records WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM certifications WHERE student_id = ?', [studentId]);
-    await conn.qr('DELETE FROM clinic_visits WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM guidance_cases WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM intervention_plans WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM work_immersion WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM jdvp_recipients WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_competency_scores WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_health WHERE student_id = ?', [studentId]);
-    await conn.qr("DELETE FROM book_borrows WHERE borrower_type = 'student' AND borrower_id = ?", [studentId]);
     // AI chat history is free-text and has no student column, so any message may
     // reference the erased student (or anyone) — removing it entirely is the only
     // way to guarantee the student's data no longer exists in it.
@@ -281,14 +277,13 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
 async function gatherStudentPii(studentId) {
   const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
   if (!student) return { student: null };
-  const [contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access,
-    assessments, aral, submissions, health, borrows, conduct, jdvp, dispenses, consents] =
+  const [contacts, attendance, grades, enrollments, guidance, plans, immersion, certs, ratings, access,
+    assessments, aral, submissions, health, conduct, jdvp, consents] =
     await Promise.all([
       qa('SELECT * FROM parent_students WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM attendance WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM grades WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM enrollments WHERE student_id = ?', [studentId]),
-      qa('SELECT * FROM clinic_visits WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM guidance_cases WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM intervention_plans WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM work_immersion WHERE student_id = ?', [studentId]),
@@ -299,13 +294,11 @@ async function gatherStudentPii(studentId) {
       qa('SELECT * FROM aral_session_attendance WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM assignment_submissions WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM student_health WHERE student_id = ?', [studentId]),
-      qa("SELECT * FROM book_borrows WHERE borrower_type = 'student' AND borrower_id = ?", [studentId]),
       qa('SELECT * FROM student_conduct_records WHERE student_id = ?', [studentId]),
       qa('SELECT * FROM jdvp_recipients WHERE student_id = ?', [studentId]),
-      qa('SELECT md.* FROM medicine_dispenses md JOIN clinic_visits cv ON cv.id = md.visit_id WHERE cv.student_id = ?', [studentId]),
       qa('SELECT * FROM consent_responses WHERE student_id = ? OR (student_id IS NULL AND user_id IN (SELECT parent_user_id FROM parent_students WHERE student_id = ?))', [studentId, studentId]),
     ]);
-  return { student, contacts, attendance, grades, enrollments, clinic, guidance, plans, immersion, certs, ratings, access, assessments, aral, submissions, health, borrows, conduct, jdvp, dispenses, consents };
+  return { student, contacts, attendance, grades, enrollments, guidance, plans, immersion, certs, ratings, access, assessments, aral, submissions, health, conduct, jdvp, consents };
 }
 
 // Redact a gathered PII bundle into a non-personal receipt for the audit trail.

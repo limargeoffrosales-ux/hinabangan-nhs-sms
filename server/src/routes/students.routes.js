@@ -243,7 +243,6 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
     await conn.qr('DELETE FROM parent_students WHERE student_id = ?', [row.id]);
     await conn.qr('DELETE FROM student_conduct_ratings WHERE student_id = ?', [row.id]);
     await conn.qr('DELETE FROM certifications WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM clinic_visits WHERE student_id = ?', [row.id]);
     await conn.qr('DELETE FROM guidance_cases WHERE student_id = ?', [row.id]);
     await conn.qr('DELETE FROM intervention_plans WHERE student_id = ?', [row.id]);
     await conn.qr('DELETE FROM work_immersion WHERE student_id = ?', [row.id]);

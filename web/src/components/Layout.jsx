@@ -7,7 +7,7 @@ import {
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
   FileCheck2,
-  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award, BookMarked, Stethoscope,
+   Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
   Brain,
   Map,
 } from 'lucide-react';
@@ -63,8 +63,6 @@ const NAV = [
 const TOOL_NAV = [
   { to: '/interventions', labelKey: 'nav.interventions', icon: LifeBuoy },
   { to: '/assessment', labelKey: 'nav.assessment', icon: ClipboardPenLine },
-  { to: '/library', labelKey: 'nav.library', icon: BookMarked },
-  { to: '/clinic', labelKey: 'nav.clinic', icon: Stethoscope },
   { to: '/guidance', labelKey: 'nav.guidance', icon: LifeBuoy },
 ];
 

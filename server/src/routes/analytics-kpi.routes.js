@@ -460,7 +460,7 @@ router.get('/competency-mastery', requireRole(...READ), asyncH(async (req, res) 
 }));
 
 // ── Student Risk Prediction ──────────────────────────────────────
-// Multi-factor risk scoring based on grades, attendance, competency levels, guidance cases, clinic visits.
+// Multi-factor risk scoring based on grades, attendance, competency levels, guidance cases.
 router.get('/student-risk', requireRole(...READ), asyncH(async (req, res) => {
   const { school_year, grade_level, section_id, threshold } = req.query;
   if (!school_year) return res.status(400).json({ error: 'school_year is required' });

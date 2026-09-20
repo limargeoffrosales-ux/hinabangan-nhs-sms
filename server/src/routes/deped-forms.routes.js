@@ -100,17 +100,7 @@ router.get('/sf3', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY s.last_name, s.first_name`,
     [secId]
   );
-  const books = await qa(
-    `SELECT bb.*, lb.title AS book_title, lb.isbn, lb.category
-     FROM book_borrows bb
-     JOIN library_books lb ON lb.id = bb.book_id
-     WHERE bb.borrower_type = 'student' AND bb.borrower_id IN (
-       SELECT e.student_id FROM enrollments e WHERE e.section_id = ? AND e.status = 'enrolled'
-     )
-     ORDER BY bb.borrow_date DESC`,
-    [section_id]
-  );
-  res.json({ students, books, section });
+  res.json({ students, section });
 }));
 
 router.get('/sf4', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
