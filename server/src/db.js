@@ -210,8 +210,7 @@ async function migrate() {
       if (appliedSet.has(file)) continue;
       const sql = fs.readFileSync(path.join(dir, file), 'utf8');
       driver.exec('BEGIN IMMEDIATE');
-      try {
-        driver.exec(sql);
+      try { console.log('[MIGRATE]',file); driver.exec(sql);
         await driver.run('INSERT OR IGNORE INTO schema_migrations (file) VALUES (?)', [file]);
         driver.exec('COMMIT');
       } catch (err) {

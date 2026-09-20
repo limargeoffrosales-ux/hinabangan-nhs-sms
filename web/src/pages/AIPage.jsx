@@ -1,28 +1,26 @@
-import { useState, useEffect } from 'react';
-import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Printer, ChevronDown, ChevronRight, MessageSquare, RefreshCw } from 'lucide-react';
+﻿import { useState, useEffect } from 'react';
+import { Brain, FileText, BookOpen, ClipboardCheck, BarChart3, GraduationCap, Sparkles, Loader2, AlertCircle, Printer, ChevronDown, ChevronRight, MessageSquare, RefreshCw, Copy, Check, Cpu } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead } from '../components/ui';
+import { PageHead, SectionCard, EmptyState, Badge } from '../components/ui';
 import { renderSF9Card, esc, CORE_VALUES } from './DepedForms';
 import { printElementHtml } from '../lib/export';
 import DOMPurify from 'dompurify';
 import AIText from '../components/AIText';
 
 const TABS = [
-  { id: 'report', label: 'Report Card', icon: FileText },
-  { id: 'form137', label: 'Form 137', icon: ClipboardCheck },
-  { id: 'lesson', label: 'Lesson Plan', icon: BookOpen },
-  { id: 'exam', label: 'Exam Builder', icon: ClipboardCheck },
-  { id: 'analytics', label: 'Student Analytics', icon: BarChart3 },
-  { id: 'enroll', label: 'Enrollment Tips', icon: GraduationCap },
-  { id: 'chatlogs', label: 'Chat Logs', icon: MessageSquare },
+  { id: 'report', label: 'Report Card', icon: FileText, desc: 'Generate SF9 report cards with AI conduct ratings' },
+  { id: 'form137', label: 'Form 137', icon: ClipboardCheck, desc: 'Individual Permanent Academic Record' },
+  { id: 'lesson', label: 'Lesson Plan', icon: BookOpen, desc: 'DepEd DLL lesson plan generator' },
+  { id: 'exam', label: 'Exam Builder', icon: ClipboardCheck, desc: 'Exams with TOS and answer keys' },
+  { id: 'analytics', label: 'Student Analytics', icon: BarChart3, desc: 'AI risk assessment and interventions' },
+  { id: 'enroll', label: 'Enrollment Tips', icon: GraduationCap, desc: 'Strand and section recommendations' },
+  { id: 'chatlogs', label: 'Chat Logs', icon: MessageSquare, desc: 'View all AI chat history' },
 ];
 
 const AI_ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const AI_STAFF = [...AI_ADMIN, 'teacher', 'guidance'];
 
-// Mirrors the server-side requireRole allow-list on /api/v1/ai/*. A tab is
-// only shown when the signed-in role can actually call its endpoint.
 const TAB_ROLES = {
   report: [...AI_ADMIN, 'teacher'],
   form137: [...AI_ADMIN, 'teacher'],
@@ -33,12 +31,19 @@ const TAB_ROLES = {
   chatlogs: AI_ADMIN,
 };
 
-function Section({ title, children }) {
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { }
+  }
   return (
-    <div style={{ marginBottom: 16 }}>
-      <h4 style={{ margin: '0 0 8px', color: 'var(--accent, #1e3a5f)', fontSize: 14 }}>{title}</h4>
-      <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--text, #1a1a1a)' }}>{children}</div>
-    </div>
+    <button className="btn btn-sm" onClick={handleCopy} title="Copy to clipboard">
+      {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
+    </button>
   );
 }
 
@@ -49,13 +54,51 @@ function mergeConductData(sf9Data, aiResult) {
     const ai = aiResult.conduct[cv.key] || {};
     for (let q = 1; q <= 3; q++) {
       const val = ai[String(q)];
-      if (val && ['ao','so','ro','no'].includes(val.toLowerCase())) {
+      if (val && ['ao', 'so', 'ro', 'no'].includes(val.toLowerCase())) {
         if (!merged.conduct[q]) merged.conduct[q] = { ...merged.conduct[q] };
         merged.conduct[q][cv.key] = val.toLowerCase();
       }
     }
   }
   return merged;
+}
+
+function LoadingOverlay({ text }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+      <Loader2 size={28} className="spin" style={{ color: 'var(--accent)' }} />
+      <div style={{ marginTop: 14, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{text}</div>
+      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-dim)' }}>This may take a few moments...</div>
+    </div>
+  );
+}
+
+function FormSection({ title, icon: Icon, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <h4 style={{ margin: '0 0 6px', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, paddingBottom: 4, borderBottom: '1px solid var(--border)', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {Icon && <Icon size={13} />} {title}
+      </h4>
+      <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--text)' }}>{children}</div>
+    </div>
+  );
+}
+
+function StudentSelector({ studentId, setStudentId, students, loading, onClick, label }) {
+  return (
+    <div className="form-row" style={{ alignItems: 'flex-end' }}>
+      <label style={{ flex: 1, minWidth: 250 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)' }}>Select Student</span>
+        <select className="input" value={studentId} onChange={e => setStudentId(e.target.value)}>
+          <option value="">Choose a student...</option>
+          {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.grade_level || ' - '})</option>)}
+        </select>
+      </label>
+      <button className="btn btn-primary" onClick={onClick} disabled={loading || !studentId} style={{ height: 38 }}>
+        {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {label}
+      </button>
+    </div>
+  );
 }
 
 function ReportCard() {
@@ -95,96 +138,77 @@ function ReportCard() {
 
   return (
     <div>
-      {/* Student selector */}
-      <div className="card">
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <label style={{ flex: 1, minWidth: 250 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #6b7280)' }}>Select Student</span>
-            <select className="input" value={studentId} onChange={e => setStudentId(e.target.value)}>
-              <option value="">Choose a student...</option>
-              {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.grade_level || '�'})</option>)}
-            </select>
-          </label>
-          <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId} style={{ height: 38 }}>
-            {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Report Card
-          </button>
-        </div>
-      </div>
+      <SectionCard title="Generate Report Card" icon={FileText}>
+        <StudentSelector studentId={studentId} setStudentId={setStudentId} students={students} loading={loading} onClick={generate} label="Generate Report Card" />
+      </SectionCard>
 
       {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
 
-      {/* SF9 Card Preview � the main output */}
-      {merged && (
+      {loading && <LoadingOverlay text="Generating report card with AI conduct ratings..." />}
+
+      {merged && !loading && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16 }}>
-                <FileText size={16} /> SF9 � Learner's Progress Report Card
-              </h3>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-dim, #6b7280)' }}>
-                {merged.student.first_name} {merged.student.last_name} � LRN {merged.student.lrn || '�'} � {merged.enrollment?.grade_level || '�'} {merged.enrollment?.section_name ? `� ${merged.enrollment.section_name}` : ''}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {result && (
-                <button className="btn btn-sm" onClick={() => setShowAnalysis(!showAnalysis)}>
-                  {showAnalysis ? <ChevronDown size={14} /> : <ChevronRight size={14} />} AI Analysis
+          <SectionCard
+            title="SF9 - Learner's Progress Report Card"
+            icon={FileText}
+            action={
+              <div className="row-actions">
+                {result && (
+                  <button className="btn btn-sm" onClick={() => setShowAnalysis(!showAnalysis)}>
+                    {showAnalysis ? <ChevronDown size={14} /> : <ChevronRight size={14} />} AI Analysis
+                  </button>
+                )}
+                <button className="btn btn-primary btn-sm" onClick={print}>
+                  <Printer size={14} /> Print SF9
                 </button>
-              )}
-              <button className="btn btn-primary btn-sm" onClick={print}>
-                <Printer size={14} /> Print SF9
-              </button>
+              </div>
+            }
+          >
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
+              {merged.student.first_name} {merged.student.last_name} &middot; LRN {merged.student.lrn || 'N/A'} &middot; {merged.enrollment?.grade_level || ''}{merged.enrollment?.section_name ? ` - ${merged.enrollment.section_name}` : ''}
             </div>
-          </div>
-          <div style={{ background: '#fff', border: '1px solid var(--border, #e2e8f0)', borderRadius: 10, overflow: 'hidden' }}>
-            <div id="sf9-preview" style={{ padding: 8, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(sf9Html, { USE_PROFILES: { html: true } }) }} />
-          </div>
+            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div id="sf9-preview" style={{ padding: 8, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(sf9Html, { USE_PROFILES: { html: true } }) }} />
+            </div>
+          </SectionCard>
+
+          {result && showAnalysis && (
+            <div style={{ marginTop: 12 }}>
+              <SectionCard title="AI-Generated Analysis" icon={Brain}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                  {result.risk_level && (
+                    <div style={{ padding: 12, borderRadius: 8, background: result.risk_level === 'high' ? '#fef2f2' : result.risk_level === 'moderate' ? '#fffbeb' : '#f0fdf4', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 4 }}>Risk Level</div>
+                      <Badge status={result.risk_level}>{result.risk_level}</Badge>
+                    </div>
+                  )}
+                  {result.conduct && (
+                    <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 4 }}>Conduct Summary</div>
+                      <div style={{ fontSize: 12 }}>
+                        {CORE_VALUES.map(cv => {
+                          const ratings = result.conduct[cv.key] || {};
+                          const vals = [1, 2, 3].map(q => ratings[String(q)]?.toUpperCase()).filter(Boolean);
+                          return vals.length ? <span key={cv.key} style={{ marginRight: 6 }}>{cv.label.split('-')[1]?.trim() || cv.label}: {vals.join(', ')}</span> : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {result.remarks && (
+                    <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 4 }}>Overall Remarks</div>
+                      <div style={{ fontSize: 12 }}>{typeof result.remarks === 'string' ? <AIText text={result.remarks} /> : result.remarks.overall || 'N/A'}</div>
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
+            </div>
+          )}
         </div>
       )}
 
-      {/* AI Analysis � collapsible */}
-      {result && showAnalysis && (
-        <div style={{ marginTop: 12 }}>
-          <div className="card" style={{ borderLeft: '3px solid var(--accent, #1e3a5f)' }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Brain size={14} /> AI-Generated Analysis
-            </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-              {result.risk_level && (
-                <div style={{ padding: 10, borderRadius: 8, background: result.risk_level === 'high' ? '#fef2f2' : result.risk_level === 'moderate' ? '#fffbeb' : '#f0fdf4', border: '1px solid var(--border, #e2e8f0)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #6b7280)', marginBottom: 4 }}>Risk Level</div>
-                  <span className={`badge badge-${result.risk_level === 'high' ? 'red' : result.risk_level === 'moderate' ? 'yellow' : 'green'}`}>{result.risk_level}</span>
-                </div>
-              )}
-              {result.conduct && (
-                <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg, #f8fafc)', border: '1px solid var(--border, #e2e8f0)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #6b7280)', marginBottom: 4 }}>Conduct Summary</div>
-                  <div style={{ fontSize: 12 }}>
-                    {CORE_VALUES.map(cv => {
-                      const ratings = result.conduct[cv.key] || {};
-                      const vals = [1,2,3].map(q => ratings[String(q)]?.toUpperCase()).filter(Boolean);
-                      return vals.length ? <span key={cv.key} style={{ marginRight: 6 }}>{cv.label.split('-')[1]?.trim() || cv.label}: {vals.join(', ')}</span> : null;
-                    })}
-                  </div>
-                </div>
-              )}
-              {result.remarks && (
-                <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg, #f8fafc)', border: '1px solid var(--border, #e2e8f0)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #6b7280)', marginBottom: 4 }}>Overall Remarks</div>
-                  <div style={{ fontSize: 12 }}>{typeof result.remarks === 'string' ? <AIText text={result.remarks} /> : result.remarks.overall || '�'}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
       {!loading && !merged && (
-        <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-dim, #6b7280)' }}>
-          <FileText size={40} strokeWidth={1} style={{ opacity: 0.3, marginBottom: 12 }} />
-          <div style={{ fontSize: 14 }}>Select a student and click Generate to create an SF9 Report Card with AI-powered conduct ratings.</div>
-        </div>
+        <EmptyState icon={FileText} text="Select a student and click Generate to create an SF9 Report Card with AI-powered conduct ratings." />
       )}
     </div>
   );
@@ -243,94 +267,81 @@ function Form137() {
       ${result.conduct_evaluation ? `<div class="section"><h2>Character &amp; Conduct</h2><p>${esc(result.conduct_evaluation)}</p></div>` : ''}
       ${result.talents_achievements ? `<div class="section"><h2>Special Talents &amp; Achievements</h2><p>${esc(result.talents_achievements)}</p></div>` : ''}
       ${result.recommendations ? `<div class="section"><h2>Recommendations</h2><p>${esc(result.recommendations)}</p></div>` : ''}
-      <div class="footer">Generated by MeridianEd AI � ${new Date().toLocaleDateString()}</div>
+      <div class="footer">Generated by MeridianEd AI - ${new Date().toLocaleDateString()}</div>
       </body></html>`;
     printElementHtml(`Form 137 - ${name}`, html, { paper: 'legal' });
   }
 
+  const resultSections = [
+    { title: 'Personal Information', content: result?.personal_info, icon: FileText },
+    { title: 'Academic Performance', content: result?.academic_narrative, icon: BarChart3 },
+    { title: 'Attendance Summary', content: result?.attendance_summary, icon: ClipboardCheck },
+    { title: 'Character & Conduct', content: result?.conduct_evaluation, icon: Brain },
+    { title: 'Special Talents & Achievements', content: result?.talents_achievements, icon: Sparkles },
+    { title: 'Recommendations', content: result?.recommendations, icon: BookOpen },
+  ].filter(s => s.content);
+
   return (
     <div>
-      {/* Student selector */}
-      <div className="card">
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <label style={{ flex: 1, minWidth: 250 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #6b7280)' }}>Select Student</span>
-            <select className="input" value={studentId} onChange={e => setStudentId(e.target.value)}>
-              <option value="">Choose a student...</option>
-              {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.grade_level || '�'})</option>)}
-            </select>
-          </label>
-          <button className="btn btn-primary" onClick={generate} disabled={loading || !studentId} style={{ height: 38 }}>
-            {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Form 137
-          </button>
-        </div>
-      </div>
+      <SectionCard title="Generate Form 137" icon={ClipboardCheck}>
+        <StudentSelector studentId={studentId} setStudentId={setStudentId} students={students} loading={loading} onClick={generate} label="Generate Form 137" />
+      </SectionCard>
 
       {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
 
-      {/* Form 137 Preview */}
-      {result && (
+      {loading && <LoadingOverlay text="Generating Form 137 with AI-powered academic analysis..." />}
+
+      {result && !loading && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16 }}>
-                <ClipboardCheck size={16} /> Form 137 � Individual Permanent Academic Record
-              </h3>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-dim, #6b7280)' }}>
-                AI-generated narrative based on complete academic history
-              </p>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={printForm137}>
-              <Printer size={14} /> Print Form 137
-            </button>
-          </div>
-
-          {/* Document preview */}
-          <div style={{ background: '#fff', border: '1px solid var(--border, #e2e8f0)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '20px 28px', maxWidth: 800, margin: '0 auto' }}>
-              {/* Document header */}
-              <div style={{ textAlign: 'center', borderBottom: '3px double #000', paddingBottom: 12, marginBottom: 16 }}>
-                <div style={{ fontSize: 10, letterSpacing: 3, color: '#666' }}>DEPARTMENT OF EDUCATION</div>
-                <div style={{ fontSize: 13, fontWeight: 700, margin: '4px 0' }}>Hinabangan National High School</div>
-                <div style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, margin: '8px 0 2px' }}>Form 137</div>
-                <div style={{ fontSize: 10.5, color: '#444' }}>Individual Permanent Academic Record</div>
+          <SectionCard
+            title="Form 137 - Individual Permanent Academic Record"
+            icon={ClipboardCheck}
+            action={
+              <div className="row-actions">
+                <CopyButton text={resultSections.map(s => `${s.title}\n${s.content}`).join('\n\n')} />
+                <button className="btn btn-primary btn-sm" onClick={printForm137}>
+                  <Printer size={14} /> Print Form 137
+                </button>
               </div>
+            }
+          >
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
+              AI-generated narrative based on complete academic history
+            </div>
 
-              {result.overall_remark && (
-                <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 6, background: result.overall_remark === 'Outstanding' ? '#f0fdf4' : result.overall_remark === 'Needs Improvement' ? '#fef2f2' : '#fffbeb', border: '1px solid var(--border, #e2e8f0)' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>Overall Assessment: </span>
-                  <span className={`badge badge-${result.overall_remark === 'Outstanding' ? 'green' : result.overall_remark === 'Needs Improvement' ? 'red' : 'yellow'}`}>{result.overall_remark}</span>
+            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '20px 28px', maxWidth: 800, margin: '0 auto' }}>
+                <div style={{ textAlign: 'center', borderBottom: '3px double #000', paddingBottom: 12, marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, letterSpacing: 3, color: '#666' }}>DEPARTMENT OF EDUCATION</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, margin: '4px 0' }}>Hinabangan National High School</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, margin: '8px 0 2px' }}>Form 137</div>
+                  <div style={{ fontSize: 10.5, color: '#444' }}>Individual Permanent Academic Record</div>
                 </div>
-              )}
 
-              {[
-                { title: 'Personal Information', content: result.personal_info },
-                { title: 'Academic Performance', content: result.academic_narrative },
-                { title: 'Attendance Summary', content: result.attendance_summary },
-                { title: 'Character & Conduct', content: result.conduct_evaluation },
-                { title: 'Special Talents & Achievements', content: result.talents_achievements },
-                { title: 'Recommendations', content: result.recommendations },
-              ].filter(s => s.content).map((section, i) => (
-                <div key={i} style={{ marginBottom: 14 }}>
-                  <h4 style={{ margin: '0 0 4px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, paddingBottom: 3, borderBottom: '1px solid #ccc', color: 'var(--accent, #1e3a5f)' }}>{section.title}</h4>
-                  <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: 'var(--text, #1a1a1a)', textAlign: 'justify' }}>{section.content}</p>
+                {result.overall_remark && (
+                  <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 6, background: result.overall_remark === 'Outstanding' ? '#f0fdf4' : result.overall_remark === 'Needs Improvement' ? '#fef2f2' : '#fffbeb', border: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>Overall Assessment: </span>
+                    <Badge status={result.overall_remark === 'Outstanding' ? 'green' : result.overall_remark === 'Needs Improvement' ? 'red' : 'yellow'}>{result.overall_remark}</Badge>
+                  </div>
+                )}
+
+                {resultSections.map((section, i) => (
+                  <FormSection key={i} title={section.title} icon={section.icon}>
+                    {section.content}
+                  </FormSection>
+                ))}
+
+                <div style={{ marginTop: 20, paddingTop: 10, borderTop: '1px solid #ddd', fontSize: 9, color: '#999', textAlign: 'center' }}>
+                  Generated by MeridianEd AI - {new Date().toLocaleDateString()}
                 </div>
-              ))}
-
-              <div style={{ marginTop: 20, paddingTop: 10, borderTop: '1px solid #ddd', fontSize: 9, color: '#999', textAlign: 'center' }}>
-                Generated by MeridianEd AI � {new Date().toLocaleDateString()}
               </div>
             </div>
-          </div>
+          </SectionCard>
         </div>
       )}
 
-      {/* Empty state */}
       {!loading && !result && (
-        <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-dim, #6b7280)' }}>
-          <ClipboardCheck size={40} strokeWidth={1} style={{ opacity: 0.3, marginBottom: 12 }} />
-          <div style={{ fontSize: 14 }}>Select a student and click Generate to create a Form 137 with AI-powered academic analysis.</div>
-        </div>
+        <EmptyState icon={ClipboardCheck} text="Select a student and click Generate to create a Form 137 with AI-powered academic analysis." />
       )}
     </div>
   );
@@ -352,38 +363,71 @@ function LessonPlan() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }
 
+  const outputText = result ? JSON.stringify(result, null, 2) : '';
+
   return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}><BookOpen size={16} /> AI Lesson Plan Generator</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Auto-generate Detailed Lesson Plans (DLL) aligned to DepEd format and competencies.</p>
-      <div className="grid-2" style={{ marginBottom: 16 }}>
-        <label>Subject ID <input className="input" type="number" value={form.subject_id} onChange={(e) => setForm(f => ({ ...f, subject_id: e.target.value }))} placeholder="Optional" /></label>
-        <label>Grade Level <select className="input" value={form.grade_level} onChange={(e) => setForm(f => ({ ...f, grade_level: e.target.value }))}>
-          <option>Grade 11</option><option>Grade 12</option>
-        </select></label>
-        <label>Topic <input className="input" value={form.topic} onChange={(e) => setForm(f => ({ ...f, topic: e.target.value }))} placeholder="e.g. Photosynthesis" /></label>
-        <label>Strand <input className="input" value={form.strand} onChange={(e) => setForm(f => ({ ...f, strand: e.target.value }))} placeholder="e.g. STEM" /></label>
-        <label>Duration (min) <input className="input" type="number" value={form.duration_minutes} onChange={(e) => setForm(f => ({ ...f, duration_minutes: e.target.value }))} /></label>
-        <label>Week <input className="input" value={form.week} onChange={(e) => setForm(f => ({ ...f, week: e.target.value }))} placeholder="e.g. Week 3" /></label>
-      </div>
-      <button className="btn btn-primary" onClick={generate} disabled={loading}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Lesson Plan</button>
-      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
-      {result && (
-        <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, marginTop: 16, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.competencies && <Section title="Learning Competencies"><AIText text={result.competencies} /></Section>}
-          {result.content && <Section title="Content"><AIText text={result.content} /></Section>}
-          {result.learning_resources && <Section title="Learning Resources"><AIText text={result.learning_resources} /></Section>}
-          {result.procedures && (
-            <Section title="Procedures">
-              {['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(k => result.procedures[k] && (
-                <div key={k} style={{ marginBottom: 6 }}><strong style={{ fontSize: 12 }}>{k.toUpperCase()}.</strong> {result.procedures[k]}</div>
-              ))}
-            </Section>
-          )}
-          {result.reflection && <Section title="Reflection"><AIText text={result.reflection} /></Section>}
-          {result.remarks && <Section title="Remarks"><AIText text={result.remarks} /></Section>}
-          {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
+    <div>
+      <SectionCard title="AI Lesson Plan Generator" icon={BookOpen} action={result ? <CopyButton text={outputText} /> : null}>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 14px' }}>Auto-generate Detailed Lesson Plans (DLL) aligned to DepEd format and competencies.</p>
+        <div className="form-row-2" style={{ marginBottom: 16 }}>
+          <label className="form-group">
+            <span>Subject ID</span>
+            <input className="input" type="number" value={form.subject_id} onChange={(e) => setForm(f => ({ ...f, subject_id: e.target.value }))} placeholder="Optional" />
+          </label>
+          <label className="form-group">
+            <span>Grade Level</span>
+            <select className="input" value={form.grade_level} onChange={(e) => setForm(f => ({ ...f, grade_level: e.target.value }))}>
+              <option>Grade 11</option><option>Grade 12</option>
+            </select>
+          </label>
+          <label className="form-group">
+            <span>Topic</span>
+            <input className="input" value={form.topic} onChange={(e) => setForm(f => ({ ...f, topic: e.target.value }))} placeholder="e.g. Photosynthesis" />
+          </label>
+          <label className="form-group">
+            <span>Strand</span>
+            <input className="input" value={form.strand} onChange={(e) => setForm(f => ({ ...f, strand: e.target.value }))} placeholder="e.g. STEM" />
+          </label>
+          <label className="form-group">
+            <span>Duration (min)</span>
+            <input className="input" type="number" value={form.duration_minutes} onChange={(e) => setForm(f => ({ ...f, duration_minutes: e.target.value }))} />
+          </label>
+          <label className="form-group">
+            <span>Week</span>
+            <input className="input" value={form.week} onChange={(e) => setForm(f => ({ ...f, week: e.target.value }))} placeholder="e.g. Week 3" />
+          </label>
         </div>
+        <button className="btn btn-primary" onClick={generate} disabled={loading}>
+          {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Lesson Plan
+        </button>
+      </SectionCard>
+
+      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
+
+      {loading && <LoadingOverlay text="Generating Detailed Lesson Plan (DLL)..." />}
+
+      {result && !loading && (
+        <div style={{ marginTop: 16 }}>
+          <SectionCard title="Generated Lesson Plan" icon={BookOpen}>
+            {result.competencies && <FormSection title="Learning Competencies" icon={Brain}><AIText text={result.competencies} /></FormSection>}
+            {result.content && <FormSection title="Content" icon={FileText}><AIText text={result.content} /></FormSection>}
+            {result.learning_resources && <FormSection title="Learning Resources" icon={BookOpen}><AIText text={result.learning_resources} /></FormSection>}
+            {result.procedures && (
+              <FormSection title="Procedures" icon={ClipboardCheck}>
+                {['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(k => result.procedures[k] && (
+                  <div key={k} style={{ marginBottom: 6 }}><strong style={{ fontSize: 12 }}>{k.toUpperCase()}.</strong> {result.procedures[k]}</div>
+                ))}
+              </FormSection>
+            )}
+            {result.reflection && <FormSection title="Reflection" icon={Sparkles}><AIText text={result.reflection} /></FormSection>}
+            {result.remarks && <FormSection title="Remarks" icon={MessageSquare}><AIText text={result.remarks} /></FormSection>}
+            {result.raw && <FormSection title="AI Output" icon={Cpu}><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></FormSection>}
+          </SectionCard>
+        </div>
+      )}
+
+      {!loading && !result && (
+        <EmptyState icon={BookOpen} text="Configure the lesson plan parameters above and click Generate to create a DepEd-aligned DLL." />
       )}
     </div>
   );
@@ -405,47 +449,80 @@ function ExamBuilder() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }
 
+  const outputText = result ? JSON.stringify(result, null, 2) : '';
+
   return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}><ClipboardCheck size={16} /> AI Exam / TOS Builder</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Generate test items with Table of Specifications (TOS), answer keys, and difficulty tags.</p>
-      <div className="grid-2" style={{ marginBottom: 16 }}>
-        <label>Subject ID <input className="input" type="number" value={form.subject_id} onChange={(e) => setForm(f => ({ ...f, subject_id: e.target.value }))} placeholder="Optional" /></label>
-        <label>Grade Level <select className="input" value={form.grade_level} onChange={(e) => setForm(f => ({ ...f, grade_level: e.target.value }))}>
-          <option>Grade 11</option><option>Grade 12</option>
-        </select></label>
-        <label>Topic <input className="input" value={form.topic} onChange={(e) => setForm(f => ({ ...f, topic: e.target.value }))} placeholder="e.g. Cell Division" /></label>
-        <label>Exam Type <select className="input" value={form.exam_type} onChange={(e) => setForm(f => ({ ...f, exam_type: e.target.value }))}>
-          <option>prelim exam</option><option>midterm exam</option><option>finals exam</option><option>quiz</option><option>activity</option>
-        </select></label>
-        <label>Number of Items <input className="input" type="number" value={form.num_items} onChange={(e) => setForm(f => ({ ...f, num_items: e.target.value }))} /></label>
-        <label>Difficulty Mix <input className="input" value={form.difficulty_mix} onChange={(e) => setForm(f => ({ ...f, difficulty_mix: e.target.value }))} /></label>
-      </div>
-      <button className="btn btn-primary" onClick={generate} disabled={loading}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Exam</button>
-      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
-      {result && (
-        <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, marginTop: 16, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.tos && result.tos.length > 0 && (
-            <Section title="Table of Specifications">
-              <table style={{ width: '100%', fontSize: 13 }}>
-                <thead><tr><th style={{ textAlign: 'left' }}>Objective</th><th style={{ textAlign: 'center' }}>Difficulty</th><th style={{ textAlign: 'center' }}>Count</th><th style={{ textAlign: 'center' }}>%</th></tr></thead>
-                <tbody>{result.tos.map((t, i) => <tr key={i}><td>{t.objective}</td><td style={{ textAlign: 'center' }}>{t.difficulty}</td><td style={{ textAlign: 'center' }}>{t.count}</td><td style={{ textAlign: 'center' }}>{t.percentage}</td></tr>)}</tbody>
-              </table>
-            </Section>
-          )}
-          {result.items && result.items.length > 0 && (
-            <Section title={'Test Items (' + result.items.length + ')'}>
-              {result.items.map((item, i) => (
-                <div key={i} style={{ marginBottom: 12, padding: 10, borderRadius: 8, background: 'var(--card, #fff)', border: '1px solid var(--border, #e2e8f0)' }}>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{i + 1}. {item.question}</div>
-                  {item.options && item.options.map((opt, j) => <div key={j} style={{ fontSize: 13, padding: '2px 0', color: String.fromCharCode(65 + j) === item.answer ? 'var(--success, #2FD6A0)' : 'var(--text-dim, #6b7280)' }}>{String.fromCharCode(65 + j)}. {opt}</div>)}
-                  <div style={{ fontSize: 11, color: 'var(--text-dim, #6b7280)', marginTop: 4 }}>Answer: <strong>{item.answer}</strong> | Difficulty: {item.difficulty} | {item.objective}</div>
-                </div>
-              ))}
-            </Section>
-          )}
-          {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
+    <div>
+      <SectionCard title="AI Exam / TOS Builder" icon={ClipboardCheck} action={result ? <CopyButton text={outputText} /> : null}>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 14px' }}>Generate test items with Table of Specifications (TOS), answer keys, and difficulty tags.</p>
+        <div className="form-row-2" style={{ marginBottom: 16 }}>
+          <label className="form-group">
+            <span>Subject ID</span>
+            <input className="input" type="number" value={form.subject_id} onChange={(e) => setForm(f => ({ ...f, subject_id: e.target.value }))} placeholder="Optional" />
+          </label>
+          <label className="form-group">
+            <span>Grade Level</span>
+            <select className="input" value={form.grade_level} onChange={(e) => setForm(f => ({ ...f, grade_level: e.target.value }))}>
+              <option>Grade 11</option><option>Grade 12</option>
+            </select>
+          </label>
+          <label className="form-group">
+            <span>Topic</span>
+            <input className="input" value={form.topic} onChange={(e) => setForm(f => ({ ...f, topic: e.target.value }))} placeholder="e.g. Cell Division" />
+          </label>
+          <label className="form-group">
+            <span>Exam Type</span>
+            <select className="input" value={form.exam_type} onChange={(e) => setForm(f => ({ ...f, exam_type: e.target.value }))}>
+              <option>prelim exam</option><option>midterm exam</option><option>finals exam</option><option>quiz</option><option>activity</option>
+            </select>
+          </label>
+          <label className="form-group">
+            <span>Number of Items</span>
+            <input className="input" type="number" value={form.num_items} onChange={(e) => setForm(f => ({ ...f, num_items: e.target.value }))} />
+          </label>
+          <label className="form-group">
+            <span>Difficulty Mix</span>
+            <input className="input" value={form.difficulty_mix} onChange={(e) => setForm(f => ({ ...f, difficulty_mix: e.target.value }))} />
+          </label>
         </div>
+        <button className="btn btn-primary" onClick={generate} disabled={loading}>
+          {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Generate Exam
+        </button>
+      </SectionCard>
+
+      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
+
+      {loading && <LoadingOverlay text="Building exam with TOS and answer keys..." />}
+
+      {result && !loading && (
+        <div style={{ marginTop: 16 }}>
+          <SectionCard title="Generated Exam" icon={ClipboardCheck}>
+            {result.tos && result.tos.length > 0 && (
+              <FormSection title="Table of Specifications" icon={BarChart3}>
+                <table style={{ width: '100%', fontSize: 13 }}>
+                  <thead><tr><th style={{ textAlign: 'left' }}>Objective</th><th style={{ textAlign: 'center' }}>Difficulty</th><th style={{ textAlign: 'center' }}>Count</th><th style={{ textAlign: 'center' }}>%</th></tr></thead>
+                  <tbody>{result.tos.map((t, i) => <tr key={i}><td>{t.objective}</td><td style={{ textAlign: 'center' }}>{t.difficulty}</td><td style={{ textAlign: 'center' }}>{t.count}</td><td style={{ textAlign: 'center' }}>{t.percentage}</td></tr>)}</tbody>
+                </table>
+              </FormSection>
+            )}
+            {result.items && result.items.length > 0 && (
+              <FormSection title={`Test Items (${result.items.length})`} icon={ClipboardCheck}>
+                {result.items.map((item, i) => (
+                  <div key={i} style={{ marginBottom: 12, padding: 10, borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>{i + 1}. {item.question}</div>
+                    {item.options && item.options.map((opt, j) => <div key={j} style={{ fontSize: 13, padding: '2px 0', color: String.fromCharCode(65 + j) === item.answer ? 'var(--success)' : 'var(--text-dim)' }}>{String.fromCharCode(65 + j)}. {opt}</div>)}
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Answer: <strong>{item.answer}</strong> | Difficulty: {item.difficulty} | {item.objective}</div>
+                  </div>
+                ))}
+              </FormSection>
+            )}
+            {result.raw && <FormSection title="AI Output" icon={Cpu}><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></FormSection>}
+          </SectionCard>
+        </div>
+      )}
+
+      {!loading && !result && (
+        <EmptyState icon={ClipboardCheck} text="Configure the exam parameters above and click Generate to create test items with TOS and answer keys." />
       )}
     </div>
   );
@@ -470,45 +547,61 @@ function StudentAnalytics() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }
 
+  const outputText = result ? JSON.stringify(result, null, 2) : '';
+
   return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}><BarChart3 size={16} /> AI Student Analytics & Interventions</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>AI-powered risk assessment with specific intervention plans for at-risk students.</p>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
-        <label style={{ flex: 1 }}>Student
-          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
-            <option value="">Select a student...</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
-          </select>
-        </label>
-        <button className="btn btn-primary" onClick={analyze} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Analyze</button>
-      </div>
-      {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
-      {result && (
-        <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.risk_level && (
-            <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>Risk Level:</span>
-              <span className={`badge badge-${result.risk_level === 'high' || result.risk_level === 'critical' ? 'red' : result.risk_level === 'moderate' ? 'yellow' : 'green'}`}>{result.risk_level}</span>
-            </div>
-          )}
-          {result.reasoning && <Section title="Reasoning"><AIText text={result.reasoning} /></Section>}
-          {result.factors && result.factors.length > 0 && (
-            <Section title="Contributing Factors">
-              <ul style={{ margin: 0, paddingLeft: 18 }}>{result.factors.map((f, i) => <li key={i} style={{ marginBottom: 4 }}>{f}</li>)}</ul>
-            </Section>
-          )}
-          {result.interventions && result.interventions.length > 0 && (
-            <Section title="Intervention Plan">
-              <table style={{ width: '100%', fontSize: 13 }}>
-                <thead><tr><th style={{ textAlign: 'left' }}>Action</th><th style={{ textAlign: 'left' }}>Timeline</th><th style={{ textAlign: 'left' }}>Responsible</th></tr></thead>
-                <tbody>{result.interventions.map((iv, i) => <tr key={i}><td>{iv.action}</td><td>{iv.timeline}</td><td>{iv.responsible}</td></tr>)}</tbody>
-              </table>
-            </Section>
-          )}
-          {result.parent_recommendations && <Section title="Parent Recommendations"><AIText text={result.parent_recommendations} /></Section>}
-          {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
+    <div>
+      <SectionCard title="AI Student Analytics & Interventions" icon={BarChart3} action={result ? <CopyButton text={outputText} /> : null}>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 14px' }}>AI-powered risk assessment with specific intervention plans for at-risk students.</p>
+        <div className="form-row" style={{ alignItems: 'flex-end' }}>
+          <label style={{ flex: 1, minWidth: 250 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)' }}>Select Student</span>
+            <select className="input" value={studentId} onChange={e => setStudentId(e.target.value)}>
+              <option value="">Select a student...</option>
+              {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
+            </select>
+          </label>
+          <button className="btn btn-primary" onClick={analyze} disabled={loading || !studentId} style={{ height: 38 }}>
+            {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Analyze
+          </button>
         </div>
+      </SectionCard>
+
+      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
+
+      {loading && <LoadingOverlay text="Analyzing student data and generating intervention plan..." />}
+
+      {result && !loading && (
+        <div style={{ marginTop: 16 }}>
+          <SectionCard title="Student Analytics Results" icon={BarChart3}>
+            {result.risk_level && (
+              <div style={{ marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>Risk Level:</span>
+                <Badge status={result.risk_level === 'high' || result.risk_level === 'critical' ? 'red' : result.risk_level === 'moderate' ? 'yellow' : 'green'}>{result.risk_level}</Badge>
+              </div>
+            )}
+            {result.reasoning && <FormSection title="Reasoning" icon={Brain}><AIText text={result.reasoning} /></FormSection>}
+            {result.factors && result.factors.length > 0 && (
+              <FormSection title="Contributing Factors" icon={AlertCircle}>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>{result.factors.map((f, i) => <li key={i} style={{ marginBottom: 4 }}>{f}</li>)}</ul>
+              </FormSection>
+            )}
+            {result.interventions && result.interventions.length > 0 && (
+              <FormSection title="Intervention Plan" icon={ClipboardCheck}>
+                <table style={{ width: '100%', fontSize: 13 }}>
+                  <thead><tr><th style={{ textAlign: 'left' }}>Action</th><th style={{ textAlign: 'left' }}>Timeline</th><th style={{ textAlign: 'left' }}>Responsible</th></tr></thead>
+                  <tbody>{result.interventions.map((iv, i) => <tr key={i}><td>{iv.action}</td><td>{iv.timeline}</td><td>{iv.responsible}</td></tr>)}</tbody>
+                </table>
+              </FormSection>
+            )}
+            {result.parent_recommendations && <FormSection title="Parent Recommendations" icon={GraduationCap}><AIText text={result.parent_recommendations} /></FormSection>}
+            {result.raw && <FormSection title="AI Output" icon={Cpu}><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></FormSection>}
+          </SectionCard>
+        </div>
+      )}
+
+      {!loading && !result && (
+        <EmptyState icon={BarChart3} text="Select a student and click Analyze to generate a risk assessment with intervention plans." />
       )}
     </div>
   );
@@ -533,35 +626,53 @@ function EnrollmentSuggestions() {
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   }
 
+  const outputText = result ? JSON.stringify(result, null, 2) : '';
+
   return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}><GraduationCap size={16} /> AI Enrollment Suggestions</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>AI recommends the best strand, section, and academic support for each student.</p>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16 }}>
-        <label style={{ flex: 1 }}>Student
-          <select className="input" style={{ marginLeft: 6, minWidth: 250 }} value={studentId} onChange={e => setStudentId(e.target.value)}>
-            <option value="">Select a student...</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
-          </select>
-        </label>
-        <button className="btn btn-primary" onClick={suggest} disabled={loading || !studentId}>{loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Get Suggestions</button>
-      </div>
-      {error && <div className="err-banner"><AlertCircle size={14} /> {error}</div>}
-      {result && (
-        <div style={{ background: 'var(--bg, #f8fafc)', borderRadius: 12, padding: 18, border: '1px solid var(--border, #e2e8f0)' }}>
-          {result.recommended_strand && <Section title="Recommended Strand"><AIText text={result.recommended_strand} /></Section>}
-          {result.reasoning && <Section title="Reasoning"><AIText text={result.reasoning} /></Section>}
-          {result.focus_areas && result.focus_areas.length > 0 && (
-            <Section title="Focus Areas"><ul style={{ margin: 0, paddingLeft: 18 }}>{result.focus_areas.map((f, i) => <li key={i}>{f}</li>)}</ul></Section>
-          )}
-          {result.support_needed && result.support_needed.length > 0 && (
-            <Section title="Support Needed"><ul style={{ margin: 0, paddingLeft: 18 }}>{result.support_needed.map((s, i) => <li key={i}>{s}</li>)}</ul></Section>
-          )}
-          {result.aral_eligible !== undefined && (
-            <Section title="Aral Program Eligibility">{result.aral_eligible ? 'This student is recommended for the Aral Program.' : 'Not eligible for Aral Program.'}</Section>
-          )}
-          {result.raw && <Section title="AI Output"><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></Section>}
+    <div>
+      <SectionCard title="AI Enrollment Suggestions" icon={GraduationCap} action={result ? <CopyButton text={outputText} /> : null}>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 14px' }}>AI recommends the best strand, section, and academic support for each student.</p>
+        <div className="form-row" style={{ alignItems: 'flex-end' }}>
+          <label style={{ flex: 1, minWidth: 250 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)' }}>Select Student</span>
+            <select className="input" value={studentId} onChange={e => setStudentId(e.target.value)}>
+              <option value="">Select a student...</option>
+              {students.map(s => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} (ID: {s.id})</option>)}
+            </select>
+          </label>
+          <button className="btn btn-primary" onClick={suggest} disabled={loading || !studentId} style={{ height: 38 }}>
+            {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Get Suggestions
+          </button>
         </div>
+      </SectionCard>
+
+      {error && <div className="err-banner" style={{ marginTop: 12 }}><AlertCircle size={14} /> {error}</div>}
+
+      {loading && <LoadingOverlay text="Analyzing student profile and generating enrollment recommendations..." />}
+
+      {result && !loading && (
+        <div style={{ marginTop: 16 }}>
+          <SectionCard title="Enrollment Suggestions" icon={GraduationCap}>
+            {result.recommended_strand && <FormSection title="Recommended Strand" icon={GraduationCap}><AIText text={result.recommended_strand} /></FormSection>}
+            {result.reasoning && <FormSection title="Reasoning" icon={Brain}><AIText text={result.reasoning} /></FormSection>}
+            {result.focus_areas && result.focus_areas.length > 0 && (
+              <FormSection title="Focus Areas" icon={BarChart3}><ul style={{ margin: 0, paddingLeft: 18 }}>{result.focus_areas.map((f, i) => <li key={i}>{f}</li>)}</ul></FormSection>
+            )}
+            {result.support_needed && result.support_needed.length > 0 && (
+              <FormSection title="Support Needed" icon={BookOpen}><ul style={{ margin: 0, paddingLeft: 18 }}>{result.support_needed.map((s, i) => <li key={i}>{s}</li>)}</ul></FormSection>
+            )}
+            {result.aral_eligible !== undefined && (
+              <FormSection title="Aral Program Eligibility" icon={GraduationCap}>
+                {result.aral_eligible ? 'This student is recommended for the Aral Program.' : 'Not eligible for Aral Program.'}
+              </FormSection>
+            )}
+            {result.raw && <FormSection title="AI Output" icon={Cpu}><pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw}</pre></FormSection>}
+          </SectionCard>
+        </div>
+      )}
+
+      {!loading && !result && (
+        <EmptyState icon={GraduationCap} text="Select a student and click Get Suggestions to receive AI-powered strand and section recommendations." />
       )}
     </div>
   );
@@ -595,22 +706,28 @@ function ChatLogs() {
   return (
     <div>
       {stats && (
-        <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Total messages: <strong>{stats.total_messages}</strong></div>
-          <div style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Distinct users: <strong>{stats.distinct_users}</strong></div>
-          <div style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>Last 24h: <strong>{stats.last_24h}</strong></div>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div className="stat-chip-v2"><MessageSquare size={14} /><span>Messages</span><b>{stats.total_messages}</b></div>
+          <div className="stat-chip-v2"><GraduationCap size={14} /><span>Users</span><b>{stats.distinct_users}</b></div>
+          <div className="stat-chip-v2"><BarChart3 size={14} /><span>Last 24h</span><b>{stats.last_24h}</b></div>
         </div>
       )}
+
       {error && <div className="err-banner" style={{ marginBottom: 12 }}><AlertCircle size={14} /> {error}</div>}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <h3 style={{ margin: 0, fontSize: 14 }}><MessageSquare size={14} /> AI Chat Logs</h3>
-          <button className="btn btn-sm" onClick={() => load(offset)} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh</button>
-        </div>
+
+      <SectionCard
+        title="AI Chat Logs"
+        icon={MessageSquare}
+        action={
+          <button className="btn btn-sm" onClick={() => load(offset)} disabled={loading}>
+            <RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh
+          </button>
+        }
+      >
         {loading ? (
           <div style={{ textAlign: 'center', padding: 32 }}><Loader2 size={20} className="spin" /></div>
         ) : logs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: 'var(--text-dim, #6b7280)' }}>No chat logs recorded yet.</div>
+          <EmptyState icon={MessageSquare} text="No chat logs recorded yet." />
         ) : (
           <div className="table-wrap">
             <table style={{ width: '100%', fontSize: 13 }}>
@@ -626,11 +743,11 @@ function ChatLogs() {
               <tbody>
                 {logs.map((row) => (
                   <tr key={row.id}>
-                    <td style={{ whiteSpace: 'nowrap', color: 'var(--text-dim, #6b7280)' }}>{new Date(row.created_at).toLocaleString()}</td>
-                    <td>{row.user_name || row.username || '�'}</td>
-                    <td><span className={`badge badge-${row.role === 'assistant' ? 'blue' : 'green'}`}>{row.role}</span></td>
+                    <td style={{ whiteSpace: 'nowrap', color: 'var(--text-dim)' }}>{new Date(row.created_at).toLocaleString()}</td>
+                    <td>{row.user_name || row.username || ' - '}</td>
+                    <td><Badge status={row.role === 'assistant' ? 'blue' : 'green'}>{row.role}</Badge></td>
                     <td style={{ maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(row.message || '').slice(0, 80)}</td>
-                    <td style={{ color: 'var(--text-dim, #6b7280)' }}>{row.intent || '�'}</td>
+                    <td style={{ color: 'var(--text-dim)' }}>{row.intent || ' - '}</td>
                   </tr>
                 ))}
               </tbody>
@@ -640,11 +757,11 @@ function ChatLogs() {
         {total > limit && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
             <button className="btn btn-sm" disabled={offset === 0} onClick={() => load(offset - limit)}>Prev</button>
-            <span style={{ fontSize: 12, alignSelf: 'center', color: 'var(--text-dim)' }}>{offset + 1}�{Math.min(offset + limit, total)} of {total}</span>
+            <span style={{ fontSize: 12, alignSelf: 'center', color: 'var(--text-dim)' }}>{offset + 1} - {Math.min(offset + limit, total)} of {total}</span>
             <button className="btn btn-sm" disabled={offset + limit >= total} onClick={() => load(offset + limit)}>Next</button>
           </div>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }
@@ -658,38 +775,57 @@ export default function AIPage() {
   const visibleTabs = TABS.filter((t) => can(user?.role, ...TAB_ROLES[t.id]));
   const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : (visibleTabs[0]?.id || null);
   const TabContent = TAB_COMPONENTS[activeTab];
+  const activeTabMeta = TABS.find(t => t.id === activeTab);
 
   useEffect(() => { api('/ai/status').then(setInfo).catch(() => {}); }, []);
 
   return (
     <>
-      <PageHead title="AI Tools" sub={info ? `${info.provider.toUpperCase()} � ${info.model}` : 'AI-powered features for MeridianEd'} />
+      <PageHead title="AI Tools" sub={info ? `${info.provider.toUpperCase()} - ${info.model}` : 'AI-powered features for MeridianEd'} />
+
       {info && !info.enabled && (
         <div className="err-banner" style={{ marginBottom: 12 }}>
           <AlertCircle size={14} /> AI is not configured. Set <code>{info.provider === 'groq' ? 'GROQ_API_KEY' : info.provider === 'ollama' ? 'Start Ollama locally' : info.provider === 'hf' ? 'HF_API_KEY' : 'OPENAI_API_KEY'}</code> in your environment.
         </div>
       )}
+
+      {info && info.enabled && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--card)', border: '1px solid var(--border)', fontSize: 13 }}>
+          <Cpu size={14} style={{ color: 'var(--accent)' }} />
+          <span style={{ color: 'var(--text-dim)' }}>Provider:</span>
+          <Badge status="green">{info.provider?.toUpperCase()}</Badge>
+          <span style={{ color: 'var(--text-dim)' }}>Model:</span>
+          <Badge status="blue">{info.model}</Badge>
+          <span style={{ color: 'var(--text-dim)', marginLeft: 'auto' }}>
+            {visibleTabs.length} tool{visibleTabs.length !== 1 ? 's' : ''} available
+          </span>
+        </div>
+      )}
+
       {activeTab ? (
         <>
-          <div className="card-top" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {visibleTabs.map((tabItem) => (
-                <button
-                  key={tabItem.id}
-                  className={`btn ${activeTab === tabItem.id ? 'btn-primary' : ''}`}
-                  onClick={() => setTab(tabItem.id)}
-                  style={{ fontSize: 13 }}
-                >
-                  <tabItem.icon size={14} /> {tabItem.label}
-                </button>
-              ))}
-            </div>
+          <div className="tab-bar" style={{ marginBottom: 14 }}>
+            {visibleTabs.map((tabItem) => (
+              <button
+                key={tabItem.id}
+                className={activeTab === tabItem.id ? 'active' : ''}
+                onClick={() => setTab(tabItem.id)}
+              >
+                <tabItem.icon size={14} /> {tabItem.label}
+              </button>
+            ))}
           </div>
-          <div style={{ height: 12 }} />
+
+          {activeTabMeta && (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
+              {activeTabMeta.desc}
+            </div>
+          )}
+
           <TabContent />
         </>
       ) : (
-        <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim, #6b7280)' }}>No AI tools available for your role.</div>
+        <EmptyState icon={Brain} text="No AI tools available for your role." />
       )}
     </>
   );
