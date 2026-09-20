@@ -5,9 +5,10 @@ import DOMPurify from 'dompurify';
 import { Search, Layers, LocateFixed, School, ExternalLink, Navigation, MapPin, Maximize2 } from 'lucide-react';
 import { Empty } from './ui';
 
-// School HQ used for "distance from school" figures (Hinabangan NHS — approx).
+// School HQ reference location (Hinabangan NHS).
 const SCHOOL_COORDS = { lat: 11.7056, lng: 125.2656 };
-const SCHOOL_LABEL = 'Hinabangan NHS (approx)';
+const SCHOOL_LABEL = 'Hinabangan NHS';
+const SCHOOL_ADDRESS = 'Highway, Barangay Rawis, Hinabangan, Samar, 6713, Philippines';
 
 // Esri's street layer is primary: some school networks and ad-blockers block
 // tile.openstreetmap.org, so OpenStreetMap is kept as the fallback instead.
@@ -194,9 +195,20 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     companyLayerRef.current = L.layerGroup().addTo(map);
     schoolMarkerRef.current = L.marker([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], {
       icon: pinIcon('#2563eb', 'SCH'),
-    }).bindPopup(DOMPurify.sanitize(
-      `<div style="min-width:180px"><strong>${SCHOOL_LABEL}</strong><div class="sub">School headquarters — distances shown on pins are from here.</div></div>`,
-    )).addTo(map);
+     }).bindPopup(DOMPurify.sanitize(
+       `<div style="min-width:180px"><strong>${SCHOOL_LABEL}</strong><div class="sub">${SCHOOL_ADDRESS}</div><div class="sub">Reference point — distances shown on pins are from here.</div></div>`,
+     )).addTo(map);
+
+     // Reference-area ring around the school HQ so the vicinity is visible on load.
+     const refArea = L.circle([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], {
+       radius: 250,
+       color: '#2563eb',
+       fillColor: '#2563eb',
+       fillOpacity: 0.08,
+       weight: 1.5,
+       dashArray: '6 4',
+     }).addTo(map);
+     refArea.bindTooltip('School reference area (250 m)', { permanent: false, direction: 'top' });
 
     const syncZoom = () => setZoom(map.getZoom());
     map.on('zoomend moveend', syncZoom);
