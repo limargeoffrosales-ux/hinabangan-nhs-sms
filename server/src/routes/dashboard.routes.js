@@ -137,8 +137,8 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
       audit: { last7: Number(audit[0]?.last7 || 0) },
     },
     date: t,
-  };
-  summaryCache.set(cacheKey, { data, ts: Date.now() });
+   });
+   summaryCache.set(cacheKey, { data, ts: Date.now() });
   res.json(data);
 }));
 
