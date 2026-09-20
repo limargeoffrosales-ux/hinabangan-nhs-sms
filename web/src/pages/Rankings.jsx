@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Settings2, Search, UserSearch } from 'lucide-react';
+import { RefreshCw, Settings2, UserSearch } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, SearchInput } from '../components/ui';
 import { fmt } from '../lib/utils';
 
 const DESIGNATION_LABELS = {
@@ -265,14 +265,11 @@ export default function Rankings() {
               <div className="card">
                 <h3 style={{ marginTop: 0 }}><UserSearch size={15} style={{ verticalAlign: -2 }} /> Select student</h3>
                 <div className="form-row" style={{ margin: 0 }}>
-                  <div style={{ flex: 1 }} className="search-box">
-                    <Search size={14} />
-                    <input
-                      placeholder="Search name or LRN…"
-                      value={studentQuery}
-                      onChange={(e) => { setStudentQuery(e.target.value); setStudent(''); setAnalytics(null); }}
-                    />
-                  </div>
+                  <SearchInput
+                    value={studentQuery}
+                    onChange={(v) => { setStudentQuery(v); setStudent(''); setAnalytics(null); }}
+                    placeholder="Search name or LRN…"
+                  />
                 </div>
                 <div className="table-wrap" style={{ maxHeight: 420, overflowY: 'auto' }}>
                   <table>

@@ -112,7 +112,7 @@ export default function Sections() {
                   <td>{s.room || '—'}</td>
                   <td>{s.capacity}</td>
                   <td><Badge status={s.status} /></td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td className="row-actions" style={{ textAlign: 'right' }}>
                     <button className="btn btn-sm" title={t('sections.viewRoster')} onClick={() => showRoster(s)}><UsersIcon size={13} /></button>{' '}
                     {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit section"><Pencil size={13} aria-hidden="true" /></button>{' '}
                     <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete section"><Trash2 size={13} aria-hidden="true" /></button></>}
@@ -190,7 +190,7 @@ export default function Sections() {
               <tbody>
                 {roster.students.map((s) => (
                   <tr key={s.id}>
-                    <td style={{ fontFamily: 'monospace' }}>{s.lrn}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{s.lrn}</td>
                     <td>{s.last_name}, {s.first_name} {s.middle_name || ''}</td>
                     <td>{s.sex}</td>
                   </tr>

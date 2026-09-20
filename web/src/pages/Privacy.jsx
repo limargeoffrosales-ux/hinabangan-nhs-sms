@@ -433,7 +433,7 @@ export default function Privacy() {
                       <td><span className={`badge ${STATUS_BADGE[r.status] || 'badge-gray'}`}>{r.status}</span></td>
                       <td>{r.requested_by_name || r.requested_by}</td>
                       <td style={{ fontSize: 13 }}>{r.created_at?.replace('T', ' ').slice(0, 16)}</td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <td className="row-actions">
                         <button
                           className="btn btn-sm"
                           disabled={exportBusy === r.id}
@@ -494,7 +494,7 @@ export default function Privacy() {
                         <td>{r.username || '—'}</td>
                         <td>{r.student_name || `#${r.student_id || '—'}`}</td>
                         <td><strong style={{ fontSize: 12.5 }}>{r.action}</strong></td>
-                        <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{r.ip_address || '—'}</td>
+                        <td style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{r.ip_address || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -547,7 +547,7 @@ export default function Privacy() {
                 <tbody>
                   {roleUsers.map((u) => (
                     <tr key={u.id}>
-                      <td style={{ fontFamily: 'monospace' }}>{u.username}</td>
+                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.username}</td>
                       <td><strong>{u.name}</strong></td>
                       <td><Badge status={u.role?.replace(/_/g, ' ')} /></td>
                       <td>

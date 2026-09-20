@@ -260,7 +260,7 @@ export default function Grades() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{r.lrn}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }}>{r.lrn}</td>
                   <td>{r.last_name}, {r.first_name}</td>
                   <td style={{ textAlign: 'center' }}>
                     <input className="grade-input" type="number" min="0" max="100" value={r.written_work ?? ''} onChange={(e) => update(r.id, 'written_work', e.target.value)} />

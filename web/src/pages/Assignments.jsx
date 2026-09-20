@@ -275,7 +275,7 @@ export default function Assignments() {
                   <td>{a.submitted_count} / {a.student_count}</td>
                   <td>{a.graded_count}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <div className="row-actions">
                       <button className="btn btn-sm btn-primary" onClick={() => openGrading(a)}><ClipboardCheck size={13} /> Grade</button>
                       <button className="icon-btn" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"><Pencil size={14} aria-hidden="true" /></button>
                       <button className="icon-btn" onClick={() => removeAssignment(a)} title="Delete" aria-label="Delete"><Trash2 size={14} aria-hidden="true" /></button>
@@ -369,7 +369,7 @@ export default function Assignments() {
                         </td>
                         <td>
                           {has && (
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <div className="row-actions">
                               <button className="btn btn-sm btn-primary" disabled={gradeBusy} onClick={() => saveGrade(s.student_id, s)}>Save</button>
                               {s.submission_status !== 'graded' && (
                                 <button className="btn btn-sm" disabled={gradeBusy} onClick={() => returnToStudent(s.student_id, s.feedback)} title="Return for revision">Return</button>

@@ -188,11 +188,11 @@ export default function Discipline() {
   }
 
   const summaryChips = [
-    ['Open cases', summary?.by_status?.open ?? 0, '#FBBF24'],
-    ['Under review', summary?.by_status?.under_review ?? 0, '#4D96FF'],
-    ['Resolved', summary?.by_status?.resolved ?? 0, '#2FD6A0'],
-    ['Cases this month', summary?.cases_this_month ?? 0, '#A78BFA'],
-    ['Major incidents', summary?.by_severity?.major ?? 0, '#F2555A'],
+    ['Open cases', summary?.by_status?.open ?? 0, 'var(--warn)'],
+    ['Under review', summary?.by_status?.under_review ?? 0, 'var(--accent)'],
+    ['Resolved', summary?.by_status?.resolved ?? 0, 'var(--accent-2)'],
+    ['Cases this month', summary?.cases_this_month ?? 0, 'var(--accent)'],
+    ['Major incidents', summary?.by_severity?.major ?? 0, 'var(--danger)'],
   ];
 
   const filteredStudents = useMemo(() => {

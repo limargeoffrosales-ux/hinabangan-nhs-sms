@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FileText, Plus, Wand2, CheckCheck, Undo2, Send, ClipboardList, Paperclip, Upload, Trash2, Download } from 'lucide-react';
 import { api, getApiBase, getToken, getCsrfToken, friendlyAbortMessage } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Badge, Empty, ErrorBanner, Modal, SearchInput } from '../components/ui';
 import FileUpload from '../components/FileUpload';
 import { SCHOOL_YEARS } from '../lib/constants';
 
@@ -111,7 +111,7 @@ export default function Submissions() {
       {tab === 'mine' && (
         <div className="card">
           <div className="search-row">
-            <input className="input" placeholder="Search report, code or period…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 340 }} />
+            <SearchInput value={search} onChange={setSearch} placeholder="Search report, code or period…" />
             <select className="input" style={{ maxWidth: 170 }} value={freq} onChange={(e) => setFreq(e.target.value)}>
               <option value="all">All frequencies</option>
               {FREQS.map((f) => <option key={f} value={f}>{f[0].toUpperCase() + f.slice(1)}</option>)}
@@ -414,7 +414,7 @@ function SubmissionModal({ mode, submission, types, onClose, onSaved, onNotice }
         </label>
       </div>
       <label>Report data</label>
-      <textarea className="input" rows={7} value={draft} onChange={(e) => setDraft(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12.5 }} placeholder="Enter the data / details of the report here — or leave blank and just mark the task as done." />
+      <textarea className="input" rows={7} value={draft} onChange={(e) => setDraft(e.target.value)} style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }} placeholder="Enter the data / details of the report here — or leave blank and just mark the task as done." />
       {type?.auto_generate ? (
         <div style={{ margin: '8px 0' }}>
           <button type="button" className="btn" onClick={generateDraft} disabled={busy || !typeId}>

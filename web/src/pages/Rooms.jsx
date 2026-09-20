@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput } from '../components/ui';
 
 const ROOM_TYPES = [
   { value: 'classroom', label: 'Classroom', badgeColor: 'blue' },
@@ -108,12 +108,10 @@ export default function Rooms() {
       </PageHead>
 
       <div className="card filters-row" style={{ marginBottom: 12, padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
-        <input
-          className="input"
-          style={{ maxWidth: 220 }}
-          placeholder={t('rooms.searchPlaceholder', 'Search by code or name…')}
+        <SearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
+          placeholder={t('rooms.searchPlaceholder', 'Search by code or name…')}
         />
         <select className="input" style={{ maxWidth: 180 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
           <option value="">{t('rooms.allTypes', 'All Room Types')}</option>
@@ -136,13 +134,13 @@ export default function Rooms() {
                 <th>{t('rooms.capacity', 'Capacity')}</th>
                 <th>{t('rooms.type', 'Type')}</th>
                 <th>{t('rooms.status', 'Status')}</th>
-                {canWrite && <th style={{ textAlign: 'right' }}>{t('common.actions')}</th>}
+                {canWrite && <th className="row-actions">{t('common.actions')}</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id}>
-                  <td style={{ fontFamily: 'monospace' }}><strong>{r.code}</strong></td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}><strong>{r.code}</strong></td>
                   <td>{r.name}</td>
                   <td className="sub">{r.building || '—'}</td>
                   <td>{r.floor ?? '—'}</td>
@@ -150,7 +148,7 @@ export default function Rooms() {
                   <td><Badge status={TYPE_BADGE_COLOR[r.room_type] || 'gray'} /> {ROOM_TYPES.find((rt) => rt.value === r.room_type)?.label || r.room_type}</td>
                   <td><Badge status={r.status === 'inactive' ? 'inactive' : 'active'} /></td>
                   {canWrite && (
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td className="row-actions">
                       <button className="btn btn-sm" onClick={() => openEdit(r)} aria-label="Edit room"><Pencil size={13} aria-hidden="true" /></button>{' '}
                       <button className="btn btn-sm btn-danger" onClick={() => remove(r)} aria-label="Delete room"><Trash2 size={13} aria-hidden="true" /></button>
                     </td>

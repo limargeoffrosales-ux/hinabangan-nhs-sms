@@ -252,7 +252,7 @@ export default function Lessons() {
                 )}
                 {/* Admin: review submitted lessons */}
                 {canReview && l.submission_status === 'submitted' && (
-                  <button className="btn btn-sm" style={{ background: 'var(--success)', color: '#fff' }} onClick={() => { setShowReview(l); setReviewNotes(l.review_notes || ''); }} title="Review this lesson">
+                  <button className="btn btn-sm" style={{ background: 'var(--success)', color: 'var(--text)' }} onClick={() => { setShowReview(l); setReviewNotes(l.review_notes || ''); }} title="Review this lesson">
                     <Eye size={12} /> Review
                   </button>
                 )}
@@ -375,7 +375,7 @@ export default function Lessons() {
           </label>
           <div className="modal-actions">
             <button type="button" className="btn" onClick={() => setShowReview(null)}>Cancel</button>
-            <button type="button" className="btn" style={{ background: 'var(--warn)', color: '#fff' }} disabled={reviewing} onClick={() => reviewLesson('return')}>
+            <button type="button" className="btn" style={{ background: 'var(--warn)', color: 'var(--text)' }} disabled={reviewing} onClick={() => reviewLesson('return')}>
               <RotateCcw size={14} /> Return
             </button>
             <button type="button" className="btn btn-primary" disabled={reviewing} onClick={() => reviewLesson('approve')}>

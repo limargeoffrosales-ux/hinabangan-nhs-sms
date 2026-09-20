@@ -157,7 +157,7 @@ export default function Immersion() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.student_name}</td>
-                  <td style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{r.lrn}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }}>{r.lrn}</td>
                   <td className="sub">{r.grade_level}</td>
                   <td><span className="badge badge-blue">{r.batch}</span></td>
                   {isImmersion && <td>{r.program}</td>}

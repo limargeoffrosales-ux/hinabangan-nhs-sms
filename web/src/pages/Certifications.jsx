@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Filter } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, SearchInput } from '../components/ui';
 
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const TYPES = ['NCII', 'TESDA', 'OTHER'];
@@ -140,7 +140,7 @@ export default function Certifications() {
       {/* Filters */}
       <div className="card">
         <div className="form-row" style={{ gap: 8, flexWrap: 'wrap', display: 'flex', alignItems: 'center' }}>
-          <input placeholder="Search student or cert name…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: 1, minWidth: 180 }} />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search student or cert name…" />
           <label style={{ margin: 0 }}>
             <Filter size={14} /> Type
             <select value={filter.type} onChange={(e) => setFilter((f) => ({ ...f, type: e.target.value }))} style={{ marginTop: 4 }}>

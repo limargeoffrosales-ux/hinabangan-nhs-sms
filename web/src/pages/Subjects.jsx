@@ -154,7 +154,7 @@ export default function Subjects() {
             <tbody>
               {rows.map((s) => (
                 <tr key={s.id}>
-                  <td style={{ fontFamily: 'monospace' }}><strong>{s.code}</strong></td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}><strong>{s.code}</strong></td>
                   <td>{s.title}</td>
                   <td>{s.grade_level}</td>
                   <td className="track-chip">{(s.track || '').toUpperCase()}</td>
@@ -171,7 +171,7 @@ export default function Subjects() {
                       <span className={s.is_offered ? 'badge badge-green' : 'badge'}>{s.is_offered ? t('subjects.offered') : t('subjects.notOffered')}</span>
                     )}
                   </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td className="row-actions" style={{ textAlign: 'right' }}>
                     {canWrite && <><button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit subject"><Pencil size={13} aria-hidden="true" /></button>{' '}
                     <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete subject"><Trash2 size={13} aria-hidden="true" /></button></>}
                   </td>

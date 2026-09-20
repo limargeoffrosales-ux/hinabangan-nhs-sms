@@ -185,9 +185,9 @@ export default function CareerTVL() {
       <div className="kpi-row" style={{ marginBottom: 14 }}>
         <StatChip icon={Briefcase} label="Immersion learners" value={immLearners} color="var(--accent)" />
         <StatChip icon={BadgeCheck} label="JDVP recipients" value={jdvpTotal} color="var(--accent-2)" />
-        <StatChip icon={CheckCircle2} label="Completed / served" value={immStatusData.reduce((a, s) => a + (s.name === 'completed' || s.name === 'served' ? s.value : 0), 0) + (jdvpSummary?.batches || []).reduce((a, b) => a + (b.statuses?.served || 0), 0)} color="#22c55e" />
-        <StatChip icon={XCircle} label="Withdrawn" value={immWithdrawn + (jdvpSummary?.batches || []).reduce((a, b) => a + (b.statuses?.withdrawn || 0), 0)} color="#ef4444" />
-        {canMap && <StatChip icon={MapPin} label="Placed on map" value={mapPlaced} color="#3b82f6" />}
+        <StatChip icon={CheckCircle2} label="Completed / served" value={immStatusData.reduce((a, s) => a + (s.name === 'completed' || s.name === 'served' ? s.value : 0), 0) + (jdvpSummary?.batches || []).reduce((a, b) => a + (b.statuses?.served || 0), 0)} color="var(--success)" />
+        <StatChip icon={XCircle} label="Withdrawn" value={immWithdrawn + (jdvpSummary?.batches || []).reduce((a, b) => a + (b.statuses?.withdrawn || 0), 0)} color="var(--danger)" />
+        {canMap && <StatChip icon={MapPin} label="Placed on map" value={mapPlaced} color="var(--accent)" />}
       </div>
 
       {error && <ErrorBanner error={error} />}

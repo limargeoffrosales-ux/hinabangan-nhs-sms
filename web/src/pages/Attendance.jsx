@@ -133,7 +133,7 @@ export default function Attendance() {
               <tbody>
                 {roster.map((r) => (
                   <tr key={r.id}>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{r.lrn}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }}>{r.lrn}</td>
                     <td>{r.last_name}, {r.first_name}</td>
                     <td>{r.sex}</td>
                     <td style={{ textAlign: 'center' }}>

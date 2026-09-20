@@ -5,7 +5,7 @@ import { loadRecharts } from '../lib/lazy-recharts';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, ErrorBanner } from '../components/ui';
 
-const LEVEL_COLORS = { Advanced: '#2FD6A0', Proficient: '#4D96FF', 'Approaching Proficiency': '#F5B942', Developing: '#FB7185', Beginning: '#F2555A' };
+const LEVEL_COLORS = { Advanced: 'var(--success)', Proficient: 'var(--accent)', 'Approaching Proficiency': 'var(--warn)', Developing: 'var(--danger)', Beginning: 'var(--danger)' };
 const LEVELS = ['Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced'];
 
 export default function CompetencyTracker() {
@@ -127,7 +127,7 @@ export default function CompetencyTracker() {
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
                       <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} formatter={(v) => [v, 'Average Score']} />
                       <Bar dataKey="Average" radius={[4, 4, 0, 0]}>
-                        {chartData.map((d, i) => <Cell key={i} fill={d.Average >= 85 ? '#2FD6A0' : d.Average >= 75 ? '#F5B942' : '#FB7185'} />)}
+                        {chartData.map((d, i) => <Cell key={i} fill={d.Average >= 85 ? 'var(--success)' : d.Average >= 75 ? 'var(--warn)' : 'var(--danger)'} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -206,7 +206,7 @@ export default function CompetencyTracker() {
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} allowDecimals={false} />
                       <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
                       <Bar dataKey="value" name="Students" radius={[4, 4, 0, 0]}>
-                        {levelPieData.map((d) => <Cell key={d.name} fill={LEVEL_COLORS[d.name] || '#8A94A6'} />)}
+                        {levelPieData.map((d) => <Cell key={d.name} fill={LEVEL_COLORS[d.name] || 'var(--text-dim)'} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>

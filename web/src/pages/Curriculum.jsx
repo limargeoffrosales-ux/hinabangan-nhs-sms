@@ -282,13 +282,13 @@ export default function Curriculum() {
                       const isExpanded = expandedTrack === tr.id;
                       return [
                         <tr key={tr.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedTrack(isExpanded ? null : tr.id)}>
-                          <td><Layers size={14} style={{ color: '#7c6fe0', verticalAlign: -2 }} /></td>
-                          <td style={{ fontFamily: 'monospace' }}><strong>{tr.code}</strong></td>
+                          <td><Layers size={14} style={{ color: 'var(--accent)', verticalAlign: -2 }} /></td>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}><strong>{tr.code}</strong></td>
                           <td>{tr.name}</td>
                           <td className="sub">{tr.description || '—'}</td>
                           <td style={{ textAlign: 'center' }}><Badge status={strandsForTrack.length ? 'active' : 'normal'} /> {strandsForTrack.length}</td>
                           {canWrite && (
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                            <td className="row-actions" onClick={(e) => e.stopPropagation()}>
                               <button className="btn btn-sm" onClick={() => openEditTrack(tr)} aria-label="Edit track"><Pencil size={13} aria-hidden="true" /></button>{' '}
                               <button className="btn btn-sm btn-danger" onClick={() => removeTrack(tr)} aria-label="Delete track"><Trash2 size={13} aria-hidden="true" /></button>{' '}
                               <button className="btn btn-sm" onClick={() => openCreateStrand(tr.id)} aria-label="Add strand"><Plus size={13} aria-hidden="true" /></button>
@@ -298,12 +298,12 @@ export default function Curriculum() {
                         isExpanded && strandsForTrack.map((s) => (
                           <tr key={`s-${s.id}`} style={{ background: 'var(--bg-muted, #f9f9fb)' }}>
                             <td></td>
-                            <td style={{ fontFamily: 'monospace', paddingLeft: 28 }}>{s.code}</td>
+                            <td style={{ fontVariantNumeric: 'tabular-nums', paddingLeft: 28 }}>{s.code}</td>
                             <td style={{ paddingLeft: 28 }}>{s.name}</td>
                             <td className="sub">{s.description || '—'}</td>
                             <td></td>
                             {canWrite && (
-                              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <td className="row-actions">
                                 <button className="btn btn-sm" onClick={() => openEditStrand(s)} aria-label="Edit strand"><Pencil size={13} aria-hidden="true" /></button>{' '}
                                 <button className="btn btn-sm btn-danger" onClick={() => removeStrand(s)} aria-label="Delete strand"><Trash2 size={13} aria-hidden="true" /></button>
                               </td>
@@ -362,14 +362,14 @@ export default function Curriculum() {
                   <tbody>
                     {competencies.map((c) => (
                       <tr key={c.id}>
-                        <td style={{ fontFamily: 'monospace' }}><strong>{c.code}</strong></td>
+                        <td style={{ fontVariantNumeric: 'tabular-nums' }}><strong>{c.code}</strong></td>
                         <td>{c.title}</td>
                         <td className="sub">{c.strand_name || strandName(c.strand_id)}</td>
                         <td>{c.grade_level}</td>
                         <td>{c.quarter}</td>
                         <td><Badge status={TYPE_BADGE[c.competency_type] || 'gray'} /> {c.competency_type}</td>
                         {canWrite && (
-                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <td className="row-actions">
                             <button className="btn btn-sm" onClick={() => openEditComp(c)} aria-label="Edit competency"><Pencil size={13} aria-hidden="true" /></button>{' '}
                             <button className="btn btn-sm btn-danger" onClick={() => removeComp(c)} aria-label="Delete competency"><Trash2 size={13} aria-hidden="true" /></button>
                           </td>
@@ -410,7 +410,7 @@ export default function Curriculum() {
                           <tr key={m.id}>
                             <td>{m.sort_order}</td>
                             <td>{m.competency_title || '—'}</td>
-                            <td style={{ fontFamily: 'monospace' }}>{m.competency_code || '—'}</td>
+                            <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.competency_code || '—'}</td>
                             <td className="sub">{m.strand_name || '—'}</td>
                             <td>{m.quarter}</td>
                             {canWrite && (

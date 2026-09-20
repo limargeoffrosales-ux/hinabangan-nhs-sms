@@ -179,11 +179,11 @@ export default function Aral() {
       <ErrorBanner error={error} />
 
       <div className="grid grid-4">
-        <StatChip label="Sessions" value={totals.sessions} color="#4D96FF" />
-        <StatChip label="Present" value={totals.present} color="#2FD6A0" />
-        <StatChip label="Absent" value={totals.absent} color="#F2555A" />
-        <StatChip label="Excused" value={totals.excused} color="#F5B942" />
-        <StatChip label="Attendance rate" value={totals.rate != null ? totals.rate + '%' : '—'} color="#A78BFA" />
+        <StatChip label="Sessions" value={totals.sessions} color="var(--accent)" />
+        <StatChip label="Present" value={totals.present} color="var(--accent-2)" />
+        <StatChip label="Absent" value={totals.absent} color="var(--danger)" />
+        <StatChip label="Excused" value={totals.excused} color="var(--warn)" />
+        <StatChip label="Attendance rate" value={totals.rate != null ? totals.rate + '%' : '—'} color="var(--accent)" />
       </div>
 
       <div className="card">
@@ -228,10 +228,10 @@ export default function Aral() {
               {aralLearners.map((r) => (
                 <tr key={r.enrollment_id}>
                   <td>{r.last_name}, {r.first_name}</td>
-                  <td style={{ fontFamily: 'monospace' }}>{r.lrn}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.lrn}</td>
                   <td>{r.grade_level}{r.section_name ? ' — ' + r.section_name : ''}</td>
                   <td style={{ textAlign: 'center' }}>{r.term ? r.term[0].toUpperCase() + r.term.slice(1) : 'All'}</td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td className="row-actions">
                     {canWrite && (
                       <button className="btn btn-sm btn-danger" onClick={() => unenrollAral(r.enrollment_id)}>Remove</button>
                     )}

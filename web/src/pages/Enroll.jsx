@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Search, RotateCcw, FileText, Trash2 } from 'lucide-react';
+import { RotateCcw, FileText, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { SHS_TRACKS, ENROLLMENT_STATUSES, ENROLLMENT_DOC_TYPES, CURRENT_SCHOOL_YEAR } from '../lib/constants';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge, SearchInput } from '../components/ui';
 import { useToast } from '../components/Toast';
 
 const STATUS_MAP = Object.fromEntries(ENROLLMENT_STATUSES.map((s) => [s.value, s.label]));
@@ -561,16 +561,11 @@ export default function Enroll() {
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Enroll a Student</h3>
             <form onSubmit={submit}>
-              <div style={{ position: 'relative', marginBottom: 10 }}>
-                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                <input
-                  className="input"
-                  placeholder="Search learners by name or LRN — updates the list below…"
-                  value={studentSearch}
-                  onChange={(e) => setStudentSearch(e.target.value)}
-                  style={{ paddingLeft: 30 }}
-                />
-              </div>
+              <SearchInput
+                placeholder="Search learners by name or LRN — updates the list below…"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+              />
               <label>Student</label>
               <div className="hint" style={{ marginTop: -6, marginBottom: 6 }}>{eligibleHint}</div>
               <select required value={form.student_id} onChange={(e) => onStudentChange(e.target.value)}>
@@ -656,16 +651,11 @@ export default function Enroll() {
                   <div className="hint">
                     Full SSHS catalog for Grade 11 and 12 · available in all three terms · {selectedCount} of {totalAvailable} selected
                   </div>
-                  <div style={{ position: 'relative', marginBottom: 8 }}>
-                    <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                    <input
-                      className="input"
-                      placeholder="Search subjects by code or title…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      style={{ paddingLeft: 30 }}
-                    />
-                  </div>
+                  <SearchInput
+                    placeholder="Search subjects by code or title…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
                   {group.length === 0 ? (
                     <div className="hint">No subjects found for this grade level{search ? ' matching your search' : ' in the catalog'}.</div>
                   ) : (
@@ -840,16 +830,11 @@ export default function Enroll() {
                       <label style={{ fontWeight: 600 }}>Enrolled subjects — tick the cores and electives for this term</label>
                       <div className="hint">{editSelected.length} of {editSubjects.length} selected</div>
                     </div>
-                    <div style={{ position: 'relative', marginBottom: 8 }}>
-                      <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                      <input
-                        className="input"
-                        placeholder="Search subjects by code or title…"
-                        value={editSearch}
-                        onChange={(e) => setEditSearch(e.target.value)}
-                        style={{ paddingLeft: 30 }}
-                      />
-                    </div>
+                    <SearchInput
+                      placeholder="Search subjects by code or title…"
+                      value={editSearch}
+                      onChange={(e) => setEditSearch(e.target.value)}
+                    />
                     {editGroups.length === 0 ? (
                       <div className="hint">No subjects found for this grade level.</div>
                     ) : (

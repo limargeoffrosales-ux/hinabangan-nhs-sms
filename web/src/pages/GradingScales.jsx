@@ -218,7 +218,7 @@ export default function GradingScales() {
                     <td style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
                       {s.bands.length ? `${s.bands.length} bands` : '—'}
                     </td>
-                    <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    <td className="row-actions">
                       {!s.is_default && <button className="btn btn-sm" title="Make default" onClick={() => setDefault(s.id)} aria-label="Make default"><Star size={13} aria-hidden="true" /></button>}{' '}
                       <button className="btn btn-sm" title="Edit" onClick={() => openEdit(s)}>Edit</button>{' '}
                       {!s.is_system && <button className="btn btn-sm btn-danger" title="Delete" onClick={() => removeScale(s.id)} aria-label="Delete scale"><Trash2 size={13} aria-hidden="true" /></button>}

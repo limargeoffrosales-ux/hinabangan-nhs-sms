@@ -78,7 +78,7 @@ export default function PortalPortfolio() {
           <div className="card" style={{ marginBottom: 16 }}>
             <h3 style={{ marginTop: 0 }}>{s?.last_name}, {s?.first_name}</h3>
             <div className="form-row" style={{ margin: '8px 0 0' }}>
-              {s?.lrn && <div className="stat-card"><span className="sub">LRN</span><div style={{ fontSize: 14, fontWeight: 600, fontFamily: 'monospace' }}>{s.lrn}</div></div>}
+              {s?.lrn && <div className="stat-card"><span className="sub">LRN</span><div style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{s.lrn}</div></div>}
               {s?.grade_level && <div className="stat-card"><span className="sub">{t('portfolio.gradeLevel', 'Grade Level')}</span><div style={{ fontSize: 16, fontWeight: 700 }}>{s.grade_level}</div></div>}
               {s?.track_strand && <div className="stat-card"><span className="sub">{t('portfolio.trackStrand', 'Track / Strand')}</span><div style={{ fontSize: 14, fontWeight: 600 }}>{s.track_strand}</div></div>}
             </div>
@@ -126,10 +126,10 @@ export default function PortalPortfolio() {
           <div className="card" style={{ marginBottom: 16 }}>
             <h4 style={{ marginTop: 0 }}>{t('portfolio.attendanceBreakdown', 'Attendance Breakdown')}</h4>
             <div className="form-row" style={{ margin: 0 }}>
-              <div className="stat-card"><span className="sub" style={{ color: '#4ade80' }}>{t('portfolio.present', 'Present')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.present)}</div></div>
-              <div className="stat-card"><span className="sub" style={{ color: '#f87171' }}>{t('portfolio.absent', 'Absent')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.absent)}</div></div>
-              <div className="stat-card"><span className="sub" style={{ color: '#facc15' }}>{t('portfolio.late', 'Late')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.late)}</div></div>
-              <div className="stat-card"><span className="sub" style={{ color: '#60a5fa' }}>{t('portfolio.excused', 'Excused')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.excused)}</div></div>
+              <div className="stat-card"><span className="sub" style={{ color: 'var(--success)' }}>{t('portfolio.present', 'Present')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.present)}</div></div>
+              <div className="stat-card"><span className="sub" style={{ color: 'var(--danger)' }}>{t('portfolio.absent', 'Absent')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.absent)}</div></div>
+              <div className="stat-card"><span className="sub" style={{ color: 'var(--warn)' }}>{t('portfolio.late', 'Late')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.late)}</div></div>
+              <div className="stat-card"><span className="sub" style={{ color: 'var(--accent)' }}>{t('portfolio.excused', 'Excused')}</span><div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(counts.excused)}</div></div>
             </div>
           </div>
 

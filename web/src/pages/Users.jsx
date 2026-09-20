@@ -171,13 +171,13 @@ export default function Users() {
                   <td>
                     <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleSelect(u.id)} aria-label={`Select ${u.username}`} />
                   </td>
-                  <td style={{ fontFamily: 'monospace' }}>{u.username}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.username}</td>
                   <td><strong>{u.name}</strong></td>
                   <td><Badge status={(u.role || '').replace(/_/g, ' ')} /></td>
                   <td>{u.email || '—'}</td>
                   <td><Badge status={u.status} /></td>
                   <td style={{ fontSize: 13 }}>{u.created_at?.slice(0, 10)}</td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td className="row-actions" style={{ textAlign: 'right' }}>
                     <button className="btn btn-sm" onClick={() => setResetPw(u)} title="Reset password"><KeyRound size={13} /></button>{' '}
                     <button className="btn btn-sm" onClick={() => openEdit(u)} aria-label="Edit user"><Pencil size={13} aria-hidden="true" /></button>{' '}
                     {canDeleteUser && user.id !== u.id && (

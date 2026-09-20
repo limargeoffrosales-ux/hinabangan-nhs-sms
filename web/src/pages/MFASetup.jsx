@@ -174,7 +174,7 @@ export default function MFASetup() {
       {mfaEnabled && step !== 'verify' && (
         <div className="card" style={{ maxWidth: 500 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#34C77B22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(52,211,153,0.13)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <CheckCircle2 size={20} color="var(--success)" />
             </div>
             <div>
