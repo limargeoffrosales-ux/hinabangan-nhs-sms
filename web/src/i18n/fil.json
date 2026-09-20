@@ -6,8 +6,14 @@
   "portalTitle": "Portal ng Mag-aaral at Magulang",
 
   "nav.main": "Pangunahin",
-  "nav.operations": "Operasyon",
+  "nav.people": "Mga Tao",
+  "nav.academics": "Akademiko",
+  "nav.assessment": "Pagtatasa",
+  "nav.programs": "Mga Programa",
   "nav.teaching": "Mga Kasangkapan sa Pagtuturo",
+  "nav.resources": "Mga Mapagkukunan",
+  "nav.reports": "Mga Ulat",
+  "nav.system": "Sistema",
 
   "nav.dashboard": "Dashboard",
   "nav.students": "Mga Mag-aaral",

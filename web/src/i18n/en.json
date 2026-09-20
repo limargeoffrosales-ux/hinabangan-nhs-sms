@@ -6,8 +6,14 @@
   "portalTitle": "Student & Parent Portal",
 
   "nav.main": "Main",
-  "nav.operations": "Operations",
+  "nav.people": "People",
+  "nav.academics": "Academics",
+  "nav.assessment": "Assessment",
+  "nav.programs": "Programs",
   "nav.teaching": "Teaching Tools",
+  "nav.resources": "Resources",
+  "nav.reports": "Reports",
+  "nav.system": "System",
 
   "nav.dashboard": "Dashboard",
   "nav.students": "Students",

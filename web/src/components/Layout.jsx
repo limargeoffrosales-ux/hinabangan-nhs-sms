@@ -24,46 +24,87 @@ function resolveTheme(theme) {
   return LEGACY_MAP[theme] || theme;
 }
 
-const NAV = [
-  { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard, end: true },
-  { to: '/students', labelKey: 'nav.students', icon: Users },
-  { to: '/teachers', labelKey: 'nav.teachers', icon: UserCog },
-  { to: '/subjects', labelKey: 'nav.subjects', icon: BookOpen },
-  { to: '/sections', labelKey: 'nav.sections', icon: Layers },
-  { to: '/enroll', labelKey: 'nav.enrollment', icon: ClipboardList },
-  { to: '/programs', labelKey: 'nav.programs', icon: CalendarRange },
-  { to: '/submissions', labelKey: 'nav.submissions', icon: FileText },
-  { to: '/compliance', labelKey: 'nav.compliance', icon: Gauge },
-  { to: '/aral', labelKey: 'nav.aral', icon: GraduationCap },
-  { to: '/discipline', labelKey: 'nav.conduct', icon: ShieldAlert },
-  { to: '/grades', labelKey: 'nav.classRecords', icon: BarChart3 },
-  { to: '/assignments', labelKey: 'nav.assignments', icon: ClipboardPenLine },
-  { to: '/grading-scales', labelKey: 'nav.gradingScales', icon: Scale },
-  { to: '/rankings', labelKey: 'nav.rankings', icon: Trophy },
-  { to: '/attendance', labelKey: 'nav.attendance', icon: CalendarCheck },
-  { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
-  { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
-  { to: '/consent', labelKey: 'nav.consent', icon: FileCheck2 },
-  { to: '/mfa', labelKey: 'nav.mfa', icon: Shield, adminOnly: true },
-  { to: '/privacy', labelKey: 'nav.privacy', icon: ShieldCheck },
-  { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
-  { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
-  { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
-  { to: '/career-tvl', labelKey: 'nav.careerTvl', icon: Map },
-  { to: '/analytics', labelKey: 'nav.analytics', icon: TrendingUp },
-  { to: '/curriculum', labelKey: 'nav.curriculum', icon: BookOpen },
-  { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },
-  { to: '/lessons', labelKey: 'nav.lessons', icon: BookOpen },
-  { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
-  { to: '/certifications', labelKey: 'nav.certifications', icon: Award },
-  { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
-  { to: '/ai', labelKey: 'AI Tools', icon: Brain, adminOnly: true },
-];
-
-const TOOL_NAV = [
-  { to: '/interventions', labelKey: 'nav.interventions', icon: LifeBuoy },
-  { to: '/assessment', labelKey: 'nav.assessment', icon: ClipboardPenLine },
-  { to: '/guidance', labelKey: 'nav.guidance', icon: LifeBuoy },
+const NAV_GROUPS = [
+  {
+    label: 'nav.main',
+    items: [
+      { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard, end: true },
+    ],
+  },
+  {
+    label: 'nav.people',
+    items: [
+      { to: '/students', labelKey: 'nav.students', icon: Users },
+      { to: '/teachers', labelKey: 'nav.teachers', icon: UserCog },
+      { to: '/users', labelKey: 'nav.users', icon: ShieldCheck },
+    ],
+  },
+  {
+    label: 'nav.academics',
+    items: [
+      { to: '/curriculum', labelKey: 'nav.curriculum', icon: BookOpen },
+      { to: '/subjects', labelKey: 'nav.subjects', icon: BookOpen },
+      { to: '/sections', labelKey: 'nav.sections', icon: Layers },
+      { to: '/enroll', labelKey: 'nav.enrollment', icon: ClipboardList },
+      { to: '/lessons', labelKey: 'nav.lessons', icon: BookOpen },
+      { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
+    ],
+  },
+  {
+    label: 'nav.assessment',
+    items: [
+      { to: '/grades', labelKey: 'nav.classRecords', icon: BarChart3 },
+      { to: '/assignments', labelKey: 'nav.assignments', icon: ClipboardPenLine },
+      { to: '/grading-scales', labelKey: 'nav.gradingScales', icon: Scale },
+      { to: '/rankings', labelKey: 'nav.rankings', icon: Trophy },
+      { to: '/attendance', labelKey: 'nav.attendance', icon: CalendarCheck },
+    ],
+  },
+  {
+    label: 'nav.programs',
+    items: [
+      { to: '/aral', labelKey: 'nav.aral', icon: GraduationCap },
+      { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
+      { to: '/career-tvl', labelKey: 'nav.careerTvl', icon: Map },
+      { to: '/certifications', labelKey: 'nav.certifications', icon: Award },
+    ],
+  },
+  {
+    label: 'nav.teaching',
+    items: [
+      { to: '/programs', labelKey: 'nav.programs', icon: CalendarRange },
+      { to: '/submissions', labelKey: 'nav.submissions', icon: FileText },
+      { to: '/compliance', labelKey: 'nav.compliance', icon: Gauge },
+      { to: '/interventions', labelKey: 'nav.interventions', icon: LifeBuoy },
+      { to: '/guidance', labelKey: 'nav.guidance', icon: LifeBuoy },
+      { to: '/discipline', labelKey: 'nav.conduct', icon: ShieldAlert },
+    ],
+  },
+  {
+    label: 'nav.resources',
+    items: [
+      { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },
+      { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
+      { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
+      { to: '/consent', labelKey: 'nav.consent', icon: FileCheck2 },
+    ],
+  },
+  {
+    label: 'nav.reports',
+    items: [
+      { to: '/analytics', labelKey: 'nav.analytics', icon: TrendingUp },
+      { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
+    ],
+  },
+  {
+    label: 'nav.system',
+    items: [
+      { to: '/ai', labelKey: 'AI Tools', icon: Brain, adminOnly: true, aiStaff: true },
+      { to: '/privacy', labelKey: 'nav.privacy', icon: ShieldCheck },
+      { to: '/mfa', labelKey: 'nav.mfa', icon: Shield, adminOnly: true },
+      { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
+    ],
+  },
 ];
 
 const STAFF_HIDDEN = ['/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/privacy', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
@@ -163,23 +204,25 @@ export default function Layout({ children }) {
           <span className="brand-text">{t('brand')}</span>
         </div>
         <div className="nav-label">{t('nav.main')}</div>
-        {NAV.slice(0, 6).map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-            <n.icon size={17} /> <span>{t(n.labelKey)}</span>
-          </NavLink>
-        ))}
-        <div className="nav-label">{t('nav.operations')}</div>
-        {NAV.slice(6).filter((n) => (isAdmin || !STAFF_HIDDEN.includes(n.to)) && (!n.adminOnly || (n.to === '/ai' ? isAIStaff : isSuperAdmin))).map((n) => (
-          <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-            <n.icon size={17} /> <span>{t(n.labelKey)}</span>
-          </NavLink>
-        ))}
-        <div className="nav-label">{t('nav.teaching')}</div>
-        {TOOL_NAV.map((n) => (
-          <NavLink key={n.to} to={n.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-            <n.icon size={17} /> <span>{t(n.labelKey)}</span>
-          </NavLink>
-        ))}
+        {NAV_GROUPS.filter((g) => g.label !== 'nav.main').length > 0 && null}
+        {NAV_GROUPS.map((group) => {
+          const visibleItems = group.items.filter((n) => {
+            if (!isAdmin && STAFF_HIDDEN.includes(n.to)) return false;
+            if (n.adminOnly && !(n.aiStaff ? isAIStaff : isSuperAdmin)) return false;
+            return true;
+          });
+          if (!visibleItems.length) return null;
+          return (
+            <div key={group.label}>
+              <div className="nav-label">{t(group.label)}</div>
+              {visibleItems.map((n) => (
+                <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+                  <n.icon size={17} /> <span>{t(n.labelKey)}</span>
+                </NavLink>
+              ))}
+            </div>
+          );
+        })}
       </aside>
       <div className="main" id="main-content" role="main">
         <div className="topbar" role="banner">
