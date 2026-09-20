@@ -10,7 +10,7 @@ import PlacementMap, { BADGE_FOR } from '../components/PlacementMap';
 // Capitalize first letter of string (used for status name formatting)
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-const MAP_WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const MAP_WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'];
 const BATCHES = ['Batch 1', 'Batch 2', 'Batch 3', 'Batch 4'];
 
 const STATUS_COLORS = {

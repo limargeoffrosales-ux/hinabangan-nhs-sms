@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr, dialect } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
-const { linkedStudentIds, ensurePortalSeesStudent, teacherScope, studentInScope } = require('../scope');
+const { linkedStudentIds, ensurePortalSeesStudent, teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
 
 const { geocodeAddress } = require('../geocode');
 
@@ -95,7 +95,7 @@ function locForUpdate(b, cur) {
 const immersion = express.Router();
 immersion.use(authenticate);
 
-immersion.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
+immersion.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const { limit, offset } = page(req);
   const where = [];
   const params = [];
@@ -140,7 +140,7 @@ immersion.get('/map', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) 
 
 // Roster for a batch + date with each placement's attendance record for that
 // day (LEFT JOIN, so unmarked placements still show up).
-immersion.get('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+immersion.get('/attendance', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const d = req.query.date || today();
   const batch = req.query.batch || null;
   const where = [];
@@ -167,7 +167,7 @@ immersion.get('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
 
 // Bulk upsert daily attendance for a batch. Each record keys on the placement's
 // immersion_id + date; marking the same day twice overwrites the first entry.
-immersion.post('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+immersion.post('/attendance', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.batch || !b.date || !Array.isArray(b.records) || b.records.length === 0) {
     return res.status(400).json({ error: 'batch, date and non-empty records are required' });
@@ -200,7 +200,7 @@ immersion.post('/attendance', requireRole(...WRITE), asyncH(async (req, res) => 
 }));
 
 // Daily Time Record history for a single placement.
-immersion.get('/:id/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+immersion.get('/:id/attendance', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const cur = await q('SELECT wi.*, st.lrn, st.first_name || \' \' || st.last_name AS student_name FROM work_immersion wi JOIN students st ON st.id = wi.student_id WHERE wi.id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Placement not found' });
   const rows = await qa(
@@ -220,13 +220,18 @@ immersion.get('/:id/attendance', requireRole(...WRITE), asyncH(async (req, res) 
   });
 }));
 
-immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
+immersion.post('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const b = req.body || {};
   if (!b.student_id || !b.batch || !b.program) {
     return res.status(400).json({ error: 'student_id, batch and program are required' });
   }
   if (!(await q('SELECT id FROM students WHERE id = ?', [b.student_id]))) {
     return res.status(404).json({ error: 'Student not found' });
+  }
+  // Teachers can only create placements for their own students.
+  if (req.user.role === 'teacher') {
+    const scopeCheck = await ensureTeacherSeesStudent(req.user, Number(b.student_id));
+    if (!scopeCheck.ok) return res.status(403).json({ error: scopeCheck.reason });
   }
   if (b.status && !IMMERSION_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   if (b.consent_status !== undefined && !['pending', 'granted', 'denied'].includes(b.consent_status)) {
@@ -249,7 +254,7 @@ immersion.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   res.status(201).json({ id });
 }));
 
-immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
+immersion.patch('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const b = req.body || {};
   if (b.status && !IMMERSION_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
   if (b.consent_status !== undefined && !['pending', 'granted', 'denied'].includes(b.consent_status)) {
@@ -257,6 +262,11 @@ immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   }
   const cur = await q('SELECT * FROM work_immersion WHERE id = ?', [req.params.id]);
   if (!cur) return res.status(404).json({ error: 'Record not found' });
+  // Teachers can only edit their own students' placements.
+  if (req.user.role === 'teacher') {
+    const scopeCheck = await ensureTeacherSeesStudent(req.user, Number(cur.student_id));
+    if (!scopeCheck.ok) return res.status(403).json({ error: scopeCheck.reason });
+  }
   const loc = locForUpdate(b, cur);
   const resolved = await resolveLocationForUpdate(
     loc.address, loc.lat, loc.lng, cur.address,
@@ -276,9 +286,17 @@ immersion.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
-immersion.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
+immersion.delete('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const r = await qr('DELETE FROM work_immersion WHERE id = ?', [req.params.id]);
   if (!r.changes) return res.status(404).json({ error: 'Record not found' });
+  // Teachers can only delete their own students' placements.
+  if (req.user.role === 'teacher') {
+    const cur = await q('SELECT student_id FROM work_immersion WHERE id = ?', [req.params.id]);
+    if (cur) {
+      const scopeCheck = await ensureTeacherSeesStudent(req.user, Number(cur.student_id));
+      if (!scopeCheck.ok) return res.status(403).json({ error: scopeCheck.reason });
+    }
+  }
   await audit(req, 'DELETE_IMMERSION', 'work_immersion', req.params.id);
   res.json({ ok: true });
 }));
@@ -616,7 +634,7 @@ const map = express.Router();
 map.use(authenticate);
 
 // Get all companies/venues with active placements and their student counts
-map.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
+map.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const rows = await qa(`
     SELECT wi.id, wi.partner_institution, wi.batch, wi.program,
            wi.status, wi.lat, wi.lng, wi.address,
@@ -632,7 +650,7 @@ map.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
 }));
 
 // Get students placed at a specific venue/company
-map.get('/:venueId/students', requireRole(...WRITE), asyncH(async (req, res) => {
+map.get('/:venueId/students', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const venueId = Number(req.params.venueId);
   const rows = await qa(`
     SELECT wi.id AS immersion_id, wi.partner_institution, wi.batch, wi.program,
@@ -647,7 +665,7 @@ map.get('/:venueId/students', requireRole(...WRITE), asyncH(async (req, res) => 
 }));
 
 // Get single student's immersion placement with venue coords
-map.get('/student/:studentId', requireRole(...WRITE), asyncH(async (req, res) => {
+map.get('/student/:studentId', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const rows = await qa(`
     SELECT wi.id AS immersion_id, wi.partner_institution, wi.batch, wi.program,
            wi.status, wi.lat, wi.lng, wi.address,

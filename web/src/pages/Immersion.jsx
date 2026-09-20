@@ -6,7 +6,7 @@ import { PageHead, Empty, ErrorBanner, Modal, ConfirmModal } from '../components
 import MapPicker from '../components/MapPicker';
 import ImmersionDailyAttendance from '../components/ImmersionDailyAttendance';
 
-const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'];
 const PROGRAMS = ['EIM', 'CSS', 'Garment Artisanry', 'Academic'];
 const IMMERSION_STATUSES = ['pending', 'ongoing', 'completed', 'withdrawn'];
 const JDVP_STATUSES = ['pending', 'served', 'withdrawn'];
