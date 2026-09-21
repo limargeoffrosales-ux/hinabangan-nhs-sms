@@ -482,86 +482,128 @@ router.get('/recent', requireRole(...WRITE), asyncH(async (req, res) => {
 
 router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
-  const csvText = String(b.csv || '').trim();
-  if (!csvText) return res.status(400).json({ error: 'CSV data is required' });
-  const lines = csvText.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return res.status(400).json({ error: 'CSV must have a header row and at least one data row' });
-  const header = lines[0].toLowerCase().split(',').map(h => h.trim());
-  const lrnIdx = header.findIndex(h => h === 'lrn');
-  const sectionIdx = header.findIndex(h => h === 'section_name' || h === 'section');
-  const syIdx = header.findIndex(h => h === 'school_year');
-  const glIdx = header.findIndex(h => h === 'grade_level' || h === 'grade');
-  const termIdx = header.findIndex(h => h === 'term');
-  if (lrnIdx === -1 || sectionIdx === -1) {
-    return res.status(400).json({ error: 'CSV must have lrn and section_name columns' });
-  }
+  const rows = Array.isArray(b.rows) ? b.rows : null;
+  if (!rows || !rows.length) return res.status(400).json({ error: 'rows array is required' });
+
   const fallbackSy = b.school_year || '2026-2027';
+  const fallbackTerm = b.term || null;
   let imported = 0;
+  let enrolled = 0;
   let skipped = 0;
-  let subjectsAuto = 0;
   const errors = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(c => c.trim());
-    const lrn = cols[lrnIdx];
-    const sectionName = cols[sectionIdx];
-    const sy = (syIdx >= 0 && cols[syIdx]) ? cols[syIdx] : fallbackSy;
-    const gl = glIdx >= 0 ? cols[glIdx] : null;
-    const term = normTerm((termIdx >= 0 && cols[termIdx]) ? cols[termIdx] : (b.term !== undefined ? b.term : null));
-    if (!lrn || !sectionName) { skipped++; continue; }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2; // +2 for 1-indexed + header
     try {
-      const student = await q('SELECT id FROM students WHERE lrn = ?', [lrn]);
-      if (!student) { errors.push(`Row ${i + 1}: student LRN ${lrn} not found`); skipped++; continue; }
-      const section = await q('SELECT id, grade_level, strand, school_year, capacity FROM sections WHERE name = ? AND (school_year = ? OR school_year IS NULL)', [sectionName, sy]);
-      if (!section) { errors.push(`Row ${i + 1}: section "${sectionName}" not found`); skipped++; continue; }
-      const gradeLevel = gl || section.grade_level;
-      if (section.grade_level && gradeLevel !== section.grade_level) {
-        errors.push(`Row ${i + 1}: grade_level "${gradeLevel}" does not match section "${sectionName}" (${section.grade_level})`);
+      const lrn = String(row.lrn || '').trim();
+      const firstName = String(row.first_name || '').trim();
+      const lastName = String(row.last_name || '').trim();
+      if (!firstName || !lastName) {
+        errors.push(`Row ${rowNum}: first name and last name are required`);
         skipped++; continue;
       }
-      if (isShs(gradeLevel) && !term) {
-        errors.push(`Row ${i + 1}: LRN ${lrn} is SHS but has no valid term (first, second or third) — add a term column or set a default term`);
+      if (lrn && !/^\d{12}$/.test(lrn)) {
+        errors.push(`Row ${rowNum}: LRN "${lrn}" must be exactly 12 digits`);
         skipped++; continue;
       }
-      if (section.school_year && section.school_year !== sy) {
-        errors.push(`Row ${i + 1}: section "${sectionName}" belongs to ${section.school_year}, not ${sy}`);
-        skipped++; continue;
-      }
-      const existing = await q(
-        `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
-        term ? [student.id, sy, term] : [student.id, sy]);
-      if (existing) { skipped++; continue; }
-      const capacity = Number(section.capacity) || 40;
-      if (capacity > 0) {
-        const tally = await q(
-          'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?',
-          [section.id, sy, 'enrolled']);
-        if (Number(tally.n) >= capacity) {
-          errors.push(`Row ${i + 1}: section "${sectionName}" is at full capacity (${capacity})`);
-          skipped++; continue;
+      const middleName = String(row.middle_name || '').trim() || null;
+      const suffix = String(row.suffix || '').trim() || null;
+      const sex = String(row.sex || 'Male').trim();
+      const birthDate = String(row.birth_date || '').trim() || null;
+      const address = String(row.address || '').trim() || null;
+      const guardianName = String(row.guardian_name || '').trim() || null;
+      const guardianContact = String(row.guardian_contact || '').trim() || null;
+      const gradeLevel = String(row.grade_level || '').trim() || null;
+      const sectionName = String(row.section || '').trim() || null;
+      const sy = String(row.school_year || '').trim() || fallbackSy;
+      const trackStrand = String(row.track_strand || '').trim() || null;
+      const term = normTerm(String(row.term || '').trim() || fallbackTerm);
+
+      // --- Find or create student ---
+      let student = lrn ? await q('SELECT * FROM students WHERE lrn = ?', [lrn]) : null;
+      if (student) {
+        // Update existing student
+        const updates = [];
+        const params = [];
+        if (middleName != null) { updates.push('middle_name = ?'); params.push(middleName); }
+        if (suffix != null) { updates.push('suffix = ?'); params.push(suffix); }
+        if (sex) { updates.push('sex = ?'); params.push(sex); }
+        if (birthDate) { updates.push('birth_date = ?'); params.push(birthDate); }
+        if (address) { updates.push('address = ?'); params.push(address); }
+        if (guardianName) { updates.push('guardian_name = ?'); params.push(guardianName); }
+        if (guardianContact) { updates.push('guardian_contact = ?'); params.push(guardianContact); }
+        if (trackStrand) { updates.push('track_strand = ?'); params.push(trackStrand); }
+        if (gradeLevel) { updates.push('grade_level = ?'); params.push(gradeLevel); }
+        if (updates.length) {
+          params.push(student.id);
+          await qr(`UPDATE students SET ${updates.join(', ')} WHERE id = ?`, params);
         }
-      }
-      const enrId = await qi(
-        'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [student.id, section.id, sy, gradeLevel, section.strand || null, term, 'enrolled']
-      );
-      await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', student.id]);
-      // Auto-fill the standard subject set for SHS learners so a bulk paste
-      // never produces subject-less enrollment records.
-      if (isShs(gradeLevel)) {
-        const defaults = await defaultSubjectIds(gradeLevel, section.strand || null, term);
-        if (defaults.length) {
-          await saveSubjects(null, enrId, defaults);
-          subjectsAuto += defaults.length;
-        }
+      } else {
+        // Create new student
+        const newId = await qi(
+          'INSERT INTO students (lrn, first_name, middle_name, last_name, suffix, sex, birth_date, address, guardian_name, guardian_contact, grade_level, track_strand, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [lrn || null, firstName, middleName, lastName, suffix, sex, birthDate, address, guardianName, guardianContact, gradeLevel, trackStrand, 'enrolled']
+        );
+        student = { id: newId };
       }
       imported++;
+
+      // --- Find or create section ---
+      if (sectionName && gradeLevel) {
+        let section = await q('SELECT * FROM sections WHERE name = ? AND (school_year = ? OR school_year IS NULL)', [sectionName, sy]);
+        if (!section) {
+          const secId = await qi(
+            'INSERT INTO sections (name, grade_level, school_year, strand, capacity) VALUES (?, ?, ?, ?, ?)',
+            [sectionName, gradeLevel, sy, trackStrand, 40]
+          );
+          section = { id: secId, grade_level: gradeLevel, strand: trackStrand, school_year: sy, capacity: 40 };
+        }
+
+        // --- Create enrollment ---
+        const termCol = isShs(gradeLevel) ? (term || 'first') : null;
+        const existing = await q(
+          `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${termCol ? 'term = ?' : 'term IS NULL'}`,
+          termCol ? [student.id, sy, termCol] : [student.id, sy]
+        );
+        if (existing) { skipped++; continue; }
+
+        // Check capacity
+        const capacity = Number(section.capacity) || 40;
+        if (capacity > 0) {
+          const tally = await q(
+            'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?',
+            [section.id, sy, 'enrolled']
+          );
+          if (Number(tally.n) >= capacity) {
+            errors.push(`Row ${rowNum}: section "${sectionName}" is at full capacity (${capacity})`);
+            skipped++; continue;
+          }
+        }
+
+        const enrId = await qi(
+          'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [student.id, section.id, sy, gradeLevel, section.strand || trackStrand || null, termCol, 'enrolled']
+        );
+        await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [gradeLevel, 'enrolled', student.id]);
+
+        // Auto-fill SHS subjects
+        if (isShs(gradeLevel)) {
+          const defaults = await defaultSubjectIds(gradeLevel, section.strand || trackStrand || null, termCol);
+          if (defaults.length) {
+            await saveSubjects(null, enrId, defaults);
+          }
+        }
+        enrolled++;
+      }
     } catch (e) {
-      errors.push(`Row ${i + 1}: ${e.message}`);
+      errors.push(`Row ${rowNum}: ${e.message}`);
       skipped++;
     }
   }
-  await audit(req, 'ENROLL_IMPORT', 'enrollments', null, { imported, skipped, errors: errors.length, subjects_auto: subjectsAuto });
-  res.json({ ok: true, imported, skipped, subjects_auto: subjectsAuto, errors: errors.slice(0, 20) });
+
+  await audit(req, 'ENROLL_IMPORT', 'enrollments', null, { imported, enrolled, skipped, errors: errors.length });
+  res.json({ ok: true, imported, enrolled, skipped, errors: errors.slice(0, 30) });
 }));
 
 module.exports = router;

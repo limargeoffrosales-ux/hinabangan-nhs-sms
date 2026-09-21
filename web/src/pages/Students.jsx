@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Link2, Upload, Camera, RefreshCw, AlertTriangle, UserPlus, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Link2, Upload, Camera, AlertTriangle, UserPlus, CheckCircle2, XCircle, Download, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useTranslation } from 'react-i18next';
 import { api, fileUrl } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
@@ -37,11 +38,11 @@ export default function Students() {
   const [linkQuery, setLinkQuery] = useState('');
   const [linkResults, setLinkResults] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
-  const [importCsv, setImportCsv] = useState('');
-  const [importTerm, setImportTerm] = useState('first');
-  const [importTemplateBusy, setImportTemplateBusy] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importFileName, setImportFileName] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const importFileRef = useRef(null);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState(null);
@@ -205,39 +206,66 @@ export default function Students() {
     setShowModal(true);
   }
 
-  async function loadImportTemplate() {
-    setImportTemplateBusy(true);
-    try {
-      const [stRes, secRes] = await Promise.all([api('/students?limit=200'), api('/sections?limit=200')]);
-      const students = (stRes.data || []).filter((s) => s.lrn && /^\d{12}$/.test(String(s.lrn)) && s.grade_level);
-      const sections = secRes.data || [];
-      if (!students.length || !sections.length) { setError('No students or sections available to build a template.'); return; }
-      const byGrade = {};
-      for (const sec of sections) {
-        if (!sec.name || !sec.grade_level) continue;
-        (byGrade[sec.grade_level] = byGrade[sec.grade_level] || []).push(sec);
+  const IMPORT_HEADERS = [
+    { key: 'lrn', label: 'LRN' },
+    { key: 'first_name', label: 'First Name' },
+    { key: 'middle_name', label: 'Middle Name' },
+    { key: 'last_name', label: 'Last Name' },
+    { key: 'suffix', label: 'Suffix' },
+    { key: 'sex', label: 'Sex' },
+    { key: 'birth_date', label: 'Birth Date' },
+    { key: 'grade_level', label: 'Grade Level' },
+    { key: 'section', label: 'Section' },
+    { key: 'school_year', label: 'School Year' },
+    { key: 'track_strand', label: 'Track/Strand' },
+    { key: 'guardian_name', label: 'Guardian Name' },
+    { key: 'guardian_contact', label: 'Guardian Contact' },
+    { key: 'address', label: 'Address' },
+  ];
+
+  function downloadTemplate() {
+    const header = IMPORT_HEADERS.map((h) => h.label);
+    const sample = ['234567890123', 'Juan', 'Cruz', 'Dela Rosa', '', 'Male', '2008-05-15', 'Grade 11', 'ACAD 11-A', '2026-2027', 'STEM', 'Maria Dela Rosa', '09171234567', 'Rawis, Hinabangan'];
+    const ws = XLSX.utils.aoa_to_sheet([header, sample]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
+    XLSX.writeFile(wb, 'student-import-template.xlsx');
+  }
+
+  function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    setImportResult(null);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const mapped = raw.map((row) => {
+          const r = {};
+          IMPORT_HEADERS.forEach((h) => {
+            const val = row[h.label] ?? row[h.key] ?? '';
+            r[h.key] = String(val).trim();
+          });
+          return r;
+        }).filter((r) => r.last_name || r.first_name || r.lrn);
+        setImportRows(mapped);
+      } catch {
+        setError('Could not read the Excel file. Make sure it is a valid .xlsx or .xls file.');
       }
-      const sy = sections.find((s) => s.school_year)?.school_year || '2026-2027';
-      const lines = ['lrn,section_name,school_year,grade_level'];
-      for (const st of students.slice(0, 10)) {
-        const sec = byGrade[st.grade_level]?.[0];
-        if (!sec) continue;
-        lines.push(`${st.lrn},${sec.name},${sec.school_year || sy},${st.grade_level}`);
-      }
-      setImportCsv(lines.join('\n'));
-    } catch (e) {
-      setError(e.message || 'Failed to load template data');
-    } finally {
-      setImportTemplateBusy(false);
-    }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
   }
 
   async function importEnrollments() {
-    if (!importCsv.trim()) return;
+    if (!importRows.length) return;
     setImportBusy(true);
     setImportResult(null);
     try {
-      const r = await api('/enrollments/import', { method: 'POST', body: { csv: importCsv, term: importTerm || null } });
+      const r = await api('/enrollments/import', { method: 'POST', body: { rows: importRows } });
       setImportResult(r);
       if (r.imported) load();
     } catch (e) {
@@ -332,52 +360,66 @@ export default function Students() {
       {canWrite && (
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setImportOpen(!importOpen)}>
-            <Upload size={14} style={{ color: 'var(--accent)' }} />
-            <strong style={{ fontSize: 13 }}>Bulk Enrollment Import</strong>
+            <FileSpreadsheet size={14} style={{ color: 'var(--accent)' }} />
+            <strong style={{ fontSize: 13 }}>Bulk Student Import</strong>
+            <span className="sub" style={{ fontSize: 11 }}>Upload Excel to add new students and enroll them</span>
             <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{importOpen ? '▲ Collapse' : '▼ Expand'}</span>
           </div>
           {importOpen && (
             <div style={{ marginTop: 10 }}>
               <div className="sub" style={{ marginBottom: 8 }}>
-                Paste CSV. Header row: <code>lrn, section_name, school_year, grade_level</code> (a <code>term</code> column is optional if you set it below).
-                The students must <strong>already exist</strong> with those exact LRNs — this enrolls existing learners into sections; it does not create new students.
-                Section names must exactly match the Sections list.
+                Upload an <strong>.xlsx</strong> or <strong>.xls</strong> file with columns: LRN, First Name, Middle Name, Last Name, Suffix, Sex, Birth Date, Grade Level, Section, School Year, Track/Strand, Guardian Name, Guardian Contact, Address.
+                Missing sections are created automatically. Existing students (by LRN) are updated; new ones are created.
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <button className="btn" onClick={loadImportTemplate} disabled={importTemplateBusy}>
-                  <RefreshCw size={13} /> {importTemplateBusy ? 'Loading…' : 'Fill with real students and sections'}
+                <button className="btn" type="button" onClick={downloadTemplate}>
+                  <Download size={13} /> Download template
                 </button>
-                <span className="sub" style={{ alignSelf: 'center' }}>Builds the CSV from your actual learner LRNs and section names — no typos, no invented data.</span>
-              </div>
-              <textarea
-                className="input"
-                rows={6}
-                placeholder={'lrn,section_name,school_year,grade_level,term\n234567890123,ACAD 11-A,2026-2027,Grade 11,first\n345678901234,7-Mabini,2026-2027,Grade 7,'}
-                value={importCsv}
-                onChange={(e) => setImportCsv(e.target.value)}
-                style={{ fontFamily: 'monospace', fontSize: 12 }}
-              />
-              <div className="form-row" style={{ marginTop: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <label>Default term</label>
-                  <select value={importTerm} onChange={(e) => setImportTerm(e.target.value)}>
-                    <option value="first">First</option>
-                    <option value="second">Second</option>
-                    <option value="third">Third</option>
-                    <option value="">None</option>
-                  </select>
-                </div>
-                <div style={{ flex: 2, display: 'flex', alignItems: 'flex-end' }}>
-                  <span className="sub" style={{ marginBottom: 10 }}>Used for Grades 11-12 rows when the CSV has no <code>term</code> column. Rows that specify their own term are untouched.</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                <button className="btn btn-primary" onClick={importEnrollments} disabled={importBusy || !importCsv.trim()}>
-                  <Upload size={13} /> {importBusy ? 'Importing...' : 'Import Enrollments'}
+                <button className="btn" type="button" onClick={() => importFileRef.current?.click()}>
+                  <Upload size={13} /> Choose Excel file
                 </button>
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFileUpload} />
+                {importFileName && <span className="sub" style={{ alignSelf: 'center' }}>{importFileName} — {importRows.length} row(s)</span>}
+              </div>
+              {importRows.length > 0 && (
+                <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8 }}>
+                  <table style={{ fontSize: 11.5 }}>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        {IMPORT_HEADERS.slice(0, 8).map((h) => <th key={h.key}>{h.label}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importRows.slice(0, 15).map((r, i) => (
+                        <tr key={i}>
+                          <td className="sub">{i + 1}</td>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.lrn || '—'}</td>
+                          <td>{r.first_name}</td>
+                          <td className="sub">{r.middle_name || ''}</td>
+                          <td>{r.last_name}</td>
+                          <td className="sub">{r.suffix || ''}</td>
+                          <td>{r.sex}</td>
+                          <td className="sub">{r.birth_date || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {importRows.length > 15 && <div className="sub" style={{ padding: '4px 8px', fontSize: 11 }}>… and {importRows.length - 15} more rows</div>}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="btn btn-primary" onClick={importEnrollments} disabled={importBusy || !importRows.length}>
+                  <Upload size={13} /> {importBusy ? 'Importing...' : `Import ${importRows.length} student(s)`}
+                </button>
+                {importRows.length > 0 && (
+                  <button className="btn btn-sm" onClick={() => { setImportRows([]); setImportFileName(''); setImportResult(null); }}>
+                    Clear
+                  </button>
+                )}
                 {importResult && (
                   <span className="sub">
-                    Imported: <strong>{importResult.imported}</strong> | Skipped: <strong>{importResult.skipped}</strong>
+                    Created/updated: <strong>{importResult.imported}</strong> | Enrolled: <strong>{importResult.enrolled}</strong> | Skipped: <strong>{importResult.skipped}</strong>
                     {importResult.errors?.length > 0 && <> | Errors: <strong>{importResult.errors.length}</strong></>}
                   </span>
                 )}
@@ -386,14 +428,11 @@ export default function Students() {
                 <div className="err-banner" style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <AlertTriangle size={14} />
-                    <strong style={{ fontSize: 13 }}>{importResult.errors.length} row(s) were skipped</strong>
+                    <strong style={{ fontSize: 13 }}>{importResult.errors.length} row(s) had issues</strong>
                   </div>
                   <div style={{ marginTop: 4, fontSize: 12, maxHeight: 140, overflowY: 'auto', fontVariantNumeric: 'tabular-nums' }}>
                     {importResult.errors.map((e, i) => <div key={i}>{e}</div>)}
                   </div>
-                  {importResult.imported === 0 && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)' }}>Nothing was imported — fix the rows above and try again.</div>
-                  )}
                 </div>
               )}
             </div>
