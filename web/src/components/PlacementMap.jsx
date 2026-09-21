@@ -6,9 +6,9 @@ import { Search, Layers, LocateFixed, School, ExternalLink, Navigation, MapPin, 
 import { Empty } from './ui';
 
 // School HQ reference location (Hinabangan NHS).
-const SCHOOL_COORDS = { lat: 11.7056, lng: 125.2656 };
+const SCHOOL_COORDS = { lat: 11.700467025288065, lng: 125.06423660590201 };
 const SCHOOL_LABEL = 'Hinabangan NHS';
-const SCHOOL_ADDRESS = 'Highway, Barangay Rawis, Hinabangan, Samar, 6713, Philippines';
+const SCHOOL_ADDRESS = 'Rawis, Hinabangan, 6714 Eastern Visayas, Philippines';
 
 // Esri's street layer is primary: some school networks and ad-blockers block
 // tile.openstreetmap.org, so OpenStreetMap is kept as the fallback instead.
@@ -132,7 +132,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const [baseKey, setBaseKey] = useState('street');
   const [showLabels, setShowLabels] = useState(false);
   const [clusterHint, setClusterHint] = useState(false);
-  const [zoom, setZoom] = useState(11);
+  const [zoom, setZoom] = useState(12);
   const [fallbackNote, setFallbackNote] = useState(false);
   const [searchMsg, setSearchMsg] = useState(null);
   const [geoNote, setGeoNote] = useState(null);
@@ -144,7 +144,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   // --- map bootstrap --------------------------------------------------------
   useEffect(() => {
     if (!mapEl.current || mapRef.current) return;
-    const map = L.map(mapEl.current, { zoomControl: true, attributionControl: true }).setView([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], 11);
+    const map = L.map(mapEl.current, { zoomControl: true, attributionControl: true }).setView([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], 12);
     tl.current.street = L.tileLayer(BASE.street.url, { attribution: OUTPUT_ATTR, maxZoom: 19 }).addTo(map);
     let streetFails = 0;
     tl.current.street.on('tileerror', () => {
@@ -201,14 +201,14 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
 
      // Reference-area ring around the school HQ so the vicinity is visible on load.
      const refArea = L.circle([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], {
-       radius: 250,
+       radius: 1000,
        color: '#2563eb',
        fillColor: '#2563eb',
-       fillOpacity: 0.08,
+       fillOpacity: 0.06,
        weight: 1.5,
        dashArray: '6 4',
      }).addTo(map);
-     refArea.bindTooltip('School reference area (250 m)', { permanent: false, direction: 'top' });
+     refArea.bindTooltip('School reference area (1 km)', { permanent: false, direction: 'top' });
 
     const syncZoom = () => setZoom(map.getZoom());
     map.on('zoomend moveend', syncZoom);
@@ -445,7 +445,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     try {
       const r = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=6&dedupe=0&accept-language=fil,en` +
-          `&countrycodes=ph&viewbox=124.80,12.10,125.60,11.40&bounded=0&q=${encodeURIComponent(term)}`,
+          `&countrycodes=ph&viewbox=124.90,11.85,125.20,11.55&bounded=0&q=${encodeURIComponent(term)}`,
         { headers: { Accept: 'application/json' } },
       );
       const j = await r.json();
