@@ -697,7 +697,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
 
         <div className="section-title" style={{ marginTop: 16 }}><LocateFixed size={14} /> Live now</div>
         {!live.length ? (
-          <span className="sub">{liveOn ? 'No live location check-ins right now. Students share their location from the portal during immersion hours.' : 'Live tracking is off. Toggle Live to enable.'}</span>
+          <span className="sub">No live location check-ins right now. Students share their location from the portal during immersion hours.</span>
         ) : (
           <ul className="map-side-list">
             {live.map((m) => {
