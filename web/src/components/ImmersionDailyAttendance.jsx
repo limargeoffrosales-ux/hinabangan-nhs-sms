@@ -120,22 +120,23 @@ export default function ImmersionDailyAttendance() {
             <label>Date</label>
             <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setRoster(null); setSavedMsg(null); }} />
           </div>
+          <div>
+            <label>Sort by</label>
+            <select className="input" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="program">Track</option>
+              <option value="name">Name</option>
+              <option value="lrn">LRN</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
             <button className="btn btn-primary" onClick={() => load()} disabled={!batch || loading}>
               {loading ? 'Loading…' : 'Load roster'}
             </button>
             {roster && (
-              <>
-                <select className="input" style={{ width: 140 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                  <option value="program">Sort by track</option>
-                  <option value="name">Sort by name</option>
-                  <option value="lrn">Sort by LRN</option>
-                  <option value="status">Sort by status</option>
-                </select>
-                <button className="btn btn-sm" onClick={() => { setRoster(null); setSavedMsg(null); }}>
-                  <RotateCcw size={13} /> Clear
-                </button>
-              </>
+              <button className="btn btn-sm" onClick={() => { setRoster(null); setSavedMsg(null); }}>
+                <RotateCcw size={13} /> Clear
+              </button>
             )}
           </div>
         </div>
