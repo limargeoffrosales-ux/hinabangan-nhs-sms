@@ -24,7 +24,7 @@ const BASE = {
       maxZoom: 19,
     }
   },
-  satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite' },
+  satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite', maxZoom: 17 },
   labels: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
 };
 const STREET_FALLBACK = {
@@ -135,9 +135,12 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const [clusterHint, setClusterHint] = useState(false);
   const [zoom, setZoom] = useState(12);
   const [fallbackNote, setFallbackNote] = useState(false);
+  const [satNote, setSatNote] = useState(false);
   const [searchMsg, setSearchMsg] = useState(null);
   const [geoNote, setGeoNote] = useState(null);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const baseKeyRef = useRef('street');
+  baseKeyRef.current = baseKey;
 
   const labelRef = useRef('immersion');
   labelRef.current = isImmersion ? 'immersion' : 'JDVP';
@@ -158,8 +161,15 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         setFallbackNote(true);
       }
     });
-    tl.current.satellite = L.tileLayer(BASE.satellite.url, { attribution: OUTPUT_ATTR, maxZoom: 19 });
-    tl.current.labels = L.tileLayer(BASE.labels.url, { attribution: OUTPUT_ATTR });
+    tl.current.satellite = L.tileLayer(BASE.satellite.url, { attribution: OUTPUT_ATTR, maxZoom: BASE.satellite.maxZoom || 19, errorTileUrl: '' });
+    let satFails = 0;
+    tl.current.satellite.on('tileerror', () => {
+      satFails += 1;
+      if (satFails >= 4 && mapRef.current && baseKeyRef.current === 'satellite') {
+        setSatNote(true);
+      }
+    });
+    tl.current.labels = L.tileLayer(BASE.labels.url, { attribution: OUTPUT_ATTR, maxZoom: BASE.satellite.maxZoom || 19 });
     L.control.scale({ position: 'bottomright' }).addTo(map);
 
     // Ad-blockers / firewalls sometimes fail tiles silently (no 'tileerror'
@@ -643,6 +653,11 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
       {fallbackNote && (
         <div style={NOTE_STYLE}>
           Street tiles were slow to load on this network — showing an alternate street map.
+        </div>
+      )}
+      {satNote && baseKey === 'satellite' && (
+        <div style={NOTE_STYLE}>
+          High-resolution satellite imagery is not available at this zoom level for this area. Switch to Streets view for detailed maps.
         </div>
       )}
       {geoNote && (
