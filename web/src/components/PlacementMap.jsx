@@ -10,14 +10,15 @@ const SCHOOL_COORDS = { lat: 11.700467025288065, lng: 125.06423660590201 };
 const SCHOOL_LABEL = 'Hinabangan NHS';
 const SCHOOL_ADDRESS = 'Rawis, Hinabangan, 6714 Eastern Visayas, Philippines';
 
-// Esri's street layer is primary: some school networks and ad-blockers block
-// tile.openstreetmap.org, so OpenStreetMap is kept as the fallback instead.
+// CartoDB is the primary: good rural coverage, rarely blocked by ad-blockers or
+// school firewalls.  ArcGIS is the fallback for networks that block CartoDB.
 const BASE = {
   street: {
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
     label: 'Streets',
     options: {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd',
       className: 'tile-street',
       minZoom: 0,
       maxZoom: 19,
