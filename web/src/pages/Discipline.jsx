@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Plus, Trash2, ClipboardPenLine, Eye, CheckCircle2, FilePlus2 } from 'lucide-react';
+import { Plus, Trash2, ClipboardPenLine, Eye, CheckCircle2, FilePlus2, Shield, AlertTriangle, Clock, TrendingUp, BarChart3 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
 import { useAuth } from '../lib/auth';
+import { loadRecharts } from '../lib/lazy-recharts';
 
 const TYPES = [
   ['call_slip', 'Call Slip'],
@@ -30,15 +31,23 @@ const ACTION_TYPES = [
 ];
 
 const STATUS_BADGE = { open: 'badge-yellow', under_review: 'badge-blue', resolved: 'badge-green' };
+const STATUS_ICON = { open: Clock, under_review: AlertTriangle, resolved: CheckCircle2 };
 const SEVERITY_BADGE = { minor: 'badge-blue', moderate: 'badge-yellow', major: 'badge-red' };
+const SEVERITY_COLOR = { minor: '#3b82f6', moderate: '#f59e0b', major: '#ef4444' };
 const ACTION_BADGE = {
   warning: 'badge-yellow', counseling: 'badge-blue', parent_conference: 'badge-gray',
   detention: 'badge-red', community_service: 'badge-blue', suspension: 'badge-red',
   referral: 'badge-gray', other: 'badge-gray',
 };
+const TYPE_COLOR = {
+  call_slip: '#6b7280', bullying: '#ef4444', inappropriate_behavior: '#f59e0b',
+  fighting: '#dc2626', vandalism: '#8b5cf6', tardiness: '#3b82f6',
+  disrespect: '#f97316', other: '#94a3b8',
+};
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'];
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
+const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#F5B942', '#FB7185', '#A78BFA', '#2DD4BF', '#F97316', '#6b7280'];
 
 function labelOf(list, key) {
   return list.find(([k]) => k === key)?.[1] || key;
@@ -51,6 +60,22 @@ function fmtDate(d) {
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function StatCard({ icon: Icon, label, value, color, accent }) {
+  return (
+    <div className="kpi-mini" style={{ borderLeft: `3px solid ${accent || color}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: `${accent || color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={16} style={{ color: accent || color }} />
+        </div>
+        <div>
+          <div className="kpi-mini-value" style={{ color: accent || color }}>{value ?? '—'}</div>
+          <div className="kpi-mini-label">{label}</div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Discipline() {
@@ -67,15 +92,17 @@ export default function Discipline() {
   const [showCreate, setShowCreate] = useState(false);
   const [sel, setSel] = useState(null);
   const [selLoading, setSelLoading] = useState(false);
+  const [R, setR] = useState(null);
 
   const [createForm, setCreateForm] = useState({
     student_id: '', incident_type: 'call_slip', incident_date: today(), severity: 'minor', description: '',
   });
-  const [, setSaveMsg] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const [actionForm, setActionForm] = useState({ action_type: 'warning', action_date: today(), notes: '' });
   const [confirmAction, setConfirmAction] = useState(null);
+
+  useEffect(() => { loadRecharts().then(setR); }, []);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -113,7 +140,6 @@ export default function Discipline() {
 
   async function openCreate() {
     setCreateForm({ student_id: '', incident_type: 'call_slip', incident_date: today(), severity: 'minor', description: '' });
-    setSaveMsg(null);
     await loadStudents();
     setShowCreate(true);
   }
@@ -121,14 +147,12 @@ export default function Discipline() {
   async function saveRecord(e) {
     e.preventDefault();
     setSaving(true);
-    setSaveMsg(null);
     setError(null);
     try {
       await api('/conduct', { method: 'POST', body: createForm });
       setShowCreate(false);
       load();
     } catch (e2) {
-      setSaveMsg(null);
       setError(e2.message);
     } finally {
       setSaving(false);
@@ -187,20 +211,27 @@ export default function Discipline() {
     } });
   }
 
-  const summaryChips = [
-    ['Open cases', summary?.by_status?.open ?? 0, 'var(--warn)'],
-    ['Under review', summary?.by_status?.under_review ?? 0, 'var(--accent)'],
-    ['Resolved', summary?.by_status?.resolved ?? 0, 'var(--accent-2)'],
-    ['Cases this month', summary?.cases_this_month ?? 0, 'var(--accent)'],
-    ['Major incidents', summary?.by_severity?.major ?? 0, 'var(--danger)'],
-  ];
-
   const filteredStudents = useMemo(() => {
     if (!createForm.sname) return students;
     const q2 = createForm.sname.toLowerCase();
     return students.filter((s) =>
       `${s.last_name} ${s.first_name} ${s.lrn}`.toLowerCase().includes(q2));
   }, [students, createForm.sname]);
+
+  // Chart data
+  const typeData = useMemo(() => {
+    const m = {};
+    rows.forEach((r) => { const k = labelOf(TYPES, r.incident_type); m[k] = (m[k] || 0) + 1; });
+    return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [rows]);
+
+  const severityData = useMemo(() => {
+    const m = {};
+    rows.forEach((r) => { m[r.severity] = (m[r.severity] || 0) + 1; });
+    return SEVERITIES.map((s) => ({ name: s, value: m[s] || 0 })).filter((d) => d.value > 0);
+  }, [rows]);
+
+  const tooltipStyle = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 };
 
   return (
     <>
@@ -209,17 +240,54 @@ export default function Discipline() {
       </PageHead>
       <ErrorBanner error={error} />
 
+      {/* KPI Cards */}
       <div className="kpi-row" style={{ marginBottom: 14 }}>
-        {summaryChips.map(([label, value, color]) => (
-          <div className="kpi-mini" key={label}>
-            <div className="kpi-mini-value" style={{ color }}>{value ?? '—'}</div>
-            <div className="kpi-mini-label">{label}</div>
-          </div>
-        ))}
+        <StatCard icon={AlertTriangle} label="Open cases" value={summary?.by_status?.open ?? 0} color="#f59e0b" accent="#f59e0b" />
+        <StatCard icon={ClipboardPenLine} label="Under review" value={summary?.by_status?.under_review ?? 0} color="#3b82f6" accent="#3b82f6" />
+        <StatCard icon={CheckCircle2} label="Resolved" value={summary?.by_status?.resolved ?? 0} color="#22c55e" accent="#22c55e" />
+        <StatCard icon={TrendingUp} label="This month" value={summary?.cases_this_month ?? 0} color="#8b5cf6" accent="#8b5cf6" />
+        <StatCard icon={Shield} label="Major incidents" value={summary?.by_severity?.major ?? 0} color="#ef4444" accent="#ef4444" />
       </div>
 
+      {/* Charts */}
+      {R && rows.length > 0 && (
+        <div className="grid grid-2" style={{ marginBottom: 14 }}>
+          <div className="card" style={{ padding: 14 }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><BarChart3 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />Incidents by Type</h4>
+            <div style={{ height: 180 }}>
+              <R.ResponsiveContainer width="100%" height="100%">
+                <R.BarChart data={typeData} layout="vertical" margin={{ left: 4, right: 16 }}>
+                  <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" horizontal={false} />
+                  <R.XAxis type="number" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} allowDecimals={false} />
+                  <R.YAxis type="category" dataKey="name" width={130} tick={{ fill: 'var(--text-dim)', fontSize: 10 }} />
+                  <R.Tooltip contentStyle={tooltipStyle} />
+                  <R.Bar dataKey="value" name="Incidents" radius={[0, 4, 4, 0]}>
+                    {typeData.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </R.Bar>
+                </R.BarChart>
+              </R.ResponsiveContainer>
+            </div>
+          </div>
+          <div className="card" style={{ padding: 14 }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><Shield size={14} style={{ verticalAlign: -2, marginRight: 4 }} />By Severity</h4>
+            <div style={{ height: 180 }}>
+              <R.ResponsiveContainer width="100%" height="100%">
+                <R.PieChart>
+                  <R.Pie data={severityData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={3} stroke="var(--card)">
+                    {severityData.map((d) => <R.Cell key={d.name} fill={SEVERITY_COLOR[d.name] || '#94a3b8'} />)}
+                  </R.Pie>
+                  <R.Tooltip contentStyle={tooltipStyle} />
+                  <R.Legend wrapperStyle={{ fontSize: 11 }} />
+                </R.PieChart>
+              </R.ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
       <div className="search-row">
-        <input placeholder="Search student name or LRN…" value={filters.q}
+        <input placeholder="Search student name or LRN..." value={filters.q}
           onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} />
         <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
           <option value="">All statuses</option>
@@ -231,67 +299,78 @@ export default function Discipline() {
         </select>
       </div>
 
+      {/* Table */}
       <div className="card">
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Student</th><th>Grade / Section</th><th>Incident</th><th style={{ textAlign: 'center' }}>Severity</th>
+                <th>Student</th><th>Type</th><th style={{ textAlign: 'center' }}>Severity</th>
                 <th style={{ textAlign: 'center' }}>Date</th><th style={{ textAlign: 'center' }}>Status</th>
                 <th>Reported by</th><th style={{ textAlign: 'center' }}>Actions</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan={9}><Spinner /></td></tr> : rows.length === 0 ? (
-                <tr><td colSpan={9} className="sub">No conduct records match the current filters.</td></tr>
-              ) : rows.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{r.student_name}</div>
-                    <div className="sub" style={{ fontSize: 12 }}>LRN {r.lrn || '—'}</div>
-                  </td>
-                  <td>{r.grade_level || '—'} {r.section_name ? `· ${r.section_name}` : ''}</td>
-                  <td>{labelOf(TYPES, r.incident_type)}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className={`badge ${SEVERITY_BADGE[r.severity] || 'badge-gray'}`}>{r.severity}</span>
-                  </td>
-                  <td style={{ textAlign: 'center' }} className="sub">{fmtDate(r.incident_date)}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className={`badge ${STATUS_BADGE[r.status] || 'badge-gray'}`}>{r.status.replace('_', ' ')}</span>
-                  </td>
-                  <td className="sub">{r.reported_by_name || '—'}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className={`badge ${r.action_count ? 'badge-blue' : 'badge-gray'}`}>{r.action_count}</span>
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="icon-btn" title="Open case" aria-label="Open case" onClick={() => openDetail(r)}><Eye size={15} aria-hidden="true" /></button>
-                      {canDelete && (
-                        <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => removeRecord(r)}><Trash2 size={15} aria-hidden="true" /></button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {loading ? <tr><td colSpan={8}><Spinner /></td></tr> : rows.length === 0 ? (
+                <tr><td colSpan={8} className="sub">No conduct records match the current filters.</td></tr>
+              ) : rows.map((r) => {
+                const StatusIcon = STATUS_ICON[r.status] || Clock;
+                return (
+                  <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(r)}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{r.student_name}</div>
+                      <div className="sub" style={{ fontSize: 11.5 }}>{r.grade_level || ''} {r.section_name || ''} {r.lrn ? `· LRN ${r.lrn}` : ''}</div>
+                    </td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: TYPE_COLOR[r.incident_type] || '#94a3b8', flexShrink: 0 }} />
+                        {labelOf(TYPES, r.incident_type)}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${SEVERITY_BADGE[r.severity] || 'badge-gray'}`}>{r.severity}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }} className="sub">{fmtDate(r.incident_date)}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${STATUS_BADGE[r.status] || 'badge-gray'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <StatusIcon size={11} />{r.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="sub">{r.reported_by_name || '—'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${r.action_count ? 'badge-blue' : 'badge-gray'}`}>{r.action_count}</span>
+                    </td>
+                    <td>
+                      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                        <button className="icon-btn" title="Open case" aria-label="Open case" onClick={() => openDetail(r)}><Eye size={15} aria-hidden="true" /></button>
+                        {canDelete && (
+                          <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => removeRecord(r)}><Trash2 size={15} aria-hidden="true" /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* --- Create Modal --- */}
       {showCreate && (
         <Modal title="Log a conduct incident" sub="Record a call slip, bullying case, or behavioral report for monitoring" onClose={() => setShowCreate(false)} wide>
           <form onSubmit={saveRecord}>
             <div className="form-row">
               <div>
                 <label>Search student</label>
-                <input placeholder="Type to filter by name or LRN…" value={createForm.sname || ''}
+                <input placeholder="Type to filter by name or LRN..." value={createForm.sname || ''}
                   onChange={(e) => setCreateForm((f) => ({ ...f, sname: e.target.value }))} />
               </div>
               <div>
                 <label>Student *</label>
                 <select required value={createForm.student_id}
                   onChange={(e) => setCreateForm((f) => ({ ...f, student_id: e.target.value }))}>
-                  <option value="">Select student…</option>
+                  <option value="">Select student...</option>
                   {filteredStudents.slice(0, 120).map((s) => (
                     <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} · LRN {s.lrn || '—'}</option>
                   ))}
@@ -309,7 +388,7 @@ export default function Discipline() {
               <div>
                 <label>Severity</label>
                 <select value={createForm.severity} onChange={(e) => setCreateForm((f) => ({ ...f, severity: e.target.value }))}>
-                  {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                 </select>
               </div>
               <div>
@@ -319,58 +398,96 @@ export default function Discipline() {
               </div>
             </div>
             <label>What happened?</label>
-            <textarea rows={3} placeholder="Describe the incident, witnesses, and context…" value={createForm.description}
+            <textarea rows={3} placeholder="Describe the incident, witnesses, and context..." value={createForm.description}
               onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))} />
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Record'}</button>
+              <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Record'}</button>
             </div>
           </form>
         </Modal>
       )}
 
+      {/* --- Detail Modal --- */}
       {sel && (
         <Modal title="Conduct case" sub={`${sel.student_name} · LRN ${sel.lrn || '—'} · ${sel.grade_level || ''} ${sel.section_name ? '· ' + sel.section_name : ''}`} onClose={() => setSel(null)} wide>
           {selLoading ? <Spinner /> : (
             <>
+              {/* Case header */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: TYPE_COLOR[sel.incident_type] || '#94a3b8' }} />
+                  <strong style={{ fontSize: 14 }}>{labelOf(TYPES, sel.incident_type)}</strong>
+                </div>
+                <span className={`badge ${SEVERITY_BADGE[sel.severity] || 'badge-gray'}`}>{sel.severity}</span>
+                <span className={`badge ${STATUS_BADGE[sel.status] || 'badge-gray'}`}>{sel.status.replace('_', ' ')}</span>
+                <span className="sub" style={{ fontSize: 12, marginLeft: 'auto' }}>
+                  Open {sel.days_open} day(s) · Logged {sel.created_at?.slice(0, 10)}
+                </span>
+              </div>
+
+              {/* Editable fields */}
               <div className="conduct-detail">
-                <label style={{ marginTop: 0 }}>Incident</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <select value={sel.incident_type} onChange={(e) => updateSel({ incident_type: e.target.value })}>
-                    {TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                  </select>
-                  <select value={sel.severity} onChange={(e) => updateSel({ severity: e.target.value })}>
-                    {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <input type="date" value={sel.incident_date} onChange={(e) => updateSel({ incident_date: e.target.value })} />
-                  <select value={sel.status} onChange={(e) => updateSel({ status: e.target.value })}>
-                    {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                  </select>
+                <div className="form-row">
+                  <div>
+                    <label>Type</label>
+                    <select value={sel.incident_type} onChange={(e) => updateSel({ incident_type: e.target.value })}>
+                      {TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Severity</label>
+                    <select value={sel.severity} onChange={(e) => updateSel({ severity: e.target.value })}>
+                      {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Date</label>
+                    <input type="date" value={sel.incident_date} onChange={(e) => updateSel({ incident_date: e.target.value })} />
+                  </div>
+                  <div>
+                    <label>Status</label>
+                    <select value={sel.status} onChange={(e) => updateSel({ status: e.target.value })}>
+                      {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <label>Description</label>
                 <textarea rows={3} defaultValue={sel.description || ''} placeholder="No description recorded"
                   onBlur={(e) => { if (e.target.value !== (sel.description || '')) updateSel({ description: e.target.value }); }} />
-                <div className="sub">
-                  Reported by {sel.reported_by_name || '—'} · logged {sel.created_at?.slice(0, 10)} · open {sel.days_open} day(s)
-                </div>
+                <div className="sub">Reported by {sel.reported_by_name || '—'}</div>
               </div>
 
+              {/* Action timeline */}
               <h4 style={{ margin: '18px 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <ClipboardPenLine size={15} /> Actions taken <span className="sub">({sel.actions?.length || 0})</span>
               </h4>
               {!sel.actions?.length ? <Empty text="No actions recorded yet — add an intervention below." /> : (
                 <div className="conduct-timeline">
-                  {sel.actions.map((a) => (
-                    <div className="conduct-ev" key={a.id}>
-                      <span className={`badge ${ACTION_BADGE[a.action_type] || 'badge-gray'}`}>{labelOf(ACTION_TYPES, a.action_type)}</span>
-                      <span className="sub" style={{ marginLeft: 8 }}>{fmtDate(a.action_date)}</span>
-                      <div className="conduct-ev-note">{a.notes || '—'}</div>
-                      <div className="sub" style={{ fontSize: 11.5 }}>by {a.done_by_name || '—'}</div>
+                  {sel.actions.map((a, idx) => (
+                    <div className="conduct-ev" key={a.id} style={{ position: 'relative', paddingLeft: 20 }}>
+                      <div style={{
+                        position: 'absolute', left: 4, top: 0, bottom: 0, width: 2,
+                        background: idx < (sel.actions?.length || 0) - 1 ? 'var(--border)' : 'transparent',
+                      }} />
+                      <div style={{
+                        position: 'absolute', left: 0, top: 6, width: 10, height: 10, borderRadius: '50%',
+                        background: ACTION_BADGE[a.action_type] === 'badge-red' ? '#ef4444' :
+                          ACTION_BADGE[a.action_type] === 'badge-blue' ? '#3b82f6' :
+                          ACTION_BADGE[a.action_type] === 'badge-yellow' ? '#f59e0b' : '#6b7280',
+                        border: '2px solid var(--card)',
+                      }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span className={`badge ${ACTION_BADGE[a.action_type] || 'badge-gray'}`}>{labelOf(ACTION_TYPES, a.action_type)}</span>
+                        <span className="sub" style={{ fontSize: 11.5 }}>{fmtDate(a.action_date)} · by {a.done_by_name || '—'}</span>
+                      </div>
+                      <div className="conduct-ev-note" style={{ marginTop: 4 }}>{a.notes || '—'}</div>
                     </div>
                   ))}
                 </div>
               )}
 
+              {/* Add action form */}
               <form onSubmit={addAction}>
                 <div className="form-row" style={{ marginTop: 14 }}>
                   <div>
@@ -385,7 +502,7 @@ export default function Discipline() {
                   </div>
                   <div>
                     <label>Notes</label>
-                    <input placeholder="Outcome, commitment, next steps…" value={actionForm.notes}
+                    <input placeholder="Outcome, commitment, next steps..." value={actionForm.notes}
                       onChange={(e) => setActionForm((a) => ({ ...a, notes: e.target.value }))} />
                   </div>
                 </div>
