@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v6.5.0';
+const CACHE_VERSION = 'v6.6.0';
 const CACHE_NAME = `meridianed-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/logo.jpg',
