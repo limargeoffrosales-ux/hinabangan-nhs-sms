@@ -14,7 +14,7 @@ const SCHOOL_ADDRESS = 'Rawis, Hinabangan, 6714 Eastern Visayas, Philippines';
 // tile.openstreetmap.org, so OpenStreetMap is kept as the fallback instead.
 const BASE = {
   street: {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     label: 'Streets',
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -27,7 +27,7 @@ const BASE = {
   labels: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
 };
 const STREET_FALLBACK = {
-  url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
 };
 
 const NOTE_STYLE = { position: 'absolute', zIndex: 1000, left: '50%', transform: 'translateX(-50%)', bottom: 48, background: 'rgba(15,23,42,0.85)', color: '#fff', fontSize: 11.5, lineHeight: 1.45, padding: '7px 12px', borderRadius: 8, maxWidth: '85%', textAlign: 'center', pointerEvents: 'none' };
@@ -149,7 +149,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
     let streetFails = 0;
     tl.current.street.on('tileerror', () => {
       streetFails += 1;
-      if (streetFails >= 3 && !tl.current.streetFB) {
+      if (streetFails >= 6 && !tl.current.streetFB) {
         tl.current.streetFB = L.tileLayer(STREET_FALLBACK.url, { attribution: OUTPUT_ATTR, maxZoom: 19 });
         tl.current.streetFB.addTo(map);
         map.removeLayer(tl.current.street);
