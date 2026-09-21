@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Save, RotateCcw } from 'lucide-react';
 import { api } from '../lib/api';
 import { ErrorBanner, Empty, Spinner } from './ui';
@@ -18,6 +18,7 @@ export default function ImmersionDailyAttendance() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [savedMsg, setSavedMsg] = useState(null);
+  const [sortBy, setSortBy] = useState('program');
 
   useEffect(() => {
     (async () => {
@@ -91,6 +92,16 @@ export default function ImmersionDailyAttendance() {
     return m;
   }, {}) : {};
 
+  const sortedRoster = useMemo(() => {
+    if (!roster) return [];
+    const list = [...roster];
+    if (sortBy === 'program') list.sort((a, b) => (a.program || '').localeCompare(b.program || '') || (a.student_name || '').localeCompare(b.student_name || ''));
+    else if (sortBy === 'name') list.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+    else if (sortBy === 'lrn') list.sort((a, b) => (a.lrn || '').localeCompare(b.lrn || ''));
+    else if (sortBy === 'status') list.sort((a, b) => (a.status || '').localeCompare(b.status || '') || (a.student_name || '').localeCompare(b.student_name || ''));
+    return list;
+  }, [roster, sortBy]);
+
   return (
     <>
       <ErrorBanner error={error} />
@@ -109,14 +120,22 @@ export default function ImmersionDailyAttendance() {
             <label>Date</label>
             <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setRoster(null); setSavedMsg(null); }} />
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
             <button className="btn btn-primary" onClick={() => load()} disabled={!batch || loading}>
               {loading ? 'Loading…' : 'Load roster'}
             </button>
             {roster && (
-              <button className="btn btn-sm" onClick={() => { setRoster(null); setSavedMsg(null); }}>
-                <RotateCcw size={13} /> Clear
-              </button>
+              <>
+                <select className="input" style={{ width: 140 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                  <option value="program">Sort by track</option>
+                  <option value="name">Sort by name</option>
+                  <option value="lrn">Sort by LRN</option>
+                  <option value="status">Sort by status</option>
+                </select>
+                <button className="btn btn-sm" onClick={() => { setRoster(null); setSavedMsg(null); }}>
+                  <RotateCcw size={13} /> Clear
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -150,7 +169,7 @@ export default function ImmersionDailyAttendance() {
                 </tr>
               </thead>
               <tbody>
-                {roster.map((r) => (
+                {sortedRoster.map((r) => (
                   <tr key={r.immersion_id}>
                     <td>{r.student_name}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{r.lrn}</td>
@@ -177,7 +196,7 @@ export default function ImmersionDailyAttendance() {
                     <td><input className="input" style={{ minWidth: 140 }} value={r.remarks} onChange={(e) => setRow(r.immersion_id, { remarks: e.target.value })} placeholder="Optional" /></td>
                   </tr>
                 ))}
-                {!roster.length && (
+                {!sortedRoster.length && (
                   <tr><td colSpan={9}><Empty text="No placements in this batch. Add immersion records first." /></td></tr>
                 )}
               </tbody>
