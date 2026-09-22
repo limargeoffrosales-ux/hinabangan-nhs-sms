@@ -4,7 +4,7 @@ import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, TEACHER_POSITIONS, TEACHER_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
 
 const EMPTY_FORM = {
   employee_no: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: '',
@@ -108,7 +108,7 @@ export default function Teachers() {
       <div className="search-row">
         <SearchInput value={query} onChange={setQuery} placeholder={t('teachers.search')} />
       </div>
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('teachers.noData')} /> : (
+      {loading ? <SkeletonTable rows={8} cols={5} /> : rows.length === 0 ? <Empty text={t('teachers.noData')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
+import { subscribeLive } from '../lib/realtime';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 export default function PortalAnnouncements() {
@@ -7,12 +8,18 @@ export default function PortalAnnouncements() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api('/announcements?limit=100')
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => subscribeLive((msg) => {
+    if (msg.type === 'announcement') load();
+  }), [load]);
 
   return (
     <>

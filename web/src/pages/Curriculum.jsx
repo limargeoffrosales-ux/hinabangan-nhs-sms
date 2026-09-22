@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Layers } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const TABS = ['Tracks & Strands', 'Competencies', 'Subject Mapping'];
 const GRADE_LEVELS = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
@@ -260,7 +260,7 @@ export default function Curriculum() {
 
       <ErrorBanner error={error} />
 
-      {loading ? <Spinner /> : (
+      {loading ? <SkeletonTable rows={8} cols={4} /> : (
         <>
           {tab === 'Tracks & Strands' && (
             tracks.length === 0 ? <Empty text={t('cur.noTracks', 'No tracks defined yet.')} /> : (

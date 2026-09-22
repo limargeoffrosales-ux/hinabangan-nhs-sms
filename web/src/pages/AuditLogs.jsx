@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { PageHead, Empty, ErrorBanner, Spinner, SkeletonTable } from '../components/ui';
 
 export default function AuditLogs() {
   const [rows, setRows] = useState([]);
@@ -27,7 +27,7 @@ export default function AuditLogs() {
     <>
       <PageHead title="Audit Logs" sub="Immutable activity trail — every action is recorded for compliance (RA 10173, DepEd)" />
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : (
+      {loading ? <SkeletonTable rows={10} cols={4} /> : (
         <div className="two-col">
           <div className="card table-wrap">
             <table>

@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Link2, Upload, Camera, AlertTriangle, UserPlus, CheckCircle2, XCircle, Download, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import readXlsxFile from 'read-excel-file';
 import { useTranslation } from 'react-i18next';
 import { api, fileUrl } from '../lib/api';
+import { downloadFromApi } from '../lib/export';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, SHS_TRACKS, STUDENT_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
 
 const EMPTY_FORM = {
   lrn: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: 'Male',
@@ -200,6 +201,16 @@ export default function Students() {
     return () => clearTimeout(timer);
   }, [query, load]);
 
+  const exportStudents = async () => {
+    try {
+      const params = new URLSearchParams({ format: 'xlsx' });
+      if (query.trim()) params.set('q', query.trim());
+      await downloadFromApi(`/students/export?${params.toString()}`, 'students.xlsx');
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   function openCreate() {
     setForm(EMPTY_FORM);
     setEditing(null);
@@ -223,40 +234,73 @@ export default function Students() {
     { key: 'address', label: 'Address' },
   ];
 
+  function csvCell(v) {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
   function downloadTemplate() {
     const header = IMPORT_HEADERS.map((h) => h.label);
     const sample = ['234567890123', 'Juan', 'Cruz', 'Dela Rosa', '', 'Male', '2008-05-15', 'Grade 11', 'ACAD 11-A', '2026-2027', 'STEM', 'Maria Dela Rosa', '09171234567', 'Rawis, Hinabangan'];
-    const ws = XLSX.utils.aoa_to_sheet([header, sample]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Students');
-    XLSX.writeFile(wb, 'student-import-template.xlsx');
+    const csv = [header, sample].map((r) => r.map(csvCell).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'student-import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
-  function handleFileUpload(e) {
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { cur += '"'; i++; }
+          else inQuotes = false;
+        } else cur += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur); cur = '';
+        rows.push(row); row = [];
+      } else cur += c;
+    }
+    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+    return rows.filter((r) => r.some((v) => String(v).trim() !== ''));
+  }
+
+  async function handleFileUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportFileName(file.name);
     setImportResult(null);
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        const mapped = raw.map((row) => {
-          const r = {};
-          IMPORT_HEADERS.forEach((h) => {
-            const val = row[h.label] ?? row[h.key] ?? '';
-            r[h.key] = String(val).trim();
-          });
-          return r;
-        }).filter((r) => r.last_name || r.first_name || r.lrn);
-        setImportRows(mapped);
-      } catch {
-        setError('Could not read the Excel file. Make sure it is a valid .xlsx or .xls file.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    try {
+      const normalize = (v) => (v === undefined || v === null ? '' : String(v)).trim();
+      let raw;
+      if (/\.csv$/i.test(file.name)) raw = parseCsv(await file.text());
+      else raw = await readXlsxFile(file);
+      if (!Array.isArray(raw) || !raw.length) throw new Error('empty');
+      // Drop a header row when present (tolerate partial matches).
+      const first = raw[0] || [];
+      const matchedLabels = IMPORT_HEADERS.reduce((n, h, i) => n + (normalize(first[i]) === normalize(h.label) ? 1 : 0), 0);
+      const hasHeader = matchedLabels >= IMPORT_HEADERS.length - 2;
+      const data = hasHeader ? raw.slice(1) : raw;
+      const mapped = data.map((row) => {
+        const r = {};
+        IMPORT_HEADERS.forEach((h, i) => { r[h.key] = normalize(row ? row[i] : ''); });
+        return r;
+      }).filter((r) => r.last_name || r.first_name || r.lrn);
+      setImportRows(mapped);
+    } catch {
+      setError('Could not read the file. Make sure it is a valid .xlsx, .xls or .csv file.');
+    }
     e.target.value = '';
   }
 
@@ -352,6 +396,9 @@ export default function Students() {
           </button>
         )}
         {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('students.newStudent')}</button>}
+        {can(user?.role, 'teacher', 'guidance', 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar') && (
+          <button className="btn" onClick={exportStudents} title={t('students.export')}><Download size={15} /> {t('students.export')}</button>
+        )}
       </PageHead>
       <ErrorBanner error={error} />
       <div className="search-row">
@@ -368,7 +415,7 @@ export default function Students() {
           {importOpen && (
             <div style={{ marginTop: 10 }}>
               <div className="sub" style={{ marginBottom: 8 }}>
-                Upload an <strong>.xlsx</strong> or <strong>.xls</strong> file with columns: LRN, First Name, Middle Name, Last Name, Suffix, Sex, Birth Date, Grade Level, Section, School Year, Track/Strand, Guardian Name, Guardian Contact, Address.
+                Upload an <strong>.xlsx</strong>, <strong>.xls</strong> or <strong>.csv</strong> file with columns: LRN, First Name, Middle Name, Last Name, Suffix, Sex, Birth Date, Grade Level, Section, School Year, Track/Strand, Guardian Name, Guardian Contact, Address.
                 Missing sections are created automatically. Existing students (by LRN) are updated; new ones are created.
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -378,7 +425,7 @@ export default function Students() {
                 <button className="btn" type="button" onClick={() => importFileRef.current?.click()}>
                   <Upload size={13} /> Choose Excel file
                 </button>
-                <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFileUpload} />
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFileUpload} />
                 {importFileName && <span className="sub" style={{ alignSelf: 'center' }}>{importFileName} — {importRows.length} row(s)</span>}
               </div>
               {importRows.length > 0 && (
@@ -439,7 +486,7 @@ export default function Students() {
           )}
         </div>
       )}
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('students.noData')} /> : (
+      {loading ? <SkeletonTable rows={8} cols={5} /> : rows.length === 0 ? <Empty text={t('students.noData')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Download, RefreshCw, Trash2, Star } from 'lucide-react';
 import { api, getToken, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { downloadBlob } from '../lib/export';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const TYPE_LABELS = { numeric: 'Numeric', letter: 'Letter', gpa: 'GPA', ib: 'IB', cambridge: 'Cambridge', custom: 'Custom' };
 const TYPE_OPTIONS = ['numeric', 'letter', 'gpa', 'ib', 'cambridge', 'custom'];
@@ -175,7 +175,7 @@ export default function GradingScales() {
       </PageHead>
       <ErrorBanner error={error} />
 
-      {loading ? <Spinner /> : (
+      {loading ? <SkeletonTable rows={6} cols={4} /> : (
         <>
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="form-row" style={{ margin: 0 }}>

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, CheckCheck } from 'lucide-react';
+import { Save, CheckCheck, Download } from 'lucide-react';
 import { api } from '../lib/api';
+import { downloadFromApi } from '../lib/export';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { useToast } from '../components/Toast';
 
@@ -51,6 +52,26 @@ export default function Attendance() {
     }
   }, [sectionId, date]);
 
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!sectionId) return;
+    const interval = setInterval(() => {
+      api(`/attendance?section_id=${sectionId}&date=${date}&limit=500`)
+        .then((existing) => {
+          const byStudent = {};
+          for (const r of existing.data) byStudent[r.student_id] = r;
+          setRoster((prev) => prev.map((s) => ({
+            ...s,
+            status: byStudent[s.id]?.status || s.status,
+            remarks: byStudent[s.id]?.remarks ?? s.remarks,
+          })));
+        })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [sectionId, date]);
+
   function setStatus(studentId, status) {
     setRoster((rs) => rs.map((r) => (r.id === studentId ? { ...r, status } : r)));
   }
@@ -79,6 +100,17 @@ export default function Attendance() {
       setLoading(false);
     }
   }
+
+  const exportAttendance = async () => {
+    try {
+      const params = new URLSearchParams({ format: 'xlsx' });
+      if (sectionId) params.set('section_id', sectionId);
+      if (date) params.set('date', date);
+      await downloadFromApi(`/attendance/export?${params.toString()}`, 'attendance.xlsx');
+    } catch (e) {
+      setError(e.message);
+    }
+  };
 
   const counts = roster.reduce((m, r) => {
     m[r.status] = (m[r.status] || 0) + 1;
@@ -121,6 +153,7 @@ export default function Attendance() {
                 {Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
               </span>
               <button className="btn btn-primary btn-sm" onClick={save}><Save size={13} /> {t('attendance.saveAttendance')}</button>
+              <button className="btn btn-sm" onClick={exportAttendance} disabled={!roster.length}><Download size={13} /> {t('attendance.export')}</button>
             </div>
           </div>
           <div className="card table-wrap">

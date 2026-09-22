@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { FileCheck2, PenLine, CheckCircle2, XCircle, AlertCircle, Loader2, Plus, Pencil, Trash2, Shield, Eye, EyeOff, Save, X } from 'lucide-react';
+import { FileCheck2, PenLine, CheckCircle2, XCircle, AlertCircle, Loader2, Plus, Pencil, Trash2, Save } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Empty, Modal, ConfirmModal } from '../components/ui';
@@ -35,8 +36,16 @@ function ProgressBar({ signed, total }) {
 }
 
 export default function Consent() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const isAdmin = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
+
+  const typeLabels = {
+    custom: t('consent.formTypeCustom', 'Custom'),
+    data_privacy: t('consent.formTypeDataPrivacy', 'Data Privacy'),
+    photo_video: t('consent.formTypePhotoVideo', 'Photo / Video'),
+    ai_usage: t('consent.formTypeAiUsage', 'AI Usage'),
+  };
 
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +104,7 @@ export default function Consent() {
         method: 'POST',
         body: { signature_name: signature.trim() || null, student_id: signStudent || undefined },
       });
-      setNotice(res.alreadySigned ? `You have already signed "${signForm.title}".` : `You have signed "${signForm.title}". Thank you.`);
+      setNotice(res.alreadySigned ? t('consent.signNoticeAlready', 'You have already signed "{{title}}".', { title: signForm.title }) : t('consent.signNoticeDone', 'You have signed "{{title}}". Thank you.', { title: signForm.title }));
       setSignForm(null);
       setSignature('');
       load();
@@ -121,7 +130,7 @@ export default function Consent() {
 
   async function saveForm(e) {
     e.preventDefault();
-    if (!formDraft.title.trim() || !formDraft.content.trim()) { setError('Title and content are required.'); return; }
+    if (!formDraft.title.trim() || !formDraft.content.trim()) { setError(t('consent.titleContentRequired', 'Title and content are required.')); return; }
     setSaving(true);
     setError(null);
     try {
@@ -152,13 +161,13 @@ export default function Consent() {
   return (
     <div>
       <PageHead
-        title="Consent Forms"
-        sub={isAdmin ? "Create, manage, and track consent forms" : "Review and sign the active consent forms issued by the school"}
+        title={t('consent.title', 'Consent Forms')}
+        sub={isAdmin ? t('consent.subtitleAdmin', 'Create, manage, and track consent forms') : t('consent.subtitleStudent', 'Review and sign the active consent forms issued by the school')}
         icon={<FileCheck2 size={20} />}
       >
         {isAdmin && (
           <button className="btn btn-primary" onClick={openCreate}>
-            <Plus size={14} /> New Form
+            <Plus size={14} /> {t('consent.newForm', 'New Form')}
           </button>
         )}
       </PageHead>
@@ -169,7 +178,7 @@ export default function Consent() {
       {loading ? (
         <div style={{ padding: 48, textAlign: 'center' }}><Loader2 size={22} className="spin" /></div>
       ) : forms.length === 0 ? (
-        <Empty text={isAdmin ? "No consent forms yet. Create one to get started." : "There are no active consent forms right now."} />
+        <Empty text={isAdmin ? t('consent.emptyAdmin', 'No consent forms yet. Create one to get started.') : t('consent.emptyStudent', 'There are no active consent forms right now.')} />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16, maxWidth: 1100 }}>
           {forms.map((f) => {
@@ -189,23 +198,23 @@ export default function Consent() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
                       <h3 style={{ margin: 0, fontSize: 15, fontWeight: 650 }}>{f.title}</h3>
-                      <Badge status={meta.cls} style={{ fontSize: 10.5 }}>{meta.label}</Badge>
+                      <Badge status={meta.cls} style={{ fontSize: 10.5 }}>{typeLabels[f.form_type] || typeLabels.custom}</Badge>
                     </div>
                     {f.description && <p className="sub" style={{ margin: '2px 0 0', fontSize: 12.5 }}>{f.description}</p>}
                   </div>
                   {/* Status chip */}
                   {isAdmin ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: f.is_active ? 'var(--success)' : 'var(--text-dim)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      <StatusDot active={f.is_active} />
-                      {f.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                        <StatusDot active={f.is_active} />
+                        {f.is_active ? t('consent.statusActive', 'Active') : t('consent.statusInactive', 'Inactive')}
+                      </span>
                   ) : signed ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--success)', fontSize: 13, fontWeight: 600 }}>
-                      <CheckCircle2 size={15} /> Signed
+                      <CheckCircle2 size={15} /> {t('consent.statusSigned', 'Signed')}
                     </span>
                   ) : (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--text-dim)', fontSize: 13 }}>
-                      <XCircle size={14} /> Pending
+                      <XCircle size={14} /> {t('consent.statusPending', 'Pending')}
                     </span>
                   )}
                 </div>
@@ -224,7 +233,7 @@ export default function Consent() {
                 {isAdmin && totalUsers > 0 && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-dim)' }}>
-                      <span>{respCount} of {totalUsers} signed</span>
+                      <span>{t('consent.responsesProgress', '{{respCount}} of {{totalUsers}} signed', { respCount, totalUsers })}</span>
                       <span>{Math.round((respCount / totalUsers) * 100)}%</span>
                     </div>
                     <ProgressBar signed={respCount} total={totalUsers} />
@@ -234,25 +243,25 @@ export default function Consent() {
                 {/* Footer */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 'auto', paddingTop: 4 }}>
                   <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                    {f.require_sign ? 'Signature required' : 'Acknowledgement only'}
+                    {f.require_sign ? t('consent.signatureRequired', 'Signature required') : t('consent.acknowledgementOnly', 'Acknowledgement only')}
                     {f.created_at && ` · ${new Date(f.created_at).toLocaleDateString()}`}
                   </span>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     {isAdmin ? (
                       <>
-                        <button className="btn btn-sm" onClick={() => openEdit(f)} title="Edit"><Pencil size={13} /></button>
-                        <button className="btn btn-sm btn-danger" onClick={() => setConfirmDel(f)} title="Delete"><Trash2 size={13} /></button>
+                        <button className="btn btn-sm" onClick={() => openEdit(f)} title={t('consent.editTitle', 'Edit')}><Pencil size={13} /></button>
+                        <button className="btn btn-sm btn-danger" onClick={() => setConfirmDel(f)} title={t('consent.deleteTitle', 'Delete')}><Trash2 size={13} /></button>
                       </>
                     ) : signed ? (
-                      <button className="btn btn-sm" disabled style={{ opacity: 0.6 }}><CheckCircle2 size={13} /> Signed</button>
+                      <button className="btn btn-sm" disabled style={{ opacity: 0.6 }}><CheckCircle2 size={13} /> {t('consent.statusSigned', 'Signed')}</button>
                     ) : (() => {
                       const needStudent = STUDENT_BOUND.has(f.form_type) && !(f.eligible_students || []).length;
                       if (needStudent) {
-                        return <button className="btn btn-sm" disabled title="Link a guardian first">Per-student</button>;
+                        return <button className="btn btn-sm" disabled title={t('consent.linkGuardianTitle', 'Link a guardian first')}>{t('consent.perStudent', 'Per-student')}</button>;
                       }
                       return (
                         <button className="btn btn-primary btn-sm" onClick={() => { setSignature(''); setNotice(null); setSignStudent((f.eligible_students || []).length === 1 ? f.eligible_students[0].id : null); setSignForm(f); }}>
-                          <PenLine size={13} /> {f.require_sign ? 'Review & Sign' : 'Acknowledge'}
+                          <PenLine size={13} /> {f.require_sign ? t('consent.actionReviewSign', 'Review & Sign') : t('consent.actionAcknowledge', 'Acknowledge')}
                         </button>
                       );
                     })()}
@@ -267,8 +276,8 @@ export default function Consent() {
       {/* --- Sign Modal --- */}
       {signForm && (
         <Modal
-          title={`Sign: ${signForm.title}`}
-          sub="Your electronic signature confirms you have read and understand this consent form"
+          title={t('consent.signModalTitle', 'Sign: {{title}}', { title: signForm.title })}
+          sub={t('consent.signModalSub', 'Your electronic signature confirms you have read and understand this consent form')}
           onClose={() => setSignForm(null)}
         >
           <form onSubmit={submitSign}>
@@ -277,34 +286,34 @@ export default function Consent() {
             </div>
             {(signForm.eligible_students || []).length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <label>Signing for (student) *</label>
+                <label>{t('consent.signingForLabel', 'Signing for (student) *')}</label>
                 <select
                   className="input"
                   value={signStudent === null ? '' : signStudent}
                   onChange={(e) => setSignStudent(e.target.value ? Number(e.target.value) : null)}
                 >
-                  {signForm.eligible_students.length > 1 && <option value="">Select a student...</option>}
+                  {signForm.eligible_students.length > 1 && <option value="">{t('consent.selectStudentOption', 'Select a student...')}</option>}
                   {signForm.eligible_students.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name} (LRN {s.lrn})</option>
+                    <option key={s.id} value={s.id}>{t('consent.studentOption', '{{name}} (LRN {{lrn}})', { name: s.name, lrn: s.lrn })}</option>
                   ))}
                 </select>
               </div>
             )}
-            <label>Your full name (signature) *</label>
+            <label>{t('consent.fullNameLabel', 'Your full name (signature) *')}</label>
             <input
               className="input"
               value={signature}
               onChange={(e) => setSignature(e.target.value)}
-              placeholder="Type your full legal name"
+              placeholder={t('consent.fullNamePlaceholder', 'Type your full legal name')}
               required
               autoFocus
             />
             <div className="sub" style={{ marginTop: 6 }}>
-              By signing you agree to the terms described above. This will be recorded with your account and the school time.
+              {t('consent.signAgreement', 'By signing you agree to the terms described above. This will be recorded with your account and the school time.')}
             </div>
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setSignForm(null)}>Cancel</button>
-              <button className="btn btn-primary" disabled={busy}>{busy ? 'Signing...' : 'Confirm Signature'}</button>
+              <button type="button" className="btn" onClick={() => setSignForm(null)}>{t('consent.cancel', 'Cancel')}</button>
+              <button className="btn btn-primary" disabled={busy}>{busy ? t('consent.signing', 'Signing...') : t('consent.confirmSignature', 'Confirm Signature')}</button>
             </div>
           </form>
         </Modal>
@@ -313,50 +322,50 @@ export default function Consent() {
       {/* --- Admin Editor Modal --- */}
       {showEditor && (
         <Modal
-          title={editingForm ? 'Edit Consent Form' : 'New Consent Form'}
-          sub={editingForm ? 'Update consent form details' : 'Create a new consent form for students, parents, or staff'}
+          title={editingForm ? t('consent.editFormTitle', 'Edit Consent Form') : t('consent.newFormTitle', 'New Consent Form')}
+          sub={editingForm ? t('consent.editFormSub', 'Update consent form details') : t('consent.newFormSub', 'Create a new consent form for students, parents, or staff')}
           onClose={() => setShowEditor(false)}
           wide
         >
           <form onSubmit={saveForm}>
             <div className="form-row">
               <div style={{ flex: 2 }}>
-                <label>Title *</label>
-                <input className="input" value={formDraft.title} onChange={(e) => setFormDraft({ ...formDraft, title: e.target.value })} placeholder="e.g. Data Privacy Consent Form" required />
+                <label>{t('consent.titleLabel', 'Title *')}</label>
+                <input className="input" value={formDraft.title} onChange={(e) => setFormDraft({ ...formDraft, title: e.target.value })} placeholder={t('consent.titlePlaceholder', 'e.g. Data Privacy Consent Form')} required />
               </div>
               <div style={{ flex: 1 }}>
-                <label>Form Type</label>
+                <label>{t('consent.formTypeLabel', 'Form Type')}</label>
                 <select className="input" value={formDraft.form_type} onChange={(e) => setFormDraft({ ...formDraft, form_type: e.target.value })}>
-                  {Object.entries(FORM_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  {Object.entries(FORM_TYPES).map(([k, v]) => <option key={k} value={k}>{typeLabels[k] || v.label}</option>)}
                 </select>
               </div>
             </div>
             <div className="form-row" style={{ gap: 20 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
                 <input type="checkbox" checked={formDraft.is_active} onChange={(e) => setFormDraft({ ...formDraft, is_active: e.target.checked })} />
-                Active (visible to users)
+                {t('consent.activeToggle', 'Active (visible to users)')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
                 <input type="checkbox" checked={formDraft.require_sign} onChange={(e) => setFormDraft({ ...formDraft, require_sign: e.target.checked })} />
-                Require electronic signature
+                {t('consent.requireSignToggle', 'Require electronic signature')}
               </label>
             </div>
-            <label>Description <span className="sub">(optional)</span></label>
-            <input className="input" value={formDraft.description} onChange={(e) => setFormDraft({ ...formDraft, description: e.target.value })} placeholder="Brief summary shown on the card" />
-            <label style={{ marginTop: 8 }}>Content *</label>
+            <label>{t('consent.descriptionLabel', 'Description')} <span className="sub">{t('consent.optionalTag', '(optional)')}</span></label>
+            <input className="input" value={formDraft.description} onChange={(e) => setFormDraft({ ...formDraft, description: e.target.value })} placeholder={t('consent.descriptionPlaceholder', 'Brief summary shown on the card')} />
+            <label style={{ marginTop: 8 }}>{t('consent.contentLabel', 'Content *')}</label>
             <textarea
               className="input"
               rows={8}
               value={formDraft.content}
               onChange={(e) => setFormDraft({ ...formDraft, content: e.target.value })}
-              placeholder="Full consent form text..."
+              placeholder={t('consent.contentPlaceholder', 'Full consent form text...')}
               required
               style={{ fontFamily: 'inherit', lineHeight: 1.6 }}
             />
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setShowEditor(false)}>Cancel</button>
+              <button type="button" className="btn" onClick={() => setShowEditor(false)}>{t('consent.cancel', 'Cancel')}</button>
               <button className="btn btn-primary" disabled={saving}>
-                <Save size={13} /> {saving ? 'Saving...' : (editingForm ? 'Update Form' : 'Create Form')}
+                <Save size={13} /> {saving ? t('consent.saving', 'Saving...') : (editingForm ? t('consent.updateForm', 'Update Form') : t('consent.createForm', 'Create Form'))}
               </button>
             </div>
           </form>
@@ -366,7 +375,7 @@ export default function Consent() {
       {/* --- Delete Confirmation --- */}
       {confirmDel && (
         <ConfirmModal
-          message={`Delete "${confirmDel.title}"? This cannot be undone.`}
+          message={t('consent.deleteConfirm', 'Delete "{{title}}"? This cannot be undone.', { title: confirmDel.title })}
           danger
           onConfirm={() => deleteForm(confirmDel)}
           onCancel={() => setConfirmDel(null)}

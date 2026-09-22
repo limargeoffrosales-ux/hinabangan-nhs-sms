@@ -7,7 +7,7 @@ import {
   BadgeCheck, UserCheck, History, ArrowRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState } from '../components/ui';
+import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import { loadRecharts } from '../lib/lazy-recharts';
 

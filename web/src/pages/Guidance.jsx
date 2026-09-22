@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Filter, Users, AlertTriangle, CheckCircle2, Clock, BookOpen, Heart, Briefcase, ShieldAlert, HelpCircle, BarChart3, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, Badge } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, Badge, SkeletonCards, SkeletonTable } from '../components/ui';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];
@@ -151,7 +151,7 @@ export default function Guidance() {
 
   const tooltipStyle = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 };
 
-  if (loading) return <Spinner />;
+  if (loading) return (<><SkeletonCards count={4} /><div style={{ marginTop: 16 }}><SkeletonTable rows={5} cols={4} /></div></>);
 
   const summaryTotal = summary?.total ?? cases.length;
   const byStatus = {};

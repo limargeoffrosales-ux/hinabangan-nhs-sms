@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../components/Toast';
 
@@ -153,7 +153,7 @@ export default function Users() {
         </div>
       </PageHead>
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('users.noData')} /> : (
+      {loading ? <SkeletonTable rows={8} cols={5} /> : rows.length === 0 ? <Empty text={t('users.noData')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>

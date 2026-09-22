@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound, NotebookPen, Globe, Briefcase, BookOpen, BarChart3, Award, ClipboardList } from 'lucide-react';
+import { Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound, NotebookPen, Globe, Briefcase, BookOpen, BarChart3, Award, ClipboardList, Menu } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Modal, initials } from './ui';
 import { api } from '../lib/api';
@@ -26,6 +26,7 @@ export default function PortalLayout({ children }) {
   const { t, i18n } = useTranslation();
   const [pwOpen, setPwOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
   const [pwBusy, setPwBusy] = useState(false);
   const [pwErr, setPwErr] = useState(null);
@@ -62,13 +63,17 @@ export default function PortalLayout({ children }) {
 
   return (
     <div className="app-shell">
+      <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <div className="main" style={{ marginLeft: 0 }}>
         <div className="topbar">
+          <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
+            <Menu size={17} aria-hidden="true" />
+          </button>
           <img className="brand-logo" src="/logo.jpg" alt="School logo" style={{ marginRight: 6 }} />
           <h1 style={{ fontSize: 16 }}>{t('brand')} · {t('portalTitle')}</h1>
-          <nav className="portal-nav">
+          <nav className={`portal-nav ${menuOpen ? 'open' : ''}`}>
             {PORTAL_NAV.map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
                 <n.icon size={15} /> {t(n.labelKey)}
               </NavLink>
             ))}

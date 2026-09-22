@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { subscribeLive } from '../lib/realtime';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 export default function Announcements() {
@@ -32,6 +33,10 @@ export default function Announcements() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => subscribeLive((msg) => {
+    if (msg.type === 'announcement') load();
+  }), [load]);
 
   function openCreate() {
     setForm({ title: '', body: '', audience: 'all', priority: 'normal' });
@@ -82,7 +87,7 @@ export default function Announcements() {
         {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('announcements.newAnnouncement')}</button>}
       </PageHead>
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('announcements.noData')} /> : (
+      {loading ? <SkeletonTable rows={5} cols={3} /> : rows.length === 0 ? <Empty text={t('announcements.noData')} /> : (
         <div className="grid" style={{ gap: 14 }}>
           {rows.map((a) => (
             <div className="card" key={a.id}>

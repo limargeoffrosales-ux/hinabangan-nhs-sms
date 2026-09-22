@@ -110,7 +110,9 @@ export default function ImmersionMap() {
             <span className="stat-chip">Placed on map <b>{placed.length}</b></span>
             {missing.length > 0 && <span className="stat-chip stat-chip-warn">Need coordinates <b>{missing.length}</b></span>}
           </div>
-          <PlacementMap rows={placed} missing={missing} isImmersion live={liveOn ? liveRows : []} total={rows.length} />
+          <div style={{ minHeight: '400px', width: '100%' }}>
+  <PlacementMap rows={placed} missing={missing} isImmersion live={liveOn ? liveRows : []} total={rows.length} />
+</div>
         </>
       )}
     </>

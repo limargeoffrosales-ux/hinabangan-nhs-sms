@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { RotateCcw, FileText, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { SHS_TRACKS, ENROLLMENT_STATUSES, ENROLLMENT_DOC_TYPES, CURRENT_SCHOOL_YEAR } from '../lib/constants';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge, SearchInput } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge, SearchInput, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useToast } from '../components/Toast';
+import { useTranslation } from 'react-i18next';
 
 const STATUS_MAP = Object.fromEntries(ENROLLMENT_STATUSES.map((s) => [s.value, s.label]));
 const statusLabel = (v) => STATUS_MAP[v] || v || '—';
@@ -118,6 +119,7 @@ function CheckGroup({ label, items, selectedSubjects, toggleSubject, toggleGroup
 
 export default function Enroll() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [students, setStudents] = useState([]);
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -141,6 +143,7 @@ export default function Enroll() {
   const [newDocType, setNewDocType] = useState('psa_birth');
   const [docUploading, setDocUploading] = useState(false);
   const [autoFillInfo, setAutoFillInfo] = useState('');
+  const [confirmDocDelete, setConfirmDocDelete] = useState(null);
   const skipNextAutoFill = useRef(false);
 
   const load = useCallback(async (q, quiet) => {
@@ -453,15 +456,7 @@ export default function Enroll() {
   }
 
   async function deleteDoc(doc) {
-    if (!window.confirm('Remove this requirement file from the enrollment?')) return;
-    setError(null);
-    try {
-      await api(`/enrollments/documents/${doc.id}`, { method: 'DELETE' });
-      toast.success('Requirement removed.');
-      loadDocs(editing.id);
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmDocDelete(doc);
   }
 
   function onEditSectionChange(v) {
@@ -556,7 +551,7 @@ export default function Enroll() {
     <>
       <PageHead title="Enrollment" sub="Assign learners to sections with the full SSHS subject checklist (DepEd LRN-based)" />
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : (
+      {loading ? <SkeletonTable rows={8} cols={5} /> : (
         <div className="two-col">
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Enroll a Student</h3>
@@ -892,6 +887,26 @@ export default function Enroll() {
             );
           })()}
         </Modal>
+      )}
+
+      {confirmDocDelete && (
+        <ConfirmModal
+          message={t('enrollments.removeDocConfirm', 'Remove this requirement file from the enrollment?')}
+          danger
+          onCancel={() => setConfirmDocDelete(null)}
+          onConfirm={async () => {
+            const doc = confirmDocDelete;
+            setConfirmDocDelete(null);
+            setError(null);
+            try {
+              await api(`/enrollments/documents/${doc.id}`, { method: 'DELETE' });
+              toast.success('Requirement removed.');
+              loadDocs(editing.id);
+            } catch (e) {
+              setError(e.message);
+            }
+          }}
+        />
       )}
     </>
   );

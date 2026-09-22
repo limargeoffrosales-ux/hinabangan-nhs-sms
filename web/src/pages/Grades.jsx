@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, FileText, Target, Printer, Copy } from 'lucide-react';
+import { Save, FileText, Target, Printer, Copy, Download } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
-import { printElementHtml } from '../lib/export';
+import { printElementHtml, downloadFromApi } from '../lib/export';
 import { useToast } from '../components/Toast';
 
 const TERMS = [1, 2, 3];
@@ -58,6 +57,24 @@ export default function Grades() {
     }
   }
 
+  useEffect(() => {
+    loadClass();
+  }, [sectionId, subjectId, schoolYear, term]);
+
+  useEffect(() => {
+    if (!sectionId || !subjectId) return;
+    const interval = setInterval(() => {
+      api(`/grades/class?section_id=${sectionId}&subject_id=${subjectId}&school_year=${encodeURIComponent(schoolYear)}&term=${term}`)
+        .then((res) => {
+          setRows(res.data);
+          setWeights(res.weights);
+          setScale(res.scale);
+        })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [sectionId, subjectId, schoolYear, term]);
+
   async function loadCompetencies() {
     if (!subjectId) return;
     try {
@@ -96,6 +113,52 @@ export default function Grades() {
   function quickFill(key, value) {
     const n = value === '' ? null : Number(value);
     setRows((rs) => rs ? rs.map((r) => ({ ...r, [key]: n != null && (n < 0 || n > 100) ? r[key] : n })) : []);
+  }
+
+  const GRADE_COLS = ['written_work', 'performance_task', 'quarterly_exam'];
+
+  function gradeNav(e) {
+    const el = e.target;
+    const row = Number(el.dataset.row);
+    const col = Number(el.dataset.col);
+    let targetRow = row;
+    let targetCol = col;
+
+    if (e.key === 'ArrowUp') { targetRow = Math.max(0, row - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { targetRow = Math.min(rows.length - 1, row + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' && el.selectionStart === 0) { targetCol = Math.max(0, col - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight' && el.selectionStart === el.value.length) { targetCol = Math.min(GRADE_COLS.length - 1, col + 1); e.preventDefault(); }
+    else if (e.key === 'Tab' && !e.shiftKey) {
+      targetCol = col + 1;
+      if (targetCol >= GRADE_COLS.length) { targetCol = 0; targetRow = Math.min(rows.length - 1, row + 1); }
+      e.preventDefault();
+    }
+    else if (e.key === 'Tab' && e.shiftKey) {
+      targetCol = col - 1;
+      if (targetCol < 0) { targetCol = GRADE_COLS.length - 1; targetRow = Math.max(0, row - 1); }
+      e.preventDefault();
+    }
+    else if (e.key === 'Enter') { targetRow = Math.min(rows.length - 1, row + 1); e.preventDefault(); }
+    else if (e.key === 'Escape') { el.blur(); return; }
+    else if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
+      const val = el.value;
+      if (val) { navigator.clipboard?.writeText(val); e.preventDefault(); }
+      return;
+    }
+    else if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
+      navigator.clipboard?.readText().then((text) => {
+        const num = Number(text.trim());
+        if (!isNaN(num) && num >= 0 && num <= 100) {
+          update(rows[row].id, GRADE_COLS[col], num);
+        }
+      }).catch(() => {});
+      e.preventDefault();
+      return;
+    }
+    else return;
+
+    const target = el.closest('table')?.querySelector(`[data-row="${targetRow}"][data-col="${targetCol}"]`);
+    if (target) { target.focus(); target.select(); }
   }
 
   async function save() {
@@ -165,6 +228,16 @@ export default function Grades() {
     printElementHtml('Class Record', full, { orientation: 'landscape', paper: 'legal' });
   }
 
+  const exportClassRecord = async () => {
+    if (!sectionId || !subjectId) return;
+    try {
+      const params = new URLSearchParams({ format: 'xlsx', section_id: sectionId, subject_id: subjectId, school_year: schoolYear, term });
+      await downloadFromApi(`/grades/export?${params.toString()}`, 'class-record.xlsx');
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   return (
     <>
       <PageHead
@@ -222,6 +295,14 @@ export default function Grades() {
               <button className="btn" onClick={printClassRecord} disabled={!rows || !rows.length} type="button">
                 <Printer size={14} /> Print Class Record
               </button>
+              <span className="no-print" style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <kbd style={{ fontSize: 10, padding: '1px 4px', borderRadius: 3, background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>↑↓←→</kbd> navigate
+                <kbd style={{ fontSize: 10, padding: '1px 4px', borderRadius: 3, background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>Tab</kbd> next cell
+                <kbd style={{ fontSize: 10, padding: '1px 4px', borderRadius: 3, background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>Esc</kbd> deselect
+              </span>
+              <button className="btn" onClick={exportClassRecord} disabled={!rows || !rows.length} type="button">
+                <Download size={14} /> {t('grades.export')}
+              </button>
               <button className="btn btn-primary" onClick={compMode ? saveCompScores : save} disabled={saving || compSaving}>
                 <Save size={14} /> {compSaving ? 'Saving…' : saving ? t('common.saving') : t('grades.saveGrades')}
               </button>
@@ -258,18 +339,18 @@ export default function Grades() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r, ri) => (
                 <tr key={r.id}>
                   <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }}>{r.lrn}</td>
                   <td>{r.last_name}, {r.first_name}</td>
                   <td style={{ textAlign: 'center' }}>
-                    <input className="grade-input" type="number" min="0" max="100" value={r.written_work ?? ''} onChange={(e) => update(r.id, 'written_work', e.target.value)} />
+                    <input className="grade-input" type="number" min="0" max="100" value={r.written_work ?? ''} data-row={ri} data-col={0} onKeyDown={gradeNav} onChange={(e) => update(r.id, 'written_work', e.target.value)} />
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <input className="grade-input" type="number" min="0" max="100" value={r.performance_task ?? ''} onChange={(e) => update(r.id, 'performance_task', e.target.value)} />
+                    <input className="grade-input" type="number" min="0" max="100" value={r.performance_task ?? ''} data-row={ri} data-col={1} onKeyDown={gradeNav} onChange={(e) => update(r.id, 'performance_task', e.target.value)} />
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <input className="grade-input" type="number" min="0" max="100" value={r.quarterly_exam ?? ''} onChange={(e) => update(r.id, 'quarterly_exam', e.target.value)} />
+                    <input className="grade-input" type="number" min="0" max="100" value={r.quarterly_exam ?? ''} data-row={ri} data-col={2} onKeyDown={gradeNav} onChange={(e) => update(r.id, 'quarterly_exam', e.target.value)} />
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     {r.computed_grade != null

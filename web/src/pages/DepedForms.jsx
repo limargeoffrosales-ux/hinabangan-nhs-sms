@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Download, Printer, Pencil } from 'lucide-react';
 import { api, fileUrl } from '../lib/api';
 import { PageHead, Spinner, ErrorBanner } from '../components/ui';
@@ -63,11 +64,11 @@ function printForm(code, title, html, orient) {
   printElementHtml(`${code.toUpperCase()} - ${title}`, html, { orientation: orient, paper: 'legal' });
 }
 
-async function batchPrintSF9(sectionId, info, toast) {
+async function batchPrintSF9(sectionId, info, toast, t) {
   try {
     const res = await api(`/deped-forms/sf9/full?section_id=${sectionId}`);
     const learners = res.learners || [];
-    if (!learners.length) return toast.error('No learners found for this section.');
+    if (!learners.length) return toast.error(t('depedForms.batchNoLearners', 'No learners found for this section.'));
     const cards = learners.map(lr => renderSF9Card(lr.student, lr.enrollment, lr.grades, lr.monthlyAttendance || [], info.school_year || '____-____', info, lr.conduct || []));
     const css = `@page{size:legal landscape;margin:0.3in}body{font-family:'Times New Roman',serif;font-size:10pt;line-height:1.2;color:#000;margin:0;padding:0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:2pt 3pt;font-size:7.5pt;vertical-align:top}.center{text-align:center}.c{text-align:center}.b{font-weight:bold}.small{font-size:7pt}.sig{width:100%;border:none}.sig td{border:none;text-align:center;font-size:9pt;padding:8pt 3pt 0}.sf9-page{page-break-after:always;width:100%;height:100vh;display:flex}.sf9-page:last-child{page-break-after:auto}`;
     const full = `<!doctype html><html><head><meta charset="utf-8"><title>SF9 - Report Cards - Batch</title><style>${css}</style></head><body>${cards.join('\n')}</body></html>`;
@@ -76,7 +77,7 @@ async function batchPrintSF9(sectionId, info, toast) {
     w.document.close();
     setTimeout(() => w.print(), 500);
   } catch (e) {
-    toast.error('Error loading batch report cards: ' + e.message);
+    toast.error(t('depedForms.batchError', 'Error loading batch report cards: {{msg}}', { msg: e.message }));
   }
 }
 
@@ -89,6 +90,7 @@ function downloadBlankForm(code, title, html, orient, info) {
 
 export default function DepedForms() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [tab, setTab] = useState('sf1');
   const [info, setInfo] = useState({});
   const [sections, setSections] = useState([]);
@@ -182,7 +184,7 @@ export default function DepedForms() {
   }, [data, term]);
 
   const saveConduct = useCallback(async () => {
-    if (!studentId || !term) return toast.error('Select a term (Q1-Q4) first.');
+    if (!studentId || !term) return toast.error(t('depedForms.needTerm', 'Select a term (Q1-Q4) first.'));
     setConductSaving(true);
     try {
       await api('/deped-forms/sf9/conduct', {
@@ -194,7 +196,7 @@ export default function DepedForms() {
       setLoading(true);
       api(url).then(r => { setData(r); setLoading(false); }).catch(err => { setError(err.message); setLoading(false); });
     } catch (e) {
-      toast.error('Error saving conduct: ' + e.message);
+      toast.error(t('depedForms.conductError', 'Error saving conduct: {{msg}}', { msg: e.message }));
     } finally {
       setConductSaving(false);
     }
@@ -202,12 +204,12 @@ export default function DepedForms() {
 
   const form = FORMS.find(f => f.code === tab);
   const ctx = { sectionId, studentId, month, year, term, sections, students };
-  const html = renderForm(tab, data, info, ctx);
-  const blankHtml = renderBlankForm(tab, info, ctx);
+  const html = renderForm(tab, data, info, ctx, t);
+  const blankHtml = renderBlankForm(tab, info, ctx, t);
 
   return (
     <div>
-      <PageHead title="DepEd School Forms (SF1-SF10 + Summary of Grades)" sub="Official DepEd form layouts - view, download PDF, or download blank templates for printing." />
+      <PageHead title={t('depedForms.title', 'DepEd School Forms (SF1-SF10 + Summary of Grades)')} sub={t('depedForms.subtitle', 'Official DepEd form layouts - view, download PDF, or download blank templates for printing.')} />
       <ErrorBanner error={error} />
 
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -221,35 +223,35 @@ export default function DepedForms() {
       {(tab === 'sf1' || tab === 'sf2' || tab === 'sf3' || tab === 'sf4' || tab === 'sf5' || tab === 'sf9' || tab === 'sog' || tab === 'sas') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label style={{ fontSize: 13 }}>Section
+            <label style={{ fontSize: 13 }}>{t('depedForms.section')}
               <select className="input" style={{ marginLeft: 6, minWidth: 180 }} value={sectionId} onChange={ev => setSectionId(ev.target.value)}>
-                <option value="">Select Section</option>
-                {sections.map(sec => <option key={sec.id} value={sec.id}>Grade {sec.grade_level} - {sec.name}</option>)}
+                <option value="">{t('depedForms.selectSection')}</option>
+                {sections.map(sec => <option key={sec.id} value={sec.id}>{t('depedForms.sectionOption', 'Grade {{grade}} - {{name}}', { grade: sec.grade_level, name: sec.name })}</option>)}
               </select>
             </label>
             {(tab === 'sf2' || tab === 'sf4') && <>
-              <label style={{ fontSize: 13 }}>Month
+              <label style={{ fontSize: 13 }}>{t('depedForms.month')}
                 <select className="input" style={{ marginLeft: 6 }} value={month} onChange={ev => setMonth(Number(ev.target.value))}>
                   {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{new Date(2000, i).toLocaleString('en', { month: 'long' })}</option>)}
                 </select>
               </label>
-              <label style={{ fontSize: 13 }}>Year
+              <label style={{ fontSize: 13 }}>{t('depedForms.year')}
                 <input type="number" className="input" style={{ marginLeft: 6, width: 80 }} value={year} onChange={ev => setYear(Number(ev.target.value))} />
               </label>
             </>}
             {(tab === 'sf5') && (
-              <label style={{ fontSize: 13 }}>Term
+              <label style={{ fontSize: 13 }}>{t('depedForms.term')}
                 <select className="input" style={{ marginLeft: 6 }} value={term} onChange={ev => setTerm(ev.target.value)}>
-                  <option value="">All</option>
+                  <option value="">{t('depedForms.all')}</option>
                   <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
-                  <option value="Final">Final</option>
+                  <option value="Final">{t('depedForms.final')}</option>
                 </select>
               </label>
             )}
             {(tab === 'sf9' && sectionId) && (
-              <label style={{ fontSize: 13 }}>Student
+              <label style={{ fontSize: 13 }}>{t('depedForms.student')}
                 <select className="input" style={{ marginLeft: 6, minWidth: 200 }} value={studentId} onChange={ev => setStudentId(ev.target.value)}>
-                  <option value="">All students in section</option>
+                  <option value="">{t('depedForms.allStudentsSection')}</option>
                   {students.map(st => <option key={st.id} value={st.id}>{st.last_name}, {st.first_name}</option>)}
                 </select>
               </label>
@@ -260,9 +262,9 @@ export default function DepedForms() {
 
       {(tab === 'sf10' || tab === 'sf11') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
-          <label style={{ fontSize: 13 }}>Student
+          <label style={{ fontSize: 13 }}>{t('depedForms.student')}
             <select className="input" style={{ marginLeft: 6, minWidth: 280 }} value={studentId} onChange={ev => setStudentId(ev.target.value)}>
-              <option value="">Select Student for {tab === 'sf11' ? 'SHS Permanent Record (SF11)' : 'Permanent Record (SF10)'}</option>
+              <option value="">{t('depedForms.selectStudentPerm', 'Select Student for {{form}}', { form: tab === 'sf11' ? t('depedForms.sf11PermRecord', 'SHS Permanent Record (SF11)') : t('depedForms.sf10PermRecord', 'Permanent Record (SF10)') })}</option>
               {students.map(st => <option key={st.id} value={st.id}>{st.last_name}, {st.first_name}</option>)}
             </select>
           </label>
@@ -271,9 +273,9 @@ export default function DepedForms() {
 
       {(tab === 'sid') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
-          <label style={{ fontSize: 13 }}>Student
+          <label style={{ fontSize: 13 }}>{t('depedForms.student')}
             <select className="input" style={{ marginLeft: 6, minWidth: 280 }} value={studentId} onChange={ev => setStudentId(ev.target.value)}>
-              <option value="">Select Student for ID Card</option>
+              <option value="">{t('depedForms.selectStudentId')}</option>
               {students.map(st => <option key={st.id} value={st.id}>{st.last_name}, {st.first_name}</option>)}
             </select>
           </label>
@@ -283,7 +285,7 @@ export default function DepedForms() {
       {(tab === 'sf7') && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label style={{ fontSize: 13 }}>School Year
+            <label style={{ fontSize: 13 }}>{t('depedForms.schoolYear')}
               <input className="input" style={{ marginLeft: 6, width: 140 }} value={schoolYear} onChange={ev => setSchoolYear(ev.target.value)} placeholder="2026-2027" />
             </label>
           </div>
@@ -294,21 +296,21 @@ export default function DepedForms() {
       {!loading && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => form && printForm(form.code, form.title, html, form.orient)}>
-            <Printer size={14} /> Download PDF
+            <Printer size={14} /> {t('depedForms.downloadPdf')}
           </button>
           {tab !== 'sid' && (
             <button className="btn" onClick={() => form && downloadBlankForm(form.code, form.title, blankHtml, form.orient, info)}>
-              <Download size={14} /> Download Blank Form
+              <Download size={14} /> {t('depedForms.downloadBlank')}
             </button>
           )}
           {tab === 'sf9' && sectionId && !studentId && (
-            <button className="btn btn-primary"               onClick={() => batchPrintSF9(sectionId, info, toast)}>
-              <Printer size={14} /> Print All Report Cards
+            <button className="btn btn-primary"               onClick={() => batchPrintSF9(sectionId, info, toast, t)}>
+              <Printer size={14} /> {t('depedForms.printAllReportCards')}
             </button>
           )}
           {tab === 'sf9' && studentId && (
             <button className="btn" onClick={() => setConductOpen(true)}>
-              <Pencil size={14} /> Edit Conduct
+              <Pencil size={14} /> {t('depedForms.editConduct')}
             </button>
           )}
         </div>
@@ -321,14 +323,14 @@ export default function DepedForms() {
       {conductOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => !conductSaving && setConductOpen(false)}>
           <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 420, maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Conduct and Values Rating</h3>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>{t('depedForms.conductTitle')}</h3>
             <p style={{ margin: '0 0 12px', fontSize: 12, color: '#666' }}>
-              {term ? `Term: ${term}` : 'Select a term first'} - {info.school_year || schoolYear || 'No school year'}
+              {term ? t('depedForms.termValue', 'Term: {{termValue}}', { termValue: term }) : t('depedForms.selectTermHint', 'Select a term first')} - {info.school_year || schoolYear || t('depedForms.noSchoolYear')}
             </p>
             <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '2px solid #ddd' }}>Value</th>
+                  <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '2px solid #ddd' }}>{t('depedForms.value')}</th>
                   {['AO', 'SO', 'RO', 'NO'].map(v => (
                     <th key={v} style={{ textAlign: 'center', padding: '6px 4px', borderBottom: '2px solid #ddd' }}>{v}</th>
                   ))}
@@ -336,10 +338,10 @@ export default function DepedForms() {
               </thead>
               <tbody>
                 {[
-                  ['makadiyos', 'Maka-Diyos'],
-                  ['makatao', 'Maka-Tao'],
-                  ['makakalikasan', 'Makakalikasan'],
-                  ['makabansa', 'Makabansa']
+                  ['makadiyos', t('depedForms.valueMakadiyos', 'Maka-Diyos')],
+                  ['makatao', t('depedForms.valueMakatao', 'Maka-Tao')],
+                  ['makakalikasan', t('depedForms.valueMakakalikasan', 'Makakalikasan')],
+                  ['makabansa', t('depedForms.valueMakabansa', 'Makabansa')]
                 ].map(([key, label]) => (
                   <tr key={key}>
                     <td style={{ padding: '6px 4px', borderBottom: '1px solid #eee' }}>{label}</td>
@@ -354,9 +356,9 @@ export default function DepedForms() {
               </tbody>
             </table>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button className="btn" onClick={() => setConductOpen(false)} disabled={conductSaving}>Cancel</button>
+              <button className="btn" onClick={() => setConductOpen(false)} disabled={conductSaving}>{t('depedForms.cancel')}</button>
               <button className="btn btn-primary" onClick={saveConduct} disabled={conductSaving || !term}>
-                {conductSaving ? 'Saving...' : 'Save Ratings'}
+                {conductSaving ? t('depedForms.saving') : t('depedForms.saveRatings')}
               </button>
             </div>
           </div>

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BookOpen, Plus, Filter, Clock, CheckCircle, Send, Eye, Copy, RotateCcw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
 const REVIEWERS = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
@@ -159,7 +159,7 @@ export default function Lessons() {
   const counts = { draft: 0, submitted: 0, returned: 0, approved: 0 };
   rows.forEach((r) => { counts[r.submission_status] = (counts[r.submission_status] || 0) + 1; });
 
-  if (loading) return <Spinner />;
+  if (loading) return <SkeletonTable rows={6} cols={4} />;
 
   return (
     <div>

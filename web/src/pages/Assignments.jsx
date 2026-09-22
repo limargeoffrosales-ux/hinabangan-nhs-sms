@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, ClipboardCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { safeHttpUrl } from '../lib/utils';
-import { PageHead, Empty, ErrorBanner, Spinner, Modal, ConfirmModal } from '../components/ui';
+import { PageHead, Empty, ErrorBanner, Spinner, Modal, ConfirmModal, RichTextEditor } from '../components/ui';
 
 const KINDS = ['homework', 'classwork', 'quiz', 'activity', 'performance_task', 'project'];
 
@@ -49,6 +50,7 @@ const emptyForm = {
 };
 
 export default function Assignments() {
+  const { t } = useTranslation();
   const [schoolYear, setSchoolYear] = useState('2026-2027');
   const [classes, setClasses] = useState([]);
   const [classId, setClassId] = useState('');
@@ -163,7 +165,7 @@ export default function Assignments() {
   }
 
   async function removeAssignment(a) {
-    setConfirmAction({ message: `Delete "${a.title}"? This removes all student submissions.`, action: async () => {
+    setConfirmAction({ message: t('assignments.deleteConfirm', 'Delete "{{title}}"? This removes all student submissions.', { title: a.title }), action: async () => {
       try {
         await api(`/assignments/${a.id}`, { method: 'DELETE' });
         await loadAssignments();
@@ -227,16 +229,16 @@ export default function Assignments() {
 
   return (
     <>
-      <PageHead title="Assignments" sub="Homework, quizzes, and performance tasks with student submissions and rubric grading.">
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> New assignment</button>
+      <PageHead title={t('assignments.title', 'Assignments')} sub={t('assignments.subtitle', 'Homework, quizzes, and performance tasks with student submissions and rubric grading.')}>
+        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('assignments.newAssignment', 'New assignment')}</button>
       </PageHead>
       <ErrorBanner error={error} />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ margin: 0, alignItems: 'end' }}>
-          <div><label>School year</label>
+          <div><label>{t('assignments.schoolYear', 'School year')}</label>
             <input value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} /></div>
-          <div style={{ minWidth: 260 }}><label>Class</label>
+          <div style={{ minWidth: 260 }}><label>{t('assignments.class', 'Class')}</label>
             <select value={classId} onChange={(e) => setClassId(e.target.value)}>
               {!classes.length && <option value="">—</option>}
               {classes.map((c) => (
@@ -246,20 +248,20 @@ export default function Assignments() {
               ))}
             </select>
           </div>
-          <button className="btn" onClick={loadAssignments} disabled={loading}>Refresh</button>
+          <button className="btn" onClick={loadAssignments} disabled={loading}>{t('assignments.refresh', 'Refresh')}</button>
         </div>
         {currentClass && <div className="sub" style={{ marginTop: 8 }}>{currentClass.subject_code} · {currentClass.subject_title} — {currentClass.section_name}</div>}
       </div>
 
       {loading ? <Spinner /> : !classes.length ? (
-        <Empty text="No classes found for this school year. Assignments are posted per class (section + subject)." />
+        <Empty text={t('assignments.noClasses', 'No classes found for this school year. Assignments are posted per class (section + subject).')} />
       ) : !assignments.length ? (
-        <Empty text="No assignments yet for this class. Click “New assignment” to create one." />
+        <Empty text={t('assignments.noAssignments', 'No assignments yet for this class. Click “New assignment” to create one.')} />
       ) : (
         <div className="card table-wrap">
           <table>
             <thead>
-              <tr><th>Assignment</th><th>Kind</th><th>Competency</th><th>Due date</th><th>Points</th><th>Submitted</th><th>Graded</th><th style={{ width: 130 }}></th></tr>
+              <tr><th>{t('assignments.thAssignment', 'Assignment')}</th><th>{t('assignments.thKind', 'Kind')}</th><th>{t('assignments.thCompetency', 'Competency')}</th><th>{t('assignments.thDueDate', 'Due date')}</th><th>{t('assignments.thPoints', 'Points')}</th><th>{t('assignments.thSubmitted', 'Submitted')}</th><th>{t('assignments.thGraded', 'Graded')}</th><th style={{ width: 130 }}></th></tr>
             </thead>
             <tbody>
               {assignments.map((a) => (
@@ -270,15 +272,15 @@ export default function Assignments() {
                   </td>
                   <td><span className={`badge ${KIND_COLOR[a.kind] || 'badge-blue'}`}>{a.kind.replace('_', ' ')}</span></td>
                   <td>{a.competency_code ? <span className="badge badge-purple" title={a.competency_title}>{a.competency_code}</span> : <span className="sub">—</span>}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{a.due_date ? String(a.due_date).slice(0, 10) : 'No due date'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.due_date ? String(a.due_date).slice(0, 10) : t('assignments.noDueDate', 'No due date')}</td>
                   <td>{Number(a.total_points)}</td>
                   <td>{a.submitted_count} / {a.student_count}</td>
                   <td>{a.graded_count}</td>
                   <td>
                             <div className="row-actions">
-                      <button className="btn btn-sm btn-primary" onClick={() => openGrading(a)}><ClipboardCheck size={13} /> Grade</button>
-                      <button className="icon-btn" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"><Pencil size={14} aria-hidden="true" /></button>
-                      <button className="icon-btn" onClick={() => removeAssignment(a)} title="Delete" aria-label="Delete"><Trash2 size={14} aria-hidden="true" /></button>
+                      <button className="btn btn-sm btn-primary" onClick={() => openGrading(a)}><ClipboardCheck size={13} /> {t('assignments.grade', 'Grade')}</button>
+                      <button className="icon-btn" onClick={() => openEdit(a)} title={t('assignments.edit', 'Edit')} aria-label={t('assignments.edit', 'Edit')}><Pencil size={14} aria-hidden="true" /></button>
+                      <button className="icon-btn" onClick={() => removeAssignment(a)} title={t('assignments.delete', 'Delete')} aria-label={t('assignments.delete', 'Delete')}><Trash2 size={14} aria-hidden="true" /></button>
                     </div>
                   </td>
                 </tr>
@@ -289,54 +291,54 @@ export default function Assignments() {
       )}
 
       {formOpen && (
-        <Modal title={editing ? 'Edit assignment' : 'New assignment'} sub={`Class: ${currentClass ? currentClass.section_name + ' · ' + currentClass.subject_code : ''}`} onClose={() => setFormOpen(false)} wide>
+        <Modal title={editing ? t('assignments.editAssignment', 'Edit assignment') : t('assignments.newAssignment', 'New assignment')} sub={t('assignments.modalSub', 'Class: {{className}}', { className: currentClass ? currentClass.section_name + ' · ' + currentClass.subject_code : '' })} onClose={() => setFormOpen(false)} wide>
           <form onSubmit={saveAssignment}>
-            <label>Title</label>
+            <label>{t('assignments.titleLabel', 'Title')}</label>
             <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required autoFocus />
             <div className="form-row">
-              <div style={{ flex: 1 }}><label>Kind</label>
+              <div style={{ flex: 1 }}><label>{t('assignments.kindLabel', 'Kind')}</label>
                 <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
                   {KINDS.map((k) => <option key={k} value={k}>{k.replace('_', ' ')}</option>)}
                 </select>
               </div>
-              <div style={{ width: 140 }}><label>Total points</label>
+              <div style={{ width: 140 }}><label>{t('assignments.totalPointsLabel', 'Total points')}</label>
                 <input className="input" type="number" min="0" step="0.5" value={form.total_points} onChange={(e) => setForm({ ...form, total_points: e.target.value })} required />
               </div>
-              <div style={{ flex: 1 }}><label>Due date</label>
+              <div style={{ flex: 1 }}><label>{t('assignments.dueDateLabel', 'Due date')}</label>
                 <input className="input" type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
               </div>
             </div>
-            <label>Instructions / description</label>
-            <textarea className="input" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Explain what students need to do…" />
-            <label>Rubric <span className="muted">(optional — one criterion per line: “Criterion: points”)</span></label>
-            <textarea className="input" rows={3} value={form.rubricText} onChange={(e) => setForm({ ...form, rubricText: e.target.value })} placeholder={'Content: 12\nClarity: 8'} />
+            <label>{t('assignments.instructions', 'Instructions / description')}</label>
+            <RichTextEditor value={form.description} onChange={(html) => setForm({ ...form, description: html })} placeholder={t('assignments.instructionsPlaceholder', 'Explain what students need to do…')} rows={4} />
+            <label>{t('assignments.rubric', 'Rubric')} <span className="muted">{t('assignments.rubricHint', '(optional — one criterion per line: “Criterion: points”)')}</span></label>
+            <textarea className="input" rows={3} value={form.rubricText} onChange={(e) => setForm({ ...form, rubricText: e.target.value })} placeholder={t('assignments.rubricPlaceholder', 'Content: 12\nClarity: 8')} />
             {competencies.length > 0 && (
-              <label>Linked Competency <span className="muted">(optional)</span>
+              <label>{t('assignments.linkedCompetency', 'Linked Competency')} <span className="muted">{t('assignments.optional', '(optional)')}</span>
                 <select className="input" value={form.competency_id} onChange={(e) => setForm({ ...form, competency_id: e.target.value })}>
-                  <option value="">None</option>
+                  <option value="">{t('assignments.none', 'None')}</option>
                   {competencies.map((c) => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}
                 </select>
               </label>
             )}
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
               <input type="checkbox" checked={form.allow_late} onChange={(e) => setForm({ ...form, allow_late: e.target.checked })} />
-              Allow late submissions
+              {t('assignments.allowLate', 'Allow late submissions')}
             </label>
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setFormOpen(false)}>Cancel</button>
-              <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : (editing ? 'Save changes' : 'Create assignment')}</button>
+              <button type="button" className="btn" onClick={() => setFormOpen(false)}>{t('assignments.cancel', 'Cancel')}</button>
+              <button className="btn btn-primary" disabled={saving}>{saving ? t('assignments.saving', 'Saving…') : (editing ? t('assignments.saveChanges', 'Save changes') : t('assignments.createAssignment', 'Create assignment'))}</button>
             </div>
           </form>
         </Modal>
       )}
 
       {gradeOpen && (
-        <Modal title={active ? `Grade — ${active.title}` : 'Grade'} sub={active ? `${Number(active.total_points)} points` : ''} onClose={() => setGradeOpen(false)} wide>
+<Modal title={active ? t('assignments.gradeModalTitle', 'Grade — {{title}}', { title: active.title }) : t('assignments.grade', 'Grade')} sub={active ? t('assignments.pointsSub', '{{count}} points', { count: Number(active.total_points) }) : ''} onClose={() => setGradeOpen(false)} wide>
           {!roster ? <Spinner /> : (
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Student</th><th>Status</th><th>Work</th><th style={{ width: 80 }}>Score</th><th style={{ width: 200 }}>Feedback</th><th style={{ width: 110 }}></th></tr>
+                  <tr><th>{t('assignments.studentLabel', 'Student')}</th><th>{t('assignments.statusLabel', 'Status')}</th><th>{t('assignments.workLabel', 'Work')}</th><th style={{ width: 80 }}>{t('assignments.scoreLabel', 'Score')}</th><th style={{ width: 200 }}>{t('assignments.feedbackLabel', 'Feedback')}</th><th style={{ width: 110 }}></th></tr>
                 </thead>
                 <tbody>
                   {roster.data.map((s) => {
@@ -345,34 +347,40 @@ export default function Assignments() {
                       <tr key={s.student_id}>
                         <td>{s.last_name}, {s.first_name}</td>
                         <td>
-                          {!has ? <span className="badge badge-yellow">Not submitted</span>
+                          {!has ? <span className="badge badge-yellow">{t('assignments.notSubmitted', 'Not submitted')}</span>
                             : <span className={`badge ${STATUS_BADGE[s.submission_status] || 'badge-blue'}`}>{s.submission_status}</span>}
                         </td>
                         <td>
                           {!has ? <span className="muted">—</span> : (
                             <div style={{ maxWidth: 260 }}>
                               {s.text_content && <div className="sub">{s.text_content}</div>}
-                              {s.link_url && safeHttpUrl(s.link_url) && <a href={safeHttpUrl(s.link_url)} target="_blank" rel="noreferrer" className="muted">Open link</a>}
+                              {s.link_url && safeHttpUrl(s.link_url) && <a href={safeHttpUrl(s.link_url)} target="_blank" rel="noreferrer" className="muted">{t('assignments.openLink', 'Open link')}</a>}
                             </div>
                           )}
                         </td>
                         <td>
                           {has && <input className="input" type="number" min="0" step="0.5"
                             defaultValue={s.score ?? ''}
-                            onBlur={(e) => { s.score = e.target.value; }} />}
+                            onBlur={(e) => {
+                              const val = e.target.value;
+                              setRoster((prev) => prev.map((x) => x.student_id === s.student_id ? { ...x, score: val } : x));
+                            }} />}
                         </td>
                         <td>
                           {has && <input className="input" type="text"
                             defaultValue={s.feedback || ''}
-                            placeholder="Feedback…"
-                            onBlur={(e) => { s.feedback = e.target.value; }} />}
+                            placeholder={t('assignments.feedbackPlaceholder', 'Feedback…')}
+                            onBlur={(e) => {
+                              const val = e.target.value;
+                              setRoster((prev) => prev.map((x) => x.student_id === s.student_id ? { ...x, feedback: val } : x));
+                            }} />}
                         </td>
                         <td>
                           {has && (
                     <div className="row-actions">
-                              <button className="btn btn-sm btn-primary" disabled={gradeBusy} onClick={() => saveGrade(s.student_id, s)}>Save</button>
+                              <button className="btn btn-sm btn-primary" disabled={gradeBusy} onClick={() => saveGrade(s.student_id, s)}>{t('assignments.save', 'Save')}</button>
                               {s.submission_status !== 'graded' && (
-                                <button className="btn btn-sm" disabled={gradeBusy} onClick={() => returnToStudent(s.student_id, s.feedback)} title="Return for revision">Return</button>
+                                <button className="btn btn-sm" disabled={gradeBusy} onClick={() => returnToStudent(s.student_id, s.feedback)} title={t('assignments.returnForRevision', 'Return for revision')}>{t('assignments.return', 'Return')}</button>
                               )}
                             </div>
                           )}
@@ -384,7 +392,7 @@ export default function Assignments() {
               </table>
               {active && Array.isArray(active.rubric) && active.rubric.length > 0 && (
                 <div className="sub" style={{ marginTop: 10 }}>
-                  Rubric: {active.rubric.map((c) => `${c.criterion} (${c.points})`).join(' · ')}
+                  {t('assignments.rubricInfo', 'Rubric: {{items}}', { items: active.rubric.map((c) => `${c.criterion} (${c.points})`).join(' · ') })}
                 </div>
               )}
             </div>

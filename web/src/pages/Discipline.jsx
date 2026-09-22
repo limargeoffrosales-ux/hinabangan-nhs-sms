@@ -1,34 +1,17 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, ClipboardPenLine, Eye, CheckCircle2, FilePlus2, Shield, AlertTriangle, Clock, TrendingUp, BarChart3 } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import { loadRecharts } from '../lib/lazy-recharts';
 
-const TYPES = [
-  ['call_slip', 'Call Slip'],
-  ['bullying', 'Bullying'],
-  ['inappropriate_behavior', 'Inappropriate Behavior'],
-  ['fighting', 'Fighting / Physical Altercation'],
-  ['vandalism', 'Vandalism'],
-  ['tardiness', 'Chronic Tardiness'],
-  ['disrespect', 'Disrespect / Defiance'],
-  ['other', 'Other'],
-];
+const TYPES = ['call_slip', 'bullying', 'inappropriate_behavior', 'fighting', 'vandalism', 'tardiness', 'disrespect', 'other'];
 
 const SEVERITIES = ['minor', 'moderate', 'major'];
 const STATUSES = ['open', 'under_review', 'resolved'];
 
-const ACTION_TYPES = [
-  ['warning', 'Verbal / Written Warning'],
-  ['counseling', 'Counseling Session'],
-  ['parent_conference', 'Parent Conference'],
-  ['detention', 'Detention'],
-  ['community_service', 'Community Service'],
-  ['suspension', 'Suspension'],
-  ['referral', 'Referral (Guidance / Others)'],
-  ['other', 'Other Action'],
-];
+const ACTION_TYPES = ['warning', 'counseling', 'parent_conference', 'detention', 'community_service', 'suspension', 'referral', 'other'];
 
 const STATUS_BADGE = { open: 'badge-yellow', under_review: 'badge-blue', resolved: 'badge-green' };
 const STATUS_ICON = { open: Clock, under_review: AlertTriangle, resolved: CheckCircle2 };
@@ -48,10 +31,6 @@ const TYPE_COLOR = {
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'];
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#F5B942', '#FB7185', '#A78BFA', '#2DD4BF', '#F97316', '#6b7280'];
-
-function labelOf(list, key) {
-  return list.find(([k]) => k === key)?.[1] || key;
-}
 
 function fmtDate(d) {
   try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
@@ -79,9 +58,41 @@ function StatCard({ icon: Icon, label, value, color, accent }) {
 }
 
 export default function Discipline() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const canWrite = WRITE.includes(user?.role);
   const canDelete = ADMIN.includes(user?.role);
+
+  const TYPE_LABEL = {
+    call_slip: t('discipline.typeCallSlip', 'Call Slip'),
+    bullying: t('discipline.typeBullying', 'Bullying'),
+    inappropriate_behavior: t('discipline.typeInappropriateBehavior', 'Inappropriate Behavior'),
+    fighting: t('discipline.typeFighting', 'Fighting / Physical Altercation'),
+    vandalism: t('discipline.typeVandalism', 'Vandalism'),
+    tardiness: t('discipline.typeTardiness', 'Chronic Tardiness'),
+    disrespect: t('discipline.typeDisrespect', 'Disrespect / Defiance'),
+    other: t('discipline.typeOther', 'Other'),
+  };
+  const SEVERITY_LABEL = {
+    minor: t('discipline.severityMinor', 'Minor'),
+    moderate: t('discipline.severityModerate', 'Moderate'),
+    major: t('discipline.severityMajor', 'Major'),
+  };
+  const STATUS_LABEL = {
+    open: t('discipline.statusOpen', 'Open'),
+    under_review: t('discipline.statusUnderReview', 'Under review'),
+    resolved: t('discipline.statusResolved', 'Resolved'),
+  };
+  const ACTION_LABEL = {
+    warning: t('discipline.actionWarning', 'Verbal / Written Warning'),
+    counseling: t('discipline.actionCounseling', 'Counseling Session'),
+    parent_conference: t('discipline.actionParentConference', 'Parent Conference'),
+    detention: t('discipline.actionDetention', 'Detention'),
+    community_service: t('discipline.actionCommunityService', 'Community Service'),
+    suspension: t('discipline.actionSuspension', 'Suspension'),
+    referral: t('discipline.actionReferral', 'Referral (Guidance / Others)'),
+    other: t('discipline.actionOther', 'Other Action'),
+  };
 
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -200,7 +211,7 @@ export default function Discipline() {
   }
 
   async function removeRecord(r) {
-    setConfirmAction({ message: `Delete the conduct record for ${r.student_name}? This cannot be undone.`, action: async () => {
+    setConfirmAction({ message: t('discipline.deleteConfirm', 'Delete the conduct record for {{name}}? This cannot be undone.', { name: r.student_name }), action: async () => {
       try {
         await api(`/conduct/${r.id}`, { method: 'DELETE' });
         setSel(null);
@@ -221,39 +232,39 @@ export default function Discipline() {
   // Chart data
   const typeData = useMemo(() => {
     const m = {};
-    rows.forEach((r) => { const k = labelOf(TYPES, r.incident_type); m[k] = (m[k] || 0) + 1; });
+    rows.forEach((r) => { const k = TYPE_LABEL[r.incident_type] || r.incident_type; m[k] = (m[k] || 0) + 1; });
     return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [rows]);
+  }, [rows, t]);
 
   const severityData = useMemo(() => {
     const m = {};
     rows.forEach((r) => { m[r.severity] = (m[r.severity] || 0) + 1; });
-    return SEVERITIES.map((s) => ({ name: s, value: m[s] || 0 })).filter((d) => d.value > 0);
-  }, [rows]);
+    return SEVERITIES.map((s) => ({ key: s, name: SEVERITY_LABEL[s], value: m[s] || 0 })).filter((d) => d.value > 0);
+  }, [rows, t]);
 
   const tooltipStyle = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 };
 
   return (
     <>
-      <PageHead title="Student Conduct & Discipline" sub="Call slips, bullying cases, and inappropriate behaviors — log incidents, track actions taken, and monitor case status">
-        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> Log Incident</button>}
+      <PageHead title={t('discipline.title', 'Student Conduct & Discipline')} sub={t('discipline.subtitle', 'Call slips, bullying cases, and inappropriate behaviors — log incidents, track actions taken, and monitor case status')}>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('discipline.logIncident', 'Log Incident')}</button>}
       </PageHead>
       <ErrorBanner error={error} />
 
       {/* KPI Cards */}
       <div className="kpi-row" style={{ marginBottom: 14 }}>
-        <StatCard icon={AlertTriangle} label="Open cases" value={summary?.by_status?.open ?? 0} color="#f59e0b" accent="#f59e0b" />
-        <StatCard icon={ClipboardPenLine} label="Under review" value={summary?.by_status?.under_review ?? 0} color="#3b82f6" accent="#3b82f6" />
-        <StatCard icon={CheckCircle2} label="Resolved" value={summary?.by_status?.resolved ?? 0} color="#22c55e" accent="#22c55e" />
-        <StatCard icon={TrendingUp} label="This month" value={summary?.cases_this_month ?? 0} color="#8b5cf6" accent="#8b5cf6" />
-        <StatCard icon={Shield} label="Major incidents" value={summary?.by_severity?.major ?? 0} color="#ef4444" accent="#ef4444" />
+        <StatCard icon={AlertTriangle} label={t('discipline.openCases', 'Open cases')} value={summary?.by_status?.open ?? 0} color="#f59e0b" accent="#f59e0b" />
+        <StatCard icon={ClipboardPenLine} label={t('discipline.underReview', 'Under review')} value={summary?.by_status?.under_review ?? 0} color="#3b82f6" accent="#3b82f6" />
+        <StatCard icon={CheckCircle2} label={t('discipline.resolved', 'Resolved')} value={summary?.by_status?.resolved ?? 0} color="#22c55e" accent="#22c55e" />
+        <StatCard icon={TrendingUp} label={t('discipline.thisMonth', 'This month')} value={summary?.cases_this_month ?? 0} color="#8b5cf6" accent="#8b5cf6" />
+        <StatCard icon={Shield} label={t('discipline.majorIncidents', 'Major incidents')} value={summary?.by_severity?.major ?? 0} color="#ef4444" accent="#ef4444" />
       </div>
 
       {/* Charts */}
       {R && rows.length > 0 && (
         <div className="grid grid-2" style={{ marginBottom: 14 }}>
           <div className="card" style={{ padding: 14 }}>
-            <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><BarChart3 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />Incidents by Type</h4>
+            <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><BarChart3 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />{t('discipline.incidentsByType', 'Incidents by Type')}</h4>
             <div style={{ height: 180 }}>
               <R.ResponsiveContainer width="100%" height="100%">
                 <R.BarChart data={typeData} layout="vertical" margin={{ left: 4, right: 16 }}>
@@ -261,7 +272,7 @@ export default function Discipline() {
                   <R.XAxis type="number" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} allowDecimals={false} />
                   <R.YAxis type="category" dataKey="name" width={130} tick={{ fill: 'var(--text-dim)', fontSize: 10 }} />
                   <R.Tooltip contentStyle={tooltipStyle} />
-                  <R.Bar dataKey="value" name="Incidents" radius={[0, 4, 4, 0]}>
+                  <R.Bar dataKey="value" name={t('discipline.incidentsSeries', 'Incidents')} radius={[0, 4, 4, 0]}>
                     {typeData.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </R.Bar>
                 </R.BarChart>
@@ -269,12 +280,12 @@ export default function Discipline() {
             </div>
           </div>
           <div className="card" style={{ padding: 14 }}>
-            <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><Shield size={14} style={{ verticalAlign: -2, marginRight: 4 }} />By Severity</h4>
+            <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><Shield size={14} style={{ verticalAlign: -2, marginRight: 4 }} />{t('discipline.bySeverity', 'By Severity')}</h4>
             <div style={{ height: 180 }}>
               <R.ResponsiveContainer width="100%" height="100%">
                 <R.PieChart>
                   <R.Pie data={severityData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={3} stroke="var(--card)">
-                    {severityData.map((d) => <R.Cell key={d.name} fill={SEVERITY_COLOR[d.name] || '#94a3b8'} />)}
+                    {severityData.map((d) => <R.Cell key={d.key} fill={SEVERITY_COLOR[d.key] || '#94a3b8'} />)}
                   </R.Pie>
                   <R.Tooltip contentStyle={tooltipStyle} />
                   <R.Legend wrapperStyle={{ fontSize: 11 }} />
@@ -287,15 +298,15 @@ export default function Discipline() {
 
       {/* Filters */}
       <div className="search-row">
-        <input placeholder="Search student name or LRN..." value={filters.q}
+        <input placeholder={t('discipline.searchPlaceholder', 'Search student name or LRN...')} value={filters.q}
           onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} />
         <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          <option value="">{t('discipline.allStatuses', 'All statuses')}</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
         </select>
         <select value={filters.type} onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value }))}>
-          <option value="">All incident types</option>
-          {TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          <option value="">{t('discipline.allTypes', 'All incident types')}</option>
+          {TYPES.map((k) => <option key={k} value={k}>{TYPE_LABEL[k]}</option>)}
         </select>
       </div>
 
@@ -305,14 +316,14 @@ export default function Discipline() {
           <table>
             <thead>
               <tr>
-                <th>Student</th><th>Type</th><th style={{ textAlign: 'center' }}>Severity</th>
-                <th style={{ textAlign: 'center' }}>Date</th><th style={{ textAlign: 'center' }}>Status</th>
-                <th>Reported by</th><th style={{ textAlign: 'center' }}>Actions</th><th></th>
+                <th>{t('discipline.colStudent', 'Student')}</th><th>{t('discipline.colType', 'Type')}</th><th style={{ textAlign: 'center' }}>{t('discipline.colSeverity', 'Severity')}</th>
+                <th style={{ textAlign: 'center' }}>{t('discipline.colDate', 'Date')}</th><th style={{ textAlign: 'center' }}>{t('discipline.colStatus', 'Status')}</th>
+                <th>{t('discipline.colReportedBy', 'Reported by')}</th><th style={{ textAlign: 'center' }}>{t('discipline.colActions', 'Actions')}</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan={8}><Spinner /></td></tr> : rows.length === 0 ? (
-                <tr><td colSpan={8} className="sub">No conduct records match the current filters.</td></tr>
+              {loading ? <tr><td colSpan={8}><SkeletonTable rows={1} cols={8} /></td></tr> : rows.length === 0 ? (
+                <tr><td colSpan={8} className="sub">{t('discipline.emptyRows', 'No conduct records match the current filters.')}</td></tr>
               ) : rows.map((r) => {
                 const StatusIcon = STATUS_ICON[r.status] || Clock;
                 return (
@@ -324,16 +335,16 @@ export default function Discipline() {
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ width: 7, height: 7, borderRadius: '50%', background: TYPE_COLOR[r.incident_type] || '#94a3b8', flexShrink: 0 }} />
-                        {labelOf(TYPES, r.incident_type)}
+                        {TYPE_LABEL[r.incident_type] || r.incident_type}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span className={`badge ${SEVERITY_BADGE[r.severity] || 'badge-gray'}`}>{r.severity}</span>
+                      <span className={`badge ${SEVERITY_BADGE[r.severity] || 'badge-gray'}`}>{SEVERITY_LABEL[r.severity] || r.severity}</span>
                     </td>
                     <td style={{ textAlign: 'center' }} className="sub">{fmtDate(r.incident_date)}</td>
                     <td style={{ textAlign: 'center' }}>
                       <span className={`badge ${STATUS_BADGE[r.status] || 'badge-gray'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <StatusIcon size={11} />{r.status.replace('_', ' ')}
+                        <StatusIcon size={11} />{STATUS_LABEL[r.status] || r.status}
                       </span>
                     </td>
                     <td className="sub">{r.reported_by_name || '—'}</td>
@@ -342,9 +353,9 @@ export default function Discipline() {
                     </td>
                     <td>
                       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-                        <button className="icon-btn" title="Open case" aria-label="Open case" onClick={() => openDetail(r)}><Eye size={15} aria-hidden="true" /></button>
+                        <button className="icon-btn" title={t('discipline.openCase', 'Open case')} aria-label={t('discipline.openCase', 'Open case')} onClick={() => openDetail(r)}><Eye size={15} aria-hidden="true" /></button>
                         {canDelete && (
-                          <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => removeRecord(r)}><Trash2 size={15} aria-hidden="true" /></button>
+                          <button className="icon-btn" title={t('discipline.delete', 'Delete')} aria-label={t('discipline.delete', 'Delete')} onClick={() => removeRecord(r)}><Trash2 size={15} aria-hidden="true" /></button>
                         )}
                       </div>
                     </td>
@@ -358,19 +369,19 @@ export default function Discipline() {
 
       {/* --- Create Modal --- */}
       {showCreate && (
-        <Modal title="Log a conduct incident" sub="Record a call slip, bullying case, or behavioral report for monitoring" onClose={() => setShowCreate(false)} wide>
+        <Modal title={t('discipline.createTitle', 'Log a conduct incident')} sub={t('discipline.createSubtitle', 'Record a call slip, bullying case, or behavioral report for monitoring')} onClose={() => setShowCreate(false)} wide>
           <form onSubmit={saveRecord}>
             <div className="form-row">
               <div>
-                <label>Search student</label>
-                <input placeholder="Type to filter by name or LRN..." value={createForm.sname || ''}
+                <label>{t('discipline.searchStudent', 'Search student')}</label>
+                <input placeholder={t('discipline.searchStudentPh', 'Type to filter by name or LRN...')} value={createForm.sname || ''}
                   onChange={(e) => setCreateForm((f) => ({ ...f, sname: e.target.value }))} />
               </div>
               <div>
-                <label>Student *</label>
+                <label>{t('discipline.studentRequired', 'Student *')}</label>
                 <select required value={createForm.student_id}
                   onChange={(e) => setCreateForm((f) => ({ ...f, student_id: e.target.value }))}>
-                  <option value="">Select student...</option>
+                  <option value="">{t('discipline.selectStudent', 'Select student...')}</option>
                   {filteredStudents.slice(0, 120).map((s) => (
                     <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} · LRN {s.lrn || '—'}</option>
                   ))}
@@ -379,30 +390,30 @@ export default function Discipline() {
             </div>
             <div className="form-row">
               <div>
-                <label>Incident type *</label>
+                <label>{t('discipline.incidentTypeRequired', 'Incident type *')}</label>
                 <select required value={createForm.incident_type}
                   onChange={(e) => setCreateForm((f) => ({ ...f, incident_type: e.target.value }))}>
-                  {TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  {TYPES.map((k) => <option key={k} value={k}>{TYPE_LABEL[k]}</option>)}
                 </select>
               </div>
               <div>
-                <label>Severity</label>
+                <label>{t('discipline.colSeverity', 'Severity')}</label>
                 <select value={createForm.severity} onChange={(e) => setCreateForm((f) => ({ ...f, severity: e.target.value }))}>
-                  {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  {SEVERITIES.map((s) => <option key={s} value={s}>{SEVERITY_LABEL[s]}</option>)}
                 </select>
               </div>
               <div>
-                <label>Incident date *</label>
+                <label>{t('discipline.incidentDateRequired', 'Incident date *')}</label>
                 <input type="date" required value={createForm.incident_date}
                   onChange={(e) => setCreateForm((f) => ({ ...f, incident_date: e.target.value }))} />
               </div>
             </div>
-            <label>What happened?</label>
-            <textarea rows={3} placeholder="Describe the incident, witnesses, and context..." value={createForm.description}
+            <label>{t('discipline.whatHappened', 'What happened?')}</label>
+            <textarea rows={3} placeholder={t('discipline.descriptionPh', 'Describe the incident, witnesses, and context...')} value={createForm.description}
               onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))} />
             <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Record'}</button>
+              <button type="button" className="btn" onClick={() => setShowCreate(false)}>{t('discipline.cancel', 'Cancel')}</button>
+              <button className="btn btn-primary" disabled={saving}>{saving ? t('discipline.saving', 'Saving...') : t('discipline.saveRecord', 'Save Record')}</button>
             </div>
           </form>
         </Modal>
@@ -410,19 +421,19 @@ export default function Discipline() {
 
       {/* --- Detail Modal --- */}
       {sel && (
-        <Modal title="Conduct case" sub={`${sel.student_name} · LRN ${sel.lrn || '—'} · ${sel.grade_level || ''} ${sel.section_name ? '· ' + sel.section_name : ''}`} onClose={() => setSel(null)} wide>
+        <Modal title={t('discipline.detailTitle', 'Conduct case')} sub={`${sel.student_name} · LRN ${sel.lrn || '—'} · ${sel.grade_level || ''} ${sel.section_name ? '· ' + sel.section_name : ''}`} onClose={() => setSel(null)} wide>
           {selLoading ? <Spinner /> : (
             <>
               {/* Case header */}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: TYPE_COLOR[sel.incident_type] || '#94a3b8' }} />
-                  <strong style={{ fontSize: 14 }}>{labelOf(TYPES, sel.incident_type)}</strong>
+                  <strong style={{ fontSize: 14 }}>{TYPE_LABEL[sel.incident_type] || sel.incident_type}</strong>
                 </div>
-                <span className={`badge ${SEVERITY_BADGE[sel.severity] || 'badge-gray'}`}>{sel.severity}</span>
-                <span className={`badge ${STATUS_BADGE[sel.status] || 'badge-gray'}`}>{sel.status.replace('_', ' ')}</span>
+                <span className={`badge ${SEVERITY_BADGE[sel.severity] || 'badge-gray'}`}>{SEVERITY_LABEL[sel.severity] || sel.severity}</span>
+                <span className={`badge ${STATUS_BADGE[sel.status] || 'badge-gray'}`}>{STATUS_LABEL[sel.status] || sel.status}</span>
                 <span className="sub" style={{ fontSize: 12, marginLeft: 'auto' }}>
-                  Open {sel.days_open} day(s) · Logged {sel.created_at?.slice(0, 10)}
+                  {t('discipline.openDays', 'Open {{days}} day(s) · Logged {{date}}', { days: sel.days_open, date: sel.created_at?.slice(0, 10) })}
                 </span>
               </div>
 
@@ -430,39 +441,39 @@ export default function Discipline() {
               <div className="conduct-detail">
                 <div className="form-row">
                   <div>
-                    <label>Type</label>
+                    <label>{t('discipline.colType', 'Type')}</label>
                     <select value={sel.incident_type} onChange={(e) => updateSel({ incident_type: e.target.value })}>
-                      {TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                      {TYPES.map((k) => <option key={k} value={k}>{TYPE_LABEL[k]}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label>Severity</label>
+                    <label>{t('discipline.colSeverity', 'Severity')}</label>
                     <select value={sel.severity} onChange={(e) => updateSel({ severity: e.target.value })}>
-                      {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                      {SEVERITIES.map((s) => <option key={s} value={s}>{SEVERITY_LABEL[s]}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label>Date</label>
+                    <label>{t('discipline.colDate', 'Date')}</label>
                     <input type="date" value={sel.incident_date} onChange={(e) => updateSel({ incident_date: e.target.value })} />
                   </div>
                   <div>
-                    <label>Status</label>
+                    <label>{t('discipline.colStatus', 'Status')}</label>
                     <select value={sel.status} onChange={(e) => updateSel({ status: e.target.value })}>
-                      {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                      {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                     </select>
                   </div>
                 </div>
-                <label>Description</label>
-                <textarea rows={3} defaultValue={sel.description || ''} placeholder="No description recorded"
+                <label>{t('discipline.labelDescription', 'Description')}</label>
+                <textarea rows={3} defaultValue={sel.description || ''} placeholder={t('discipline.noDescription', 'No description recorded')}
                   onBlur={(e) => { if (e.target.value !== (sel.description || '')) updateSel({ description: e.target.value }); }} />
-                <div className="sub">Reported by {sel.reported_by_name || '—'}</div>
+                <div className="sub">{t('discipline.reportedBy', 'Reported by {{name}}', { name: sel.reported_by_name || '—' })}</div>
               </div>
 
               {/* Action timeline */}
               <h4 style={{ margin: '18px 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ClipboardPenLine size={15} /> Actions taken <span className="sub">({sel.actions?.length || 0})</span>
+                <ClipboardPenLine size={15} /> {t('discipline.actionsTaken', 'Actions taken')} <span className="sub">({sel.actions?.length || 0})</span>
               </h4>
-              {!sel.actions?.length ? <Empty text="No actions recorded yet — add an intervention below." /> : (
+              {!sel.actions?.length ? <Empty text={t('discipline.emptyActions', 'No actions recorded yet — add an intervention below.')} /> : (
                 <div className="conduct-timeline">
                   {sel.actions.map((a, idx) => (
                     <div className="conduct-ev" key={a.id} style={{ position: 'relative', paddingLeft: 20 }}>
@@ -478,8 +489,8 @@ export default function Discipline() {
                         border: '2px solid var(--card)',
                       }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span className={`badge ${ACTION_BADGE[a.action_type] || 'badge-gray'}`}>{labelOf(ACTION_TYPES, a.action_type)}</span>
-                        <span className="sub" style={{ fontSize: 11.5 }}>{fmtDate(a.action_date)} · by {a.done_by_name || '—'}</span>
+                        <span className={`badge ${ACTION_BADGE[a.action_type] || 'badge-gray'}`}>{ACTION_LABEL[a.action_type] || a.action_type}</span>
+                        <span className="sub" style={{ fontSize: 11.5 }}>{fmtDate(a.action_date)} · {t('discipline.byActor', 'by {{name}}', { name: a.done_by_name || '—' })}</span>
                       </div>
                       <div className="conduct-ev-note" style={{ marginTop: 4 }}>{a.notes || '—'}</div>
                     </div>
@@ -491,35 +502,39 @@ export default function Discipline() {
               <form onSubmit={addAction}>
                 <div className="form-row" style={{ marginTop: 14 }}>
                   <div>
-                    <label>Action taken</label>
+                    <label>{t('discipline.labelActionTaken', 'Action taken')}</label>
                     <select required value={actionForm.action_type} onChange={(e) => setActionForm((a) => ({ ...a, action_type: e.target.value }))}>
-                      {ACTION_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                      {ACTION_TYPES.map((k) => <option key={k} value={k}>{ACTION_LABEL[k]}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label>Date</label>
+                    <label>{t('discipline.colDate', 'Date')}</label>
                     <input type="date" required value={actionForm.action_date} onChange={(e) => setActionForm((a) => ({ ...a, action_date: e.target.value }))} />
                   </div>
                   <div>
-                    <label>Notes</label>
-                    <input placeholder="Outcome, commitment, next steps..." value={actionForm.notes}
+                    <label>{t('discipline.labelNotes', 'Notes')}</label>
+                    <input placeholder={t('discipline.notesPh', 'Outcome, commitment, next steps...')} value={actionForm.notes}
                       onChange={(e) => setActionForm((a) => ({ ...a, notes: e.target.value }))} />
                   </div>
                 </div>
                 <div className="modal-actions">
                   {canDelete && (
                     <button type="button" className="btn btn-danger" style={{ marginRight: 'auto' }} onClick={() => removeRecord(sel)}>
-                      <Trash2 size={14} /> Delete
+                      <Trash2 size={14} /> {t('discipline.delete', 'Delete')}
                     </button>
                   )}
-                  <button type="button" className="btn" onClick={() => setSel(null)}>Close</button>
-                  <button className="btn btn-primary"><FilePlus2 size={14} /> Record Action</button>
+                  <button type="button" className="btn" onClick={() => setSel(null)}>{t('discipline.close', 'Close')}</button>
+                  <button className="btn btn-primary"><FilePlus2 size={14} /> {t('discipline.recordAction', 'Record Action')}</button>
                 </div>
               </form>
               {sel.status === 'open' && (
                 <div className="sub" style={{ marginTop: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
                   <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
-                  Logging an action automatically moves this case to <strong>Under review</strong>. Set it to <strong>Resolved</strong> once the intervention is complete.
+                  {t('discipline.hintStart', 'Logging an action automatically moves this case to')}{' '}
+                  <strong>{t('discipline.statusUnderReview', 'Under review')}</strong>
+                  {t('discipline.hintMiddle', '. Set it to')}{' '}
+                  <strong>{t('discipline.statusResolved', 'Resolved')}</strong>{' '}
+                  {t('discipline.hintEnd', 'once the intervention is complete.')}
                 </div>
               )}
             </>

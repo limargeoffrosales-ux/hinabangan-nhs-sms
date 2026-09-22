@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { CalendarRange, Plus, RefreshCw, Trash2, Pencil, TriangleAlert, CheckCircle2, Printer } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { PageHead, Badge, Empty, ErrorBanner, Modal } from '../components/ui';
+import { PageHead, Badge, Empty, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 import { printElementHtml } from '../lib/export';
+import { useTranslation } from 'react-i18next';
 import DOMPurify from 'dompurify';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -12,6 +13,7 @@ const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 
 export default function Programs() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const canWrite = WRITE.includes(user?.role);
   const isTeacher = user?.role === 'teacher';
   const canEditMeetings = canWrite || isTeacher;
@@ -32,6 +34,8 @@ export default function Programs() {
   const [modal, setModal] = useState(null);
   const [entryModal, setEntryModal] = useState(null);
   const [lastFailures, setLastFailures] = useState([]);
+  const [confirmEntryDelete, setConfirmEntryDelete] = useState(null);
+  const [confirmAssignmentDelete, setConfirmAssignmentDelete] = useState(null);
 
   const loadAll = useCallback(async () => {
     setError(null);
@@ -129,16 +133,11 @@ export default function Programs() {
   }
 
   async function removeEntry(id) {
-    if (!window.confirm('Remove this meeting from the program?')) return;
-    await api(`/schedule/entries/${id}`, { method: 'DELETE' });
-    await reloadSchedule();
+    setConfirmEntryDelete(id);
   }
 
   async function deleteAssignment(id) {
-    if (!window.confirm('Delete this assignment? This cannot be undone.')) return;
-    await api(`/schedule/assignments/${id}`, { method: 'DELETE' });
-    const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
-    setAssignments(asg.data || []);
+    setConfirmAssignmentDelete(id);
   }
 
   function printProgram() {
@@ -632,6 +631,35 @@ export default function Programs() {
           onSubmit={async (body) => {
             await saveEntry(entryModal.id, body);
             setEntryModal(null);
+          }}
+        />
+      )}
+
+      {confirmEntryDelete && (
+        <ConfirmModal
+          message={t('programs.removeEntryConfirm', 'Remove this meeting from the program?')}
+          danger
+          onCancel={() => setConfirmEntryDelete(null)}
+          onConfirm={async () => {
+            const id = confirmEntryDelete;
+            setConfirmEntryDelete(null);
+            await api(`/schedule/entries/${id}`, { method: 'DELETE' });
+            await reloadSchedule();
+          }}
+        />
+      )}
+
+      {confirmAssignmentDelete && (
+        <ConfirmModal
+          message={t('common.confirmDelete')}
+          danger
+          onCancel={() => setConfirmAssignmentDelete(null)}
+          onConfirm={async () => {
+            const id = confirmAssignmentDelete;
+            setConfirmAssignmentDelete(null);
+            await api(`/schedule/assignments/${id}`, { method: 'DELETE' });
+            const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
+            setAssignments(asg.data || []);
           }}
         />
       )}

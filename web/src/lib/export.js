@@ -1,5 +1,46 @@
+import { getApiBase, getToken } from './api';
+
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Downloads an authenticated endpoint response as a file. The server sets the
+// Content-Disposition filename; fallbackName is used when the header is absent.
+export async function downloadFromApi(urlPath, fallbackName) {
+  const token = getToken();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 75000);
+  try {
+    const res = await fetch(`${getApiBase()}${urlPath}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      let msg = `Download failed (${res.status})`;
+      try {
+        const d = await res.json();
+        if (d && d.error) msg = d.error;
+      } catch { /* non-JSON body */ }
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    const blob = await res.blob();
+    const match = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : (fallbackName || 'export');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 300);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function textToHtml(text) {

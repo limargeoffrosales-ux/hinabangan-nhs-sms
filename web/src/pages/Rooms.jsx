@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
 
 const ROOM_TYPES = [
   { value: 'classroom', label: 'Classroom', badgeColor: 'blue' },
@@ -122,7 +122,7 @@ export default function Rooms() {
 
       <ErrorBanner error={error} />
 
-      {loading ? <Spinner /> : filtered.length === 0 ? <Empty text={t('rooms.noData', 'No rooms match the current filters.')} /> : (
+      {loading ? <SkeletonTable rows={6} cols={4} /> : filtered.length === 0 ? <Empty text={t('rooms.noData', 'No rooms match the current filters.')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>

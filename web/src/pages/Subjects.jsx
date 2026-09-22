@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const TERM_LABELS = { first: 'First Term', second: 'Second Term', third: 'Third Term', all: 'All Terms' };
 const TERM_OPTIONS = [
@@ -142,7 +142,7 @@ export default function Subjects() {
         <button className="btn btn-sm" onClick={load}>{t('common.refresh')}</button>
       </div>
       <ErrorBanner error={error} />
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty text={t('subjects.noData')} /> : (
+      {loading ? <SkeletonTable rows={8} cols={4} /> : rows.length === 0 ? <Empty text={t('subjects.noData')} /> : (
         <div className="card table-wrap">
           <table>
             <thead>

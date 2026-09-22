@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Mail, MessageSquare, RefreshCw, Pencil, Send } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner } from '../components/ui';
+import { subscribeLive } from '../lib/realtime';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, SkeletonTable } from '../components/ui';
 
 const EVENTS = {
   assignment_created: 'Assignment posted',
@@ -10,8 +11,15 @@ const EVENTS = {
   announcement_posted: 'Announcement',
   grade_posted: 'Grades posted',
   test: 'Test message',
+  password_reset: 'Password reset',
+  account_registered: 'Account created',
+  link_approved: 'Portal link approved',
+  link_rejected: 'Portal link rejected',
+  enrollment_applied: 'Enrollment applied',
+  enrollment_approved: 'Enrollment confirmed',
+  blast: 'SMS blast',
 };
-const TOKENS = ['{{name}}', '{{title}}', '{{subject}}', '{{section}}', '{{due_date}}', '{{points}}', '{{score}}', '{{total}}', '{{student}}', '{{status}}', '{{date}}', '{{term}}', '{{school_year}}', '{{school}}'];
+const TOKENS = ['{{name}}', '{{username}}', '{{student}}', '{{title}}', '{{kind}}', '{{subject}}', '{{section}}', '{{school_year}}', '{{term}}', '{{grade_level}}', '{{strand}}', '{{lrn}}', '{{due_date}}', '{{points}}', '{{score}}', '{{total}}', '{{status}}', '{{date}}', '{{remarks}}', '{{priority}}', '{{body}}', '{{code}}', '{{url}}', '{{note}}', '{{school}}'];
 
 export default function Notifications() {
   const [settings, setSettings] = useState(null);
@@ -24,6 +32,7 @@ export default function Notifications() {
   const [notice, setNotice] = useState(null);
   const [filter, setFilter] = useState({ status: '', channel: '' });
   const [test, setTest] = useState({ email: '', phone: '' });
+  const [smsForm, setSmsForm] = useState({ url: '', token: '', sender: '' });
   const [editing, setEditing] = useState(null);
   const [blast, setBlast] = useState({ message: '' });
   const [blastBusy, setBlastBusy] = useState(false);
@@ -42,6 +51,7 @@ export default function Notifications() {
         api(`/notifications?limit=100${filter.status ? `&status=${filter.status}` : ''}${filter.channel ? `&channel=${filter.channel}` : ''}`),
       ]);
       setSettings(s);
+      setSmsForm((f) => ({ ...f, url: s.sms_provider_url || '', sender: s.sms_sender || '' }));
       setTemplates(t.data);
       setRows(l.data);
       setTotal(l.total);
@@ -55,6 +65,10 @@ export default function Notifications() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  useEffect(() => subscribeLive((msg) => {
+    if (msg.type === 'notification') loadAll();
+  }), [loadAll]);
+
   async function toggle(key, value) {
     setBusy(true);
     setNotice(null);
@@ -62,6 +76,35 @@ export default function Notifications() {
       const s = await api('/notifications/settings', { method: 'PATCH', body: { [key]: value } });
       setSettings(s);
       setNotice(`${key === 'email_enabled' ? 'Email' : 'SMS'} notifications ${value ? 'enabled' : 'disabled'}.`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveSmsProvider({ useTextbelt, clear } = {}) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const body = {};
+      if (clear) {
+        body.sms_provider_url = '';
+        body.sms_provider_token = '';
+        body.sms_sender = 'SCHOOL';
+      } else if (useTextbelt) {
+        body.sms_provider_url = 'textbelt';
+        body.sms_provider_token = '';
+        body.sms_sender = smsForm.sender.trim() || 'SCHOOL';
+      } else {
+        body.sms_provider_url = smsForm.url.trim();
+        body.sms_provider_token = smsForm.token.trim();
+        body.sms_sender = smsForm.sender.trim() || 'SCHOOL';
+      }
+      const s = await api('/notifications/settings', { method: 'PATCH', body });
+      setSettings(s);
+      setSmsForm((f) => ({ ...f, url: s.sms_provider_url || '', token: '', sender: s.sms_sender || '' }));
+      setNotice('SMS provider saved — queued SMS messages deliver on the next sweep (about a minute).');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -157,7 +200,7 @@ export default function Notifications() {
     }
   }
 
-  const statusBadge = (s) => (s === 'sent' ? 'ok' : s === 'failed' ? 'absent' : 'normal');
+  const statusBadge = (s) => (s === 'sent' ? 'ok' : s === 'failed' ? 'absent' : s === 'simulated' ? 'yellow' : 'normal');
 
   return (
     <>
@@ -166,7 +209,7 @@ export default function Notifications() {
       {notice && <div className="notice" style={{ margin: '10px 0' }}>{notice}</div>}
       <ErrorBanner error={error} />
 
-      {loading && !settings ? <Spinner /> : (
+      {loading && !settings ? <SkeletonTable rows={6} cols={3} /> : (
         <div className="two-col">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="card">
@@ -198,7 +241,7 @@ export default function Notifications() {
               <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MessageSquare size={16} style={{ color: 'var(--accent)' }} /> SMS
                 <span className="badge" style={{ marginLeft: 'auto' }}>
-                  {settings?.sms_configured ? 'PROVIDER CONFIGURED' : 'NO PROVIDER'}
+                  {settings?.sms_mode === 'provider' ? 'PROVIDER CONFIGURED' : settings?.sms_mode === 'simulator' ? 'SIMULATOR (demo — no real SMS)' : 'NO PROVIDER'}
                 </span>
               </h3>
               <div className="form-row">
@@ -207,9 +250,38 @@ export default function Notifications() {
                     onChange={(e) => toggle('sms_enabled', e.target.checked)} />
                   Send SMS notifications to guardian phones
                 </label>
-                <div className="sub">SMS posts to SMS_PROVIDER_URL (guardian contacts on learner records). Queued messages retry automatically once a provider is configured.</div>
+                {settings?.sms_mode === 'simulator'
+                  ? <div className="sub">Simulator mode — no gateway yet, so SMS flows work end-to-end and messages show in the log marked <strong>simulated</strong> (no real SMS is sent). Configure a provider below to text real phones.</div>
+                  : <div className="sub">SMS posts to the gateway below (guardian contacts on learner records). Queued messages retry automatically.</div>}
               </div>
-              {settings?.sms_sender && <div className="sub">Sender ID: <strong>{settings.sms_sender}</strong></div>}
+              <div className="form-row" style={{ flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
+                <label className="sub" style={{ marginBottom: 0 }}>Gateway URL — or the name <strong>textbelt</strong> for the built-in free demo</label>
+                <input className="input" placeholder="https://relay.example.com/send  or  textbelt" value={smsForm.url}
+                  onChange={(e) => setSmsForm((f) => ({ ...f, url: e.target.value }))} />
+                <label className="sub" style={{ marginBottom: 0 }}>API token / key</label>
+                <input className="input" type="password" placeholder="Bearer token (blank is fine for the textbelt demo)" value={smsForm.token}
+                  onChange={(e) => setSmsForm((f) => ({ ...f, token: e.target.value }))} />
+                <label className="sub" style={{ marginBottom: 0 }}>Sender ID</label>
+                <input className="input" placeholder="SCHOOL" value={smsForm.sender}
+                  onChange={(e) => setSmsForm((f) => ({ ...f, sender: e.target.value }))} />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn btn-sm" disabled={busy} onClick={() => saveSmsProvider()}>
+                    Save SMS provider
+                  </button>
+                  {settings?.sms_mode !== 'provider' && (
+                    <button className="btn btn-sm" disabled={busy} onClick={() => saveSmsProvider({ useTextbelt: true })}
+                      title="Free gateway, no sign-up: 1 real SMS per phone number per day">
+                      Use free textbelt demo
+                    </button>
+                  )}
+                  {settings?.sms_mode === 'provider' && (
+                    <button className="btn btn-sm" disabled={busy} onClick={() => saveSmsProvider({ clear: true })}>
+                      Remove provider
+                    </button>
+                  )}
+                </div>
+                <div className="sub">No account needed today: with no provider, simulator mode keeps every SMS flow working. Real delivery starts the moment a URL is saved — nothing else to do.</div>
+              </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
                 <input className="input" style={{ flex: 1 }} placeholder="09xxxxxxxxx" value={test.phone}
                   onChange={(e) => setTest({ ...test, phone: e.target.value })} />
@@ -298,6 +370,7 @@ export default function Notifications() {
               <select className="input" style={{ width: 130 }} value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
                 <option value="">All statuses</option>
                 <option value="sent">Sent</option>
+                <option value="simulated">Simulated</option>
                 <option value="failed">Failed</option>
                 <option value="queued">Queued</option>
               </select>

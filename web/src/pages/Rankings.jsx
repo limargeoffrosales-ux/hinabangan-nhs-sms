@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw, Settings2, UserSearch } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, SearchInput } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, SearchInput, SkeletonTable } from '../components/ui';
 import { fmt } from '../lib/utils';
 
 const DESIGNATION_LABELS = {
@@ -156,7 +156,7 @@ export default function Rankings() {
         </div>
       </div>
 
-      {loading ? <Spinner /> : (
+      {loading ? <SkeletonTable rows={10} cols={5} /> : (
         <>
           {tab === 'honor' && (
             <div className="card table-wrap">
