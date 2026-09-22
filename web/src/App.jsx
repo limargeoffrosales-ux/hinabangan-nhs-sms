@@ -115,12 +115,14 @@ const PortalAnalytics = lazyWithRetry(() => import('./pages/PortalAnalytics'));
 const PortalCertifications = lazyWithRetry(() => import('./pages/PortalCertifications'));
 const DepedForms = lazyWithRetry(() => import('./pages/DepedForms'));
 const AIPage = lazyWithRetry(() => import('./pages/AIPage'));
+const ParentPortal = lazyWithRetry(() => import('./pages/ParentPortal'));;
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
   if (!ready) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role === 'student' || user.role === 'parent') return <Navigate to="/portal" replace />;
+  if (user.role === 'student') return <Navigate to="/portal" replace />;
+  if (user.role === 'parent' || user.role === 'guardian') return <Navigate to="/parent-portal" replace />;
   return <Layout>{children}</Layout>;
 }
 
@@ -132,6 +134,14 @@ function PortalProtected({ children }) {
   return <PortalLayout>{children}</PortalLayout>;
 }
 
+function ParentProtected({ children }) {
+  const { user, ready } = useAuth();
+  if (!ready) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'parent' && user.role !== 'guardian') return <Navigate to="/" replace />;
+  return <Layout>{children}</Layout>;
+}
+
 const WRITE_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 function AdminOnly({ children }) {
   const { user } = useAuth();
@@ -140,7 +150,8 @@ function AdminOnly({ children }) {
 }
 function StaffAndTeacher({ children }) {
   const { user } = useAuth();
-  if (user?.role === 'student' || user?.role === 'parent') return <Navigate to="/portal" replace />;
+  if (user?.role === 'student') return <Navigate to="/portal" replace />;
+  if (user?.role === 'parent' || user?.role === 'guardian') return <Navigate to="/parent-portal" replace />;
   if (!can(user?.role, ...WRITE_ROLES, 'teacher')) return <Navigate to="/" replace />;
   return children;
 }
@@ -175,15 +186,6 @@ export default function App() {
 
   useEffect(() => {
     if (isNative()) {
-      import('@capacitor/status-bar').then(({ StatusBar }) => {
-        StatusBar.setStyle({ style: 1 }).catch(() => {});
-        StatusBar.setBackgroundColor({ color: '#1e3a5f' }).catch(() => {});
-      }).catch(() => {});
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isNative() && user) {
       registerForPushNotifications().catch(() => {});
     }
   }, [user]);
@@ -240,6 +242,7 @@ export default function App() {
       <Route path="/portal/immersion" element={<PortalProtected><Page><PortalImmersion /></Page></PortalProtected>} />
       <Route path="/portal/analytics" element={<PortalProtected><Page><PortalAnalytics /></Page></PortalProtected>} />
       <Route path="/portal/certifications" element={<PortalProtected><Page><PortalCertifications /></Page></PortalProtected>} />
+      <Route path="/parent-portal" element={<ParentProtected><Page><ParentPortal /></Page></ParentProtected>} />
       <Route path="/privacy" element={<Protected><AdminOnly><Page><Privacy /></Page></AdminOnly></Protected>} />
       <Route path="/consent" element={<Protected><Page><Consent /></Page></Protected>} />
       <Route path="/mfa" element={<Protected><Page><MFASetup /></Page></Protected>} />

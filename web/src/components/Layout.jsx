@@ -7,12 +7,12 @@ import {
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
   FileCheck2,
-   Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
+  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
   Brain,
   Map,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
-import { initials, Modal } from './ui';
+import { initials, Modal, CommandPalette } from './ui';
 import { api } from '../lib/api';
 
 const LEGACY_MAP = { dark: 'midnight', light: 'light' };
@@ -97,6 +97,12 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: 'nav.parent-portal',
+    items: [
+      { to: '/parent-portal', labelKey: 'nav.parentPortal', icon: Users, parentOnly: true },
+    ],
+  },
+  {
     label: 'nav.system',
     items: [
       { to: '/ai', labelKey: 'AI Tools', icon: Brain, adminOnly: true, aiStaff: true },
@@ -122,6 +128,7 @@ export default function Layout({ children }) {
   const isAdmin = can(user?.role, 'super_admin', 'school_admin');
   const isSuperAdmin = can(user?.role, 'super_admin');
   const isAIStaff = can(user?.role, ...AI_STAFF);
+  const isParent = can(user?.role, 'parent', 'guardian');
   const [theme, setTheme] = useState(() => {
     const s = localStorage.getItem('meridianed_theme') || 'midnight';
     return LEGACY_MAP[s] || s;
@@ -196,6 +203,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-shell">
+      <CommandPalette />
       <a href="#main-content" className="skip-link">Skip to content</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
@@ -213,6 +221,8 @@ export default function Layout({ children }) {
           const visibleItems = group.items.filter((n) => {
             if (!isAdmin && STAFF_HIDDEN.includes(n.to)) return false;
             if (n.adminOnly && !(n.aiStaff ? isAIStaff : isSuperAdmin)) return false;
+            if (n.parentOnly && !isParent) return false;
+            if (isParent && !n.parentOnly) return false;
             return true;
           });
           if (!visibleItems.length) return null;
@@ -227,6 +237,13 @@ export default function Layout({ children }) {
             </div>
           );
         })}
+        <div style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+          <button className="sidebar-link" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', cursor: 'pointer' }}
+            onClick={() => window.dispatchEvent(new Event('command-palette-toggle'))}>
+            <span>Quick search</span>
+            <kbd style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>⌘K</kbd>
+          </button>
+        </div>
       </aside>
       <div className="main" id="main-content" role="main">
         <div className="topbar" role="banner">

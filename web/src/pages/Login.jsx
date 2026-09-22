@@ -58,8 +58,10 @@ export default function Login() {
   }, [busy]);
 
   function finish(result) {
-    const isPortal = result.user.role === 'student' || result.user.role === 'parent';
-    navigate(isPortal ? '/portal' : '/', { replace: true });
+    const role = result.user.role;
+    const isParent = role === 'parent' || role === 'guardian';
+    const isPortal = role === 'student' || role === 'parent';
+    navigate(isParent ? '/parent-portal' : isPortal ? '/portal' : '/', { replace: true });
   }
 
   async function onSubmit(e) {

@@ -79,7 +79,7 @@ async function linkedStudentIds(user) {
     const st = await q('SELECT id FROM students WHERE user_id = ?', [user.id]);
     return st ? [Number(st.id)] : [];
   }
-  if (user.role === 'parent') {
+  if (user.role === 'parent' || user.role === 'guardian') {
     const rows = await qa('SELECT student_id FROM parent_students WHERE parent_user_id = ?', [user.id]);
     return rows.map((r) => Number(r.student_id));
   }
