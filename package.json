@@ -6,9 +6,17 @@
   "engines": {
     "node": ">=22.9.0"
   },
+  "workspaces": [
+    "packages/*",
+    "server",
+    "web"
+  ],
   "scripts": {
-    "build": "cd web && npm ci && npm run build && cd ../server && npm ci && npm test",
-    "test": "cd server && npm test",
-    "start": "cd server && npm start"
+    "build": "npm run build --workspaces --if-present",
+    "build:shared": "npm run build --workspace=@meridianed/shared",
+    "test": "npm run test --workspace=server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "start": "cd server && npm start",
+    "programs:generate": "cd server && node --env-file-if-exists=.env src/generate-programs.js"
   }
 }
