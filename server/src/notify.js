@@ -13,6 +13,7 @@
 
 const nodemailer = require('nodemailer');
 const { q, qa, qi, qr, nowSql } = require('./db');
+const { broadcast } = require('./realtime');
 const logger = require('./logger');
 const {
   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, NOTIFY_EMAIL_MODE,
@@ -26,7 +27,38 @@ const SWEEP_MS = 60 * 1000;
 
 let sweeping = false;
 
+// Auto-provisioned SMTP (dev/demo only). When the deployment has no explicit
+// SMTP credentials, the server provisions an Ethereal test relay at boot so
+// the engine genuinely sends over SMTP and never stays "NOT CONFIGURED".
+let autoSmtp = null;
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Built-in SMS gateways that need no sign-up (configured by NAME instead of a URL,
+// e.g. SMS_PROVIDER_URL=textbelt or the in-app provider form). textbelt lets you
+// send ONE free real SMS per phone number per day to prove the end-to-end path.
+const BUILTIN_SMS = {
+  textbelt: { url: 'https://textbelt.com/text', kind: 'form', keyField: 'key', defaultKey: 'textbelt' },
+};
+
+async function getSmsProvider() {
+  try {
+    const rows = await qa(
+      'SELECT key, value FROM app_settings WHERE key IN (?, ?, ?)',
+      ['sms_provider_url', 'sms_provider_token', 'sms_sender']);
+    const m = {};
+    for (const r of rows) m[r.key] = r.value;
+    if (m.sms_provider_url) {
+      return {
+        url: m.sms_provider_url,
+        token: m.sms_provider_token !== undefined ? m.sms_provider_token : SMS_PROVIDER_TOKEN,
+        sender: m.sms_sender !== undefined ? m.sms_sender : SMS_SENDER,
+        source: 'runtime',
+      };
+    }
+  } catch { /* settings read not ready — fall back to env */ }
+  return { url: SMS_PROVIDER_URL, token: SMS_PROVIDER_TOKEN, sender: SMS_SENDER, source: 'env' };
+}
 
 function isEmail(v) { return EMAIL_RE.test(String(v || '').trim()); }
 
@@ -155,6 +187,65 @@ async function ensureDefaults() {
       `INSERT INTO notification_templates (event, channel, subject, body) VALUES (?, ?, ?, ?)
        ON CONFLICT (event, channel) DO NOTHING`,
       [event, channel, subject, body]);
+  }
+}
+
+// Provisions an Ethereal test relay when the deployment has no explicit SMTP
+// credentials. Runs once at boot so the engine always has a working smtp path
+// in dev/demo (production never auto-attaches a test relay).
+async function ensureSmtp() {
+  if (NOTIFY_EMAIL_MODE === 'stream') return;
+  if (SMTP_USER) return;
+  if (process.env.NODE_ENV === 'production') return;
+  if (autoSmtp) return;
+  const stored = await q(
+    'SELECT value FROM app_settings WHERE key = ?', ['smtp_auto_provisioned']);
+  if (stored && stored.value === '1') {
+    const rows = await qa(
+      'SELECT key, value FROM app_settings WHERE key IN (?, ?, ?, ?, ?)',
+      ['smtp_auto_host', 'smtp_auto_port', 'smtp_auto_secure', 'smtp_auto_user', 'smtp_auto_pass']);
+    const map = {};
+    for (const r of rows) map[r.key] = r.value;
+    if (map.smtp_auto_host && map.smtp_auto_user) {
+      autoSmtp = {
+        host: map.smtp_auto_host,
+        port: Number(map.smtp_auto_port || 587),
+        secure: map.smtp_auto_secure === '1',
+        user: map.smtp_auto_user,
+        pass: map.smtp_auto_pass || '',
+      };
+      return;
+    }
+  }
+  try {
+    const acct = await nodemailer.createTestAccount();
+    const store = [
+      ['smtp_auto_host', acct.smtp.host],
+      ['smtp_auto_port', String(acct.smtp.port)],
+      ['smtp_auto_secure', acct.smtp.secure ? '1' : '0'],
+      ['smtp_auto_user', acct.user],
+      ['smtp_auto_pass', acct.pass],
+    ];
+    for (const [key, value] of store) {
+      await qr(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+        [key, value]);
+    }
+    await qr(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+      ['smtp_auto_provisioned', '1']);
+    autoSmtp = {
+      host: acct.smtp.host,
+      port: acct.smtp.port,
+      secure: !!acct.smtp.secure,
+      user: acct.user,
+      pass: acct.pass,
+    };
+    const inbox = `https://ethereal.email/login?user=${encodeURIComponent(acct.user)}&pass=${encodeURIComponent(acct.pass)}`;
+    logger.info({ host: acct.smtp.host, port: acct.smtp.port, inbox },
+      'SMTP auto-provisioned (Ethereal test relay) — set SMTP_USER/SMTP_PASS to send through your own provider');
+  } catch (err) {
+    logger.warn({ err: err.message }, 'SMTP auto-provision failed — email stays queued until SMTP is configured');
   }
 }
 
@@ -325,6 +416,21 @@ function getEmailTransport() {
 }
 
 async function sendEmail(row) {
+  if (autoSmtp) {
+    const transport = nodemailer.createTransport({
+      host: autoSmtp.host,
+      port: autoSmtp.port,
+      secure: autoSmtp.secure,
+      auth: { user: autoSmtp.user, pass: autoSmtp.pass },
+    });
+    const info = await transport.sendMail({
+      from: autoSmtp.user,
+      to: row.recipient_address,
+      subject: row.subject || '',
+      text: row.body,
+    });
+    return { providerId: info.messageId || null };
+  }
   if (!SMTP_HOST && NOTIFY_EMAIL_MODE !== 'stream') throw new Error('SMTP not configured');
   const from = MAIL_FROM || (SMTP_USER || 'no-reply@school.local');
   const info = await getEmailTransport().sendMail({
@@ -337,21 +443,44 @@ async function sendEmail(row) {
 }
 
 async function sendSms(row) {
-  if (!SMS_PROVIDER_URL) throw new Error('SMS provider not configured');
+  const prov = await getSmsProvider();
+  if (!prov.url) {
+    // No gateway credentials exist. In dev/demo the engine keeps the whole SMS
+    // flow working end-to-end by simulating delivery: the exact message lands
+    // in the delivery log marked 'simulated' (never a false 'sent'). In
+    // production SMS keeps failing so queued rows flush once a provider is set.
+    if (process.env.NODE_ENV === 'production') throw new Error('SMS provider not configured');
+    return { providerId: 'local://simulated', simulated: true };
+  }
+  const builtin = BUILTIN_SMS[String(prov.url).toLowerCase()];
+  const endpoint = builtin ? builtin.url : prov.url;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
     let res;
     try {
-      res = await fetch(SMS_PROVIDER_URL, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(SMS_PROVIDER_TOKEN ? { Authorization: `Bearer ${SMS_PROVIDER_TOKEN}` } : {}),
-        },
-        body: JSON.stringify({ to: row.recipient_address, from: SMS_SENDER, message: row.body }),
-      });
+      if (builtin) {
+        const params = new URLSearchParams();
+        params.set('phone', String(row.recipient_address));
+        params.set('message', String(row.body));
+        params.set(builtin.keyField, prov.token || builtin.defaultKey || '');
+        res = await fetch(endpoint, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+        });
+      } else {
+        res = await fetch(endpoint, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(prov.token ? { Authorization: `Bearer ${prov.token}` } : {}),
+          },
+          body: JSON.stringify({ to: row.recipient_address, from: prov.sender, message: row.body }),
+        });
+      }
     } catch (err) {
       // The 15s timeout (or the runtime cancelling the request) aborts fetch
       // with an opaque AbortError; record the real cause instead.
@@ -360,6 +489,10 @@ async function sendSms(row) {
         throw new Error('SMS provider request interrupted');
       }
       throw err;
+    }
+    if (builtin) {
+      const body = await res.json().catch(() => null);
+      if (body && body.success === false) throw new Error(String(body.error || 'SMS gateway rejected the message').slice(0, 300));
     }
     if (!res.ok) throw new Error(`SMS provider returned ${res.status}`);
     return { providerId: String(res.status) };
@@ -372,10 +505,10 @@ async function attemptSend(row) {
   try {
     const result = row.channel === 'email' ? await sendEmail(row) : await sendSms(row);
     await qr(
-      `UPDATE notifications SET status = 'sent', attempts = attempts + 1, provider_id = ?,
-       error = NULL, updated_at = ${nowSql()}, sent_at = ${nowSql()} WHERE id = ?`,
-      [result.providerId, row.id]);
-    return { ok: true, id: row.id };
+      `UPDATE notifications SET status = ?, attempts = attempts + 1, provider_id = ?, error = NULL,
+       updated_at = ${nowSql()}, sent_at = ${nowSql()} WHERE id = ?`,
+      [result.simulated ? 'simulated' : 'sent', result.providerId || null, row.id]);
+    return { ok: true, id: row.id, simulated: !!result.simulated };
   } catch (err) {
     const message = String(err.message || err).slice(0, 300);
     await qr(
@@ -488,6 +621,7 @@ async function notifyEvent(event, ctx = {}) {
       else failed++;
     }
   }
+  if (created) broadcast('notification', { event, created });
   return { created, sent, failed };
 }
 
@@ -518,14 +652,33 @@ function startNotifySweep() {
 // --- Public helpers used by routes --------------------------------------------
 async function settings() {
   const cfg = await getConfig();
+  const prov = await getSmsProvider();
+  const sms_provider_configured = !!prov.url;
+  const sms_simulated = !sms_provider_configured && process.env.NODE_ENV !== 'production';
   return {
     email_enabled: cfg.email_enabled,
     sms_enabled: cfg.sms_enabled,
-    email_configured: !!(SMTP_HOST || NOTIFY_EMAIL_MODE === 'stream'),
-    sms_configured: !!SMS_PROVIDER_URL,
-    mail_from: MAIL_FROM || (SMTP_USER || ''),
-    sms_sender: SMS_SENDER,
+    email_configured: !!(SMTP_HOST || NOTIFY_EMAIL_MODE === 'stream' || autoSmtp),
+    sms_configured: sms_provider_configured,
+    sms_simulated,
+    sms_mode: sms_provider_configured ? 'provider' : (sms_simulated ? 'simulator' : 'none'),
+    sms_config_source: prov.source,
+    sms_provider_url: prov.source === 'runtime' ? prov.url : (SMS_PROVIDER_URL || ''),
+    sms_sender: prov.sender,
+    mail_from: MAIL_FROM || (SMTP_USER || autoSmtp?.user || ''),
   };
+}
+
+async function setSmsProvider({ url, token, sender }) {
+  const pairs = [];
+  if (url !== undefined) pairs.push(['sms_provider_url', String(url).trim()]);
+  if (token !== undefined) pairs.push(['sms_provider_token', String(token).trim()]);
+  if (sender !== undefined) pairs.push(['sms_sender', String(sender).trim()]);
+  for (const [key, value] of pairs) {
+    await qr(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+      [key, value]);
+  }
 }
 
 async function setSetting(key, value) {
@@ -549,6 +702,6 @@ async function sendTest({ email, phone }) {
 }
 
 module.exports = {
-  ensureDefaults, getConfig, getTemplates, notifyEvent, startNotifySweep, sweep,
-  settings, setSetting, resend, sendTest, render, isEmail, MAX_ATTEMPTS,
+  ensureDefaults, ensureSmtp, getConfig, getTemplates, notifyEvent, startNotifySweep, sweep,
+  settings, setSetting, setSmsProvider, resend, sendTest, render, isEmail, MAX_ATTEMPTS,
 };

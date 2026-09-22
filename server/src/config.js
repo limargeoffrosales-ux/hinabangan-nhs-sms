@@ -1,6 +1,9 @@
 const path = require('path');
 
 const PORT = Number(process.env.PORT || 4000);
+// Bind address. Dev defaults to loopback so the API is never reachable from other
+// machines on the network; production (Render) binds all interfaces.
+const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const WEB_DIR = process.env.WEB_DIR || path.join(__dirname, '..', '..', 'web', 'dist');
 // Public base URL of the app (used to build reset links in emails). When empty,
@@ -49,7 +52,7 @@ const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
 
 module.exports = {
-  PORT, DATA_DIR, WEB_DIR, JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL, REFRESH_TTL_DAYS, GRADE_WEIGHTS,
+  PORT, HOST, DATA_DIR, WEB_DIR, JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL, REFRESH_TTL_DAYS, GRADE_WEIGHTS,
   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, NOTIFY_EMAIL_MODE,
   SMS_PROVIDER_URL, SMS_PROVIDER_TOKEN, SMS_SENDER, NOTIFY_EMAIL_ENABLED, NOTIFY_SMS_ENABLED,
   R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY, R2_SECRET_KEY, R2_PUBLIC_URL, UPLOAD_MAX_MB,

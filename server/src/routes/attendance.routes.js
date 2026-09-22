@@ -4,6 +4,7 @@ const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
 const { notifyEvent } = require('../notify');
+const { sendSpreadsheet } = require('../export');
 const logger = require('../logger');
 
 const router = express.Router();
@@ -57,6 +58,49 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const total = Number((await q(`SELECT COUNT(*) AS total FROM attendance a${whereClause}`, params)).total || 0);
   const rows = await qa(`${sql}${whereClause} ORDER BY a.date DESC, s.last_name LIMIT ? OFFSET ?`, [...params, limit, offset]);
   res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
+}));
+
+// GET /export — attendance records for a section/date as a downloadable
+// .xlsx/.csv, mirroring the list endpoint's scope rules but without pagination.
+router.get('/export', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { section_id, date } = req.query;
+  let sql = `SELECT a.date, a.student_id, a.section_id, a.status, a.session, a.time_in, a.time_out, a.remarks,
+      s.lrn, s.first_name, s.last_name, sec.name AS section_name, u.name AS recorded_by
+      FROM attendance a
+      JOIN students s ON s.id = a.student_id
+      LEFT JOIN sections sec ON sec.id = a.section_id
+      LEFT JOIN users u ON u.id = a.recorded_by`;
+  const params = [];
+  const where = [];
+  if (section_id) { where.push('a.section_id = ?'); params.push(section_id); }
+  if (date) { where.push('a.date = ?'); params.push(date); }
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    if (scope) {
+      const sc = sectionInScope(scope, 'a', 'section_id');
+      where.push(sc.sql);
+      params.push(...sc.params);
+    } else {
+      where.push('0 = 1');
+    }
+  }
+  const whereClause = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  const rows = await qa(`${sql}${whereClause} ORDER BY a.date DESC, s.last_name`, params);
+  const columns = [
+    { key: 'date', header: 'Date', width: 12 },
+    { key: 'section_name', header: 'Section', width: 18 },
+    { key: 'lrn', header: 'LRN', width: 16 },
+    { key: 'last_name', header: 'Last Name', width: 18 },
+    { key: 'first_name', header: 'First Name', width: 18 },
+    { key: 'status', header: 'Status', width: 10 },
+    { key: 'session', header: 'Session', width: 10 },
+    { key: 'time_in', header: 'Time In', width: 10 },
+    { key: 'time_out', header: 'Time Out', width: 10 },
+    { key: 'remarks', header: 'Remarks', width: 24 },
+    { key: 'recorded_by', header: 'Recorded By', width: 20 },
+  ];
+  const fname = `attendance${date ? `-${date}` : ''}${section_id ? `-${section_id}` : ''}`;
+  await sendSpreadsheet(res, String(req.query.format || 'xlsx'), { columns, rows, sheetName: 'Attendance', filename: fname });
 }));
 
 router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {

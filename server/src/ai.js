@@ -28,6 +28,12 @@ const PROVIDERS = {
   groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'openai/gpt-oss-120b', keyEnv: 'GROQ_API_KEY' },
   ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'qwen3:14b', keyEnv: '' },
   hf:     { baseUrl: 'https://api-inference.huggingface.co/v1', defaultModel: 'Qwen/Qwen3-14B', keyEnv: 'HF_API_KEY' },
+  // native: fully local inference (transformers.js + native onnxruntime).
+  // No API key, no external service, no OS install. First call downloads the
+  // model from HF Hub to the cache (needs internet once), then runs offline.
+  // 0.5B is ~20s warm but noticeably weak; 1.5B is ~45s warm and coherent.
+  // Override with AI_MODEL=onnx-community/Qwen2.5-0.5B-Instruct on low-RAM boxes.
+  native: { baseUrl: '', defaultModel: 'onnx-community/Qwen2.5-1.5B-Instruct', keyEnv: '' },
 };
 
 const MODEL_ALIASES = {};
@@ -54,7 +60,7 @@ function getClient() {
 function isEnabled() {
   const provider = getProvider();
   const cfg = PROVIDERS[provider] || PROVIDERS.groq;
-  if (provider === 'ollama') return true;
+  if (provider === 'ollama' || provider === 'native') return true;
   return !!cfg.keyEnv && !!process.env[cfg.keyEnv];
 }
 
@@ -115,6 +121,10 @@ DO NOT
 - Do not give a bare answer with no context or next step.
 - Do not guess at information you don't have (dates, individual records, subject-specific weights) — ask or redirect instead.`;
 
+// Compact system prompt for the native local model (0.5B): the full SYSTEM_PROMPT
+// above is too long for a small model and degrades into repetition loops.
+const NATIVE_SYSTEM = `You are the AI assistant of Hinabangan National High School, a DepEd public school in Samar, Philippines. Help students, parents, and teachers with grading, school policies, and procedures. Answer briefly in plain text (no markdown), in the language the user writes (English or Filipino). Be warm and helpful like a teacher. Never invent facts; if you lack specific information, say so and tell them who can help.`;
+
 // Defense-in-depth for the "**" problem: hosted models still emit markdown
 // emphasis (**, *, __, _, headers, backticks) despite the system prompt. This
 // strips those artifacts from every AI response flowing through chat().
@@ -138,7 +148,50 @@ function cleanUpMarkdown(text) {
     .trim();
 }
 
+// Local ONNX/WASM inference (transformers.js). Loads once and caches the
+// pipeline; the model weights stream from the HF Hub on first use and are then
+// served from the local cache.
+let nativePipelinePromise = null;
+function getNativePipeline() {
+  if (!nativePipelinePromise) {
+    nativePipelinePromise = (async () => {
+      const { pipeline } = require('@huggingface/transformers');
+      // device:'cpu' forces the native onnxruntime binding. The auto-selected
+      // WASM backend is unstable in-process here (worker can terminate).
+      return pipeline('text-generation', model(), { dtype: 'q8', device: 'cpu' });
+    })().catch((err) => {
+      nativePipelinePromise = null;
+      throw err;
+    });
+  }
+  return nativePipelinePromise;
+}
+
+async function nativeChat(messages, opts = {}) {
+  const generator = await getNativePipeline();
+  // The compact system prompt keeps the 0.5B model focused; the full SYSTEM_PROMPT
+  // is too long for a small local model and sends it into repetition loops.
+  const system = opts.system || NATIVE_SYSTEM;
+  const res = await generator([{ role: 'system', content: system }, ...messages], {
+    max_new_tokens: opts.maxTokens || 768,
+    temperature: opts.temperature ?? 0.5,
+    do_sample: true,
+    top_p: 0.9,
+    repetition_penalty: 1.2,
+  });
+  const raw = res && res[0] ? res[0].generated_text : '';
+  let text = '';
+  if (Array.isArray(raw)) {
+    const last = [...raw].reverse().find((m) => m && m.role === 'assistant');
+    if (last) text = last.content || '';
+  } else if (typeof raw === 'string') {
+    text = raw;
+  }
+  return cleanUpMarkdown(text);
+}
+
 async function chat(messages, opts = {}) {
+  if (getProvider() === 'native') return nativeChat(messages, opts);
   const c = getClient();
   if (!c) throw new Error('AI not configured. Set GROQ_API_KEY (free) or AI_PROVIDER + provider key.');
   const res = await c.chat.completions.create({
@@ -287,7 +340,8 @@ async function getEnrollmentSuggestions(studentId) {
 }
 
 async function chatMessage(messages, context) {
-  let systemPrompt = SYSTEM_PROMPT;
+  // The native 0.5B model loops into repetition on the full SYSTEM_PROMPT.
+  let systemPrompt = getProvider() === 'native' ? NATIVE_SYSTEM : SYSTEM_PROMPT;
   if (context) {
     systemPrompt += '\n\nContext about the user:\n' + context;
   }
@@ -359,8 +413,74 @@ async function generateForm137(studentId) {
   return safeParse(response);
 }
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// AI-draft the complete weekly program for ONE teacher (the "Teacher Programs"
+// feature — a full Mon-Fri day/time/room schedule). Every subject assignment
+// must be placed exactly meetings_per_week times, each of exactly
+// duration_minutes, conflict-free with the already-placed meetings passed in
+// `placed` (sections, rooms, and other teachers). The CLI in
+// generate-programs.js is the primary caller; the returned JSON is validated
+// deterministically there before anything is written to the database.
+async function generateTeacherProgram(params) {
+  const { teacher, assignments, placed = [], day = {} } = params;
+  const dayStart = day.start || '07:00';
+  const dayEnd = day.end || '17:00';
+  const lunchStart = day.lunch_start || '12:00';
+  const lunchEnd = day.lunch_end || '13:00';
+  const recessStart = day.recess_start || '10:00';
+  const recessEnd = day.recess_end || '10:30';
+
+  const lines = assignments.map((a) => {
+    const combo = a.combined_section_name ? ` + ${a.combined_section_name} (combined)` : '';
+    const rooms = [...new Set([a.room, a.teacher_room, a.section_room].filter(Boolean))];
+    const roomsTxt = rooms.length ? `; preferred rooms: ${rooms.join(', ')}` : '';
+    const pin = (a.fixed_day != null && a.fixed_start_time)
+      ? `; PINNED: ${a.fixed_day === 0 ? 'every weekday' : DAY_NAMES[a.fixed_day]} at ${a.fixed_start_time}`
+      : '';
+    return `[id=${a.id}] ${a.section_name}${combo} (Grade ${a.grade_level || 'N/A'}) - ${a.subject_code}: ${a.subject_title}; ${a.duration_minutes} min x ${a.meetings_per_week}/wk${roomsTxt}${pin}`;
+  }).join('\n');
+
+  const placedLines = placed.length
+    ? placed.map((m) =>
+        `Day ${m.day} ${m.start_time}-${m.end_time} [${m.room || 'no room'}] - ${m.section_name || ''}${m.combined_section_name ? ' + ' + m.combined_section_name : ''} ${m.subject_code || ''}${m.teacher_name ? ' (' + m.teacher_name + ')' : ''}`.trim()
+      ).join('\n')
+    : 'None yet.';
+
+  const prompt = `You are drafting the complete weekly timetable for ONE teacher at Hinabangan National High School (DepEd).
+
+School day window: ${dayStart} to ${dayEnd}. Lunch break: ${lunchStart} - ${lunchEnd} (keep free). Recess: ${recessStart} - ${recessEnd} (keep free).
+Days: Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5. Start times on a 30-minute grid aligned to the window. Meetings must NEVER overlap lunch, recess, or run outside the window.
+
+Teacher: ${teacher.name}${teacher.room ? ` (room: ${teacher.room})` : ''}
+
+Subject assignments (place EVERY meeting: each assignment needs EXACTLY its meetings-per-week count of meetings):
+${lines}
+
+Meetings already placed by other teachers/sections/rooms (DO NOT clash with these - no same teacher, section, combined section, or room at the same time):
+${placedLines}
+
+Rules:
+- Meeting count per assignment: ${assignments.map((a) => `assignment ${a.id} = ${a.meetings_per_week}`).join(', ')}.
+- Meeting length per assignment: ${assignments.map((a) => `assignment ${a.id} = ${a.duration_minutes} min`).join(', ')}. end_time must equal start_time + duration.
+- Combined-section assignments need a single meeting that serves BOTH sections.
+- The teacher can teach in only one room at any moment; a section (or combined pair) is in only one class at a time.
+- Pinned assignments (marked PINNED) keep their fixed day/time; fit the remaining meetings around them.
+- prefer a room from the assignment's preferred room list; otherwise choose a plausible room name.
+
+Output ONLY one JSON object (no markdown, no code fences, no commentary):
+{"meetings":[{"id":<assignment_id>,"day":1,"start_time":"HH:MM","end_time":"HH:MM","room":"Room name"}]}`;
+
+  const response = await chat([{ role: 'user', content: prompt }], {
+    system: 'You are a flawless school-timetable assistant. You always return strictly valid JSON and never produce markdown, extra text, extra meetings, or overlapping meetings.',
+    maxTokens: 5000,
+    temperature: 0.2,
+  });
+  return safeParse(response);
+}
+
 module.exports = {
   isEnabled, chat, generateStudentReport, generateLessonPlan,
   generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage, generateForm137,
-  getProviderInfo, PROVIDERS, cleanUpMarkdown,
+  generateTeacherProgram, getProviderInfo, PROVIDERS, cleanUpMarkdown,
 };

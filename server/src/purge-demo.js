@@ -40,10 +40,15 @@ async function countWhere(selectSql, params) {
   return rows.map((r) => r.id);
 }
 
+function placeholders(ids) {
+  return ids.map(() => '?').join(',');
+}
+
 async function purgeStudentPhotos(studentIds) {
   if (!studentIds.length) return;
   const rows = await qa(
-    `SELECT id, photo_url FROM students WHERE id IN (${studentIds.join(',')}) AND photo_url IS NOT NULL AND photo_url <> ''`, []);
+    `SELECT id, photo_url FROM students WHERE id IN (${placeholders(studentIds)}) AND photo_url IS NOT NULL AND photo_url <> ''`,
+    studentIds);
   let removed = 0;
   for (const r of rows) {
     try {
@@ -77,18 +82,16 @@ async function purgeDemo() {
 
   const studentIds = await countWhere(
     "SELECT id FROM students WHERE address LIKE '%Testville%'", []);
-  const sid = studentIds.join(',') || '0';
   log('demo students', studentIds.length);
 
-  const inClause = (ids) => (ids.length ? ids.join(',') : '0');
-
-  log('attendance', await countAndDel('attendance', `student_id IN (${inClause(studentIds)})`, []));
-  log('grades', await countAndDel('grades', `student_id IN (${inClause(studentIds)})`, []));
-  log('enrollments', await countAndDel('enrollments', `student_id IN (${inClause(studentIds)})`, []));
-  log('learner assessments', await countAndDel('learner_assessments', `student_id IN (${inClause(studentIds)})`, []));
-  log('intervention plans', await countAndDel('intervention_plans', `student_id IN (${inClause(studentIds)})`, []));
+  const sidPlaceholders = placeholders(studentIds);
+  log('attendance', await countAndDel('attendance', `student_id IN (${sidPlaceholders})`, studentIds));
+  log('grades', await countAndDel('grades', `student_id IN (${sidPlaceholders})`, studentIds));
+  log('enrollments', await countAndDel('enrollments', `student_id IN (${sidPlaceholders})`, studentIds));
+  log('learner assessments', await countAndDel('learner_assessments', `student_id IN (${sidPlaceholders})`, studentIds));
+  log('intervention plans', await countAndDel('intervention_plans', `student_id IN (${sidPlaceholders})`, studentIds));
   log('intervention contacts', await countAndDel(
-    'intervention_contacts', `plan_id IN (SELECT id FROM intervention_plans WHERE student_id IN (${inClause(studentIds)}))`, []));
+    'intervention_contacts', `plan_id IN (SELECT id FROM intervention_plans WHERE student_id IN (${sidPlaceholders}))`, studentIds));
 
   const annCount = await countAndDel(
     'announcements', `title = ? OR title = ? OR title = ?`, DEMO_ANNOUNCEMENTS);
@@ -100,9 +103,9 @@ async function purgeDemo() {
     'SELECT id FROM sections WHERE name IN (?,?,?,?,?,?) AND school_year = ?', [...DEMO_SECTIONS, DEMO_SCHOOL_YEAR]);
   log('demo sections', sectionIds.length);
 
-  const sIn = inClause(sectionIds);
-  log('class assignments', await countAndDel('class_assignments', `section_id IN (${sIn})`, []));
-  log('schedule entries', await countAndDel('schedule_entries', `section_id IN (${sIn})`, []));
+  const secPlaceholders = placeholders(sectionIds);
+  log('class assignments', await countAndDel('class_assignments', `section_id IN (${secPlaceholders})`, sectionIds));
+  log('schedule entries', await countAndDel('schedule_entries', `section_id IN (${secPlaceholders})`, sectionIds));
 
   log('question bank (demo)', await countAndDel(
     'question_bank', `question LIKE ? OR question LIKE ? OR question LIKE ? OR question LIKE ? OR question LIKE ? OR question LIKE ?`,
@@ -111,10 +114,11 @@ async function purgeDemo() {
   log('TOS (demo)', await countAndDel('tos_records', `title = ?`, ['First Quarter TOS — Oral Communication']));
   log('item analyses (demo)', await countAndDel('item_analyses', `title = ?`, ['Q1 General Mathematics Item Analysis']));
 
-  log('sections', await countAndDel('sections', `id IN (${sIn})`, []));
-  log('teachers', await countAndDel('teachers', `id IN (${inClause(teacherIds)})`, []));
+  log('sections', await countAndDel('sections', `id IN (${secPlaceholders})`, sectionIds));
+  const tchPlaceholders = placeholders(teacherIds);
+  log('teachers', await countAndDel('teachers', `id IN (${tchPlaceholders})`, teacherIds));
   await purgeStudentPhotos(studentIds);
-  log('students', await countAndDel('students', `id IN (${sid})`, []));
+  log('students', await countAndDel('students', `id IN (${sidPlaceholders})`, studentIds));
   logger.info('PURGE: subjects kept — the SHS curriculum catalog is preserved (migration-managed).');
 
   await mark('1');

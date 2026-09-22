@@ -92,6 +92,22 @@ router.get('/access-logs', requireRole(...ADMIN_ROLES), asyncH(async (req, res) 
     }
     params.push(f, f, f, f);
   }
+  if (req.query.from) {
+    const fromDate = new Date(req.query.from);
+    if (!isNaN(fromDate)) {
+      const pgFrom = db.dialect === 'pg' ? `$${params.length + 1}` : '';
+      conditions.push(db.dialect === 'pg' ? 'dal.created_at >= ?' : 'dal.created_at >= ?');
+      params.push(fromDate);
+    }
+  }
+  if (req.query.to) {
+    const toDate = new Date(req.query.to);
+    if (!isNaN(toDate)) {
+      const pgTo = db.dialect === 'pg' ? `$${params.length + 1}` : '';
+      conditions.push(db.dialect === 'pg' ? 'dal.created_at <= ?' : 'dal.created_at <= ?');
+      params.push(toDate);
+    }
+  }
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const rows = await qa(
     `SELECT dal.*, u.name AS user_name, s.first_name, s.last_name
@@ -246,10 +262,25 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
     await conn.qr('DELETE FROM work_immersion WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM jdvp_recipients WHERE student_id = ?', [studentId]);
     await conn.qr('DELETE FROM student_competency_scores WHERE student_id = ?', [studentId]);
-    // AI chat history is free-text and has no student column, so any message may
-    // reference the erased student (or anyone) — removing it entirely is the only
-    // way to guarantee the student's data no longer exists in it.
-    await conn.qr('DELETE FROM ai_chat_logs');
+    // AI chat logs may reference the erased student in free-text messages.
+    // Per data minimization (RA 10173), redact the student's name rather than
+    // deleting all chat history, which would destroy other users' data.
+    const student = await conn.q('SELECT first_name, last_name FROM students WHERE id = ?', [studentId]);
+    if (student) {
+      const redacted = '[REDACTED]';
+      await conn.qr(
+        `UPDATE ai_chat_logs SET
+           messages = CASE WHEN messages::text ILIKE ? THEN
+             regexp_replace(messages::text, ?, ?, 'gi')::jsonb
+           ELSE messages END`,
+        [`%${student.first_name}%`, student.first_name, redacted]);
+      await conn.qr(
+        `UPDATE ai_chat_logs SET
+           messages = CASE WHEN messages::text ILIKE ? THEN
+             regexp_replace(messages::text, ?, ?, 'gi')::jsonb
+           ELSE messages END`,
+        [`%${student.last_name}%`, student.last_name, redacted]);
+    }
     await conn.qr('DELETE FROM students WHERE id = ?', [studentId]);
   });
   if (photoKey) {

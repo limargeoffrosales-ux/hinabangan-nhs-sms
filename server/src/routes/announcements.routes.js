@@ -3,6 +3,7 @@ const { q, qa, qi, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 const { notifyEvent } = require('../notify');
+const { broadcast } = require('../realtime');
 const logger = require('../logger');
 
 const router = express.Router();
@@ -25,6 +26,7 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
     const id = await qi('INSERT INTO announcements (title, body, audience, priority, author_id) VALUES (?, ?, ?, ?, ?)',
       [b.title, b.body, b.audience || 'all', b.priority || 'normal', req.user.id]);
     await audit(req, 'CREATE_ANNOUNCEMENT', 'announcements', id, { title: b.title });
+    broadcast('announcement', { action: 'created', id });
     notifyEvent('announcement_posted', {
       audience: b.audience || 'all',
       data: { title: b.title, body: b.body, priority: b.priority || 'normal' },
@@ -43,6 +45,7 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
     await qr('UPDATE announcements SET title = ?, body = ?, audience = ?, priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [f('title', row.title), f('body', row.body), f('audience', row.audience), f('priority', row.priority), row.id]);
     await audit(req, 'UPDATE_ANNOUNCEMENT', 'announcements', row.id);
+    broadcast('announcement', { action: 'updated', id: row.id });
     res.json({ ok: true });
   }));
 
@@ -51,6 +54,7 @@ router.delete('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (
     if (!row) return res.status(404).json({ error: 'Announcement not found' });
     await qr('DELETE FROM announcements WHERE id = ?', [row.id]);
     await audit(req, 'DELETE_ANNOUNCEMENT', 'announcements', row.id);
+    broadcast('announcement', { action: 'deleted', id: row.id });
     res.json({ ok: true });
   }));
 

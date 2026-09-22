@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { q, qa, qi, qr, close } = require('./db');
+const { q, qa, qi, qr, init, close } = require('./db');
 const { REPORT_TYPES } = require('./report-types');
 const logger = require('./logger');
 
@@ -64,6 +64,7 @@ async function seed() {
   const users = [
     ['superadmin', 'Super Admin', 'super_admin', 'admin@school.edu.ph'],
     ['admin', 'School Administrator', 'school_admin', 'principal@school.edu.ph'],
+    ['parent1', 'Guardian 1', 'parent', 'parent1@hinabangan-nhs.edu.ph'],
   ];
   const staff = [
     ['asantos', 'Amelia Santos', 'teacher'],
@@ -539,9 +540,11 @@ async function seedAiModules() {
 module.exports = { seed };
 
 if (require.main === module) {
-  seed().catch(async (err) => {
-    logger.error({ err }, 'Seed failed:');
-    await close();
-    process.exit(1);
-  });
+  init()
+    .then(() => seed())
+    .catch(async (err) => {
+      logger.error({ err }, 'Seed failed:');
+      await close();
+      process.exit(1);
+    });
 }

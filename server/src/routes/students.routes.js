@@ -7,6 +7,7 @@ const { teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../s
 const { getCurrentSchoolYear } = require('../schoolYear');
 const { notifyEvent } = require('../notify');
 const { APP_URL } = require('../config');
+const { sendSpreadsheet } = require('../export');
 
 const router = express.Router();
 router.use(authenticate);
@@ -106,6 +107,65 @@ router.get('/', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req,
     rows.forEach((r, i, arr) => { arr[i] = maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'birth_place', 'religion']); });
   }
   res.json({ data: rows, limit, offset });
+}));
+
+// GET /export — same filters as the list endpoint but without pagination; the
+// result downloads as .xlsx (default) or .csv. Registered before /:id so the
+// literal "/export" path wins.
+router.get('/export', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async (req, res) => {
+  const q2 = req.query.q ? `%${req.query.q}%` : '%';
+  const gradeLevel = req.query.grade_level ? req.query.grade_level : null;
+  const sy = await getCurrentSchoolYear();
+  const subjectCountSql = (stuAlias) =>
+    `(SELECT COUNT(*) FROM enrollment_subjects es JOIN enrollments en ON en.id = es.enrollment_id
+      WHERE en.student_id = ${stuAlias}.id AND en.school_year = ?)`;
+  const params = [sy, q2, q2, q2];
+  let sql = `SELECT st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.sex, st.birth_date,
+      st.religion, st.address, st.contact, st.guardian_name, st.guardian_contact, st.guardian_relation,
+      st.grade_level, st.track_strand, st.status, ${subjectCountSql('st')} AS subject_count
+      FROM students st WHERE (st.last_name LIKE ? OR st.first_name LIKE ? OR st.lrn LIKE ?)`;
+  if (req.role === 'teacher') {
+    const scope = await teacherScope(req.user);
+    const f = studentInScope(scope, 'st');
+    if (!f.sql) return res.status(403).json({ error: 'No students are in your scope' });
+    sql += ' AND ' + f.sql;
+    params.push(...f.params);
+  }
+  if (gradeLevel) {
+    sql += ' AND st.grade_level = ?';
+    params.push(gradeLevel);
+  }
+  sql += ' ORDER BY st.last_name, st.first_name';
+  const rows = await qa(sql, params);
+  for (const r of rows) {
+    r.age = computeAge(r.birth_date);
+    r.subject_count = bool(r.subject_count) > 0 ? Number(r.subject_count) : 0;
+  }
+  if (req.role === 'teacher' || req.role === 'guidance') {
+    rows.forEach((r) => maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'religion']));
+  }
+  const columns = [
+    { key: 'lrn', header: 'LRN', width: 16 },
+    { key: 'last_name', header: 'Last Name', width: 18 },
+    { key: 'first_name', header: 'First Name', width: 18 },
+    { key: 'middle_name', header: 'Middle Name', width: 16 },
+    { key: 'suffix', header: 'Suffix', width: 8 },
+    { key: 'sex', header: 'Sex', width: 6 },
+    { key: 'birth_date', header: 'Birth Date', width: 12 },
+    { key: 'age', header: 'Age', width: 6 },
+    { key: 'grade_level', header: 'Grade Level', width: 10 },
+    { key: 'track_strand', header: 'Track/Strand', width: 14 },
+    { key: 'status', header: 'Status', width: 10 },
+    { key: 'subject_count', header: 'Subjects This SY', width: 12 },
+    { key: 'religion', header: 'Religion', width: 14 },
+    { key: 'address', header: 'Address', width: 30 },
+    { key: 'contact', header: 'Contact No.', width: 16 },
+    { key: 'guardian_name', header: 'Guardian', width: 22 },
+    { key: 'guardian_contact', header: 'Guardian Contact', width: 16 },
+  ];
+  const format = String(req.query.format || 'xlsx');
+  const fname = `students${gradeLevel ? `-grade-${gradeLevel}` : ''}`;
+  await sendSpreadsheet(res, format, { columns, rows, sheetName: 'Students', filename: fname });
 }));
 
 function computeAge(birthdate) {

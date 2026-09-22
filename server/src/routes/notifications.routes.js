@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qr } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
-const { settings, setSetting, resend, sendTest, isEmail, MAX_ATTEMPTS } = require('../notify');
+const { settings, setSetting, setSmsProvider, resend, sendTest, isEmail, MAX_ATTEMPTS } = require('../notify');
 
 async function sendSmsBlast(message, studentIds) {
   let contacts;
@@ -50,12 +50,20 @@ router.get('/settings', asyncH(async (req, res) => {
   res.json(await settings());
 }));
 
-// PATCH /notifications/settings — flip email/sms on/off.
+// PATCH /notifications/settings — flip email/sms on/off + runtime SMS provider.
 router.patch('/settings', asyncH(async (req, res) => {
   const b = req.body || {};
   if (b.email_enabled !== undefined) await setSetting('notify_email_enabled', !!b.email_enabled);
   if (b.sms_enabled !== undefined) await setSetting('notify_sms_enabled', !!b.sms_enabled);
-  await audit(req, 'NOTIFY_SETTINGS', 'notifications', null, { email_enabled: !!b.email_enabled, sms_enabled: !!b.sms_enabled });
+  if (b.sms_provider_url !== undefined || b.sms_provider_token !== undefined || b.sms_sender !== undefined) {
+    await setSmsProvider({ url: b.sms_provider_url, token: b.sms_provider_token, sender: b.sms_sender });
+  }
+  await audit(req, 'NOTIFY_SETTINGS', 'notifications', null, {
+    email_enabled: !!b.email_enabled,
+    sms_enabled: !!b.sms_enabled,
+    sms_provider: b.sms_provider_url !== undefined ? String(b.sms_provider_url).slice(0, 80) : undefined,
+    sms_sender: b.sms_sender !== undefined ? String(b.sms_sender) : undefined,
+  });
   res.json(await settings());
 }));
 
