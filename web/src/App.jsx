@@ -115,6 +115,7 @@ const PortalAnalytics = lazyWithRetry(() => import('./pages/PortalAnalytics'));
 const PortalCertifications = lazyWithRetry(() => import('./pages/PortalCertifications'));
 const DepedForms = lazyWithRetry(() => import('./pages/DepedForms'));
 const AIPage = lazyWithRetry(() => import('./pages/AIPage'));
+const Achievements = lazyWithRetry(() => import('./pages/Achievements'));
 const ParentPortal = lazyWithRetry(() => import('./pages/ParentPortal'));;
 const DesignSystem = lazyWithRetry(() => import('./pages/DesignSystem'));
 
@@ -230,6 +231,7 @@ export default function App() {
       <Route path="/attendance" element={<Protected><Page><Attendance /></Page></Protected>} />
       <Route path="/assignments" element={<Protected><Page><Assignments /></Page></Protected>} />
       <Route path="/announcements" element={<Protected><AdminOnly><Page><Announcements /></Page></AdminOnly></Protected>} />
+      <Route path="/achievements" element={<Protected><Page><Achievements /></Page></Protected>} />
       <Route path="/users" element={<Protected><AdminOnly><Page><Users /></Page></AdminOnly></Protected>} />
       <Route path="/audit" element={<Protected><AdminOnly><Page><AuditLogs /></Page></AdminOnly></Protected>} />
       <Route path="/interventions" element={<Protected><Page><Interventions /></Page></Protected>} />

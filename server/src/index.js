@@ -55,6 +55,7 @@ const certificationsRoutes = require('./routes/certifications.routes');
 const guidanceRoutes = require('./routes/guidance.routes');
 const uploadsRoutes = require('./routes/uploads.routes');
 const aiRoutes = require('./routes/ai.routes');
+const achievementsRoutes = require('./routes/achievements.routes');
 const consentsRoutes = require('./routes/consents.routes');
 const parentRoutes = require('./routes/parent.routes');
 
@@ -312,6 +313,7 @@ const parentRoutes = require('./routes/parent.routes');
   app.use('/api/v1/guidance', guidanceRoutes);
   app.use('/api/v1/uploads', uploadsRoutes);
   app.use('/api/v1/ai', aiRoutes);
+  app.use('/api/v1/achievements', achievementsRoutes);
   app.use('/api/v1/consents', consentsRoutes);
   app.use('/api/v1/parent', parentRoutes);
 

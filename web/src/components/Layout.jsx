@@ -78,6 +78,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/rooms', labelKey: 'nav.rooms', icon: DoorOpen },
       { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
+      { to: '/achievements', labelKey: 'nav.achievements', icon: Award },
       { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
       { to: '/consent', labelKey: 'nav.consent', icon: FileCheck2 },
     ],

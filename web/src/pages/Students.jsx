@@ -55,6 +55,11 @@ export default function Students() {
   const [reqBusy, setReqBusy] = useState(false);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectNote, setRejectNote] = useState('');
+  const PAGE_SIZE = 100;
+  const [gradeLevel, setGradeLevel] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   async function loadRequests() {
     setReqLoading(true);
@@ -183,23 +188,31 @@ export default function Students() {
     } });
   }
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadWith = useCallback(async (offs, append) => {
+    append ? setLoadingMore(true) : setLoading(true);
     setError(null);
     try {
-      const res = await api(query ? `/students?q=${encodeURIComponent(query)}&sort=recent_enrolled&limit=100` : '/students?sort=recent_enrolled&limit=100');
-      setRows(res.data);
+      const params = new URLSearchParams({ sort: 'recent_enrolled', limit: String(PAGE_SIZE), offset: String(offs) });
+      if (query.trim()) params.set('q', query.trim());
+      if (gradeLevel) params.set('grade_level', gradeLevel);
+      const res = await api(`/students?${params.toString()}`);
+      setRows((prev) => (append ? [...prev, ...res.data] : res.data));
+      setHasMore(res.data.length === PAGE_SIZE);
+      setOffset(offs + res.data.length);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [query]);
+  }, [query, gradeLevel]);
+
+  const load = useCallback(() => loadWith(0, false), [loadWith]);
 
   useEffect(() => {
-    const timer = setTimeout(load, 250);
+    const timer = setTimeout(load, query ? 250 : 0);
     return () => clearTimeout(timer);
-  }, [query, load]);
+  }, [query, gradeLevel, load]);
 
   const exportStudents = async () => {
     try {
@@ -403,30 +416,37 @@ export default function Students() {
       <ErrorBanner error={error} />
       <div className="search-row">
         <SearchInput value={query} onChange={setQuery} placeholder={t('students.search')} />
+        <select
+          value={gradeLevel}
+          onChange={(e) => setGradeLevel(e.target.value)}
+          aria-label={t('students.filterByGrade')}
+          style={{ flexShrink: 0 }}
+        >
+          <option value="">{t('students.allGrades')}</option>
+          {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
       </div>
       {canWrite && (
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setImportOpen(!importOpen)}>
             <FileSpreadsheet size={14} style={{ color: 'var(--accent)' }} />
-            <strong style={{ fontSize: 13 }}>Bulk Student Import</strong>
-            <span className="sub" style={{ fontSize: 11 }}>Upload Excel to add new students and enroll them</span>
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{importOpen ? '▲ Collapse' : '▼ Expand'}</span>
+            <strong style={{ fontSize: 13 }}>{t('students.bulkImport')}</strong>
+            <span className="sub" style={{ fontSize: 11 }}>{t('students.bulkImportSub')}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{importOpen ? t('students.collapse') : t('students.expand')}</span>
           </div>
           {importOpen && (
             <div style={{ marginTop: 10 }}>
-              <div className="sub" style={{ marginBottom: 8 }}>
-                Upload an <strong>.xlsx</strong>, <strong>.xls</strong> or <strong>.csv</strong> file with columns: LRN, First Name, Middle Name, Last Name, Suffix, Sex, Birth Date, Grade Level, Section, School Year, Track/Strand, Guardian Name, Guardian Contact, Address.
-                Missing sections are created automatically. Existing students (by LRN) are updated; new ones are created.
-              </div>
+              <div className="sub" style={{ marginBottom: 8 }}>{t('students.importColumns')}</div>
+              <div className="sub" style={{ marginBottom: 8 }}>{t('students.importUpsertNote')}</div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <button className="btn" type="button" onClick={downloadTemplate}>
-                  <Download size={13} /> Download template
+                  <Download size={13} /> {t('students.downloadTemplate')}
                 </button>
                 <button className="btn" type="button" onClick={() => importFileRef.current?.click()}>
-                  <Upload size={13} /> Choose Excel file
+                  <Upload size={13} /> {t('students.chooseFile')}
                 </button>
                 <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFileUpload} />
-                {importFileName && <span className="sub" style={{ alignSelf: 'center' }}>{importFileName} — {importRows.length} row(s)</span>}
+                {importFileName && <span className="sub" style={{ alignSelf: 'center' }}>{t('students.importFileRows', { name: importFileName, count: importRows.length })}</span>}
               </div>
               {importRows.length > 0 && (
                 <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8 }}>
@@ -452,22 +472,22 @@ export default function Students() {
                       ))}
                     </tbody>
                   </table>
-                  {importRows.length > 15 && <div className="sub" style={{ padding: '4px 8px', fontSize: 11 }}>… and {importRows.length - 15} more rows</div>}
+                  {importRows.length > 15 && <div className="sub" style={{ padding: '4px 8px', fontSize: 11 }}>{t('students.moreRows', { count: importRows.length - 15 })}</div>}
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button className="btn btn-primary" onClick={importEnrollments} disabled={importBusy || !importRows.length}>
-                  <Upload size={13} /> {importBusy ? 'Importing...' : `Import ${importRows.length} student(s)`}
+                  <Upload size={13} /> {importBusy ? t('students.importBusyBtn') : t('students.importN', { count: importRows.length })}
                 </button>
                 {importRows.length > 0 && (
                   <button className="btn btn-sm" onClick={() => { setImportRows([]); setImportFileName(''); setImportResult(null); }}>
-                    Clear
+                    {t('students.clear')}
                   </button>
                 )}
                 {importResult && (
                   <span className="sub">
-                    Created/updated: <strong>{importResult.imported}</strong> | Enrolled: <strong>{importResult.enrolled}</strong> | Skipped: <strong>{importResult.skipped}</strong>
-                    {importResult.errors?.length > 0 && <> | Errors: <strong>{importResult.errors.length}</strong></>}
+                    {t('students.importSummary', { imported: importResult.imported, enrolled: importResult.enrolled, skipped: importResult.skipped })}
+                    {importResult.errors?.length > 0 && t('students.importErrCount', { count: importResult.errors.length })}
                   </span>
                 )}
               </div>
@@ -475,7 +495,7 @@ export default function Students() {
                 <div className="err-banner" style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <AlertTriangle size={14} />
-                    <strong style={{ fontSize: 13 }}>{importResult.errors.length} row(s) had issues</strong>
+                    <strong style={{ fontSize: 13 }}>{t('students.importErrorSummary', { count: importResult.errors.length })}</strong>
                   </div>
                   <div style={{ marginTop: 4, fontSize: 12, maxHeight: 140, overflowY: 'auto', fontVariantNumeric: 'tabular-nums' }}>
                     {importResult.errors.map((e, i) => <div key={i}>{e}</div>)}
@@ -508,14 +528,21 @@ export default function Students() {
                   {canWrite && (
                     <td className="row-actions" style={{ textAlign: 'right' }}>
                       <button className="btn btn-sm" title={t('students.portalAccounts')} onClick={() => openAccounts(s)}><Link2 size={13} /></button>{' '}
-                       {canViewPhoto && <button className="btn btn-sm" onClick={() => openEdit(s)} aria-label="Edit student"><Pencil size={13} aria-hidden="true" /></button>}{' '}
-                       <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label="Delete student"><Trash2 size={13} aria-hidden="true" /></button>
+                       {canViewPhoto && <button className="btn btn-sm" onClick={() => openEdit(s)} aria-label={t('students.editStudent')}><Pencil size={13} aria-hidden="true" /></button>}{' '}
+                       <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label={t('students.deleteStudentBtn')}><Trash2 size={13} aria-hidden="true" /></button>
                     </td>
                   )}
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {!loading && rows.length > 0 && hasMore && (
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <button className="btn" onClick={() => loadWith(offset, true)} disabled={loadingMore}>
+            {t('students.loadMore')}
+          </button>
         </div>
       )}
 
@@ -572,7 +599,7 @@ export default function Students() {
                     }
                   }} />
                   <button type="button" className="btn btn-sm" onClick={() => photoInputRef.current?.click()} disabled={photoUploading}>
-                    {photoUploading ? 'Uploading...' : photoUrl ? 'Change Photo' : 'Upload Photo'}
+                    {photoUploading ? t('students.uploading') : photoUrl ? t('students.changePhoto') : t('students.uploadPhoto')}
                   </button>
                   {photoError && <div style={{ fontSize: 11, color: 'var(--danger)', textAlign: 'center' }}>{photoError}</div>}
                 </div>
