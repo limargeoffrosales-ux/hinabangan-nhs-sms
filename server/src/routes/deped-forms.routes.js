@@ -89,8 +89,8 @@ router.get('/school-info', requireRole(...ADMIN_ONLY), asyncH(async (_req, res) 
 
 router.get('/sf3', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id } = req.query;
-  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], books: [], section: null });
+  const secId = validateSectionId(section_id);
   const section = await q('SELECT * FROM sections WHERE id = ?', [secId]);
   const students = await qa(
     `SELECT s.id, s.lrn, s.last_name, s.first_name, s.middle_name
@@ -105,8 +105,8 @@ router.get('/sf3', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf4', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, month, year } = req.query;
-  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ movements: [], attendance: [] });
+  const secId = validateSectionId(section_id);
   const sec = await q('SELECT * FROM sections WHERE id = ?', [secId]);
   const m = validateMonth(month);
   const y = validateYear(year);
@@ -176,8 +176,8 @@ const attendance = await qa(
 
 router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, school_year } = req.query;
-  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], section: null });
+  const secId = validateSectionId(section_id);
   const section = await q('SELECT * FROM sections WHERE id = ?', [secId]);
   const students = await qa(
     db.dialect === 'pg'
@@ -198,8 +198,8 @@ router.get('/sf1', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf2', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, month, year } = req.query;
-  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], attendance: [] });
+  const secId = validateSectionId(section_id);
   const students = await qa(
     `SELECT s.id, s.last_name, s.first_name, s.middle_name, s.suffix
      FROM students s
@@ -227,8 +227,8 @@ const attendance = await qa(
 
 router.get('/sf5', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { section_id, term } = req.query;
-  const secId = validateSectionId(section_id);
   if (!section_id) return res.json({ students: [], subjects: [] });
+  const secId = validateSectionId(section_id);
   const section = await q('SELECT * FROM sections WHERE id = ?', [section_id]);
 const students = await qa(
     `SELECT DISTINCT s.id, s.lrn, s.last_name, s.first_name, s.middle_name, s.suffix, s.sex
@@ -755,8 +755,8 @@ router.get('/student-id', requireRole(...ADMIN_ONLY), asyncH(async (req, res) =>
 
 router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id } = req.query;
-  const stuId = validateStudentId(student_id);
   if (!student_id) return res.json({ learners: [] });
+  const stuId = validateStudentId(student_id);
   const student = await q('SELECT * FROM students WHERE id = ?', [stuId]);
   if (!student) return res.json({ learner: null });
   const maskedStudent = maskPII(student);
@@ -797,8 +797,8 @@ router.get('/sf10', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
 
 router.get('/sf11', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
   const { student_id } = req.query;
-  const stuId = validateStudentId(student_id);
   if (!student_id) return res.json({ learner: null });
+  const stuId = validateStudentId(student_id);
   const student = await q('SELECT * FROM students WHERE id = ?', [stuId]);
   if (!student) return res.json({ learner: null });
   const maskedStudent = maskPII(student);
