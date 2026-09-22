@@ -32,7 +32,11 @@ const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal'
 // is disabled unless 'ai_student_data_consent' is explicitly enabled in
 // app_settings (Settings page), i.e. after the school has obtained the required
 // parental/guardian consent. Prompts also have LRN/address/contact stripped.
+// Operator escape hatch: AI_ALLOW_STUDENT_DATA=1 skips the gate for this
+// deployment (local/dev/demo). Production keeps the fail-closed default unless
+// the operator explicitly opts in.
 async function assertStudentDataConsent(req, res) {
+  if (process.env.AI_ALLOW_STUDENT_DATA === '1') return null;
   const row = await q("SELECT value FROM app_settings WHERE key = 'ai_student_data_consent'");
   if (!row || String(row.value).trim() !== '1') {
     await audit(req, 'AI_STUDENT_DATA_BLOCKED', 'ai', null, { reason: 'consent not enabled' });
@@ -121,7 +125,7 @@ router.post('/report', requireRole(...ADMIN, 'teacher'), aiUserLimiter, asyncH(a
     if (e.status === 429) {
       return res.status(429).json({ error: 'AI rate limit exceeded. Try again in a moment.' });
     }
-    return res.status(500).json({ error: 'AI report generation failed: ' + e.message });
+    return res.status(500).json({ error: 'AI report generation failed. Try again.' });
   }
 }));
 
@@ -198,7 +202,7 @@ router.post('/form-137', requireRole(...ADMIN, 'teacher', 'registrar'), aiUserLi
     if (e.status === 429) {
       return res.status(429).json({ error: 'AI rate limit exceeded. Try again in a moment.' });
     }
-    return res.status(500).json({ error: 'Form 137 generation failed: ' + e.message });
+    return res.status(500).json({ error: 'Form 137 generation failed. Try again.' });
   }
 }));
 

@@ -9,20 +9,30 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const { getCurrentSchoolYear } = require('./schoolYear');
-const { PORT, WEB_DIR } = require('./config');
+const { PORT, HOST, WEB_DIR } = require('./config');
 
 const logger = require('./logger');
 const { authenticate, requireCsrf } = require('./auth');
+const { streamHandler } = require('./realtime');
+
+// Core routes
+const studentsRoutes = require('./routes/students.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const gradesRoutes = require('./routes/grades.routes');
+const announcementsRoutes = require('./routes/announcements.routes');
+
+// Legacy routes (to be migrated)
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
-const studentsRoutes = require('./routes/students.routes');
 const teachersRoutes = require('./routes/teachers.routes');
 const subjectsRoutes = require('./routes/subjects.routes');
 const sectionsRoutes = require('./routes/sections.routes');
 const enrollmentsRoutes = require('./routes/enrollments.routes');
-const attendanceRoutes = require('./routes/attendance.routes');
-const gradesRoutes = require('./routes/grades.routes');
-const announcementsRoutes = require('./routes/announcements.routes');
+const gradingRoutes = require('./routes/grading.routes');
+const exchangeRoutes = require('./routes/exchange.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
+const analyticsKpiRoutes = require('./routes/analytics-kpi.routes');
+const portalRoutes = require('./routes/portal.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const auditRoutes = require('./routes/audit.routes');
 const scheduleRoutes = require('./routes/schedule.routes');
@@ -30,19 +40,13 @@ const assignmentsRoutes = require('./routes/assignments.routes');
 const submissionsRoutes = require('./routes/submissions.routes');
 const interventionsRoutes = require('./routes/interventions.routes');
 const assessmentRoutes = require('./routes/assessment.routes');
-const conductRoutes = require('./routes/conduct.routes');
-const gradingRoutes = require('./routes/grading.routes');
-const analyticsRoutes = require('./routes/analytics.routes');
-const analyticsKpiRoutes = require('./routes/analytics-kpi.routes');
-const portalRoutes = require('./routes/portal.routes');
-const notificationsRoutes = require('./routes/notifications.routes');
 const { immersion, jdvp } = require('./routes/immersion.routes');
+const notificationsRoutes = require('./routes/notifications.routes');
 const privacyRoutes = require('./routes/privacy.routes');
 const mfaRoutes = require('./routes/mfa.routes');
 const curriculumRoutes = require('./routes/curriculum.routes');
 const roomsRoutes = require('./routes/rooms.routes');
 const departmentsRoutes = require('./routes/department.routes');
-const exchangeRoutes = require('./routes/exchange.routes');
 const lessonsRoutes = require('./routes/lessons.routes');
 const competencyTrackerRoutes = require('./routes/competency-tracker.routes');
 const depedFormsRoutes = require('./routes/deped-forms.routes');
@@ -52,10 +56,11 @@ const guidanceRoutes = require('./routes/guidance.routes');
 const uploadsRoutes = require('./routes/uploads.routes');
 const aiRoutes = require('./routes/ai.routes');
 const consentsRoutes = require('./routes/consents.routes');
+const parentRoutes = require('./routes/parent.routes');
 
 (async () => {
   await db.init();
-  const { ensureDefaults, startNotifySweep } = require('./notify');
+  const { ensureDefaults, ensureSmtp, startNotifySweep } = require('./notify');
   const { startStorageCleanup } = require('./storage-cleanup');
   const { startBackupSweep } = require('./backup-sweep');
   await ensureDefaults();
@@ -246,7 +251,7 @@ const consentsRoutes = require('./routes/consents.routes');
   app.get('/api/v1/school-year', async (req, res) => {
     try {
       res.json({ school_year: await getCurrentSchoolYear() });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ error: 'Could not load the current school year' }); }
   });
 
   app.get('/api/v1/health', async (req, res) => {
@@ -254,7 +259,7 @@ const consentsRoutes = require('./routes/consents.routes');
     try {
       if (db.dialect === 'pg') { await db.q('SELECT 1 AS id'); health.db = 'connected'; }
       else { health.db = 'ok'; }
-    } catch (e) { health.ok = false; health.db = 'disconnected'; health.error = e.message; res.status(503); }
+    } catch (e) { health.ok = false; health.db = 'disconnected'; health.error = 'Database unavailable'; res.status(503); }
     res.json(health);
   });
 
@@ -265,21 +270,24 @@ const consentsRoutes = require('./routes/consents.routes');
     next();
   });
 
+  // Core routes
+  app.use('/api/v1/students', studentsRoutes);
+  app.use('/api/v1/attendance', attendanceRoutes);
+  app.use('/api/v1/grades', gradesRoutes);
+  app.use('/api/v1/announcements', announcementsRoutes);
+
+  // Legacy routes (to be migrated)
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/users', usersRoutes);
-  app.use('/api/v1/students', studentsRoutes);
   app.use('/api/v1/teachers', teachersRoutes);
   app.use('/api/v1/subjects', subjectsRoutes);
   app.use('/api/v1/sections', sectionsRoutes);
   app.use('/api/v1/enrollments', enrollmentsRoutes);
-  app.use('/api/v1/attendance', attendanceRoutes);
-  app.use('/api/v1/grades', gradesRoutes);
   app.use('/api/v1/grading', gradingRoutes);
   app.use('/api/v1/exchange', exchangeRoutes);
   app.use('/api/v1/analytics', analyticsRoutes);
   app.use('/api/v1/analytics/kpi', analyticsKpiRoutes);
   app.use('/api/v1/portal', portalRoutes);
-  app.use('/api/v1/announcements', announcementsRoutes);
   app.use('/api/v1/dashboard', dashboardRoutes);
   app.use('/api/v1/audit', auditRoutes);
   app.use('/api/v1/schedule', scheduleRoutes);
@@ -289,7 +297,6 @@ const consentsRoutes = require('./routes/consents.routes');
   app.use('/api/v1/assessment', assessmentRoutes);
   app.use('/api/v1/immersion', immersion);
   app.use('/api/v1/jdvp', jdvp);
-  app.use('/api/v1/conduct', conductRoutes);
   app.use('/api/v1/notifications', notificationsRoutes);
   app.use('/api/v1/privacy', privacyRoutes);
   app.use('/api/v1/mfa', mfaRoutes);
@@ -305,6 +312,9 @@ const consentsRoutes = require('./routes/consents.routes');
   app.use('/api/v1/uploads', uploadsRoutes);
   app.use('/api/v1/ai', aiRoutes);
   app.use('/api/v1/consents', consentsRoutes);
+  app.use('/api/v1/parent', parentRoutes);
+
+  app.get('/api/v1/realtime/stream', streamHandler);
 
   app.use(express.static(WEB_DIR, {
     maxAge: '365d',
@@ -335,6 +345,11 @@ const consentsRoutes = require('./routes/consents.routes');
   app.use((err, req, res, _next) => {
     logger.error({ err, requestId: req.requestId, url: req.originalUrl }, 'Unhandled error');
     if (process.env.SENTRY_DSN) Sentry.captureException(err);
+    if (res.headersSent) {
+      // Response already streaming/sent (e.g. a spreadsheet export failed mid-write);
+      // destroy the socket instead of crashing-logging on a second send.
+      return req.socket.destroy();
+    }
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
     const status = err.status || 500;
     const message = status === 500
@@ -343,9 +358,9 @@ const consentsRoutes = require('./routes/consents.routes');
     res.status(status).json({ error: message });
   });
 
-  const server = app.listen(PORT, () => {
-    logger.info({ port: PORT, dialect: db.dialect }, `MeridianEd API listening on http://localhost:${PORT}`);
-    startNotifySweep();
+  const server = app.listen(PORT, HOST, () => {
+    logger.info({ port: PORT, host: HOST, dialect: db.dialect }, `MeridianEd API listening on http://${HOST}:${PORT}`);
+    ensureSmtp().then(startNotifySweep);
     startStorageCleanup();
     startBackupSweep();
   });
