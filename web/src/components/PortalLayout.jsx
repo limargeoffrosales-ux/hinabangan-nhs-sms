@@ -69,7 +69,7 @@ export default function PortalLayout({ children }) {
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
             <Menu size={17} aria-hidden="true" />
           </button>
-          <img className="brand-logo" src="/logo.jpg" alt={t('portal.schoolLogo')} style={{ marginRight: 6 }} />
+          <img className="brand-logo" src="/logo.jpg" alt={t('portal.schoolLogo')} style={{ width: 34, height: 34, marginRight: 6 }} />
           <h1 style={{ fontSize: 16 }}>{t('brand')} · {t('portalTitle')}</h1>
           <nav className={`portal-nav ${menuOpen ? 'open' : ''}`}>
             {PORTAL_NAV.map((n) => (
