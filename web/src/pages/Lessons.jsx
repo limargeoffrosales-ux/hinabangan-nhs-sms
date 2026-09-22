@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Plus, Filter, Clock, CheckCircle, Send, Eye, Copy, RotateCcw } from 'lucide-react';
+import { BookOpen, Plus, Filter, Clock, CheckCircle, Send, Eye, Copy, RotateCcw, Sparkles, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, SkeletonTable } from '../components/ui';
+import { PageHead, Empty, Modal, ErrorBanner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'teacher'];
 const REVIEWERS = ['super_admin', 'school_admin', 'principal', 'assistant_principal'];
@@ -37,6 +37,10 @@ export default function Lessons() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewing, setReviewing] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   useEffect(() => {
     Promise.allSettled([
@@ -146,6 +150,42 @@ export default function Lessons() {
       openForm(res.data.find((l) => l.id === r.id));
     } catch (e2) {
       setError(e2.message);
+    }
+  }
+
+  async function generateAiLesson() {
+    if (!aiTopic.trim()) return;
+    setAiGenerating(true);
+    setAiError('');
+    try {
+      const section = sections.find((s) => String(s.id) === String(form.section_id));
+      const result = await api('/ai/lesson-plan/generate', {
+        method: 'POST',
+        body: {
+          subject_id: form.subject_id ? Number(form.subject_id) : undefined,
+          topic: aiTopic.trim(),
+          duration_minutes: form.duration_minutes || 60,
+          quarter: form.quarter || undefined,
+          school_year: form.school_year,
+          section_name: section ? section.name : undefined,
+        },
+      });
+      setForm((f) => ({
+        ...f,
+        title: result.title || f.title,
+        objectives: result.objectives || f.objectives,
+        content_outline: result.content_outline || f.content_outline,
+        teaching_strategy: result.teaching_strategy || f.teaching_strategy,
+        materials: result.materials || f.materials,
+        assessment_plan: result.assessment_plan || f.assessment_plan,
+        notes: result.notes || f.notes,
+      }));
+      setShowAiModal(false);
+      setAiTopic('');
+    } catch (e2) {
+      setAiError(e2.message || 'AI generation failed');
+    } finally {
+      setAiGenerating(false);
     }
   }
 
@@ -276,6 +316,11 @@ export default function Lessons() {
       {/* Lesson form modal */}
       {showModal && (
         <Modal title={editing ? t('lessons.editLesson', 'Edit Lesson') : t('lessons.newLesson', 'New Lesson')} onClose={() => setShowModal(false)} wide>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button type="button" className="btn btn-sm" onClick={() => setShowAiModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'linear-gradient(135deg, #7c3aed, #2563eb)', color: 'white', border: 'none', fontWeight: 600 }}>
+              <Sparkles size={14} /> {t('lessons.aiGenerate', 'AI Generate')}
+            </button>
+          </div>
           <form onSubmit={save}>
             <div className="grid-2" style={{ gap: 12 }}>
               <label>{t('lessons.titleLabel', 'Title')} *
@@ -359,6 +404,47 @@ export default function Lessons() {
               <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* AI Generate modal */}
+      {showAiModal && (
+        <Modal title={t('lessons.aiGenerateTitle', 'AI Lesson Plan Generator')} onClose={() => { setShowAiModal(false); setAiError(''); }}>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.5 }}>
+            {t('lessons.aiGenerateDesc', 'Describe the topic or concept and the AI will generate a complete lesson plan, filling in all fields automatically.')}
+          </p>
+          {form.subject_id ? (
+            <div style={{ fontSize: 12, color: '#374151', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+              <strong>{subjects.find((s) => String(s.id) === String(form.subject_id))?.title || 'Selected subject'}</strong>
+              {form.quarter && <span> · Q{form.quarter}</span>}
+              {form.duration_minutes && <span> · {form.duration_minutes} min</span>}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+              {t('lessons.aiSelectSubjectFirst', 'Select a subject in the form first for best results.')}
+            </div>
+          )}
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+            {t('lessons.aiTopicLabel', 'Topic *')}
+          </label>
+          <input
+            value={aiTopic}
+            onChange={(e) => setAiTopic(e.target.value)}
+            placeholder={t('lessons.aiTopicPlaceholder', 'e.g. Photosynthesis, Quadratic Equations, Philippine History...')}
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+            onKeyDown={(e) => e.key === 'Enter' && !aiGenerating && generateAiLesson()}
+            autoFocus
+          />
+          {aiError && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{aiError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <button type="button" className="btn" onClick={() => { setShowAiModal(false); setAiError(''); }}>
+              {t('common.cancel', 'Cancel')}
+            </button>
+            <button type="button" className="btn btn-primary" disabled={aiGenerating || !aiTopic.trim()} onClick={generateAiLesson}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}>
+              {aiGenerating ? <><Loader2 size={14} className="spin" /> {t('lessons.aiGenerating', 'Generating...')}</> : <><Sparkles size={14} /> {t('lessons.aiGenerateNow', 'Generate Lesson Plan')}</>}
+            </button>
+          </div>
         </Modal>
       )}
 

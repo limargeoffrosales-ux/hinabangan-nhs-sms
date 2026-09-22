@@ -267,6 +267,48 @@ async function generateLessonPlan(params) {
   return safeParse(response);
 }
 
+async function generateLessonPlanFields(params) {
+  const { subject_id, topic, duration_minutes, quarter, school_year, section_name } = params;
+  let subjectInfo = '';
+  let competencies = [];
+  if (subject_id) {
+    const sub = await q('SELECT * FROM subjects WHERE id = ?', [subject_id]);
+    if (sub) subjectInfo = 'Subject: ' + sub.title + ' (' + sub.code + ')';
+    try { competencies = await qa('SELECT * FROM subject_competencies WHERE subject_id = ?', [subject_id]); } catch { /* table may not exist */ }
+  }
+  const compList = competencies.length
+    ? competencies.map(c => '- ' + c.title + ': ' + (c.description || '')).join('\n')
+    : 'Align to standard DepEd K-12 competencies for this subject';
+
+  const prompt = `You are an expert DepEd-compliant lesson plan writer for Hinabangan National High School (Hinabangan, Samar, Philippines).
+Create a COMPLETE, HIGH-QUALITY detailed lesson plan for the following context.
+
+SUBJECT: ${subjectInfo || 'Not specified'}
+TOPIC: ${topic || 'Teacher to determine'}
+DURATION: ${duration_minutes || 60} minutes
+QUARTER: ${quarter || 'N/A'}
+SCHOOL YEAR: ${school_year || '2026-2027'}
+SECTION: ${section_name || 'Not specified'}
+
+AVAILABLE COMPETENCIES:
+${compList}
+
+INSTRUCTIONS — Generate the following fields as a JSON object. Be thorough, specific, and pedagogically excellent. Follow DepEd DLL format strictly.
+
+1. "title" — A concise, descriptive lesson title (max 120 chars)
+2. "objectives" — 3-5 SMART learning objectives (bullet points, each starting with "At the end of the lesson, the learner shall be able to...")
+3. "content_outline" — Detailed content outline with main topics and subtopics (3-5 sections with brief descriptions)
+4. "teaching_strategy" — Primary and complementary teaching strategies with brief rationale (e.g. "Direct Instruction for concept delivery, Cooperative Learning (Think-Pair-Share) for practice, Scaffolded Inquiry for application")
+5. "materials" — Complete list of materials: textbooks, worksheets, AV aids, realia, digital tools (be specific, e.g. "Visual charts on photosynthesis, printed worksheet on leaf structure, PowerPoint slides, actual leaf specimens")
+6. "assessment_plan" — Multi-layered assessment: formative (during lesson checks), summative (end of lesson quiz/performative task), and rubric criteria (be specific with criteria and point values)
+7. "notes" — Teacher reflection prompts, differentiation tips for diverse learners, cross-curricular connections, and suggested homework
+
+Return ONLY a valid JSON object with these 7 keys. No markdown, no code fences.`;
+
+  const response = await chat([{ role: 'user', content: prompt }], { maxTokens: 3000, temperature: 0.75 });
+  return safeParse(response);
+}
+
 async function generateExam(params) {
   const { subject_id, topic, num_items, difficulty_mix, grade_level, exam_type } = params;
   let subjectInfo = '';
@@ -480,7 +522,7 @@ Output ONLY one JSON object (no markdown, no code fences, no commentary):
 }
 
 module.exports = {
-  isEnabled, chat, generateStudentReport, generateLessonPlan,
+  isEnabled, chat, generateStudentReport, generateLessonPlan, generateLessonPlanFields,
   generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage, generateForm137,
   generateTeacherProgram, getProviderInfo, PROVIDERS, cleanUpMarkdown,
 };

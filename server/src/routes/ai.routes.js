@@ -135,6 +135,14 @@ router.post('/lesson-plan', requireRole(...STAFF), aiUserLimiter, asyncH(async (
   res.json(plan);
 }));
 
+router.post('/lesson-plan/generate', requireRole(...STAFF), aiUserLimiter, asyncH(async (req, res) => {
+  const b = req.body || {};
+  if (!b.topic || !b.topic.trim()) return res.status(400).json({ error: 'topic is required' });
+  const result = await ai.generateLessonPlanFields(b);
+  await audit(req, 'AI_LESSON_PLAN_GENERATE', 'ai', null, { subject_id: b.subject_id, topic: b.topic });
+  res.json(result);
+}));
+
 router.post('/exam', requireRole(...STAFF), aiUserLimiter, asyncH(async (req, res) => {
   const exam = await ai.generateExam(req.body || {});
   await audit(req, 'AI_EXAM', 'ai', null, { subject_id: req.body?.subject_id, topic: req.body?.topic });
