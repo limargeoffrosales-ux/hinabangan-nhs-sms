@@ -6,6 +6,7 @@ import { ErrorBanner, Empty, Spinner, Badge } from './ui';
 export default function WorkImmersionVenues() {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({
     name: '',

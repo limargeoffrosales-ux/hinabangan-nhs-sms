@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Save, RotateCcw } from 'lucide-react';
+import { Save, RotateCcw, CheckCheck, Download } from 'lucide-react';
 import { api } from '../lib/api';
 import { ErrorBanner, Empty, Spinner } from './ui';
 
@@ -57,6 +57,29 @@ export default function ImmersionDailyAttendance() {
 
   function setRow(id, patch) {
     setRoster((rs) => rs.map((r) => (r.immersion_id === id ? { ...r, ...patch } : r)));
+  }
+
+  function markAll(status) {
+    setRoster((rs) => rs.map((r) => ({ ...r, status })));
+  }
+
+  async function exportXlsx() {
+    try {
+      const params = batch ? `?batch=${encodeURIComponent(batch)}` : '';
+      const res = await fetch(`/api/v1/immersion/attendance/export${params}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `immersion-attendance${batch ? '-' + batch : ''}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   async function save() {
@@ -149,10 +172,15 @@ export default function ImmersionDailyAttendance() {
           <div className="card" style={{ marginBottom: 16, padding: '12px 18px' }}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 600 }}>Daily attendance — {date}</span>
+              <button className="btn btn-sm" onClick={() => markAll('present')}><CheckCheck size={13} /> All Present</button>
+              <button className="btn btn-sm" onClick={() => markAll('late')}>All Late</button>
+              <button className="btn btn-sm" onClick={() => markAll('absent')}>All Absent</button>
+              <button className="btn btn-sm" onClick={() => markAll('excused')}>All Excused</button>
               <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>
                 {Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
               </span>
-              <span style={{ marginLeft: 'auto' }}>
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <button className="btn btn-sm" onClick={exportXlsx}><Download size={13} /> Export</button>
                 <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
                   <Save size={13} /> {saving ? 'Saving…' : 'Save attendance'}
                 </button>

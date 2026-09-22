@@ -122,12 +122,13 @@ export type WriteRole = (typeof WRITE_ROLES)[number];
 // Grade level display names (uses GradeLevel from enums)
 import type { GradeLevel } from '../enums';
 export const GRADE_LEVEL_LABELS: Record<GradeLevel, string> = {
-  '7': 'Grade 7',
-  '8': 'Grade 8',
-  '9': 'Grade 9',
-  '10': 'Grade 10',
-  '11': 'Grade 11',
-  '12': 'Grade 12',
+  'Grade 7': 'Grade 7',
+  'Grade 8': 'Grade 8',
+  'Grade 9': 'Grade 9',
+  'Grade 10': 'Grade 10',
+  'Grade 11': 'Grade 11',
+  'Grade 12': 'Grade 12',
+  'College': 'College',
 };
 
 // Term display names

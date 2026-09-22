@@ -28,7 +28,8 @@ export function PageHead({ title, sub, children }) {
 }
 
 export function Empty({ text }) {
-  return <div className="empty" role="status">{text || 'Nothing here yet.'}</div>;
+  const { t } = useTranslation();
+  return <div className="empty" role="status">{text || t('common.noData')}</div>;
 }
 
 export function EmptyState({ icon: Icon, text, children }) {
@@ -178,10 +179,11 @@ export function SectionCard({ title, icon: Icon, children, action, className = '
 }
 
 export function SearchInput({ value, onChange, placeholder }) {
+  const { t } = useTranslation();
   return (
     <div className="search-box">
       <Search size={15} />
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || 'Search...'} />
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || `${t('common.search')}…`} />
     </div>
   );
 }
@@ -245,6 +247,7 @@ export function RichTextEditor({ value, onChange, placeholder, rows = 4 }) {
   const ref = useRef(null);
   const focused = useRef(false);
   const lastHtml = useRef('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (ref.current && !focused.current && value !== undefined) {
@@ -295,7 +298,7 @@ export function RichTextEditor({ value, onChange, placeholder, rows = 4 }) {
         <button type="button" style={btnBase} onClick={() => exec('insertOrderedList')} title="Numbered list">1.</button>
         <Sep />
         <button type="button" style={btnBase} onClick={() => exec('insertHorizontalRule')} title="Horizontal rule">―</button>
-        <button type="button" style={btnBase} onClick={() => { const url = prompt('Enter URL:'); if (url) exec('createLink', url); }} title="Insert link">Link</button>
+        <button type="button" style={btnBase} onClick={() => { const url = prompt(t('editor.enterUrl', 'Enter URL:')); if (url) exec('createLink', url); }} title="Insert link">Link</button>
         <Sep />
         <button type="button" style={btnBase} onClick={() => exec('undo')} title="Undo (Ctrl+Z)">↩</button>
         <button type="button" style={btnBase} onClick={() => exec('redo')} title="Redo (Ctrl+Y)">↪</button>
@@ -304,7 +307,7 @@ export function RichTextEditor({ value, onChange, placeholder, rows = 4 }) {
         ref={ref}
         contentEditable
         role="textbox"
-        aria-label={placeholder || 'Rich text editor'}
+        aria-label={placeholder || t('editor.ariaLabel', 'Text editor')}
         aria-multiline="true"
         onFocus={() => { focused.current = true; }}
         onBlur={() => { focused.current = false; handleInput(); }}
@@ -319,57 +322,58 @@ export function RichTextEditor({ value, onChange, placeholder, rows = 4 }) {
 
 /* ── Command Palette (Cmd+K) ──────────────────────────────── */
 const PALETTE_GROUPS = [
-  { group: 'Main', items: [
-    { label: 'Dashboard', to: '/' },
+  { groupKey: 'palette.group.main', items: [
+    { labelKey: 'nav.dashboard', to: '/' },
   ]},
-  { group: 'People', items: [
-    { label: 'Students', to: '/students' },
-    { label: 'Teachers', to: '/teachers' },
-    { label: 'Users', to: '/users' },
+  { groupKey: 'palette.group.people', items: [
+    { labelKey: 'nav.students', to: '/students' },
+    { labelKey: 'nav.teachers', to: '/teachers' },
+    { labelKey: 'nav.users', to: '/users' },
   ]},
-  { group: 'Academics', items: [
-    { label: 'Curriculum', to: '/curriculum' },
-    { label: 'Subjects', to: '/subjects' },
-    { label: 'Sections', to: '/sections' },
-    { label: 'Enrollment', to: '/enroll' },
-    { label: 'Lessons', to: '/lessons' },
+  { groupKey: 'palette.group.academics', items: [
+    { labelKey: 'nav.curriculum', to: '/curriculum' },
+    { labelKey: 'nav.subjects', to: '/subjects' },
+    { labelKey: 'nav.sections', to: '/sections' },
+    { labelKey: 'nav.enrollment', to: '/enroll' },
+    { labelKey: 'nav.lessons', to: '/lessons' },
   ]},
-  { group: 'Assessment', items: [
-    { label: 'Class Records & Grades', to: '/grades' },
-    { label: 'Assignments', to: '/assignments' },
-    { label: 'Grading Scales', to: '/grading-scales' },
-    { label: 'Rankings', to: '/rankings' },
-    { label: 'Attendance', to: '/attendance' },
+  { groupKey: 'palette.group.assessment', items: [
+    { labelKey: 'nav.classRecords', to: '/grades' },
+    { labelKey: 'nav.assignments', to: '/assignments' },
+    { labelKey: 'nav.gradingScales', to: '/grading-scales' },
+    { labelKey: 'nav.rankings', to: '/rankings' },
+    { labelKey: 'nav.attendance', to: '/attendance' },
   ]},
-  { group: 'Programs', items: [
-    { label: 'Aral', to: '/aral' },
-    { label: 'Immersion', to: '/immersion' },
-    { label: 'Career & TVL', to: '/career-tvl' },
-    { label: 'Certifications', to: '/certifications' },
+  { groupKey: 'palette.group.programs', items: [
+    { labelKey: 'nav.aral', to: '/aral' },
+    { labelKey: 'nav.immersion', to: '/immersion' },
+    { labelKey: 'nav.careerTvl', to: '/career-tvl' },
+    { labelKey: 'nav.certifications', to: '/certifications' },
   ]},
-  { group: 'Teaching', items: [
-    { label: 'Programs', to: '/programs' },
-    { label: 'Submissions', to: '/submissions' },
-    { label: 'Compliance', to: '/compliance' },
-    { label: 'Interventions', to: '/interventions' },
-    { label: 'Guidance', to: '/guidance' },
-    { label: 'Discipline', to: '/discipline' },
+  { groupKey: 'palette.group.teaching', items: [
+    { labelKey: 'nav.programs', to: '/programs' },
+    { labelKey: 'nav.submissions', to: '/submissions' },
+    { labelKey: 'nav.compliance', to: '/compliance' },
+    { labelKey: 'nav.interventions', to: '/interventions' },
+    { labelKey: 'nav.guidance', to: '/guidance' },
+    { labelKey: 'nav.conduct', to: '/discipline' },
   ]},
-  { group: 'Resources', items: [
-    { label: 'Rooms', to: '/rooms' },
-    { label: 'Announcements', to: '/announcements' },
-    { label: 'Notifications', to: '/notifications' },
-    { label: 'Consent Forms', to: '/consent' },
+  { groupKey: 'palette.group.resources', items: [
+    { labelKey: 'nav.rooms', to: '/rooms' },
+    { labelKey: 'nav.announcements', to: '/announcements' },
+    { labelKey: 'nav.notifications', to: '/notifications' },
+    { labelKey: 'nav.consent', to: '/consent' },
   ]},
-  { group: 'Reports', items: [
-    { label: 'Analytics', to: '/analytics' },
-    { label: 'DepEd Forms', to: '/deped-forms' },
+  { groupKey: 'palette.group.reports', items: [
+    { labelKey: 'nav.analytics', to: '/analytics' },
+    { labelKey: 'nav.depedForms', to: '/deped-forms' },
   ]},
-  { group: 'System', items: [
-    { label: 'AI Tools', to: '/ai' },
-    { label: 'Privacy & Security', to: '/privacy' },
-    { label: 'MFA Setup', to: '/mfa' },
-    { label: 'Audit Logs', to: '/audit' },
+  { groupKey: 'palette.group.system', items: [
+    { labelKey: 'nav.aiTools', to: '/ai' },
+    { labelKey: 'nav.designSystem', to: '/design-system' },
+    { labelKey: 'nav.privacy', to: '/privacy' },
+    { labelKey: 'nav.mfa', to: '/mfa' },
+    { labelKey: 'nav.auditLogs', to: '/audit' },
   ]},
 ];
 
@@ -397,7 +401,7 @@ export function CommandPalette() {
   const recentItems = recent.map((to) => PALETTE_FLAT.find((i) => i.to === to)).filter(Boolean);
 
   const filtered = query.trim()
-    ? PALETTE_FLAT.filter((item) => item.label.toLowerCase().includes(query.toLowerCase()))
+    ? PALETTE_FLAT.filter((item) => t(item.labelKey).toLowerCase().includes(query.toLowerCase()))
     : [];
 
   const displayItems = query.trim() ? filtered : recentItems.length ? recentItems : PALETTE_FLAT.slice(0, 10);
@@ -458,21 +462,21 @@ export function CommandPalette() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
           <Search size={16} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
           <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleKey}
-            placeholder="Search pages… (e.g. grades, students)"
+            placeholder={t('palette.searchPlaceholder', 'Search pages…')}
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 15, fontFamily: 'var(--font-ui)' }} />
           <kbd style={kbdStyle}>ESC</kbd>
         </div>
         <div ref={listRef} style={{ maxHeight: 360, overflowY: 'auto', padding: '4px 0' }}>
           {displayItems.length === 0 && (
-            <div style={{ padding: '20px 14px', color: 'var(--text-dim)', fontSize: 13, textAlign: 'center' }}>No results for "{query}"</div>
+            <div style={{ padding: '20px 14px', color: 'var(--text-dim)', fontSize: 13, textAlign: 'center' }}>{t('palette.noResults', { query })}</div>
           )}
           {showGroups ? (
             PALETTE_GROUPS.map((group) => {
               const groupIdx = displayItems.indexOf(group.items[0]);
               if (groupIdx === -1) return null;
               return (
-                <div key={group.group}>
-                  <div style={{ padding: '6px 14px', fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{group.group}</div>
+                <div key={group.groupKey}>
+                  <div style={{ padding: '6px 14px', fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t(group.groupKey)}</div>
                   {group.items.map((item) => {
                     const idx = displayItems.indexOf(item);
                     if (idx === -1) return null;
@@ -480,7 +484,7 @@ export function CommandPalette() {
                       <button key={item.to} data-idx={idx} onClick={() => go(item.to)}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '7px 14px', background: idx === activeIdx ? 'var(--card-hover)' : 'none', border: 'none', color: 'var(--text)', fontSize: 14, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-ui)' }}
                         onMouseEnter={() => setActiveIdx(idx)}>
-                        <span style={{ flex: 1 }}>{item.label}</span>
+                        <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
                         <kbd style={kbdStyle}>↵</kbd>
                       </button>
                     );
@@ -493,17 +497,17 @@ export function CommandPalette() {
               <button key={item.to} data-idx={i} onClick={() => go(item.to)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '7px 14px', background: i === activeIdx ? 'var(--card-hover)' : 'none', border: 'none', color: 'var(--text)', fontSize: 14, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-ui)' }}
                 onMouseEnter={() => setActiveIdx(i)}>
-                <span style={{ flex: 1 }}>{item.label}</span>
+                <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
                 <kbd style={kbdStyle}>↵</kbd>
               </button>
             ))
           )}
         </div>
         <div style={{ padding: '6px 14px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 12 }}>
-          <span><kbd style={kbdStyle}>↑↓</kbd> navigate</span>
-          <span><kbd style={kbdStyle}>↵</kbd> open</span>
-          <span><kbd style={kbdStyle}>esc</kbd> close</span>
-          {!query.trim() && <span style={{ marginLeft: 'auto', opacity: 0.6 }}>Type to search</span>}
+          <span><kbd style={kbdStyle}>↑↓</kbd> {t('palette.navigate')}</span>
+          <span><kbd style={kbdStyle}>↵</kbd> {t('palette.open')}</span>
+          <span><kbd style={kbdStyle}>esc</kbd> {t('palette.close')}</span>
+          {!query.trim() && <span style={{ marginLeft: 'auto', opacity: 0.6 }}>{t('palette.typeToSearch')}</span>}
         </div>
       </div>
     </div>

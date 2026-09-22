@@ -134,8 +134,7 @@ export default function WorkImmersionPerformance() {
                 />
                 <button
                   className="btn btn-link text-primary"
-                  onClick={() => setStudentId('')
-                }
+                  onClick={() => setStudentId('')}
                 >
                   Change
                 </button>
@@ -181,7 +180,7 @@ export default function WorkImmersionPerformance() {
                   style={{ width: '100%' }}
                 >
                   <option value="outstanding">Outstanding</option>
-                  <option value="satisfactory" selected>
+                  <option value="satisfactory">
                     Satisfactory
                   </option>
                   <option value="needs_improvement">

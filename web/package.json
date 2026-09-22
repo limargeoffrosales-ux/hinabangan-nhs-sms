@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck",
+    "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
     "@meridianed/shared": "^0.1.0",

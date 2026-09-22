@@ -125,13 +125,19 @@ export type ConductValue = (typeof ConductValue)[number];
 export const TermOption = [1, 2, 3, 4] as const;
 export type TermOption = (typeof TermOption)[number];
 
+export const SubjectTrack = ['academic', 'general', 'tvl'] as const;
+export type SubjectTrack = (typeof SubjectTrack)[number];
+
+export const SubjectTerm = ['first', 'second', 'third', 'all'] as const;
+export type SubjectTerm = (typeof SubjectTerm)[number];
+
 export const GradeLevel = [
-  '7', '8', '9', '10', '11', '12',
+  'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'College',
 ] as const;
 export type GradeLevel = (typeof GradeLevel)[number];
 
 export const GradeScaleType = [
-  'percentage', 'points', 'letter', 'proficiency',
+  'numeric', 'letter', 'gpa', 'ib', 'cambridge', 'custom',
 ] as const;
 export type GradeScaleType = (typeof GradeScaleType)[number];
 
@@ -163,5 +169,7 @@ export const zImmersionStatus = z.enum(ImmersionStatus);
 export const zImmersionGender = z.enum(ImmersionGender);
 export const zConductValue = z.enum(ConductValue);
 export const zTermOption = z.enum(TermOption.map(String) as [string, ...string[]]);
+export const zSubjectTrack = z.enum(SubjectTrack);
+export const zSubjectTerm = z.enum(SubjectTerm);
 export const zGradeLevel = z.enum(GradeLevel);
 export const zGradeScaleType = z.enum(GradeScaleType);

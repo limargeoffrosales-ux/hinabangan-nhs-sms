@@ -2,7 +2,9 @@ const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadO
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 const path = require('path');
-const { R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY, R2_SECRET_KEY, R2_PUBLIC_URL } = require('./config');
+const {
+  R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY, R2_SECRET_KEY, R2_PUBLIC_URL, R2_BUCKET_IMAGE, R2_BUCKET_VIDEO,
+} = require('./config');
 
 const r2 = new S3Client({
   region: 'auto',
@@ -11,7 +13,29 @@ const r2 = new S3Client({
 });
 
 const BUCKET = R2_BUCKET;
+const IMAGE_BUCKET = R2_BUCKET_IMAGE || BUCKET;
+const VIDEO_BUCKET = R2_BUCKET_VIDEO || BUCKET;
 const PUBLIC_URL = R2_PUBLIC_URL;
+
+// Pick the destination bucket from the upload's MIME type. Unknown/other files
+// go to the default bucket.
+function bucketForMime(mime) {
+  if (mime && mime.startsWith('video/')) return VIDEO_BUCKET;
+  if (mime && mime.startsWith('image/')) return IMAGE_BUCKET;
+  return BUCKET;
+}
+
+const VIDEO_EXTS = /\.(mp4|webm|mov|m4v|avi|mkv|mpeg|mpg|3gp)$/i;
+const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp|heic|bmp)$/i;
+
+// Recover the owning bucket from a stored key/URL. Existing keys carry no bucket
+// hint, so we infer it from the file extension. Unknown extensions -> default.
+function bucketForKey(key) {
+  if (!key) return BUCKET;
+  if (VIDEO_EXTS.test(key)) return VIDEO_BUCKET;
+  if (IMAGE_EXTS.test(key)) return IMAGE_BUCKET;
+  return BUCKET;
+}
 
 function genKey(folder, originalName) {
   const ext = path.extname(originalName || '').toLowerCase();
@@ -20,8 +44,9 @@ function genKey(folder, originalName) {
 }
 
 async function uploadBuffer(key, buffer, mime) {
+  const bucket = bucketForMime(mime);
   await r2.send(new PutObjectCommand({
-    Bucket: BUCKET,
+    Bucket: bucket,
     Key: key,
     Body: buffer,
     ContentType: mime || 'application/octet-stream',
@@ -38,12 +63,13 @@ async function uploadFile(folder, file, originalName) {
 }
 
 async function deleteFile(key) {
-  await r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+  const bucket = bucketForKey(key);
+  await r2.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
 async function fileExists(key) {
   try {
-    await r2.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    await r2.send(new HeadObjectCommand({ Bucket: bucketForKey(key), Key: key }));
     return true;
   } catch {
     return false;
@@ -69,7 +95,7 @@ function fileKeyFromUrl(url) {
 }
 
 async function getSignedDownloadUrl(key, expiresIn = 3600) {
-  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
+  const cmd = new GetObjectCommand({ Bucket: bucketForKey(key), Key: key });
   return getSignedUrl(r2, cmd, { expiresIn });
 }
 
@@ -77,8 +103,8 @@ async function getSignedDownloadUrl(key, expiresIn = 3600) {
 // plain CDN URL; once the bucket is private we fall back to a presigned GET.
 async function getDownloadUrl(key, expiresIn = 3600) {
   if (!key) return null;
-  if (PUBLIC_URL) return `${PUBLIC_URL}/${key}`;
+  if (PUBLIC_URL && bucketForKey(key) === BUCKET) return `${PUBLIC_URL}/${key}`;
   return getSignedDownloadUrl(key, expiresIn);
 }
 
-module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, getDownloadUrl, genKey, fileKeyFromUrl };
+module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, getDownloadUrl, genKey, fileKeyFromUrl, bucketForMime, bucketForKey };

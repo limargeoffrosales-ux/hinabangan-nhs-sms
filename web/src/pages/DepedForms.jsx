@@ -184,7 +184,7 @@ export default function DepedForms() {
   }, [data, term]);
 
   const saveConduct = useCallback(async () => {
-    if (!studentId || !term) return toast.error(t('depedForms.needTerm', 'Select a term (Q1-Q4) first.'));
+    if (!studentId || !term) return toast.error(t('depedForms.needTerm', 'Select a term (Q1-Q3) first.'));
     setConductSaving(true);
     try {
       await api('/deped-forms/sf9/conduct', {
@@ -243,7 +243,7 @@ export default function DepedForms() {
               <label style={{ fontSize: 13 }}>{t('depedForms.term')}
                 <select className="input" style={{ marginLeft: 6 }} value={term} onChange={ev => setTerm(ev.target.value)}>
                   <option value="">{t('depedForms.all')}</option>
-                  <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+                  <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option>
                   <option value="Final">{t('depedForms.final')}</option>
                 </select>
               </label>
@@ -766,7 +766,7 @@ function renderSF5Analysis(data, subjects) {
   ];
   const termLabel = (term, sy) => {
     if (term == null) return '';
-    const month = `Quarter ${term}`;
+    const month = `Term ${term}`;
     return `${month} of ${esc(sy || '____-____')}`;
   };
   return `
@@ -1545,7 +1545,7 @@ function renderSF11(data, info) {
     return (v != null && v !== '' && !isNaN(num)) ? num.toFixed(1) : '';
   }
 
-  const terms = [1, 2, 3, 4];
+  const terms = [1, 2, 3];
 
   const byYear = {};
   for (const en of enrollments) {
@@ -1590,7 +1590,7 @@ function renderSF11(data, info) {
       <table style="width:100%;font-size:7pt;border-collapse:collapse;margin:0;">
         <thead><tr>
           <th style="text-align:left;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">LEARNING AREAS</th>
-          ${terms.map(t => `<th style="width:22pt;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">Q${t}</th>`).join('')}
+          ${terms.map(t => `<th style="width:22pt;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">Term ${t}</th>`).join('')}
           <th style="width:22pt;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">Final<br/>Grade</th>
           <th style="width:34pt;padding:2pt;border-top:1px solid #000;">Remarks</th>
         </tr></thead>
@@ -1672,7 +1672,7 @@ ${years.length ? scholastic : `<tr><td style="padding:2pt;text-align:center;bord
 }
 
 function renderSF11Blank(info) {
-  const terms = [1, 2, 3, 4];
+  const terms = [1, 2, 3];
   const rows = blankRows(3, terms.length + 3);
   return `
 ${formHeaderHtml(info, 'sf11', "School Form 11 (SF11) \u2014 Learner's Permanent Academic Record for Senior High School (Grades 11-12 / Form 137-SHS)")}
@@ -1704,7 +1704,7 @@ ${formHeaderHtml(info, 'sf11', "School Form 11 (SF11) \u2014 Learner's Permanent
       <table style="width:100%;font-size:7pt;border-collapse:collapse;margin:0;">
         <thead><tr>
           <th style="text-align:left;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">LEARNING AREAS</th>
-          ${terms.map(t => `<th style="width:22pt;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">Q${t}</th>`).join('')}
+          ${terms.map(t => `<th style="width:22pt;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">Term ${t}</th>`).join('')}
           <th style="width:22pt;padding:2pt;border-right:1px solid #000;border-top:1px solid #000;">Final<br/>Grade</th>
           <th style="width:34pt;padding:2pt;border-top:1px solid #000;">Remarks</th>
         </tr></thead>
@@ -1775,12 +1775,11 @@ ${formHeaderHtml(info, 'sog', 'Summary of Grades')}
 <tbody>
 ${learners.length ? learners.map((lr, idx) => {
   const learnerGrades = subjects.map(sub => {
-    const q1 = gradeMap[`${lr.id}_${sub.id}_Q1`]?.computed_grade || 0;
-    const q2 = gradeMap[`${lr.id}_${sub.id}_Q2`]?.computed_grade || 0;
-    const q3 = gradeMap[`${lr.id}_${sub.id}_Q3`]?.computed_grade || 0;
-    const q4 = gradeMap[`${lr.id}_${sub.id}_Q4`]?.computed_grade || 0;
-    const finalGrade = gradeMap[`${lr.id}_${sub.id}_Final`]?.computed_grade ||
-      ((q1 + q2 + q3 + q4) / 4 || 0);
+    const q1 = gradeMap[`${lr.id}_${sub.id}_1`]?.computed_grade || 0;
+    const q2 = gradeMap[`${lr.id}_${sub.id}_2`]?.computed_grade || 0;
+    const q3 = gradeMap[`${lr.id}_${sub.id}_3`]?.computed_grade || 0;
+    const present = [q1, q2, q3].filter(x => Number(x) > 0);
+    const finalGrade = present.length ? (present.reduce((a, b) => a + Number(b), 0) / present.length) : 0;
     return Number(finalGrade) || 0;
   });
   const genAvg = learnerGrades.filter(x => x > 0).length

@@ -10,19 +10,12 @@ import {
   Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
   Brain,
   Map,
+  Palette,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal, CommandPalette } from './ui';
 import { api } from '../lib/api';
-
-const LEGACY_MAP = { dark: 'midnight', light: 'light' };
-
-function resolveTheme(theme) {
-  if (theme === 'auto') {
-    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'midnight';
-  }
-  return LEGACY_MAP[theme] || theme;
-}
+import { useTheme } from '../design-system';
 
 const NAV_GROUPS = [
   {
@@ -105,7 +98,8 @@ const NAV_GROUPS = [
   {
     label: 'nav.system',
     items: [
-      { to: '/ai', labelKey: 'AI Tools', icon: Brain, adminOnly: true, aiStaff: true },
+      { to: '/ai', labelKey: 'nav.aiTools', icon: Brain, adminOnly: true, aiStaff: true },
+      { to: '/design-system', labelKey: 'nav.designSystem', icon: Palette, adminOnly: true },
       { to: '/privacy', labelKey: 'nav.privacy', icon: ShieldCheck },
       { to: '/mfa', labelKey: 'nav.mfa', icon: Shield, adminOnly: true },
       { to: '/audit', labelKey: 'nav.auditLogs', icon: Search },
@@ -129,10 +123,7 @@ export default function Layout({ children }) {
   const isSuperAdmin = can(user?.role, 'super_admin');
   const isAIStaff = can(user?.role, ...AI_STAFF);
   const isParent = can(user?.role, 'parent', 'guardian');
-  const [theme, setTheme] = useState(() => {
-    const s = localStorage.getItem('meridianed_theme') || 'midnight';
-    return LEGACY_MAP[s] || s;
-  });
+  const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
@@ -142,19 +133,6 @@ export default function Layout({ children }) {
   const [langOpen, setLangOpen] = useState(false);
 
   useEffect(() => {
-    function apply() {
-      document.documentElement.dataset.theme = resolveTheme(theme);
-    }
-    apply();
-    let mq = null;
-    if (theme === 'auto') {
-      mq = window.matchMedia('(prefers-color-scheme: light)');
-      mq.addEventListener('change', apply);
-    }
-    return () => mq && mq.removeEventListener('change', apply);
-  }, [theme]);
-
-  useEffect(() => {
     if (!langOpen) return;
     function onClick(e) {
       if (!e.target.closest('.lang-wrap')) setLangOpen(false);
@@ -162,12 +140,6 @@ export default function Layout({ children }) {
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
   }, [langOpen]);
-
-  function toggleTheme() {
-    const next = theme === 'midnight' ? 'light' : 'midnight';
-    setTheme(next);
-    localStorage.setItem('meridianed_theme', next);
-  }
 
   async function onChangePassword(e) {
     e.preventDefault();
@@ -204,7 +176,7 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       <CommandPalette />
-      <a href="#main-content" className="skip-link">Skip to content</a>
+      <a href="#main-content" className="skip-link">{t('layout.skipToContent')}</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
         <div className="brand">
@@ -213,7 +185,7 @@ export default function Layout({ children }) {
           </div>
           <div className="brand-text-group">
             <span className="brand-name">Hinabangan NHS</span>
-            <span className="brand-sub">School Management System</span>
+            <span className="brand-sub">{t('schoolTagline')}</span>
           </div>
         </div>
         <div className="brand-divider"></div>
@@ -240,7 +212,7 @@ export default function Layout({ children }) {
         <div style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
           <button className="sidebar-link" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', cursor: 'pointer' }}
             onClick={() => window.dispatchEvent(new Event('command-palette-toggle'))}>
-            <span>Quick search</span>
+            <span>{t('layout.quickSearch')}</span>
             <kbd style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>⌘K</kbd>
           </button>
         </div>
@@ -252,12 +224,12 @@ export default function Layout({ children }) {
           </button>
           <h1>{t('schoolName')}</h1>
           <div className="lang-wrap" style={{ position: 'relative' }}>
-            <button className="icon-btn" onClick={() => setLangOpen((o) => !o)} title="Language" aria-label="Language">
+            <button className="icon-btn" onClick={() => setLangOpen((o) => !o)} title={t('topbar.language')} aria-label={t('topbar.language')}>
               <Globe size={16} aria-hidden="true" />
             </button>
             {langOpen && (
               <div className="theme-pop">
-                <div className="theme-pop-title">Language</div>
+                <div className="theme-pop-title">{t('topbar.language')}</div>
                 <button className={`theme-opt ${i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('fil')}>
                   Filipino
                   {i18n.language?.startsWith('fil') && <Check size={14} />}

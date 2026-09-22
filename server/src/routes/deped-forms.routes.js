@@ -29,8 +29,14 @@ function validateStudentId(id) {
 function validateTerm(term) {
   if (!term) return term;
   const t = String(term).trim().toUpperCase();
-  if (!['Q1', 'Q2', 'Q3', 'Q4', 'FIRST', 'SECOND', 'THIRD', 'FINAL'].includes(t) && isNaN(Number(t))) {
-    throw new Error('Invalid term: must be Q1-Q4 or FIRST-SECOND-THIRD-FINAL');
+  if (!isNaN(Number(t))) {
+    if (!Number.isInteger(Number(t)) || Number(t) < 1 || Number(t) > 3) {
+      throw new Error('Invalid term: must be 1-3');
+    }
+    return term;
+  }
+  if (!['Q1', 'Q2', 'Q3', 'FIRST', 'SECOND', 'THIRD', 'FINAL'].includes(t)) {
+    throw new Error('Invalid term: must be Q1-Q3 or FIRST-SECOND-THIRD-FINAL');
   }
   return term;
 }

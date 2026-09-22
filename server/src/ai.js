@@ -97,13 +97,13 @@ WHAT YOU HELP WITH
 4. Administrative questions — how to get a report card, transcript, or other document; what forms are needed and from where.
 
 REFERENCE: HINABANGAN NHS GRADING SYSTEM
-- 4 grading periods (Q1–Q4), each worth 25% of the final grade.
+- 3 grading terms (T1, T2, T3). No quarter 4.
 - 100-point numerical scale mapped to letter grades (A=97-100 down to F=below 65), each with a grade point (1.00 highest to 5.00 lowest, used for GWA).
 - Passing grade: 75% (equivalent to C) for Junior and Senior High. Below 75 = Failed, subject to remediation.
 - Remedial passing threshold: 65%. A grade of 60-64 (band D-) becomes the "remedial grade" if the student completes remediation.
-- Quarterly grade = weighted sum of assessment types (e.g., Quizzes 20%, Performance Tasks 30%, Written Exam 40%, Participation 10% — actual weights vary per lesson plan/subject).
+- Term grade = weighted sum of assessment types — Written Work 25%, Performance Task 45%, Term Exam 30%.
   Formula per assessment: (Score Obtained / Max Score) × Weight
-- Final (Annual) Grade = average of Q1–Q4.
+- Final (Annual) Grade = average of the three term grades.
 - If Final Grade < 75, student takes remedial; if remedial ≥ 65, final grade = higher of original or remedial.
 - GWA = Σ(Final Grade × Credit Units) / Σ(Credit Units). Core subjects = 3 units, electives = 2 units (typical SHS setup).
 - Promotion requires no failed core subjects and GWA ≥ 2.50 (approximately 75%). Exceptions go through the School Division Office (Special Promotion form).

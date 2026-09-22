@@ -1,23 +1,28 @@
 import { z } from 'zod';
 import { zAssignmentKind, zSubmissionStatus } from '../enums';
+import { FlagSchema } from '../utils';
 import { PaginationParamsSchema } from './user';
 
 export const AssignmentSchema = z.object({
   id: z.number().int().positive(),
   class_assignment_id: z.number().int().positive(),
+  teacher_id: z.number().int().positive(),
+  school_year: z.string().min(1),
   title: z.string().min(1).max(200),
   description: z.string().nullable().optional(),
   kind: zAssignmentKind,
   total_points: z.number().nonnegative().default(0),
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   rubric: z.string().nullable().optional(),
-  linked_competency: z.string().max(200).nullable().optional(),
-  allow_late: z.boolean().default(false),
+  competency_id: z.number().int().positive().nullable().optional(),
+  allow_late: FlagSchema,
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
   // Joined
   subject_code: z.string().optional(),
+  subject_title: z.string().optional(),
   section_name: z.string().optional(),
+  student_count: z.number().int().nonnegative().optional(),
   submitted_count: z.number().int().nonnegative().optional(),
   graded_count: z.number().int().nonnegative().optional(),
 });
@@ -31,9 +36,9 @@ export const CreateAssignmentRequestSchema = z.object({
   kind: zAssignmentKind,
   total_points: z.number().nonnegative().default(0),
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  rubric: z.string().optional(),
-  linked_competency: z.string().max(200).optional(),
-  allow_late: z.boolean().default(false),
+  rubric: z.union([z.string(), z.array(z.unknown())]).optional(),
+  competency_id: z.number().int().positive().optional(),
+  allow_late: z.union([z.boolean(), FlagSchema]).optional(),
 });
 
 export type CreateAssignmentRequest = z.infer<typeof CreateAssignmentRequestSchema>;
@@ -50,20 +55,20 @@ export const AssignmentListQuerySchema = z.object({
 
 export type AssignmentListQuery = z.infer<typeof AssignmentListQuerySchema>;
 
-// Submission
+// Submission (assignment_submissions row)
 export const SubmissionSchema = z.object({
   id: z.number().int().positive(),
   assignment_id: z.number().int().positive(),
   student_id: z.number().int().positive(),
-  content: z.string().nullable().optional(),
-  file_url: z.string().url().nullable().optional(),
+  text_content: z.string().nullable().optional(),
+  link_url: z.string().url().nullable().optional(),
   score: z.number().nullable().optional(),
   feedback: z.string().nullable().optional(),
-  status: zSubmissionStatus.default('not_submitted'),
+  rubric_scores: z.string().nullable().optional(),
+  status: zSubmissionStatus.default('submitted'),
   submitted_at: z.string().datetime().nullable().optional(),
   graded_at: z.string().datetime().nullable().optional(),
   graded_by: z.number().int().positive().nullable().optional(),
-  created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
   // Joined
   student_lrn: z.string().optional(),

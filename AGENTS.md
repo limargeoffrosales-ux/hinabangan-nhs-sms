@@ -13,15 +13,24 @@ database/ migrations/  — paired .sql (PG) + .sqlite.sql files, auto-run on boo
 Root `package.json` scripts:
 - `npm run build` — `cd web && npm ci && npm run build && cd ../server && npm ci`
 - `npm start` — `cd server && npm start`
+- `npm run check` — full gate (web lint + typecheck + build + i18n:check + server tests)
+- `npm run check:web` — web-only gate (lint + typecheck + build + i18n:check)
+- `npm run i18n:check` — verify every static `t('key')` in `web/src` exists in both locale files (see `web/scripts/i18n-check.mjs`)
 
 ## Dev commands
 
 ```bash
+# Full quality gate before any commit (lint, tsc, build, i18n, server tests)
+npm run check
+
 # API server (uses built-in SQLite if DATABASE_URL not set)
 cd server && npm run dev        # --watch mode, port 4000
 
 # Web portal (Vite, proxies /api -> :4000)
 cd web && npm run dev            # port 5173
+
+# Web-only checks from web/
+npm run lint && npm run typecheck && npm run i18n:check
 
 # Production build + run
 npm run build && npm start
@@ -97,7 +106,7 @@ React 19 + React Router 7 + Vite. Lazy-loaded pages via `React.lazy()`. Auth via
 
 - **Adding a new route**: Create `server/src/routes/X.routes.js`, mount in `index.js`, add page in `web/src/pages/X.jsx`, add route in `web/src/App.jsx`, add nav in `web/src/components/Layout.jsx`.
 - **Adding a new migration**: Create both `NNN-name.sql` (PG) and `NNN-name.sqlite.sql` (SQLite) in `database/migrations/`. Auto-applied on next boot.
-- **i18n**: Add keys to both `web/src/i18n/en.json` and `fil.json`. Use `t('key')` in components.
+- **i18n**: Add keys to both `web/src/i18n/en.json` and `fil.json`. Use `t('key')` in components. After adding keys, run `npm run i18n:check` (from root) to verify every static key resolves in both locales.
 - **Server-side filtering**: Use parameterized queries with `?` placeholders — the PG driver converts them to `$1, $2...` automatically via `db.js` params wrapper.
 
 ## Removed features (historical — do not re-add)

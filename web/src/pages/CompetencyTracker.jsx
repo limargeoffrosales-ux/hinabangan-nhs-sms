@@ -95,7 +95,7 @@ export default function CompetencyTracker() {
             Quarter
             <select className="input" value={filter.quarter} onChange={(e) => setFilter((f) => ({ ...f, quarter: e.target.value }))} style={{ marginTop: 4, width: 120 }}>
               <option value="">All</option>
-              <option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option>
+              <option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option>
             </select>
           </label>
         </div>

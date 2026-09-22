@@ -28,6 +28,9 @@ export const StudentSchema = z.object({
   grade_level: zGradeLevel,
   track_strand: z.string().max(100).nullable().optional(),
   status: zStudentStatus.default('enrolled'),
+  global_learner_id: z.string().max(20).nullable().optional(),
+  indigenous_people: z.string().max(200).default('No').optional(),
+  special_needs: z.string().max(200).nullable().optional(),
   photo_url: z.string().url().nullable().optional(),
   user_id: z.number().int().positive().nullable().optional(),
   created_at: z.string().datetime(),
@@ -79,6 +82,9 @@ export const CreateStudentRequestSchema = z.object({
   grade_level: zGradeLevel,
   track_strand: z.string().max(100).optional(),
   status: zStudentStatus.default('enrolled'),
+  global_learner_id: z.string().max(20).optional(),
+  indigenous_people: z.string().max(200).optional(),
+  special_needs: z.string().max(200).optional(),
 });
 
 export type CreateStudentRequest = z.infer<typeof CreateStudentRequestSchema>;

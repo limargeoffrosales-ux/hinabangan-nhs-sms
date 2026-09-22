@@ -33,6 +33,15 @@ function hasMagic(file) {
     case 'application/vnd.ms-excel':
     case 'application/vnd.ms-powerpoint':
       return sw(0, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+    case 'video/mp4':
+    case 'video/quicktime':
+    case 'video/x-m4v':
+      return ascii(4, 'ftyp');
+    case 'video/webm':
+    case 'video/x-matroska':
+      return sw(0, [0x1a, 0x45, 0xdf, 0xa3]);
+    case 'video/x-msvideo':
+      return ascii(0, 'RIFF') && ascii(8, 'AVI ');
     case 'application/zip':
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
     case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
@@ -54,9 +63,11 @@ const upload = multer({
   limits: { fileSize: UPLOAD_MAX_MB * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExts = /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/i;
+    const allowedExts = /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|m4v|avi|mkv|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/i;
     const allowedMimes = [
       'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+      'video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v',
+      'video/x-msvideo', 'video/x-matroska',
       'application/pdf', 'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

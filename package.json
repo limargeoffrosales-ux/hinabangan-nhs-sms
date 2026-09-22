@@ -14,8 +14,14 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "build:shared": "npm run build --workspace=@meridianed/shared",
+    "build:web": "npm run build --workspace=web",
+    "check": "npm run check:web && npm test",
+    "check:web": "npm run lint:web && npm run typecheck:web && npm run build:web && npm run i18n:check",
+    "i18n:check": "npm run i18n:check --workspace=web",
+    "lint:web": "npm run lint --workspace=web",
     "test": "npm run test --workspace=server",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck:web": "npm run typecheck --workspace=web",
     "start": "cd server && npm start",
     "programs:generate": "cd server && node --env-file-if-exists=.env src/generate-programs.js"
   }

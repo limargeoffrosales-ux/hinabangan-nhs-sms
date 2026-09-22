@@ -7,7 +7,7 @@ import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, Skel
 
 const TABS = ['Tracks & Strands', 'Competencies', 'Subject Mapping'];
 const GRADE_LEVELS = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-const QUARTERS = [1, 2, 3, 4];
+const QUARTERS = [1, 2, 3];
 const COMPETENCY_TYPES = [
   { value: 'knowledge', label: 'Knowledge' },
   { value: 'skill', label: 'Skill' },

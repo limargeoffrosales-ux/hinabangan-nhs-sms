@@ -49,7 +49,7 @@ export default function PortalLayout({ children }) {
       setPwMsg(t('pw.updated'));
       setPw({ current: '', next: '', confirm: '' });
     } catch (err) {
-      setPwErr(err.message);
+      setPwErr(err.message || t('pw.failed'));
     } finally {
       setPwBusy(false);
     }
@@ -69,7 +69,7 @@ export default function PortalLayout({ children }) {
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
             <Menu size={17} aria-hidden="true" />
           </button>
-          <img className="brand-logo" src="/logo.jpg" alt="School logo" style={{ marginRight: 6 }} />
+          <img className="brand-logo" src="/logo.jpg" alt={t('portal.schoolLogo')} style={{ marginRight: 6 }} />
           <h1 style={{ fontSize: 16 }}>{t('brand')} · {t('portalTitle')}</h1>
           <nav className={`portal-nav ${menuOpen ? 'open' : ''}`}>
             {PORTAL_NAV.map((n) => (
@@ -79,12 +79,12 @@ export default function PortalLayout({ children }) {
             ))}
           </nav>
           <div className="lang-wrap" style={{ position: 'relative' }}>
-            <button className="icon-btn" onClick={() => { setLangOpen((o) => !o); setPwOpen(false); }} title="Language">
+            <button className="icon-btn" onClick={() => { setLangOpen((o) => !o); setPwOpen(false); }} title={t('topbar.language')}>
               <Globe size={16} />
             </button>
             {langOpen && (
               <div className="theme-pop">
-                <div className="theme-pop-title">Language</div>
+                <div className="theme-pop-title">{t('topbar.language')}</div>
                 <button className={`theme-opt ${i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('fil')}>
                   Filipino
                 </button>

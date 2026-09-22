@@ -16,6 +16,19 @@ const TERMS = ['first', 'second', 'third'];
 const STATUSES = ['pre_registered', 'pending', 'provisional', 'conditional', 'enrolled'];
 const isShs = (g) => /^Grade 1[12]$/.test(String(g || ''));
 
+// A blank LRN in a bulk-import row means "new student, allocate a number for
+// me" — the students.lrn column is NOT NULL, so mirror POST /students and
+// generate a unique 12-digit LRN instead of inserting null.
+async function uniqueLrn() {
+  for (let i = 0; i < 20; i++) {
+    const lrn = String(1 + Math.floor(Math.random() * 9)) +
+      String(Math.floor(Math.random() * 1e11)).padStart(11, '0');
+    const exists = await q('SELECT id FROM students WHERE lrn = ?', [lrn]);
+    if (!exists) return lrn;
+  }
+  throw new Error('Could not allocate a unique LRN');
+}
+
 function normStatus(s) {
   if (s === undefined || s === null) return null;
   const v = String(s).trim().toLowerCase().replace(/[-\s]+/g, '_');
@@ -541,9 +554,10 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
         }
       } else {
         // Create new student
+        const finalLrn = lrn || await uniqueLrn();
         const newId = await qi(
           'INSERT INTO students (lrn, first_name, middle_name, last_name, suffix, sex, birth_date, address, guardian_name, guardian_contact, grade_level, track_strand, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [lrn || null, firstName, middleName, lastName, suffix, sex, birthDate, address, guardianName, guardianContact, gradeLevel, trackStrand, 'enrolled']
+          [finalLrn, firstName, middleName, lastName, suffix, sex, birthDate, address, guardianName, guardianContact, gradeLevel, trackStrand, 'enrolled']
         );
         student = { id: newId };
       }

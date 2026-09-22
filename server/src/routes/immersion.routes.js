@@ -199,6 +199,35 @@ immersion.post('/attendance', requireRole(...WRITE, 'teacher'), asyncH(async (re
   res.json({ ok: true, date: dateStr, recorded });
 }));
 
+// Export immersion attendance as XLSX
+immersion.get('/attendance/export', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+  const { batch } = req.query;
+  let sql = `SELECT ia.date, ia.status, ia.time_in, ia.time_out, ia.hours, ia.remarks,
+    st.lrn, st.first_name, st.last_name, st.middle_name, wi.batch, wi.program, wi.partner_institution
+    FROM immersion_attendance ia
+    JOIN work_immersion wi ON ia.immersion_id = wi.id
+    JOIN students st ON wi.student_id = st.id
+    WHERE 1=1`;
+  const params = [];
+  if (batch) { sql += ' AND wi.batch = ?'; params.push(String(batch).trim()); }
+  sql += ' ORDER BY ia.date, st.last_name, st.first_name';
+  const data = await qa(sql, params);
+
+  const XLSX = require('xlsx');
+  const rows = data.map(r => ({
+    'Date': r.date, 'LRN': r.lrn, 'Name': `${r.last_name}, ${r.first_name} ${r.middle_name || ''}`.trim(),
+    'Batch': r.batch, 'Program': r.program, 'Partner': r.partner_institution || '',
+    'Status': r.status, 'Time In': r.time_in || '', 'Time Out': r.time_out || '',
+    'Hours': r.hours || '', 'Remarks': r.remarks || '',
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Immersion Attendance');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Disposition', `attachment; filename="immersion-attendance${batch ? '-' + batch : ''}.xlsx"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
+}));
+
 // Daily Time Record history for a single placement.
 immersion.get('/:id/attendance', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const cur = await q('SELECT wi.*, st.lrn, st.first_name || \' \' || st.last_name AS student_name FROM work_immersion wi JOIN students st ON st.id = wi.student_id WHERE wi.id = ?', [req.params.id]);
@@ -764,6 +793,101 @@ jdvp.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!r.changes) return res.status(404).json({ error: 'Record not found' });
   await audit(req, 'DELETE_JDVP', 'jdvp_recipients', req.params.id);
   res.json({ ok: true });
+}));
+
+// ── JDVP Attendance ──────────────────────────────────────
+
+jdvp.get('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { batch, date, limit = 500 } = req.query;
+  let sql = `SELECT ja.*, jr.student_id, jr.batch, jr.program, jr.status AS recipient_status,
+    s.first_name, s.last_name, s.middle_name, s.lrn
+    FROM jdvp_attendance ja
+    JOIN jdvp_recipients jr ON ja.jdvp_recipient_id = jr.id
+    JOIN students s ON jr.student_id = s.id
+    WHERE 1=1`;
+  const params = [];
+  if (batch) { sql += ' AND jr.batch = ?'; params.push(String(batch).trim()); }
+  if (date) { sql += ' AND ja.date = ?'; params.push(date); }
+  sql += ' ORDER BY ja.date DESC, s.last_name, s.first_name';
+  if (limit) { sql += ' LIMIT ?'; params.push(Number(limit)); }
+  const data = await qa(sql, params);
+  res.json({ data });
+}));
+
+jdvp.get('/attendance/roster', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { batch, date } = req.query;
+  if (!batch || !date) return res.status(400).json({ error: 'batch and date are required' });
+  const sql = `SELECT jr.id AS jdvp_recipient_id, jr.student_id, jr.batch, jr.program, jr.status AS recipient_status,
+    s.first_name, s.last_name, s.middle_name, s.lrn,
+    ja.id AS attendance_id, ja.status, ja.time_in, ja.time_out, ja.hours, ja.remarks
+    FROM jdvp_recipients jr
+    JOIN students s ON jr.student_id = s.id
+    LEFT JOIN jdvp_attendance ja ON ja.jdvp_recipient_id = jr.id AND ja.date = ?
+    WHERE jr.batch = ?
+    ORDER BY s.last_name, s.first_name`;
+  const data = await qa(sql, [date, String(batch).trim()]);
+  res.json({ data });
+}));
+
+jdvp.post('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { date, records } = req.body;
+  if (!date || !Array.isArray(records)) return res.status(400).json({ error: 'date and records[] are required' });
+  let saved = 0;
+  for (const r of records) {
+    if (!r.jdvp_recipient_id || !r.status) continue;
+    if (!['present', 'absent', 'late', 'excused'].includes(r.status)) continue;
+    const hours = (r.time_in && r.time_out)
+      ? ((new Date(`2000-01-01T${r.time_out}`) - new Date(`2000-01-01T${r.time_in}`)) / 3600000).toFixed(1)
+      : r.hours || null;
+    if (dialect === 'pg') {
+      await qr(
+        `INSERT INTO jdvp_attendance (jdvp_recipient_id, date, status, time_in, time_out, hours, remarks, recorded_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (jdvp_recipient_id, date) DO UPDATE SET
+           status = EXCLUDED.status, time_in = EXCLUDED.time_in, time_out = EXCLUDED.time_out,
+           hours = EXCLUDED.hours, remarks = EXCLUDED.remarks, recorded_by = EXCLUDED.recorded_by`,
+        [r.jdvp_recipient_id, date, r.status, r.time_in || null, r.time_out || null, hours, r.remarks || null, req.user.id]);
+    } else {
+      await qr(
+        `INSERT INTO jdvp_attendance (jdvp_recipient_id, date, status, time_in, time_out, hours, remarks, recorded_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (jdvp_recipient_id, date) DO UPDATE SET
+           status = excluded.status, time_in = excluded.time_in, time_out = excluded.time_out,
+           hours = excluded.hours, remarks = excluded.remarks, recorded_by = excluded.recorded_by`,
+        [r.jdvp_recipient_id, date, r.status, r.time_in || null, r.time_out || null, hours, r.remarks || null, req.user.id]);
+    }
+    saved++;
+  }
+  await audit(req, 'JDVP_ATTENDANCE_BULK', 'jdvp_attendance', null, { date, count: saved });
+  res.json({ saved });
+}));
+
+jdvp.get('/attendance/export', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { batch } = req.query;
+  let sql = `SELECT ja.date, ja.status, ja.time_in, ja.time_out, ja.hours, ja.remarks,
+    s.lrn, s.first_name, s.last_name, s.middle_name, jr.batch, jr.program
+    FROM jdvp_attendance ja
+    JOIN jdvp_recipients jr ON ja.jdvp_recipient_id = jr.id
+    JOIN students s ON jr.student_id = s.id
+    WHERE 1=1`;
+  const params = [];
+  if (batch) { sql += ' AND jr.batch = ?'; params.push(String(batch).trim()); }
+  sql += ' ORDER BY ja.date, s.last_name, s.first_name';
+  const data = await qa(sql, params);
+
+  const XLSX = require('xlsx');
+  const rows = data.map(r => ({
+    'Date': r.date, 'LRN': r.lrn, 'Name': `${r.last_name}, ${r.first_name} ${r.middle_name || ''}`.trim(),
+    'Batch': r.batch, 'Program': r.program, 'Status': r.status,
+    'Time In': r.time_in || '', 'Time Out': r.time_out || '', 'Hours': r.hours || '',
+    'Remarks': r.remarks || '',
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'JDVP Attendance');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Disposition', `attachment; filename="jdvp-attendance${batch ? '-' + batch : ''}.xlsx"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
 }));
 
 // Mount tracking sub-router under /tracking

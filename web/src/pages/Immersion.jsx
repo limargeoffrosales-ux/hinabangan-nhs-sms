@@ -5,6 +5,7 @@ import { useAuth, can } from '../lib/auth';
 import { PageHead, Empty, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
 import MapPicker from '../components/MapPicker';
 import ImmersionDailyAttendance from '../components/ImmersionDailyAttendance';
+import JdvpDailyAttendance from '../components/JdvpDailyAttendance';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'];
 const PROGRAMS = ['EIM', 'CSS', 'Garment Artisanry', 'Academic'];
@@ -126,7 +127,10 @@ export default function Immersion() {
             <BadgeCheck size={14} /> JDVP Recipients
           </button>
           <button className={`tab-btn ${tab === 'attendance' ? 'active' : ''}`} onClick={() => setTab('attendance')}>
-            <CalendarCheck size={14} /> Daily Attendance
+            <CalendarCheck size={14} /> Immersion Attendance
+          </button>
+          <button className={`tab-btn ${tab === 'jdvp-attendance' ? 'active' : ''}`} onClick={() => setTab('jdvp-attendance')}>
+            <CalendarCheck size={14} /> JDVP Attendance
           </button>
         </div>
         {canWrite && tab !== 'attendance' && (
@@ -135,7 +139,7 @@ export default function Immersion() {
       </div>
 
       <div style={{ height: 14 }} />
-      {tab === 'attendance' ? <ImmersionDailyAttendance /> : (
+      {tab === 'attendance' ? <ImmersionDailyAttendance /> : tab === 'jdvp-attendance' ? <JdvpDailyAttendance /> : (
         <>
           {error && <ErrorBanner error={error} />}
           {!rows.length && !error ? <Empty text={`No ${isImmersion ? 'work immersion' : 'JDVP'} records yet.`} /> : (

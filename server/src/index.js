@@ -109,6 +109,7 @@ const parentRoutes = require('./routes/parent.routes');
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com", "https://lh3.googleusercontent.com", "https://tile.openstreetmap.org", "https://*.tile.openstreetmap.org", "https://server.arcgisonline.com"],
+        mediaSrc: ["'self'", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com"],
         connectSrc: ["'self'", "https://*.r2.dev", "wss:", "https://nominatim.openstreetmap.org"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],

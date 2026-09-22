@@ -195,7 +195,7 @@ export default function Lessons() {
             {t('lessons.quarter', 'Quarter')}
             <select value={filter.quarter} onChange={(e) => setFilter((f) => ({ ...f, quarter: e.target.value }))} style={{ marginTop: 4 }}>
               <option value="">{t('lessons.allQuarters', 'All quarters')}</option>
-              <option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option>
+              <option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option>
             </select>
           </label>
           <label style={{ margin: 0 }}>
@@ -296,8 +296,8 @@ export default function Lessons() {
               <label>{t('lessons.quarterLabel', 'Quarter')}
                 <select value={form.quarter} onChange={(e) => { setForm((f) => ({ ...f, quarter: e.target.value })); loadCompetencies(form.subject_id, e.target.value); }}>
                   <option value="">None</option>
-                  <option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option>
-                </select>
+<option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option>
+              </select>
               </label>
               <label>{t('lessons.schoolYear', 'School Year')}
                 <input value={form.school_year} onChange={(e) => setForm((f) => ({ ...f, school_year: e.target.value }))} />

@@ -116,6 +116,7 @@ const PortalCertifications = lazyWithRetry(() => import('./pages/PortalCertifica
 const DepedForms = lazyWithRetry(() => import('./pages/DepedForms'));
 const AIPage = lazyWithRetry(() => import('./pages/AIPage'));
 const ParentPortal = lazyWithRetry(() => import('./pages/ParentPortal'));;
+const DesignSystem = lazyWithRetry(() => import('./pages/DesignSystem'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -255,6 +256,7 @@ export default function App() {
       <Route path="/guidance" element={<Protected><Page><Guidance /></Page></Protected>} />
       <Route path="/deped-forms" element={<Protected><AdminOnly><Page><DepedForms /></Page></AdminOnly></Protected>} />
       <Route path="/ai" element={<Protected><AIWorkbenchOnly><Page><AIPage /></Page></AIWorkbenchOnly></Protected>} />
+      <Route path="/design-system" element={<Protected><AdminOnly><Page><DesignSystem /></Page></AdminOnly></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     <AIChatbotGate />

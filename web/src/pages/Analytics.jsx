@@ -146,7 +146,7 @@ export default function Analytics() {
           <select className="input" value={quarter} onChange={(e) => setQuarter(e.target.value)} aria-label={t('analytics.quarter')}>
             <option value="">{t('analytics.allQuarters')}</option>
             <option value="1">Q1</option><option value="2">Q2</option>
-            <option value="3">Q3</option><option value="4">Q4</option>
+            <option value="3">Q3</option>
           </select>
           <button className="btn btn-primary" onClick={handleExportCsv} aria-label={t('analytics.exportCsv')}>
             <Download size={14} /> {t('analytics.exportCsv')}

@@ -6,7 +6,9 @@ import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/Toast';
 import i18n from './i18n';
 import { initSentry, Sentry } from './sentry';
+import ThemeProvider from './design-system/theme/ThemeProvider';
 import './styles.css';
+import './design-system/design-system.css';
 
 const LEGACY_MAP = { dark: 'midnight', light: 'light' };
 const stored = localStorage.getItem('meridianed_theme') || 'midnight';
@@ -24,11 +26,13 @@ function renderApp() {
   createRoot(document.getElementById('root')).render(
     <React.StrictMode>
       <BrowserRouter>
-        <AuthProvider>
-          <ToastProvider>
-            <App />
-          </ToastProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <App />
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </React.StrictMode>
   );

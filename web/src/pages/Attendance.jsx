@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, CheckCheck, Download } from 'lucide-react';
+import { Save, CheckCheck, Download, Clock } from 'lucide-react';
 import { api } from '../lib/api';
 import { downloadFromApi } from '../lib/export';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { useToast } from '../components/Toast';
 
 const STATUSES = ['present', 'late', 'absent', 'excused'];
+const STATUS_SHORTCUTS = { '1': 'present', '2': 'late', '3': 'absent', '4': 'excused' };
 
 export default function Attendance() {
   const { t } = useTranslation();
@@ -16,8 +17,11 @@ export default function Attendance() {
   const [error, setError] = useState(null);
   const [sectionId, setSectionId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [session, setSession] = useState('');
   const [roster, setRoster] = useState([]);
-  const [, setSaved] = useState(null);
+  const [showTime, setShowTime] = useState(false);
+  const [focusRow, setFocusRow] = useState(-1);
+  const tableRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -35,7 +39,9 @@ export default function Attendance() {
     setLoading(true);
     setError(null);
     try {
-      const existing = await api(`/attendance?section_id=${sectionId}&date=${date}&limit=500`);
+      const params = new URLSearchParams({ section_id: sectionId, date, limit: '500' });
+      if (session) params.set('session', session);
+      const existing = await api(`/attendance?${params.toString()}`);
       const byStudent = {};
       for (const r of existing.data) byStudent[r.student_id] = r;
       const rosterRes = await api(`/sections/${sectionId}/students`);
@@ -43,21 +49,24 @@ export default function Attendance() {
         ...s,
         status: byStudent[s.id]?.status || 'present',
         remarks: byStudent[s.id]?.remarks || '',
+        time_in: byStudent[s.id]?.time_in || '',
+        time_out: byStudent[s.id]?.time_out || '',
       })));
-      setSaved(existing.data.length);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [sectionId, date]);
+  }, [sectionId, date, session]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (!sectionId) return;
     const interval = setInterval(() => {
-      api(`/attendance?section_id=${sectionId}&date=${date}&limit=500`)
+      const params = new URLSearchParams({ section_id: sectionId, date, limit: '500' });
+      if (session) params.set('session', session);
+      api(`/attendance?${params.toString()}`)
         .then((existing) => {
           const byStudent = {};
           for (const r of existing.data) byStudent[r.student_id] = r;
@@ -65,20 +74,55 @@ export default function Attendance() {
             ...s,
             status: byStudent[s.id]?.status || s.status,
             remarks: byStudent[s.id]?.remarks ?? s.remarks,
+            time_in: byStudent[s.id]?.time_in ?? s.time_in,
+            time_out: byStudent[s.id]?.time_out ?? s.time_out,
           })));
         })
         .catch(() => {});
     }, 30000);
     return () => clearInterval(interval);
-  }, [sectionId, date]);
+  }, [sectionId, date, session]);
 
   function setStatus(studentId, status) {
     setRoster((rs) => rs.map((r) => (r.id === studentId ? { ...r, status } : r)));
   }
 
+  function setTimeIn(studentId, time) {
+    setRoster((rs) => rs.map((r) => (r.id === studentId ? { ...r, time_in: time } : r)));
+  }
+
+  function setTimeOut(studentId, time) {
+    setRoster((rs) => rs.map((r) => (r.id === studentId ? { ...r, time_out: time } : r)));
+  }
+
   function markAll(status) {
     setRoster((rs) => rs.map((r) => ({ ...r, status })));
   }
+
+  function handleKeyDown(e) {
+    if (!roster.length) return;
+    const key = e.key;
+    if (key >= '1' && key <= '4' && focusRow >= 0 && focusRow < roster.length) {
+      e.preventDefault();
+      setStatus(roster[focusRow].id, STATUS_SHORTCUTS[key]);
+    } else if (key === 'ArrowDown' && focusRow < roster.length - 1) {
+      e.preventDefault();
+      setFocusRow((r) => r + 1);
+    } else if (key === 'ArrowUp' && focusRow > 0) {
+      e.preventDefault();
+      setFocusRow((r) => r - 1);
+    } else if (key === 'Tab' && focusRow >= 0) {
+      e.preventDefault();
+      const next = e.shiftKey
+        ? (focusRow > 0 ? focusRow - 1 : roster.length - 1)
+        : (focusRow < roster.length - 1 ? focusRow + 1 : 0);
+      setFocusRow(next);
+    }
+  }
+
+  useEffect(() => {
+    if (tableRef.current) tableRef.current.focus();
+  }, [focusRow]);
 
   async function save() {
     setLoading(true);
@@ -89,7 +133,14 @@ export default function Attendance() {
         body: {
           section_id: Number(sectionId),
           date,
-          records: roster.map((r) => ({ student_id: r.id, status: r.status, remarks: r.remarks || null })),
+          session: session || undefined,
+          records: roster.map((r) => ({
+            student_id: r.id,
+            status: r.status,
+            remarks: r.remarks || null,
+            time_in: r.time_in || null,
+            time_out: r.time_out || null,
+          })),
         },
       });
       toast.success(`Attendance saved for ${res.recorded} learner(s).`);
@@ -106,6 +157,7 @@ export default function Attendance() {
       const params = new URLSearchParams({ format: 'xlsx' });
       if (sectionId) params.set('section_id', sectionId);
       if (date) params.set('date', date);
+      if (session) params.set('session', session);
       await downloadFromApi(`/attendance/export?${params.toString()}`, 'attendance.xlsx');
     } catch (e) {
       setError(e.message);
@@ -135,6 +187,14 @@ export default function Attendance() {
             <label>{t('attendance.date')}</label>
             <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setRoster([]); }} />
           </div>
+          <div>
+            <label>{t('attendance.session', 'Session')}</label>
+            <select value={session} onChange={(e) => { setSession(e.target.value); setRoster([]); }}>
+              <option value="">{t('attendance.sessionAll', 'All')}</option>
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
           <button className="btn btn-primary" onClick={load} disabled={!sectionId}>{t('attendance.loadRoster')}</button>
         </div>
       </div>
@@ -149,23 +209,41 @@ export default function Attendance() {
               <button className="btn btn-sm" onClick={() => markAll('present')}><CheckCheck size={13} /> {t('attendance.allPresent')}</button>
               <button className="btn btn-sm" onClick={() => markAll('late')}>{t('attendance.allLate')}</button>
               <button className="btn btn-sm" onClick={() => markAll('absent')}>{t('attendance.allAbsent')}</button>
+              <button className="btn btn-sm" onClick={() => markAll('excused')}>{t('attendance.allExcused', 'All Excused')}</button>
+              <button className="btn btn-sm" onClick={() => setShowTime((v) => !v)}>
+                <Clock size={13} /> {showTime ? t('attendance.hideTime', 'Hide Time') : t('attendance.showTime', 'Show Time')}
+              </button>
               <span style={{ marginLeft: 'auto', color: 'var(--text-dim)', fontSize: 13 }}>
                 {Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
               </span>
               <button className="btn btn-primary btn-sm" onClick={save}><Save size={13} /> {t('attendance.saveAttendance')}</button>
               <button className="btn btn-sm" onClick={exportAttendance} disabled={!roster.length}><Download size={13} /> {t('attendance.export')}</button>
             </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+              {t('attendance.keyboardHint', 'Keyboard: 1=Present, 2=Late, 3=Absent, 4=Excused · ↑↓ navigate · Tab next student')}
+            </div>
           </div>
           <div className="card table-wrap">
-            <table>
+            <table ref={tableRef} tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: 'none' }}>
               <thead>
                 <tr>
-                  <th>{t('attendance.lrn')}</th><th>{t('attendance.learner')}</th><th>{t('attendance.sex')}</th><th style={{ textAlign: 'center' }}>{t('attendance.status')}</th><th>{t('attendance.remarks')}</th>
+                  <th>{t('attendance.lrn')}</th><th>{t('attendance.learner')}</th><th>{t('attendance.sex')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('attendance.status')}</th>
+                  {showTime && <th>{t('attendance.timeIn', 'Time In')}</th>}
+                  {showTime && <th>{t('attendance.timeOut', 'Time Out')}</th>}
+                  <th>{t('attendance.remarks')}</th>
                 </tr>
               </thead>
               <tbody>
-                {roster.map((r) => (
-                  <tr key={r.id}>
+                {roster.map((r, idx) => (
+                  <tr key={r.id}
+                    onClick={() => setFocusRow(idx)}
+                    style={{
+                      cursor: 'pointer',
+                      background: idx === focusRow ? 'var(--card-hover)' : undefined,
+                      outline: idx === focusRow ? '2px solid var(--accent)' : undefined,
+                      outlineOffset: -2,
+                    }}>
                     <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }}>{r.lrn}</td>
                     <td>{r.last_name}, {r.first_name}</td>
                     <td>{r.sex}</td>
@@ -184,6 +262,8 @@ export default function Attendance() {
                         ))}
                       </div>
                     </td>
+                    {showTime && <td><input className="input" type="time" value={r.time_in || ''} onChange={(e) => setTimeIn(r.id, e.target.value)} style={{ width: 110 }} /></td>}
+                    {showTime && <td><input className="input" type="time" value={r.time_out || ''} onChange={(e) => setTimeOut(r.id, e.target.value)} style={{ width: 110 }} /></td>}
                     <td><input value={r.remarks || ''} onChange={(e) => setRoster((rs) => rs.map((x) => (x.id === r.id ? { ...x, remarks: e.target.value } : x)))} placeholder={t('attendance.remarksPlaceholder')} /></td>
                   </tr>
                 ))}

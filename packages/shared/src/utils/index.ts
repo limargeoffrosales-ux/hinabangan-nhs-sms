@@ -1,4 +1,14 @@
 // Shared utilities
+import { z } from 'zod';
+
+// SQLite (built-in) and PG INTEGER flags serialize as 0/1, not JS booleans.
+export const FlagSchema = z.union([z.literal(0), z.literal(1)]);
+export type Flag = z.infer<typeof FlagSchema>;
+
+export function bool(v: unknown): boolean {
+  return v === 1 || v === true || v === '1' || v === 'true';
+}
+
 export function formatDate(date: Date | string, format = 'YYYY-MM-DD'): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const year = d.getFullYear();

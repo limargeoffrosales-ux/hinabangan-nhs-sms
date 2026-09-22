@@ -1,22 +1,26 @@
 import { z } from 'zod';
-import { zGradeLevel, zGradeScaleType } from '../enums';
+import { zGradeLevel, zGradeScaleType, zSubjectTrack, zSubjectTerm } from '../enums';
+import { FlagSchema } from '../utils';
 import { PaginationParamsSchema } from './user';
 
 export const SubjectSchema = z.object({
   id: z.number().int().positive(),
   code: z.string().min(1).max(20),
-  title: z.string().min(1).max(200),
+  title: z.string().min(1).max(100),
   description: z.string().max(1000).nullable().optional(),
   grade_level: zGradeLevel,
-  track: z.string().max(50).default('general'),
+  track: zSubjectTrack,
+  term: zSubjectTerm.nullable().optional(),
+  category: z.string().max(100).nullable().optional(),
   units: z.number().nonnegative().default(0),
+  is_offered: FlagSchema,
   scale_id: z.number().int().positive().nullable().optional(),
   created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
   // Joined fields
-  scale_code: z.string().nullable().optional(),
-  scale_name: z.string().nullable().optional(),
-  scale_type: zGradeScaleType.nullable().optional(),
-  passing_grade: z.number().nullable().optional(),
+  section_id: z.number().int().positive().optional(),
+  section_count: z.number().int().nonnegative().optional(),
+  enrollment_count: z.number().int().nonnegative().optional(),
 });
 
 export type Subject = z.infer<typeof SubjectSchema>;

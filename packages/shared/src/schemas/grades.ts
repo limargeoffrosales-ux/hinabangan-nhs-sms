@@ -1,5 +1,15 @@
 import { z } from 'zod';
+import { zGradeScaleType } from '../enums';
 import { PaginationParamsSchema } from './user';
+
+// Grade weights (grading_scales.weights JSON / DEFAULT_GRADE_WEIGHTS)
+export const GradeWeightsSchema = z.object({
+  written_work: z.number(),
+  performance_task: z.number(),
+  quarterly_exam: z.number(),
+});
+
+export type GradeWeights = z.infer<typeof GradeWeightsSchema>;
 
 // Grade record from database
 export const GradeSchema = z.object({
@@ -39,22 +49,14 @@ export type ClassGradesQuery = z.infer<typeof ClassGradesQuerySchema>;
 // Class grades response
 export const ClassGradesResponseSchema = z.object({
   data: z.array(GradeSchema),
-  weights: z.object({
-    written_work: z.number(),
-    performance_task: z.number(),
-    quarterly_exam: z.number(),
-  }),
+  weights: GradeWeightsSchema,
   scale: z.object({
     id: z.number().int().positive(),
     code: z.string(),
     name: z.string(),
-    scale_type: z.string(),
+    scale_type: zGradeScaleType,
     passing_grade: z.number(),
-    weights: z.object({
-      written_work: z.number(),
-      performance_task: z.number(),
-      quarterly_exam: z.number(),
-    }),
+    weights: GradeWeightsSchema,
   }),
   term: z.string(),
 });
@@ -89,13 +91,9 @@ export const SaveGradesResponseSchema = z.object({
     id: z.number().int().positive(),
     code: z.string(),
     name: z.string(),
-    scale_type: z.string(),
+    scale_type: zGradeScaleType,
     passing_grade: z.number(),
-    weights: z.object({
-      written_work: z.number(),
-      performance_task: z.number(),
-      quarterly_exam: z.number(),
-    }),
+    weights: GradeWeightsSchema,
   }),
 });
 
@@ -129,13 +127,9 @@ export const ReportCardResponseSchema = z.object({
     id: z.number().int().positive(),
     code: z.string(),
     name: z.string(),
-    scale_type: z.string(),
+    scale_type: zGradeScaleType,
     passing_grade: z.number(),
-    weights: z.object({
-      written_work: z.number(),
-      performance_task: z.number(),
-      quarterly_exam: z.number(),
-    }),
+    weights: GradeWeightsSchema,
   }),
 });
 
@@ -163,36 +157,32 @@ export const GradeExportQuerySchema = z.object({
 
 export type GradeExportQuery = z.infer<typeof GradeExportQuerySchema>;
 
-// Grade scale
+// Grade scale (grading_scales row, serialized by server/src/grading/scales.js parseScale)
+export const GradeBandSchema = z.object({
+  min: z.number(),
+  max: z.number(),
+  letter: z.string(),
+  points: z.number().nullable(),
+  label: z.string(),
+});
+
+export type GradeBand = z.infer<typeof GradeBandSchema>;
+
 export const GradeScaleSchema = z.object({
   id: z.number().int().positive(),
-  code: z.string(),
   name: z.string(),
-  scale_type: z.enum(['percentage', 'points', 'letter', 'proficiency']),
+  code: z.string(),
+  scale_type: zGradeScaleType,
+  description: z.string().optional(),
   passing_grade: z.number(),
-  weights: z.object({
-    written_work: z.number(),
-    performance_task: z.number(),
-    quarterly_exam: z.number(),
-  }),
-  // Scale-specific fields
-  percentage_min: z.number().nullable().optional(),
-  percentage_max: z.number().nullable().optional(),
-  points_min: z.number().nullable().optional(),
-  points_max: z.number().nullable().optional(),
-  letter_grades: z.array(z.object({
-    min: z.number(),
-    max: z.number(),
-    letter: z.string(),
-    points: z.number().optional(),
-  })).optional(),
-  proficiency_levels: z.array(z.object({
-    name: z.string(),
-    min: z.number(),
-    max: z.number(),
-    description: z.string().optional(),
-  })).optional(),
+  weights: GradeWeightsSchema,
+  bands: z.array(GradeBandSchema).optional(),
+  credits_pass_only: z.boolean(),
+  is_system: z.boolean(),
+  is_default: z.boolean(),
   active: z.boolean(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
 });
 
 export type GradeScale = z.infer<typeof GradeScaleSchema>;

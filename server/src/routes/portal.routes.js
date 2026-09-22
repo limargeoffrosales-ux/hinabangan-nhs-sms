@@ -6,6 +6,7 @@ const { asyncH } = require('../utils');
 const { linkedStudentIds } = require('../scope');
 const { getCurrentSchoolYear } = require('../schoolYear');
 const { finalsForStudents, round2 } = require('../grading/analytics');
+const { getDefaultScale, getScaleForSubject, convertGrade } = require('../grading/scales');
 
 const router = express.Router();
 router.use(authenticate);
@@ -294,6 +295,64 @@ router.get('/report-card', requireRole(...PORTAL), asyncH(async (req, res) => {
     ? Math.round(withGrades.reduce((a, r) => a + Number(r.computed_grade), 0) / withGrades.length * 100) / 100
     : null;
   res.json({ subjects: rows, general_average: average, school_year, term: Number(period) });
+}));
+
+// Batches an entire evaluation for one linked student in a single call:
+// per-term subject rows (with scale conversion), finals, summary + attendance.
+// Used by the portal Grades page so students/parents see the full school year
+// (Q1, Q2, Q3 + finals) without N round-trips.
+router.get('/report-card-full', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = await resolvePortalStudent(ids, req, res);
+  if (!studentId) return res.json({ student: null, school_year: null, terms: [], finals: [], summary: null, attendance: null });
+  const { school_year } = req.query;
+  if (!school_year) return res.status(400).json({ error: 'school_year is required' });
+  const student = await q('SELECT * FROM students WHERE id = ?', [studentId]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  const rows = await qa(
+    `SELECT g.quarter, g.subject_id, su.code, su.title, g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
+     FROM grades g JOIN subjects su ON su.id = g.subject_id
+     WHERE g.student_id = ? AND g.school_year = ? ORDER BY su.code, g.quarter`,
+    [studentId, school_year]);
+  const defaultScale = await getDefaultScale();
+  const scaleCache = {};
+  const convertRow = async (r) => {
+    let scale = r.subject_id && scaleCache[r.subject_id] ? scaleCache[r.subject_id] : null;
+    if (!scale) {
+      scale = r.subject_id ? ((await getScaleForSubject(r.subject_id)) || defaultScale) : defaultScale;
+      if (r.subject_id) scaleCache[r.subject_id] = scale;
+    }
+    const conv = r.computed_grade != null ? convertGrade(r.computed_grade, scale) : null;
+    return {
+      subject_id: Number(r.subject_id), code: r.code, title: r.title,
+      written_work: r.written_work, performance_task: r.performance_task,
+      quarterly_exam: r.quarterly_exam, computed_grade: r.computed_grade, remarks: r.remarks,
+      letter: conv && conv.letter, points: conv && conv.points,
+      proficiency: conv && conv.proficiency, passed: conv ? conv.passed : null,
+    };
+  };
+  const byTerm = { 1: [], 2: [], 3: [] };
+  for (const r of rows) (byTerm[Number(r.quarter)] = byTerm[Number(r.quarter)] || []).push(r);
+  const terms = [];
+  for (const t of [1, 2, 3]) {
+    const subj = byTerm[t] || [];
+    const conv = [];
+    for (const r of subj) conv.push(await convertRow(r));
+    const withGrades = conv.filter((s) => s.computed_grade != null);
+    const general_average = withGrades.length
+      ? Math.round(withGrades.reduce((a, s) => a + Number(s.computed_grade), 0) / withGrades.length * 100) / 100
+      : null;
+    terms.push({ term: t, subjects: conv, general_average });
+  }
+  const fin = (await finalsForStudents([studentId], school_year)).get(studentId);
+  const summary = fin ? {
+    gwa: fin.gwa, gpa: fin.gpa, weighted_gpa: fin.weighted_gpa,
+    credits_earned: fin.credits_earned, credits_total: fin.credits_total,
+  } : null;
+  const finals = fin ? fin.subjects : [];
+  const att = (await attendanceSummaries([studentId], school_year)).get(studentId) || null;
+  const attendance = att || { counts: { present: 0, absent: 0, late: 0, excused: 0 }, total: 0, rate: null };
+  res.json({ student, school_year, terms, finals, summary, attendance });
 }));
 
 /* ── Student certifications ───────────────────────── */
