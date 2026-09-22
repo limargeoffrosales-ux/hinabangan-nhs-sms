@@ -16,6 +16,7 @@ hinabangan-backup.json
 apk-output/
 *-Mary_Anthonette.*
 server/data/
+server/data.sqlite
 server/.env
 
 search_recently.py
