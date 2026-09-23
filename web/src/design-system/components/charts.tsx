@@ -533,7 +533,7 @@ export function ModernBarChart({
           dataKey={s.key}
           name={s.name ?? s.key}
           radius={topRadius}
-          barSize={barSize}
+          {...(barSize != null ? { barSize } : null)}
           animationDuration={animationDuration}
           animationEasing="ease-out"
           label={showLabels ? { position: labelId as 'top' | 'right', offset: 8 } : undefined}
@@ -551,7 +551,7 @@ export function ModernBarChart({
         name={s.name ?? s.key}
         fill={`url(#${uid}-g${i})`}
         radius={barRadius(i)}
-        barSize={barSize}
+        {...(barSize != null ? { barSize } : null)}
         animationDuration={animationDuration}
         animationEasing="ease-out"
         label={showLabels && !stacked ? { position: labelId as 'top' | 'right', offset: 8 } : undefined}
@@ -561,7 +561,12 @@ export function ModernBarChart({
 
   return (
     <R.ResponsiveContainer width="100%" height={height}>
-      <R.BarChart data={data} margin={m} barCategoryGap={barCategoryGap} barGap={barGap}>
+      <R.BarChart
+        data={data}
+        margin={m}
+        barCategoryGap={barCategoryGap}
+        {...(barGap != null ? { barGap } : null)}
+      >
         {defs}
         {grid && (
           <R.CartesianGrid
@@ -577,7 +582,7 @@ export function ModernBarChart({
             axisLine={false}
             tickLine={false}
             tick={{ fill: 'var(--text-dim)', fontSize: 11, ...(xAngle != null ? { angle: xAngle, textAnchor: 'end' } : null) }}
-            height={xHeight}
+            {...(xHeight != null ? { height: xHeight } : null)}
             interval="preserveStartEnd"
           />
         )}
@@ -687,7 +692,7 @@ export function ModernLineChart({
             axisLine={false}
             tickLine={false}
             width={38}
-            domain={yDomain}
+            {...(yDomain != null ? { domain: yDomain } : null)}
             tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
             tickFormatter={yTickFormatter}
           />
