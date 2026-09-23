@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Pencil, GraduationCap, BookOpen, CalendarDays, Award } from 'lucide-react';
+import { ArrowLeft, Pencil, GraduationCap, BookOpen, CalendarDays, Award, CalendarCheck } from 'lucide-react';
 import { api, getCurrentSchoolYear, fileUrl } from '../lib/api';
-import { useAuth } from '../lib/auth';
+import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Spinner, ErrorBanner, Empty } from '../components/ui';
+import { CalendarHeatmap } from '../design-system';
+import { useToast } from '../components/Toast';
 
 function computeAge(birthdate) {
   if (!birthdate) return null;
@@ -21,11 +23,14 @@ export default function StudentProfile() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [data, setData] = useState(null);
   const [sy, setSy] = useState('2026-2027');
   const [grades, setGrades] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingGrades, setLoadingGrades] = useState(false);
+  const [attendance, setAttendance] = useState(null);
+  const [loadingAtt, setLoadingAtt] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -50,6 +55,31 @@ export default function StudentProfile() {
       .catch(() => setGrades(null))
       .finally(() => setLoadingGrades(false));
   }, [id, sy]);
+
+  const canViewAtt = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'student', 'parent');
+
+  useEffect(() => {
+    if (!id || !sy || !canViewAtt) return;
+    const year = sy.slice(0, 4);
+    if (!/^\d{4}$/.test(year)) return;
+    setLoadingAtt(true);
+    api(`/attendance/student/${id}?year=${year}`)
+      .then((r) => setAttendance(r.data || []))
+      .catch(() => setAttendance([]))
+      .finally(() => setLoadingAtt(false));
+  }, [id, sy, canViewAtt]);
+
+  const heatData = useMemo(() => {
+    if (!attendance) return [];
+    const byDate = new Map();
+    for (const row of attendance) {
+      const key = String(row.date || '').slice(0, 10);
+      if (!key) continue;
+      const prev = byDate.get(key);
+      if (!prev) byDate.set(key, { date: key, status: row.status, value: row.status === 'absent' ? 0 : 1 });
+    }
+    return Array.from(byDate.values());
+  }, [attendance]);
 
   if (loading) return <Spinner />;
   if (error && !data) return <><ErrorBanner error={error} /><Empty text={t('students.noData')} /></>;
@@ -153,6 +183,37 @@ export default function StudentProfile() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3 style={{ marginTop: 0 }}><CalendarCheck size={15} style={{ verticalAlign: -2 }} /> {t('attendance.title')}</h3>
+        {!canViewAtt ? (
+          <Empty text={t('attendance.noData')} />
+        ) : loadingAtt ? (
+          <Spinner />
+        ) : attendance ? (
+          <>
+            <CalendarHeatmap
+              data={heatData}
+              weeks={10}
+              levels={5}
+              onDayClick={(d) => {
+                const day = heatData.find((h) => h.date === d.date.toISOString().slice(0, 10));
+                if (day) toast(d.status);
+              }}
+              formatTooltip={(d) => {
+                const day = heatData.find((h) => h.date === d.date.toISOString().slice(0, 10));
+                const label = day && day.status ? t(`attendance.${day.status}`, day.status) : t('common.noData');
+                return `${d.date.toISOString().slice(0, 10)} · ${label}`;
+              }}
+              legendLow=""
+              legendHigh=""
+            />
+            <div className="sub" style={{ marginTop: 8 }}>{t('profile.syLabel', { sy })}</div>
+          </>
+        ) : (
+          <Empty text={t('common.noData')} />
         )}
       </div>
 

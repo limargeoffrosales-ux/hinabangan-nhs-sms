@@ -1,13 +1,13 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
-  KeyRound, Briefcase, Check, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
+  KeyRound, Briefcase, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
   FileCheck2,
-  Globe, Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
+  Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
   Brain,
   Map,
   Palette,
@@ -15,7 +15,7 @@ import {
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal, CommandPalette } from './ui';
 import { api } from '../lib/api';
-import { useTheme } from '../design-system';
+import { useTheme, GroupedNav, LanguageSwitch } from '../design-system';
 
 const NAV_GROUPS = [
   {
@@ -119,7 +119,7 @@ function FileSpreadsheet(props) {
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const isAdmin = can(user?.role, 'super_admin', 'school_admin');
   const isSuperAdmin = can(user?.role, 'super_admin');
   const isAIStaff = can(user?.role, ...AI_STAFF);
@@ -131,16 +131,6 @@ export default function Layout({ children }) {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwMsg, setPwMsg] = useState(null);
   const [pwErr, setPwErr] = useState(null);
-  const [langOpen, setLangOpen] = useState(false);
-
-  useEffect(() => {
-    if (!langOpen) return;
-    function onClick(e) {
-      if (!e.target.closest('.lang-wrap')) setLangOpen(false);
-    }
-    document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
-  }, [langOpen]);
 
   async function onChangePassword(e) {
     e.preventDefault();
@@ -168,11 +158,24 @@ export default function Layout({ children }) {
     navigate('/login');
   }
 
-  function pickLang(lng) {
-    i18n.changeLanguage(lng);
-    localStorage.setItem('meridianed_lang', lng);
-    setLangOpen(false);
-  }
+  const location = useLocation();
+  const activeId = location.pathname;
+
+  const groups = NAV_GROUPS
+    .map((group) => {
+      const items = group.items
+        .filter((n) => {
+          if (!isAdmin && STAFF_HIDDEN.includes(n.to)) return false;
+          if (n.adminOnly && !(n.aiStaff ? isAIStaff : isSuperAdmin)) return false;
+          if (n.parentOnly && !isParent) return false;
+          if (isParent && !n.parentOnly) return false;
+          return true;
+        })
+        .map((n) => ({ id: n.to, label: t(n.labelKey), icon: <n.icon size={17} /> }));
+      if (!items.length) return null;
+      return { id: group.label, label: t(group.label), items };
+    })
+    .filter(Boolean);
 
   return (
     <div className="app-shell">
@@ -190,26 +193,14 @@ export default function Layout({ children }) {
           </div>
         </div>
         <div className="brand-divider"></div>
-        {NAV_GROUPS.map((group) => {
-          const visibleItems = group.items.filter((n) => {
-            if (!isAdmin && STAFF_HIDDEN.includes(n.to)) return false;
-            if (n.adminOnly && !(n.aiStaff ? isAIStaff : isSuperAdmin)) return false;
-            if (n.parentOnly && !isParent) return false;
-            if (isParent && !n.parentOnly) return false;
-            return true;
-          });
-          if (!visibleItems.length) return null;
-          return (
-            <div key={group.label}>
-              <div className="nav-label">{t(group.label)}</div>
-              {visibleItems.map((n) => (
-                <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-                  <n.icon size={17} /> <span>{t(n.labelKey)}</span>
-                </NavLink>
-              ))}
-            </div>
-          );
-        })}
+        <GroupedNav
+          groups={groups}
+          activeId={activeId}
+          collapsible
+          openGroupCount={0}
+          onNavigate={(itemId) => { navigate(itemId); setMenuOpen(false); }}
+          aria-label={t('nav.main')}
+        />
         <div style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
           <button className="sidebar-link" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', cursor: 'pointer' }}
             onClick={() => window.dispatchEvent(new Event('command-palette-toggle'))}>
@@ -224,24 +215,11 @@ export default function Layout({ children }) {
             <Menu size={17} aria-hidden="true" />
           </button>
           <h1>{t('schoolName')}</h1>
-          <div className="lang-wrap" style={{ position: 'relative' }}>
-            <button className="icon-btn" onClick={() => setLangOpen((o) => !o)} title={t('topbar.language')} aria-label={t('topbar.language')}>
-              <Globe size={16} aria-hidden="true" />
-            </button>
-            {langOpen && (
-              <div className="theme-pop">
-                <div className="theme-pop-title">{t('topbar.language')}</div>
-                <button className={`theme-opt ${i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('fil')}>
-                  Filipino
-                  {i18n.language?.startsWith('fil') && <Check size={14} />}
-                </button>
-                <button className={`theme-opt ${!i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('en')}>
-                  English
-                  {!i18n.language?.startsWith('fil') && <Check size={14} />}
-                </button>
-              </div>
-            )}
-          </div>
+          <LanguageSwitch
+            storageKey="meridianed_lang"
+            title={t('topbar.language')}
+            triggerLabel={t('topbar.language')}
+          />
           <button className="icon-btn" onClick={toggleTheme} title={t('topbar.changeTheme')} aria-label={t('topbar.changeTheme')}>
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>

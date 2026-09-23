@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Settings2, UserSearch } from 'lucide-react';
+import { RefreshCw, Settings2, UserSearch, Table2, LayoutGrid } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, SearchInput, SkeletonTable } from '../components/ui';
+import { DataTable, RankCard, ViewToggle } from '../design-system';
 import { fmt } from '../lib/utils';
 
 const DESIGNATION_LABELS = {
@@ -34,6 +35,7 @@ export default function Rankings() {
   const tabs = TABS.filter((t) => t.read === true || can(user?.role, ...t.read));
 
   const [tab, setTab] = useState('honor');
+  const [view, setView] = useState('table');
   const [sy, setSy] = useState('2026-2027');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -132,6 +134,67 @@ export default function Rankings() {
       .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
   }).sort((a, b) => (a.last_name || '').localeCompare(b.last_name || ''));
 
+  const openStudent = (id) => {
+    setTab('student');
+    setStudent(String(id));
+    loadStudent(id);
+  };
+
+  const studentName = (r) => `${r.student.last_name}, ${r.student.first_name}${r.student.middle_name ? ` ${r.student.middle_name}` : ''}`;
+  const rankSort = (r) => `${r.student.last_name || ''}, ${r.student.first_name || ''}`.toLowerCase();
+
+  const honorColumns = [
+    { key: 'rank', header: 'Rank', sortable: true, sortValue: (r) => r.rank, align: 'center', render: (r) => <strong>{r.rank}</strong> },
+    { key: 'student', header: 'Student', sortable: true, sortValue: rankSort, render: (r) => studentName(r) },
+    { key: 'lrn', header: 'LRN', sortable: true, sortValue: (r) => String(r.student.lrn || ''), render: (r) => <span style={{ fontSize: 12.5 }}>{r.student.lrn}</span> },
+    { key: 'section', header: 'Section', sortable: true, sortValue: (r) => String(r.student.section_name || ''), render: (r) => <span style={{ fontSize: 12.5 }}>{r.student.section_name}</span> },
+    { key: 'gwa', header: 'GWA', sortable: true, sortValue: (r) => r.gwa, align: 'center', render: (r) => <strong style={{ fontWeight: 600 }}>{fmt(r.gwa)}</strong> },
+    { key: 'min', header: 'Min Grade', sortable: true, sortValue: (r) => r.min_final ?? 0, align: 'center', render: (r) => fmt(r.min_final) },
+    { key: 'credits', header: 'Credits', align: 'center', render: (r) => (r.credits_total ? `${r.credits_earned}/${r.credits_total}` : '—') },
+    { key: 'honor', header: 'Honor', render: (r) => designationBadge(r.honor) },
+  ];
+
+  const rankColumns = [
+    { key: 'rank', header: 'Rank', sortable: true, sortValue: (r) => r.rank, align: 'center', render: (r) => <strong>{r.rank}</strong> },
+    { key: 'student', header: 'Student', sortable: true, sortValue: rankSort, render: (r) => studentName(r) },
+    { key: 'lrn', header: 'LRN', sortable: true, sortValue: (r) => String(r.student.lrn || ''), render: (r) => <span style={{ fontSize: 12.5 }}>{r.student.lrn}</span> },
+    { key: 'gwa', header: 'GWA', sortable: true, sortValue: (r) => r.gwa, align: 'center', render: (r) => <strong style={{ fontWeight: 600 }}>{fmt(r.gwa)}</strong> },
+    { key: 'gpa', header: 'GPA', sortable: true, sortValue: (r) => r.gpa, align: 'center', render: (r) => fmt(r.gpa) },
+    { key: 'wgpa', header: 'Wtd GPA', sortable: true, sortValue: (r) => r.weighted_gpa, align: 'center', render: (r) => fmt(r.weighted_gpa) },
+    { key: 'credits', header: 'Credits', align: 'center', render: (r) => (r.credits_total ? `${r.credits_earned}/${r.credits_total}` : '—') },
+    { key: 'honor', header: 'Honor', render: (r) => designationBadge(r.honor) },
+  ];
+
+  const viewToggle = (
+    <ViewToggle
+      view={view}
+      onViewChange={setView}
+      options={[
+        { id: 'table', icon: <Table2 size={15} />, ariaLabel: 'Table view' },
+        { id: 'cards', icon: <LayoutGrid size={15} />, ariaLabel: 'Card view' },
+      ]}
+    />
+  );
+
+  const renderRankCards = (rows, emptyText) => (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+        {rows.map((r) => (
+          <RankCard
+            key={r.student.id}
+            rank={r.rank}
+            colorBy="rank"
+            name={studentName(r)}
+            meta={r.student.section_name || '—'}
+            score={fmt(r.gwa)}
+            avatar={<strong style={{ fontSize: 12 }}>{(r.student.first_name?.[0] || '') + (r.student.last_name?.[0] || '')}</strong>}
+          />
+        ))}
+      </div>
+      {rows.length === 0 && <Empty text={emptyText} />}
+    </>
+  );
+
   return (
     <>
       <PageHead
@@ -159,7 +222,7 @@ export default function Rankings() {
       {loading ? <SkeletonTable rows={10} cols={5} /> : (
         <>
           {tab === 'honor' && (
-            <div className="card table-wrap">
+            <div className="card">
               <div className="form-row" style={{ margin: 0, paddingBottom: 12 }}>
                 <div><label>Grade level</label>
                   <select value={honorGrade} onChange={(e) => setHonorGrade(e.target.value)}>
@@ -183,6 +246,7 @@ export default function Rankings() {
                 {isAdmin && (
                   <button className="btn" onClick={() => { loadSettings(); setSettingsModal(true); }}><Settings2 size={14} /> Thresholds</button>
                 )}
+                <div style={{ marginLeft: 'auto' }}>{viewToggle}</div>
               </div>
 
               {honor && honor.counts && (
@@ -194,36 +258,25 @@ export default function Rankings() {
                 </div>
               )}
 
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'center' }}>Rank</th><th>Student</th><th>LRN</th><th>Section</th>
-                    <th style={{ textAlign: 'center' }}>GWA</th><th style={{ textAlign: 'center' }}>Min Grade</th>
-                    <th style={{ textAlign: 'center' }}>Credits</th><th>Honor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {honor && honor.data.map((r) => (
-                    <tr key={r.student.id}>
-                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.rank}</td>
-                      <td>{r.student.last_name}, {r.student.first_name}{r.student.middle_name ? ` ${r.student.middle_name}` : ''}</td>
-                      <td style={{ fontSize: 12.5 }}>{r.student.lrn}</td>
-                      <td style={{ fontSize: 12.5 }}>{r.student.section_name}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{fmt(r.gwa)}</td>
-                      <td style={{ textAlign: 'center' }}>{fmt(r.min_final)}</td>
-                      <td style={{ textAlign: 'center' }}>{r.credits_total ? `${r.credits_earned}/${r.credits_total}` : '—'}</td>
-                      <td>{designationBadge(r.honor)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {honor && !honor.data.length && <Empty text="No students found for these filters." />}
-              {!honor && <Empty text="Pick a school year and press Load." />}
+              {honor ? (
+                view === 'cards' ? renderRankCards(honor.data, "No students found for these filters.") : (
+                  <DataTable
+                    columns={honorColumns}
+                    rows={honor.data}
+                    rowKey={(r) => String(r.student.id)}
+                    onRowClick={(r) => openStudent(r.student.id)}
+                    density="compact"
+                    emptySlot={honor.data.length === 0 ? <Empty text="No students found for these filters." /> : null}
+                  />
+                )
+              ) : (
+                <Empty text="Pick a school year and press Load." />
+              )}
             </div>
           )}
 
           {tab === 'rank' && (
-            <div className="card table-wrap">
+            <div className="card">
               <div className="form-row" style={{ margin: 0, paddingBottom: 12 }}>
                 <div><label>Section</label>
                   <select value={rankSection} onChange={(e) => setRankSection(e.target.value)}>
@@ -231,32 +284,22 @@ export default function Rankings() {
                   </select>
                 </div>
                 <button className="btn btn-primary" onClick={loadRank}>Load</button>
+                <div style={{ marginLeft: 'auto' }}>{viewToggle}</div>
               </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'center' }}>Rank</th><th>Student</th><th>LRN</th>
-                    <th style={{ textAlign: 'center' }}>GWA</th><th style={{ textAlign: 'center' }}>GPA</th>
-                    <th style={{ textAlign: 'center' }}>Wtd GPA</th><th style={{ textAlign: 'center' }}>Credits</th><th>Honor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rank && rank.data.map((r) => (
-                    <tr key={r.student.id}>
-                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.rank}</td>
-                      <td>{r.student.last_name}, {r.student.first_name}{r.student.middle_name ? ` ${r.student.middle_name}` : ''}</td>
-                      <td style={{ fontSize: 12.5 }}>{r.student.lrn}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{fmt(r.gwa)}</td>
-                      <td style={{ textAlign: 'center' }}>{fmt(r.gpa)}</td>
-                      <td style={{ textAlign: 'center' }}>{fmt(r.weighted_gpa)}</td>
-                      <td style={{ textAlign: 'center' }}>{r.credits_total ? `${r.credits_earned}/${r.credits_total}` : '—'}</td>
-                      <td>{designationBadge(r.honor)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {rank && !rank.data.length && <Empty text="No students with grades in this section." />}
-              {!rank && <Empty text="Pick a section and press Load." />}
+              {rank ? (
+                view === 'cards' ? renderRankCards(rank.data, "No students with grades in this section.") : (
+                  <DataTable
+                    columns={rankColumns}
+                    rows={rank.data}
+                    rowKey={(r) => String(r.student.id)}
+                    onRowClick={(r) => openStudent(r.student.id)}
+                    density="compact"
+                    emptySlot={rank.data.length === 0 ? <Empty text="No students with grades in this section." /> : null}
+                  />
+                )
+              ) : (
+                <Empty text="Pick a section and press Load." />
+              )}
             </div>
           )}
 

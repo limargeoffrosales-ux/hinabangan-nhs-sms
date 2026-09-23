@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,8 +7,10 @@ import {
   BadgeCheck, UserCheck, History, ArrowRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { subscribeLive } from '../lib/realtime';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
+import { LiveActivityFeed, LiveStatusPill } from '../design-system';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const READINESS_STATUS = {
@@ -50,10 +52,15 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [activity, setActivity] = useState(null);
+  const [lastLive, setLastLive] = useState(null);
   const [error, setError] = useState(null);
   const [R, setR] = useState(null);
 
   useEffect(() => { loadRecharts().then(setR); }, []);
+
+  const loadActivity = useCallback(() => api('/dashboard/latest-activity?limit=8', { timeoutMs: 30000, retryNetwork: false })
+    .then((r) => setActivity(r?.data || []))
+    .catch(() => setActivity([])), []);
 
   useEffect(() => {
     api('/dashboard/summary')
@@ -62,10 +69,15 @@ export default function Dashboard() {
     api('/announcements?limit=4', { timeoutMs: 30000, retryNetwork: false })
       .then((r) => setAnnouncements(r?.data || []))
       .catch(() => {});
-    api('/dashboard/latest-activity?limit=8', { timeoutMs: 30000, retryNetwork: false })
-      .then((r) => setActivity(r?.data || null))
-      .catch(() => setActivity([]));
-  }, []);
+    loadActivity();
+  }, [loadActivity]);
+
+  useEffect(() => {
+    return subscribeLive(() => {
+      setLastLive(new Date());
+      loadActivity();
+    });
+  }, [loadActivity]);
 
   if (error && !data) return <PageHead title={t('dashboard.title')}><div className="err-banner">{error}</div></PageHead>;
   if (!data) return <Spinner />;
@@ -244,24 +256,35 @@ export default function Dashboard() {
         </SectionCard>
 
         <SectionCard title={t('dashboard.recentActivity')} icon={History}>
-          {activity === null ? <Spinner /> : activity.length === 0 ? <Empty text={t('dashboard.noActivity')} /> : (
-            <div>
-              {activity.map((a) => {
-                const detail = (() => {
-                  try {
-                    const d = JSON.parse(a.details || '{}');
-                    return d.name || d.title || d.username || d.lrn || '';
-                  } catch { return ''; }
-                })();
-                return (
-                  <FeedItem key={a.id} icon={Activity}>
-                    <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
-                    <div className="sub" style={{ fontSize: 12, marginTop: 2 }}>{fmtWhen(a.created_at)}</div>
-                  </FeedItem>
-                );
-              })}
-            </div>
-          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <LiveStatusPill
+              label=""
+              lastUpdated={lastLive}
+              staleAfterMs={90000}
+              ageFormatter={(ms) => fmtWhen(new Date(Date.now() - ms))}
+              aria-label={t('dashboard.recentActivity')}
+            />
+          </div>
+          <LiveActivityFeed
+            items={activity ?? []}
+            loading={activity === null}
+            itemKey={(a) => String(a.id)}
+            renderItem={(a) => {
+              const detail = (() => {
+                try {
+                  const d = JSON.parse(a.details || '{}');
+                  return d.name || d.title || d.username || d.lrn || '';
+                } catch { return ''; }
+              })();
+              return (
+                <FeedItem icon={Activity}>
+                  <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
+                  <div className="sub" style={{ fontSize: 12, marginTop: 2 }}>{fmtWhen(a.created_at)}</div>
+                </FeedItem>
+              );
+            }}
+            emptyState={<Empty text={t('dashboard.noActivity')} />}
+          />
           <Link to="/audit" className="btn btn-sm" style={{ marginTop: 14 }}>{t('dashboard.auditLogs')}</Link>
         </SectionCard>
 

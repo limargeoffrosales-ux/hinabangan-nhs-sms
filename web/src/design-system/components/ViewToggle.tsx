@@ -5,6 +5,8 @@ export interface ViewToggleOption {
   id: string;
   label: ReactNode;
   icon?: ReactNode;
+  /** Optional accessible name for the tab (used when the label is icon-only). */
+  ariaLabel?: string;
 }
 
 export interface ViewToggleProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange' | 'children'> {
@@ -31,17 +33,18 @@ export function ViewToggle({
       className={cn('ds-view-toggle', className)}
       {...props}
     >
-      {options.map((option) => {
-        const active = option.id === view;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onViewChange(option.id)}
-            className={cn('ds-view-toggle__opt', active && 'is-active')}
-          >
+{options.map((option) => {
+          const active = option.id === view;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-label={option.ariaLabel}
+              onClick={() => onViewChange(option.id)}
+              className={cn('ds-view-toggle__opt', active && 'is-active')}
+            >
             {option.icon && <span className="ds-view-toggle__icon" aria-hidden="true">{option.icon}</span>}
             <span>{option.label}</span>
           </button>
