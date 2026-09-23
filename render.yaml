@@ -9,7 +9,7 @@ services:
     name: hinabangan-nhs
     runtime: node
     plan: free
-    buildCommand: npm run build
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
     envVars:
