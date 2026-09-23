@@ -32,6 +32,10 @@ export const shadows = {
   dropdown: '0 10px 40px rgba(0, 0, 0, 0.2)',
   tooltip: '0 4px 14px rgba(0, 0, 0, 0.15)',
   toast: '0 8px 32px rgba(0, 0, 0, 0.2)',
+
+  // Focus and active-state rings
+  focusRing: '0 0 0 3px rgba(47, 125, 244, 0.32)',
+  activePill: '0 2px 8px rgba(47, 125, 244, 0.28)',
 } as const;
 
 export const borders = {
@@ -53,6 +57,9 @@ export const borders = {
     '2xl': '24px',
     '3xl': '32px',
     full: '9999px',
+    // Semantic aliases: content panels use 16px, nested cards/drawers 12px.
+    panel: '16px',
+    card: '12px',
   },
   styles: {
     solid: 'solid',

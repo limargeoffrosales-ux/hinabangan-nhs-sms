@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
+import PortalNoLinked from '../components/PortalNoLinked';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -37,7 +38,7 @@ export default function PortalSchedule() {
     return (
       <>
         <PageHead title="Schedule" sub="Weekly class schedule for your linked students." />
-        <div className="empty">No linked students yet. Ask the school registrar to link your portal account.</div>
+        <PortalNoLinked />
       </>
     );
   }

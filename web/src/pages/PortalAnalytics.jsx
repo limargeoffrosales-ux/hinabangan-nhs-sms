@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
+import PortalNoLinked from '../components/PortalNoLinked';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { fmt } from '../lib/utils';
 
@@ -40,7 +41,7 @@ export default function PortalAnalytics() {
     return (
       <>
         <PageHead title={t('analytics.portalTitle', 'My Analytics')} sub={t('analytics.portalSub', 'Academic progress and performance overview.')} />
-        <div className="empty">{t('analytics.noLinked', 'No linked students yet. Ask the school registrar to link your portal account.')}</div>
+        <PortalNoLinked />
       </>
     );
   }

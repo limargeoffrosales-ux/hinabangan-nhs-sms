@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
+import PortalNoLinked from '../components/PortalNoLinked';
 import { PageHead, Badge, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { fmt } from '../lib/utils';
 
@@ -46,8 +47,8 @@ export default function PortalPortfolio() {
   if (!students.length) {
     return (
       <>
-        <PageHead title={t('portfolio.title', 'Student Portfolio')} sub={t('portfolio.noLinked', 'No linked students yet. Ask the school registrar to link your portal account.')} />
-        <div className="empty">{t('portfolio.noLinked', 'No linked students yet. Ask the school registrar to link your portal account.')}</div>
+        <PageHead title={t('portfolio.title', 'Student Portfolio')} sub={t('portfolio.sub', 'Academic profile overview for your linked student.')} />
+        <PortalNoLinked />
       </>
     );
   }

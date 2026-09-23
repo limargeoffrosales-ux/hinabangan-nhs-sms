@@ -68,6 +68,9 @@ export const typographyStyles = {
     small: { fontSize: 'sm', fontWeight: 'normal', lineHeight: 'normal', letterSpacing: 'normal' },
     caption: { fontSize: 'xs', fontWeight: 'medium', lineHeight: 'normal', letterSpacing: 'wide' },
     overline: { fontSize: 'xs', fontWeight: 'semiBold', lineHeight: 'normal', letterSpacing: 'widest', textTransform: 'uppercase' },
+    statValue: { fontSize: '2xl', fontWeight: 'bold', lineHeight: 'snug', letterSpacing: 'tight', fontFamily: 'display', fontVariantNumeric: 'tabular-nums' },
+    navLabel: { fontSize: 'xs', fontWeight: 'semiBold', lineHeight: 'normal', letterSpacing: 'wide' },
+    heatCell: { fontSize: 'xs', fontWeight: 'medium', lineHeight: 'normal', fontVariantNumeric: 'tabular-nums' },
   },
   // Code styles
   code: {

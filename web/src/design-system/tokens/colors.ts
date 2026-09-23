@@ -75,6 +75,14 @@ export const colorTokens = {
       bg: 'rgba(45, 212, 191, 0.14)',
       border: 'rgba(45, 212, 191, 0.4)',
     },
+    live: {
+      light: '#34D399',
+      main: '#0FA968',
+      dark: '#0A7A4D',
+      ring: 'rgba(15, 169, 104, 0.35)',
+      bg: 'rgba(15, 169, 104, 0.14)',
+      border: 'rgba(15, 169, 104, 0.4)',
+    },
   },
 
   // Neutral colors
@@ -124,6 +132,9 @@ export const themeColors = {
     grad3: 'linear-gradient(135deg, #4D96FF, #2DD4BF 55%, #2FD6A0)',
     shadow: '0 18px 45px rgba(0, 0, 0, 0.42)',
     gridLine: 'rgba(255, 255, 255, 0.02)',
+    rank: { gold: '#FACC15', silver: '#CBD5E1', bronze: '#D97706' },
+    heat: ['#121A2B', '#1E2A44', '#2B3E66', '#3E5C9E', '#4D96FF'],
+    surface: { muted: 'rgba(125, 148, 205, 0.08)' },
   },
   light: {
     bg: '#F2F6FC',
@@ -144,6 +155,9 @@ export const themeColors = {
     grad3: 'linear-gradient(135deg, #2F7DF4, #0E9AB3 55%, #12A97C)',
     shadow: '0 14px 40px rgba(25, 45, 90, 0.12)',
     gridLine: 'rgba(30, 58, 110, 0.045)',
+    rank: { gold: '#EAB308', silver: '#94A3B8', bronze: '#B45309' },
+    heat: ['#F2F6FC', '#E3ECFA', '#C5D7F3', '#7FA6E8', '#2F7DF4'],
+    surface: { muted: '#F8FAFC' },
   },
   // Auto theme (follows system preference)
   auto: {},

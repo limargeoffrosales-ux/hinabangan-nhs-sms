@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
+import PortalNoLinked from '../components/PortalNoLinked';
 import { PageHead, Badge, Empty, ErrorBanner, Spinner } from '../components/ui';
 import PortalLiveTracker from '../components/PortalLiveTracker';
 
@@ -30,7 +31,7 @@ export default function PortalImmersion() {
     return (
       <>
         <PageHead title={t('immersion.portalTitle', 'Work Immersion')} sub={t('immersion.portalSub', 'Your work immersion records and status.')} />
-        <div className="empty">{t('immersion.noLinked', 'No linked students yet. Ask the school registrar to link your portal account.')}</div>
+        <PortalNoLinked />
       </>
     );
   }

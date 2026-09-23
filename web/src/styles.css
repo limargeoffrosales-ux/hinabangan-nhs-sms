@@ -1216,11 +1216,33 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
 /* ============ Quick action grid ============ */
 .quick-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .quick-grid .btn { justify-content: flex-start; }
-@media (max-width: 560px) { .quick-grid { grid-template-columns: 1fr; } }
+.quick-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-solid);
+  color: var(--text);
+  font-size: 13.5;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.quick-card svg { color: var(--accent); flex-shrink: 0; }
+.quick-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+@media (max-width: 700px) { .quick-card { font-size: 13; } }
+@media (max-width: 560px) { .quick-grid { grid-template-columns: 1fr 1fr; } }
 
 /* ============ Info card (banner-style) ============ */
 .info-card {

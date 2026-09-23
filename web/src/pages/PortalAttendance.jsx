@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
+import PortalNoLinked from '../components/PortalNoLinked';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const STATUS_LABELS = { present: 'Present', absent: 'Absent', late: 'Late', excused: 'Excused' };
@@ -42,7 +43,7 @@ export default function PortalAttendance() {
     return (
       <>
         <PageHead title="Attendance" sub="Daily attendance records for your linked students." />
-        <div className="empty">No linked students yet. Ask the school registrar to link your portal account.</div>
+        <PortalNoLinked />
       </>
     );
   }

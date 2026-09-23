@@ -192,7 +192,7 @@ export default function StudentProfile() {
                       <td style={{ fontWeight: 600 }}>{subj.final ?? '—'}</td>
                       <td>{subj.points ?? '—'}</td>
                       <td>{subj.letter ?? '—'}</td>
-                      <td>{subj.passed != null ? (subj.passed ? 'PASSED' : 'FAILED') : '—'}</td>
+                      <td>{subj.passed != null ? (subj.passed ? t('profile.passed') : t('profile.failed')) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

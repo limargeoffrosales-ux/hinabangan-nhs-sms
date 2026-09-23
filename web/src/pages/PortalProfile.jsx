@@ -87,7 +87,7 @@ export default function PortalProfile() {
                   {students.map((x) => <option key={x.id} value={x.id}>{x.last_name}, {x.first_name} ({x.grade_level})</option>)}
                 </select>
               </div>
-              <button className="btn btn-primary" onClick={load} disabled={loading || !studentId} type="button">Load</button>
+              <button className="btn btn-primary" onClick={load} disabled={loading || !studentId} type="button">{t('analytics.load')}</button>
             </div>
           </div>
 

@@ -3,6 +3,7 @@ import { Send } from 'lucide-react';
 import { api } from '../lib/api';
 import { safeHttpUrl } from '../lib/utils';
 import { useLinkedStudents } from '../lib/portal';
+import PortalNoLinked from '../components/PortalNoLinked';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 const KIND_COLOR = {
@@ -80,7 +81,7 @@ export default function PortalAssignments() {
     return (
       <>
         <PageHead title="Assignments" sub="Homework and classwork with due dates and scores." />
-        <div className="empty">No linked students yet. Ask the school registrar to link your portal account.</div>
+        <PortalNoLinked />
       </>
     );
   }
