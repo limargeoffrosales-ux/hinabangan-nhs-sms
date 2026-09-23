@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import { loadRecharts } from '../lib/lazy-recharts';
+import { ChartTooltip, DonutChart } from '../design-system';
 
 const TYPES = ['call_slip', 'bullying', 'inappropriate_behavior', 'fighting', 'vandalism', 'tardiness', 'disrespect', 'other'];
 
@@ -242,8 +243,6 @@ export default function Discipline() {
     return SEVERITIES.map((s) => ({ key: s, name: SEVERITY_LABEL[s], value: m[s] || 0 })).filter((d) => d.value > 0);
   }, [rows, t]);
 
-  const tooltipStyle = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 };
-
   return (
     <>
       <PageHead title={t('discipline.title', 'Student Conduct & Discipline')} sub={t('discipline.subtitle', 'Call slips, bullying cases, and inappropriate behaviors — log incidents, track actions taken, and monitor case status')}>
@@ -271,7 +270,7 @@ export default function Discipline() {
                   <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" horizontal={false} />
                   <R.XAxis type="number" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} allowDecimals={false} />
                   <R.YAxis type="category" dataKey="name" width={130} tick={{ fill: 'var(--text-dim)', fontSize: 10 }} />
-                  <R.Tooltip contentStyle={tooltipStyle} />
+                  <R.Tooltip content={<ChartTooltip />} />
                   <R.Bar dataKey="value" name={t('discipline.incidentsSeries', 'Incidents')} radius={[0, 4, 4, 0]}>
                     {typeData.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </R.Bar>
@@ -281,17 +280,17 @@ export default function Discipline() {
           </div>
           <div className="card" style={{ padding: 14 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><Shield size={14} style={{ verticalAlign: -2, marginRight: 4 }} />{t('discipline.bySeverity', 'By Severity')}</h4>
-            <div style={{ height: 180 }}>
-              <R.ResponsiveContainer width="100%" height="100%">
-                <R.PieChart>
-                  <R.Pie data={severityData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={3} stroke="var(--card)">
-                    {severityData.map((d) => <R.Cell key={d.key} fill={SEVERITY_COLOR[d.key] || '#94a3b8'} />)}
-                  </R.Pie>
-                  <R.Tooltip contentStyle={tooltipStyle} />
-                  <R.Legend wrapperStyle={{ fontSize: 11 }} />
-                </R.PieChart>
-              </R.ResponsiveContainer>
-            </div>
+            {severityData.filter((d) => d.value > 0).length > 0 ? (
+              <DonutChart
+                data={severityData.map((d) => ({ name: d.name, value: d.value, color: SEVERITY_COLOR[d.key] || '#94a3b8' }))}
+                centerValue={rows.length}
+                centerLabel={t('discipline.incidentsSeries', 'Incidents')}
+                size={150}
+                thickness={18}
+              />
+            ) : (
+              <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 13 }}>—</div>
+            )}
           </div>
         </div>
       )}

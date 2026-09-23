@@ -65,6 +65,18 @@ export type { LiveActivityFeedProps } from './components/LiveActivityFeed';
 export type { LanguageSwitchProps, LanguageOption } from './components/LanguageSwitch';
 export type { GroupedNavProps, GroupedNavItem, GroupedNavGroup } from './components/GroupedNav';
 
+// Chart components + SVG primitives
+export { ChartCard, ChartTooltip, Sparkline, ProgressRing, DonutChart } from './components/charts';
+export type {
+  ChartCardProps,
+  ChartTooltipProps,
+  SparklineProps,
+  ProgressRingProps,
+  RingTone,
+  DonutChartProps,
+  DonutSegment,
+} from './components/charts';
+
 // Hooks
 export * from './hooks';
 

@@ -4,19 +4,9 @@ import { loadRecharts } from '../lib/lazy-recharts';
 import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
 import { api, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
+import { ChartTooltip, DonutChart, ProgressRing, StatCard } from '../design-system';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
-
-function KPICard({ label, value, icon: Icon, color, sub }) {
-  return (
-    <div className="kpi-card" style={{ borderTopColor: color }}>
-      <div className="kpi-icon" style={{ color }}><Icon size={22} /></div>
-      <div className="kpi-value" style={{ color }}>{value}</div>
-      <div className="kpi-label">{label}</div>
-      {sub && <div className="kpi-sub">{sub}</div>}
-    </div>
-  );
-}
 
 export default function Analytics() {
   const { t } = useTranslation();
@@ -134,7 +124,7 @@ export default function Analytics() {
 
   if (!R) return <Spinner />;
 
-  const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } = R;
+  const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell } = R;
 
   return (
     <div>
@@ -175,12 +165,12 @@ export default function Analytics() {
           {/* ── Overview ─────────────────────────────── */}
           {tab === 'overview' && (
             <div className="kpi-grid" style={{ marginBottom: 24 }}>
-              <KPICard label={t('analytics.meanGwa')} value={gradeSummary.mean ?? '—'} icon={BarChart3} color="var(--accent)" />
-              <KPICard label={t('analytics.passRate')} value={passRate ? `${passRate.pass_rate}%` : '—'} icon={GraduationCap} color="var(--accent-2)" />
-              <KPICard label={t('analytics.attendanceRate')} value={attOverall.overall_rate != null ? `${attOverall.overall_rate}%` : '—'} icon={TrendingUp} color="var(--accent-3)" />
-              <KPICard label={t('analytics.retention')} value={retention ? `${retention.retention_rate}%` : '—'} icon={Users} color="var(--warn)" />
-              <KPICard label={t('analytics.totalGrades')} value={gradeSummary.total ?? '—'} icon={BarChart3} color="var(--info)" />
-              <KPICard label={t('analytics.atRiskStudents')} value={passRate?.failing ?? '—'} icon={AlertTriangle} color="var(--danger)" sub={t('analytics.needsIntervention')} />
+              <StatCard label={t('analytics.meanGwa')} value={gradeSummary.mean ?? '—'} icon={<BarChart3 size={22} />} iconBg="var(--accent)" />
+              <StatCard label={t('analytics.passRate')} value={passRate ? `${passRate.pass_rate}%` : '—'} icon={<GraduationCap size={22} />} iconBg="var(--accent-2)" />
+              <StatCard label={t('analytics.attendanceRate')} value={attOverall.overall_rate != null ? `${attOverall.overall_rate}%` : '—'} icon={<TrendingUp size={22} />} iconBg="var(--accent-3)" />
+              <StatCard label={t('analytics.retention')} value={retention ? `${retention.retention_rate}%` : '—'} icon={<Users size={22} />} iconBg="var(--warn)" />
+              <StatCard label={t('analytics.totalGrades')} value={gradeSummary.total ?? '—'} icon={<BarChart3 size={22} />} iconBg="var(--info)" />
+              <StatCard label={t('analytics.atRiskStudents')} value={passRate?.failing ?? '—'} sub={t('analytics.needsIntervention')} icon={<AlertTriangle size={22} />} iconBg="var(--danger)" />
             </div>
           )}
 
@@ -190,15 +180,12 @@ export default function Analytics() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.gradeDistribution')}</h3>
                 {gradePieData.length ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie data={gradePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, value }) => `${name}: ${value}`}>
-                        {gradePieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <DonutChart
+                    data={gradePieData.map((d, i) => ({ name: d.name, value: d.value, color: PIE_COLORS[i % PIE_COLORS.length] }))}
+                    centerValue={gradeSummary.total ?? '—'}
+                    centerLabel={t('analytics.totalGrades')}
+                    size={180}
+                  />
                 ) : <Empty text={t('analytics.noData')} />}
               </div>
               <div className="card">
@@ -209,7 +196,7 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="band" tick={{ fontSize: 12, fill: 'var(--text-dim)' }} />
                       <YAxis tick={{ fontSize: 12, fill: 'var(--text-dim)' }} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Bar dataKey="n" name={t('analytics.students')} radius={[4, 4, 0, 0]}>
                         {gradeBuckets.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Bar>
@@ -236,7 +223,7 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Legend />
                       <Line type="monotone" dataKey="rate" name={t('analytics.rate')} stroke="var(--accent)" strokeWidth={2} dot={false} />
                     </LineChart>
@@ -251,14 +238,17 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
                       <YAxis type="category" dataKey="grade_level" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} width={70} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Bar dataKey="rate" name={t('analytics.rate')} fill="var(--accent-3)" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : <Empty text={t('analytics.noData')} />}
 
-                <div className="kpi-mini" style={{ marginTop: 12 }}>
-                  <div className="kpi-mini-value" style={{ color: 'var(--accent-3)' }}>{t('analytics.totalRecords')}: {attOverall.total_records}</div>
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <ProgressRing value={attOverall.overall_rate ?? 0} size={68} stroke={7} tone="primary" />
+                  <div className="kpi-mini" style={{ border: 'none', padding: 0 }}>
+                    <div className="kpi-mini-value" style={{ color: 'var(--accent-3)' }}>{t('analytics.totalRecords')}: {attOverall.total_records}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -275,7 +265,7 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="grade_level" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Legend />
                       <Bar dataKey="enrolled" name={t('analytics.enrolled')} fill="var(--accent-2)" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="total" name={t('analytics.total')} fill="var(--accent)" radius={[4, 4, 0, 0]} opacity={0.5} />
@@ -291,17 +281,20 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="school_year" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Bar dataKey="retention_rate" name={t('analytics.retention')} fill="var(--warn)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : <Empty text={t('analytics.noData')} />}
 
-                <div className="kpi-mini" style={{ marginTop: 12 }}>
-                  <div className="kpi-mini-value" style={{ color: 'var(--warn)' }}>
-                    {retention?.withdrawn?.map((w) => `${w.status}: ${w.n}`).join(' · ') || '—'}
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <ProgressRing value={retention?.retention_rate ?? 0} size={68} stroke={7} tone="success" />
+                  <div className="kpi-mini" style={{ border: 'none', padding: 0 }}>
+                    <div className="kpi-mini-value" style={{ color: 'var(--warn)' }}>
+                      {retention?.withdrawn?.map((w) => `${w.status}: ${w.n}`).join(' · ') || '—'}
+                    </div>
+                    <div className="kpi-mini-label">{t('analytics.withdrawn')}</div>
                   </div>
-                  <div className="kpi-mini-label">{t('analytics.withdrawn')}</div>
                 </div>
               </div>
             </div>
@@ -313,15 +306,15 @@ export default function Analytics() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.passFailSplit')}</h3>
                 {passPieData.length && passPieData.some((d) => d.value > 0) ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={passPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, value }) => `${name}: ${value}`}>
-                        <Cell fill="var(--accent-2)" /><Cell fill="var(--danger)" />
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <DonutChart
+                    data={[
+                      { name: t('analytics.passing'), value: passPieData[0]?.value || 0, color: 'var(--accent-2)' },
+                      { name: t('analytics.failing'), value: passPieData[1]?.value || 0, color: 'var(--danger)' },
+                    ]}
+                    centerValue={passRate?.pass_rate != null ? `${passRate.pass_rate}%` : '—'}
+                    centerLabel={t('analytics.passRate')}
+                    size={170}
+                  />
                 ) : <Empty text={t('analytics.noData')} />}
 
                 <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>{t('analytics.byGradeLevel')}</h3>
@@ -331,7 +324,7 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="grade_level" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Legend />
                       <Bar dataKey="passing" name={t('analytics.passing')} fill="var(--accent-2)" stackId="a" radius={[0, 0, 0, 0]} />
                       <Bar dataKey="failing" name={t('analytics.failing')} fill="var(--danger)" stackId="a" radius={[4, 4, 0, 0]} />
@@ -400,7 +393,7 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="strand" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} angle={-15} textAnchor="end" height={60} />
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Legend />
                       <Bar dataKey="mean_grade" name={t('analytics.meanGrade')} fill="var(--accent)" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="pass_rate" name={t('analytics.passRate')} fill="var(--accent-2)" radius={[4, 4, 0, 0]} />
@@ -440,15 +433,12 @@ export default function Analytics() {
                 {strandComp?.data?.length > 0 && (
                   <div style={{ marginTop: 16 }}>
                     <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandPie')}</h3>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <PieChart>
-                        <Pie data={strandComp.data.map((s) => ({ name: s.strand, value: Number(s.total_grades) }))} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
-                          {strandComp.data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <DonutChart
+                      data={strandComp.data.map((s, i) => ({ name: s.strand, value: Number(s.total_grades), color: PIE_COLORS[i % PIE_COLORS.length] }))}
+                      centerValue={strandComp.data.reduce((a, s) => a + Number(s.total_grades), 0) || '—'}
+                      centerLabel={t('analytics.totalGrades')}
+                      size={170}
+                    />
                   </div>
                 )}
               </div>
@@ -460,10 +450,10 @@ export default function Analytics() {
             <div>
               {/* KPI Cards */}
               <div className="kpi-grid" style={{ marginBottom: 24 }}>
-                <KPICard label={t('analytics.overallAvg')} value={compMastery?.overall?.overall_avg ?? '—'} icon={Target} color="var(--accent)" sub={`${compMastery?.overall?.total_competencies ?? 0} competencies`} />
-                <KPICard label={t('analytics.masteryRate')} value={compMastery?.overall?.mastered != null && (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) > 0 ? `${Math.round(compMastery.overall.mastered / (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) * 100)}%` : '—'} icon={GraduationCap} color="var(--accent-2)" sub={`${compMastery?.overall?.mastered ?? 0} mastered`} />
-                <KPICard label={t('analytics.riskStudents')} value={riskSummary.high ?? '—'} icon={AlertTriangle} color="var(--danger)" sub={`${riskSummary.medium ?? 0} medium · ${riskSummary.low ?? 0} low`} />
-                <KPICard label={t('analytics.aiInsights')} value={aiInsights?.insights?.filter((i) => i.ai_ready).length ?? 0} icon={Brain} color="#A78BFA" sub={`${aiInsights?.insights?.filter((i) => !i.ai_ready).length ?? 0} coming soon`} />
+                <StatCard label={t('analytics.overallAvg')} value={compMastery?.overall?.overall_avg ?? '—'} sub={`${compMastery?.overall?.total_competencies ?? 0} competencies`} icon={<Target size={22} />} iconBg="var(--accent)" />
+                <StatCard label={t('analytics.masteryRate')} value={compMastery?.overall?.mastered != null && (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) > 0 ? `${Math.round(compMastery.overall.mastered / (compMastery.overall.mastered + compMastery.overall.developing + compMastery.overall.beginning) * 100)}%` : '—'} sub={`${compMastery?.overall?.mastered ?? 0} mastered`} icon={<GraduationCap size={22} />} iconBg="var(--accent-2)" />
+                <StatCard label={t('analytics.riskStudents')} value={riskSummary.high ?? '—'} sub={`${riskSummary.medium ?? 0} medium · ${riskSummary.low ?? 0} low`} icon={<AlertTriangle size={22} />} iconBg="var(--danger)" />
+                <StatCard label={t('analytics.aiInsights')} value={aiInsights?.insights?.filter((i) => i.ai_ready).length ?? 0} sub={`${aiInsights?.insights?.filter((i) => !i.ai_ready).length ?? 0} coming soon`} icon={<Brain size={22} />} iconBg="#A78BFA" />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
@@ -518,7 +508,7 @@ export default function Analytics() {
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
                         <YAxis type="category" dataKey="subject_code" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} width={60} />
-                        <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                        <Tooltip content={<ChartTooltip />} />
                         <Legend />
                         <Bar dataKey="avg_score" name={t('analytics.avgScore')} fill="var(--accent)" radius={[0, 4, 4, 0]} />
                         <Bar dataKey="mastery_rate" name={t('analytics.masteryRate')} fill="var(--accent-2)" radius={[0, 4, 4, 0]} />

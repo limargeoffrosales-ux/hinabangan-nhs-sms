@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, Badge, SkeletonCards, SkeletonTable } from '../components/ui';
 import { loadRecharts } from '../lib/lazy-recharts';
+import { ChartTooltip, DonutChart } from '../design-system';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];
 const CASE_TYPES = ['behavioral', 'academic', 'personal', 'career', 'bullying', 'substance', 'other'];
@@ -149,8 +150,6 @@ export default function Guidance() {
     return PRIORITIES.filter((p) => m[p]).map((p) => ({ name: p.charAt(0).toUpperCase() + p.slice(1), value: m[p] }));
   }, [cases]);
 
-  const tooltipStyle = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 };
-
   if (loading) return (<><SkeletonCards count={4} /><div style={{ marginTop: 16 }}><SkeletonTable rows={5} cols={4} /></div></>);
 
   const summaryTotal = summary?.total ?? cases.length;
@@ -178,17 +177,17 @@ export default function Guidance() {
         <div className="grid grid-2" style={{ marginBottom: 14 }}>
           <div className="card" style={{ padding: 14 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><BarChart3 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />Cases by Type</h4>
-            <div style={{ height: 180 }}>
-              <R.ResponsiveContainer width="100%" height="100%">
-                <R.PieChart>
-                  <R.Pie data={typeData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={3} stroke="var(--card)">
-                    {typeData.map((d, i) => <R.Cell key={d.name} fill={CASE_TYPE_COLOR[d.name.toLowerCase()] || PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </R.Pie>
-                  <R.Tooltip contentStyle={tooltipStyle} />
-                  <R.Legend wrapperStyle={{ fontSize: 11 }} />
-                </R.PieChart>
-              </R.ResponsiveContainer>
-            </div>
+            {typeData.filter((d) => d.value > 0).length > 0 ? (
+              <DonutChart
+                data={typeData.map((d, i) => ({ name: d.name, value: d.value, color: CASE_TYPE_COLOR[d.name.toLowerCase()] || PIE_COLORS[i % PIE_COLORS.length] }))}
+                centerValue={summaryTotal}
+                centerLabel="Cases"
+                size={150}
+                thickness={18}
+              />
+            ) : (
+              <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 13 }}>—</div>
+            )}
           </div>
           <div className="card" style={{ padding: 14 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><TrendingUp size={14} style={{ verticalAlign: -2, marginRight: 4 }} />By Priority</h4>
@@ -198,7 +197,7 @@ export default function Guidance() {
                   <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" vertical={false} />
                   <R.XAxis dataKey="name" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
                   <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 11 }} allowDecimals={false} />
-                  <R.Tooltip contentStyle={tooltipStyle} />
+                  <R.Tooltip content={<ChartTooltip />} />
                   <R.Bar dataKey="value" name="Cases" radius={[4, 4, 0, 0]}>
                     {priorityData.map((d) => <R.Cell key={d.name} fill={PRIORITY_DOT[d.name.toLowerCase()] || '#94a3b8'} />)}
                   </R.Bar>

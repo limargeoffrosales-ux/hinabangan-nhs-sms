@@ -10,7 +10,7 @@ import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
-import { LiveActivityFeed, LiveStatusPill } from '../design-system';
+import { LiveActivityFeed, LiveStatusPill, ChartTooltip, Sparkline } from '../design-system';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const READINESS_STATUS = {
@@ -129,6 +129,9 @@ export default function Dashboard() {
     grade: g, Male: v.male, Female: v.female,
   }));
 
+  const gradeSpark = Object.values(data.enrolled_by_grade_level || {})
+    .map((v) => (v.male || 0) + (v.female || 0));
+
   const quick = [
     { to: '/enroll', label: t('dashboard.enrollStudent', 'Enroll a student'), icon: Users },
     { to: '/attendance', label: t('dashboard.recordAttendance', 'Record attendance'), icon: CalendarCheck },
@@ -186,7 +189,7 @@ export default function Dashboard() {
                 <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
                 <R.XAxis dataKey="grade" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
                 <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border-strong)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }} />
+                <R.Tooltip content={<ChartTooltip />} />
                 <R.Bar dataKey="Male" fill={SEX_COLORS.Male} radius={[4, 4, 0, 0]} />
                 <R.Bar dataKey="Female" fill={SEX_COLORS.Female} radius={[4, 4, 0, 0]} />
               </R.BarChart>
@@ -198,13 +201,14 @@ export default function Dashboard() {
           ) : <div style={{ height: 190 }}><Spinner /></div>) : (
             <Empty text={t('dashboard.noEnrolledGrade', 'No enrolled learners for the current school year yet.')} />
           )}
-          <div className="sub" style={{ display: 'flex', gap: 16, justifyContent: 'center', fontSize: 13, marginTop: 8 }}>
+          <div className="sub" style={{ display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'center', fontSize: 13, marginTop: 8 }}>
             {Object.entries(SEX_COLORS).map(([sex, color]) => (
               <span key={sex} style={{ color: 'var(--text-dim)' }}>
                 <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: color, marginRight: 6 }} />
                 {sex}: <strong style={{ color: 'var(--text)' }}>{data.enrolled_by_grade_level ? Object.values(data.enrolled_by_grade_level).reduce((a, v) => a + (sex === 'Male' ? v.male : v.female), 0) : 0}</strong>
               </span>
             ))}
+            {gradeSpark.length > 1 && <Sparkline data={gradeSpark} ariaLabel={t('dashboard.enrolledByGrade')} />}
           </div>
         </SectionCard>
       </div>

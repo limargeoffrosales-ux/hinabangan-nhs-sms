@@ -4,6 +4,7 @@ import { api, getCurrentSchoolYear } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SCHOOL_YEARS } from '../lib/constants';
 import { Spinner, Modal } from './ui';
+import { ChartTooltip } from '../design-system';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
@@ -326,7 +327,7 @@ export default function DashboardSections() {
                 <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
                 <R.XAxis dataKey="section" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
                 <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Tooltip content={<ChartTooltip />} />
                 <R.Bar dataKey="Male" fill="#4D96FF" radius={[4, 4, 0, 0]} />
                 <R.Bar dataKey="Female" fill="#F5B942" radius={[4, 4, 0, 0]} />
               </R.BarChart>
@@ -434,7 +435,7 @@ export default function DashboardSections() {
                 <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
                 <R.XAxis dataKey="strand" tick={{ fill: 'var(--text-dim)', fontSize: 10 }} angle={-15} textAnchor="end" height={60} />
                 <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }} />
+                <R.Tooltip content={<ChartTooltip />} />
                 <R.Bar dataKey="students" name="Students" radius={[4, 4, 0, 0]}>
                   {strandDist.data.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </R.Bar>

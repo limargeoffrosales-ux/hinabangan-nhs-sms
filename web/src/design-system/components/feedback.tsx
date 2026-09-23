@@ -385,12 +385,14 @@ export interface StatCardProps extends HTMLAttributes<HTMLDivElement> {
   label: string;
   value: ReactNode;
   icon?: ReactNode;
+  iconBg?: string;
+  sub?: ReactNode;
   trend?: number;
   trendLabel?: string;
   loading?: boolean;
 }
 
-export function StatCard({ label, value, icon, trend, trendLabel, loading = false, className, ...props }: StatCardProps) {
+export function StatCard({ label, value, icon, iconBg, sub, trend, trendLabel, loading = false, className, ...props }: StatCardProps) {
   const trendPositive = trend !== undefined && trend >= 0;
 
   return (
@@ -403,6 +405,7 @@ export function StatCard({ label, value, icon, trend, trendLabel, loading = fals
           ) : (
             <p className="ds-stat__value">{value}</p>
           )}
+          {sub != null && <p className="ds-stat__sub">{sub}</p>}
           {trend !== undefined && (
             <div className="ds-stat__trend">
               <span
@@ -421,7 +424,11 @@ export function StatCard({ label, value, icon, trend, trendLabel, loading = fals
             </div>
           )}
         </div>
-        {icon && <div className="ds-stat__icon">{icon}</div>}
+        {icon && (
+          <div className="ds-stat__icon" style={iconBg ? { '--ds-stat-icon-bg': iconBg } as React.CSSProperties : undefined}>
+            {icon}
+          </div>
+        )}
       </div>
     </Card>
   );

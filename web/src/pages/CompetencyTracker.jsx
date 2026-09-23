@@ -4,6 +4,7 @@ import { Target, BarChart3, Users } from 'lucide-react';
 import { loadRecharts } from '../lib/lazy-recharts';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, ErrorBanner } from '../components/ui';
+import { ChartTooltip } from '../design-system';
 
 const LEVEL_COLORS = { Advanced: 'var(--success)', Proficient: 'var(--accent)', 'Approaching Proficiency': 'var(--warn)', Developing: 'var(--danger)', Beginning: 'var(--danger)' };
 const LEVELS = ['Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced'];
@@ -125,7 +126,7 @@ export default function CompetencyTracker() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} formatter={(v) => [v, 'Average Score']} />
+                      <Tooltip content={<ChartTooltip />} formatter={(v) => [v, 'Average Score']} />
                       <Bar dataKey="Average" radius={[4, 4, 0, 0]}>
                         {chartData.map((d, i) => <Cell key={i} fill={d.Average >= 85 ? 'var(--success)' : d.Average >= 75 ? 'var(--warn)' : 'var(--danger)'} />)}
                       </Bar>
@@ -204,7 +205,7 @@ export default function CompetencyTracker() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} />
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} allowDecimals={false} />
-                      <Tooltip contentStyle={{ background: 'var(--card-solid)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
                       <Bar dataKey="value" name="Students" radius={[4, 4, 0, 0]}>
                         {levelPieData.map((d) => <Cell key={d.name} fill={LEVEL_COLORS[d.name] || 'var(--text-dim)'} />)}
                       </Bar>
