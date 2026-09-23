@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import { loadRecharts } from '../lib/lazy-recharts';
-import { ChartTooltip, DonutChart } from '../design-system';
+import { ChartTooltip, DonutChart, ModernBarChart } from '../design-system';
 
 const TYPES = ['call_slip', 'bullying', 'inappropriate_behavior', 'fighting', 'vandalism', 'tardiness', 'disrespect', 'other'];
 
@@ -265,17 +265,18 @@ export default function Discipline() {
           <div className="card" style={{ padding: 14 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><BarChart3 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />{t('discipline.incidentsByType', 'Incidents by Type')}</h4>
             <div style={{ height: 180 }}>
-              <R.ResponsiveContainer width="100%" height="100%">
-                <R.BarChart data={typeData} layout="vertical" margin={{ left: 4, right: 16 }}>
-                  <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" horizontal={false} />
-                  <R.XAxis type="number" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} allowDecimals={false} />
-                  <R.YAxis type="category" dataKey="name" width={130} tick={{ fill: 'var(--text-dim)', fontSize: 10 }} />
-                  <R.Tooltip content={<ChartTooltip />} />
-                  <R.Bar dataKey="value" name={t('discipline.incidentsSeries', 'Incidents')} radius={[0, 4, 4, 0]}>
-                    {typeData.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </R.Bar>
-                </R.BarChart>
-              </R.ResponsiveContainer>
+              <ModernBarChart
+                R={R}
+                data={typeData}
+                categoryKey="name"
+                layout="vertical"
+                series={[{ key: 'value', name: t('discipline.incidentsSeries', 'Incidents') }]}
+                perBarColors={PIE_COLORS}
+                height={180}
+                showLabels={true}
+                labelSuffix=""
+                margin={{ left: 4, right: 16 }}
+              />
             </div>
           </div>
           <div className="card" style={{ padding: 14 }}>

@@ -4,7 +4,7 @@ import { loadRecharts } from '../lib/lazy-recharts';
 import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
 import { api, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
-import { ChartTooltip, DonutChart, ProgressRing, StatCard } from '../design-system';
+import { ChartTooltip, DonutChart, ModernBarChart, ModernLineChart, ProgressRing, StatCard } from '../design-system';
 
 const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
 
@@ -124,7 +124,7 @@ export default function Analytics() {
 
   if (!R) return <Spinner />;
 
-  const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell } = R;
+  const { Tooltip, Legend } = R;
 
   return (
     <div>
@@ -191,17 +191,16 @@ export default function Analytics() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.gradeBands')}</h3>
                 {gradeBuckets.length ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={gradeBuckets}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="band" tick={{ fontSize: 12, fill: 'var(--text-dim)' }} />
-                      <YAxis tick={{ fontSize: 12, fill: 'var(--text-dim)' }} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="n" name={t('analytics.students')} radius={[4, 4, 0, 0]}>
-                        {gradeBuckets.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={gradeBuckets}
+                    categoryKey="band"
+                    perBarColors={PIE_COLORS}
+                    height={280}
+                    showLabels={false}
+                  >
+                    <Tooltip content={<ChartTooltip />} />
+                  </ModernBarChart>
                 ) : <Empty text={t('analytics.noData')} />}
 
                 <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -218,30 +217,34 @@ export default function Analytics() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.dailyTrend')}</h3>
                 {attMonthly.length ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={attMonthly}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
-                      <Line type="monotone" dataKey="rate" name={t('analytics.rate')} stroke="var(--accent)" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <ModernLineChart
+                    R={R}
+                    data={attMonthly}
+                    categoryKey="month"
+                    series={[{ key: 'rate', name: t('analytics.rate'), color: 'var(--accent)' }]}
+                    area
+                    yDomain={[0, 100]}
+                    height={300}
+                  >
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend />
+                  </ModernLineChart>
                 ) : <Empty text={t('analytics.noData')} />}
               </div>
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.byGradeLevel')}</h3>
                 {attByGrade.length ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={attByGrade} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                      <YAxis type="category" dataKey="grade_level" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} width={70} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="rate" name={t('analytics.rate')} fill="var(--accent-3)" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={attByGrade}
+                    categoryKey="grade_level"
+                    layout="vertical"
+                    series={[{ key: 'rate', name: t('analytics.rate'), color: 'var(--accent-3)' }]}
+                    yDomain={[0, 100]}
+                    height={300}
+                  >
+                    <Tooltip content={<ChartTooltip />} />
+                  </ModernBarChart>
                 ) : <Empty text={t('analytics.noData')} />}
 
                 <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -260,31 +263,34 @@ export default function Analytics() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.enrollmentByGrade')}</h3>
                 {retByGrade.length ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={retByGrade}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="grade_level" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
-                      <Bar dataKey="enrolled" name={t('analytics.enrolled')} fill="var(--accent-2)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="total" name={t('analytics.total')} fill="var(--accent)" radius={[4, 4, 0, 0]} opacity={0.5} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={retByGrade}
+                    categoryKey="grade_level"
+                    series={[
+                      { key: 'total', name: t('analytics.total'), color: 'var(--accent)' },
+                      { key: 'enrolled', name: t('analytics.enrolled'), color: 'var(--accent-2)' },
+                    ]}
+                    height={280}
+                  >
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend />
+                  </ModernBarChart>
                 ) : <Empty text={t('analytics.noData')} />}
               </div>
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.yearOverYear')}</h3>
                 {retYoy.length ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={retYoy}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="school_year" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="retention_rate" name={t('analytics.retention')} fill="var(--warn)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={retYoy}
+                    categoryKey="school_year"
+                    series={[{ key: 'retention_rate', name: t('analytics.retention'), color: 'var(--warn)' }]}
+                    yDomain={[0, 100]}
+                    height={280}
+                  >
+                    <Tooltip content={<ChartTooltip />} />
+                  </ModernBarChart>
                 ) : <Empty text={t('analytics.noData')} />}
 
                 <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -319,17 +325,21 @@ export default function Analytics() {
 
                 <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>{t('analytics.byGradeLevel')}</h3>
                 {passByGrade.length ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={passByGrade}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="grade_level" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
-                      <Bar dataKey="passing" name={t('analytics.passing')} fill="var(--accent-2)" stackId="a" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="failing" name={t('analytics.failing')} fill="var(--danger)" stackId="a" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={passByGrade}
+                    categoryKey="grade_level"
+                    stacked
+                    series={[
+                      { key: 'failing', name: t('analytics.failing'), color: 'var(--danger)' },
+                      { key: 'passing', name: t('analytics.passing'), color: 'var(--accent-2)' },
+                    ]}
+                    height={200}
+                    showLabels={false}
+                  >
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend />
+                  </ModernBarChart>
                 ) : <Empty text={t('analytics.noData')} />}
               </div>
               <div className="card">
@@ -388,17 +398,22 @@ export default function Analytics() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandComparison')}</h3>
                 {strandComp?.data?.length ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={strandComp.data}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="strand" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} angle={-15} textAnchor="end" height={60} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
-                      <Bar dataKey="mean_grade" name={t('analytics.meanGrade')} fill="var(--accent)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="pass_rate" name={t('analytics.passRate')} fill="var(--accent-2)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={strandComp.data}
+                    categoryKey="strand"
+                    series={[
+                      { key: 'mean_grade', name: t('analytics.meanGrade'), color: 'var(--accent)' },
+                      { key: 'pass_rate', name: t('analytics.passRate'), color: 'var(--accent-2)' },
+                    ]}
+                    height={300}
+                    xAngle={-15}
+                    xHeight={60}
+                    showLabels={false}
+                  >
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend />
+                  </ModernBarChart>
                 ) : <Empty text={t('analytics.noData')} />}
               </div>
               <div className="card">
@@ -503,17 +518,22 @@ export default function Analytics() {
                 <div className="card">
                   <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.subjectMastery')}</h3>
                   {compMastery?.by_subject?.length ? (
-                    <ResponsiveContainer width="100%" height={360}>
-                      <BarChart data={compMastery.by_subject} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                        <YAxis type="category" dataKey="subject_code" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} width={60} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Legend />
-                        <Bar dataKey="avg_score" name={t('analytics.avgScore')} fill="var(--accent)" radius={[0, 4, 4, 0]} />
-                        <Bar dataKey="mastery_rate" name={t('analytics.masteryRate')} fill="var(--accent-2)" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <ModernBarChart
+                      R={R}
+                      data={compMastery.by_subject}
+                      categoryKey="subject_code"
+                      layout="vertical"
+                      series={[
+                        { key: 'avg_score', name: t('analytics.avgScore'), color: 'var(--accent)' },
+                        { key: 'mastery_rate', name: t('analytics.masteryRate'), color: 'var(--accent-2)' },
+                      ]}
+                      yDomain={[0, 100]}
+                      height={360}
+                      showLabels={false}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend />
+                    </ModernBarChart>
                   ) : <Empty text={t('analytics.noCompetencyData')} />}
 
                   {/* Weakest competencies */}

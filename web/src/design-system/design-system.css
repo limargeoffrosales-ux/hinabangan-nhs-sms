@@ -1465,3 +1465,22 @@
 .recharts-cartesian-grid-vertical line { stroke: var(--grid-line); }
 .recharts-legend-item-text { color: var(--text-dim); font-size: 12px; }
 .recharts-legend-wrapper { padding-top: 4px; }
+
+/* Bar hover polish */
+.recharts-bar-rectangle { transition: filter 0.16s ease; }
+.recharts-bar-rectangle:hover { filter: brightness(1.08); }
+
+/* Modern chart refresh: glass stat icon, gradient stat card, soft dashed grids */
+.ds-stat__icon {
+  background: linear-gradient(
+    135deg,
+    var(--ds-stat-icon-bg, var(--bg-soft)) 0%,
+    color-mix(in srgb, var(--ds-stat-icon-bg, var(--bg-soft)) 42%, transparent) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+.ds-stat {
+  background: linear-gradient(180deg, var(--card) 0%, var(--bg) 150%);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.08));
+}
+.recharts-cartesian-grid line { stroke-dasharray: 4 8; }

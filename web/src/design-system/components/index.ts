@@ -8,4 +8,4 @@ export { default as RoleScopedEmptyState } from './RoleScopedEmptyState';
 export { default as LiveActivityFeed } from './LiveActivityFeed';
 export { default as LanguageSwitch } from './LanguageSwitch';
 export { default as GroupedNav } from './GroupedNav';
-export { ChartCard, ChartTooltip, Sparkline, ProgressRing, DonutChart } from './charts';
+export { ChartCard, ChartTooltip, Sparkline, ProgressRing, DonutChart, ModernBarChart, ModernLineChart } from './charts';

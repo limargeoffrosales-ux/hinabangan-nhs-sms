@@ -10,7 +10,7 @@ import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
-import { LiveActivityFeed, LiveStatusPill, ChartTooltip, Sparkline } from '../design-system';
+import { LiveActivityFeed, LiveStatusPill, ChartTooltip, ModernBarChart, Sparkline } from '../design-system';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const READINESS_STATUS = {
@@ -184,16 +184,18 @@ export default function Dashboard() {
 
         <SectionCard title={t('dashboard.enrolledByGrade')} icon={Layers}>
           {gradeData.length > 0 ? (R ? (
-            <R.ResponsiveContainer width="100%" height={190}>
-              <R.BarChart data={gradeData}>
-                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-                <R.XAxis dataKey="grade" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} />
-                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip content={<ChartTooltip />} />
-                <R.Bar dataKey="Male" fill={SEX_COLORS.Male} radius={[4, 4, 0, 0]} />
-                <R.Bar dataKey="Female" fill={SEX_COLORS.Female} radius={[4, 4, 0, 0]} />
-              </R.BarChart>
-            </R.ResponsiveContainer>
+            <ModernBarChart
+              R={R}
+              data={gradeData}
+              categoryKey="grade"
+              series={[
+                { key: 'Male', color: SEX_COLORS.Male },
+                { key: 'Female', color: SEX_COLORS.Female },
+              ]}
+              height={190}
+              showLabels={false}
+              barCategoryGap="24%"
+            />
           ) : R === null ? (
             <div className="empty-state" style={{ height: 190 }}>
               <div className="empty-state-text">{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div>

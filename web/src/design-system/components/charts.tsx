@@ -3,7 +3,7 @@
 // pure-SVG primitives (Sparkline, ProgressRing, DonutChart) with zero recharts
 // dependency. Styled via `ds-*` classes in `design-system/design-system.css`.
 
-import React, { ReactNode, useMemo } from 'react';
+import React, { ReactNode, useId, useMemo } from 'react';
 import { cn } from '../../lib/cn';
 import { Card, Skeleton } from './feedback';
 
@@ -392,4 +392,365 @@ export function DonutChart({
   );
 }
 
-export default { ChartCard, ChartTooltip, Sparkline, ProgressRing, DonutChart };
+// ============================================
+// Modern recharts wrappers — "bold gradient + glass" look.
+// Vertical gradient fills, floating rounded bars, minimal
+// dashed gridlines, clean dim typography. The `R` prop is the
+// lazily-loaded recharts module (pages already hold it).
+// ============================================
+
+type RechartsComp = React.ComponentType<any>;
+
+export interface RechartsShim {
+  BarChart: RechartsComp;
+  Bar: RechartsComp;
+  XAxis: RechartsComp;
+  YAxis: RechartsComp;
+  CartesianGrid: RechartsComp;
+  Tooltip: RechartsComp;
+  ResponsiveContainer: RechartsComp;
+  Cell: RechartsComp;
+  LineChart: RechartsComp;
+  AreaChart: RechartsComp;
+  Area: RechartsComp;
+  Line: RechartsComp;
+  ReferenceDot: RechartsComp;
+  Label: RechartsComp;
+}
+
+export interface ModernBarSeries {
+  key: string;
+  name?: string;
+  color: string;
+}
+
+export interface ModernBarChartProps {
+  R: RechartsShim;
+  data: Array<Record<string, unknown>>;
+  series: ModernBarSeries[];
+  categoryKey?: string;
+  layout?: 'horizontal' | 'vertical';
+  stacked?: boolean;
+  perBarColors?: string[];
+  showLabels?: boolean;
+  labelSuffix?: string;
+  height?: number;
+  barSize?: number;
+  barGap?: number;
+  barCategoryGap?: number | string;
+  hideXAxis?: boolean;
+  hideYAxis?: boolean;
+  yDomain?: [number | 'auto', number | 'auto'];
+  yTickFormatter?: (value: number) => string;
+  grid?: boolean;
+  margin?: { top?: number; right?: number; left?: number; bottom?: number };
+  animationDuration?: number;
+  radius?: number;
+  xAngle?: number;
+  xHeight?: number;
+  children?: ReactNode;
+}
+
+export function ModernBarChart({
+  R,
+  data,
+  series,
+  categoryKey = 'name',
+  layout = 'horizontal',
+  stacked = false,
+  perBarColors,
+  showLabels = true,
+  labelSuffix = '',
+  height = 270,
+  barSize,
+  barGap,
+  barCategoryGap = '28%',
+  hideXAxis = false,
+  hideYAxis = false,
+  yDomain,
+  yTickFormatter,
+  grid = true,
+  margin,
+  animationDuration = 800,
+  radius = 8,
+  xAngle,
+  xHeight,
+  children,
+}: ModernBarChartProps) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const perBar = perBarColors && perBarColors.length > 0 ? perBarColors : null;
+
+  if (!data || data.length === 0 || !series || series.length === 0) return null;
+
+  const topRadius: [number, number, number, number] = layout === 'vertical' ? [0, radius, radius, 0] : [radius, radius, 0, 0];
+  const zeroRadius: [number, number, number, number] = [0, 0, 0, 0];
+
+  const barRadius = (i: number): [number, number, number, number] => {
+    if (stacked) return i === series.length - 1 ? topRadius : zeroRadius;
+    return topRadius;
+  };
+
+  const m = {
+    top: layout === 'horizontal' ? 20 : 6,
+    right: layout === 'vertical' ? 34 : 8,
+    left: 0,
+    bottom: 0,
+    ...margin,
+  };
+
+  const labelProps = layout === 'vertical' ? { position: 'right' } : { position: 'top' };
+
+  const defs = (
+    <defs key="grads">
+      {perBar
+        ? data.map((_, i) => {
+            const c = perBar[i % perBar.length] ?? 'var(--accent)';
+            return (
+              <linearGradient key={i} id={`${uid}-pg${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={c} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={c} stopOpacity={1} />
+              </linearGradient>
+            );
+          })
+        : series.map((s, i) => (
+            <linearGradient key={i} id={`${uid}-g${i}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity={0.45} />
+              <stop offset="100%" stopColor={s.color} stopOpacity={1} />
+            </linearGradient>
+          ))}
+    </defs>
+  );
+
+  const labelId = layout === 'vertical' ? 'right' : 'top';
+
+  const renderBars = () => {
+    if (perBar) {
+      const s = series[0];
+      if (!s) return null;
+      return (
+        <R.Bar
+          key={`${uid}-pb`}
+          dataKey={s.key}
+          name={s.name ?? s.key}
+          radius={topRadius}
+          barSize={barSize}
+          animationDuration={animationDuration}
+          animationEasing="ease-out"
+          label={showLabels ? { position: labelId as 'top' | 'right', offset: 8 } : undefined}
+        >
+          {defs}
+          {data.map((_, i) => (
+            <R.Cell key={i} fill={`url(#${uid}-pg${i})`} />
+          ))}
+        </R.Bar>
+      );
+    }
+    return (
+      <>
+        {defs}
+        {series.map((s, i) => (
+          <R.Bar
+            key={s.key}
+            dataKey={s.key}
+            name={s.name ?? s.key}
+            fill={`url(#${uid}-g${i})`}
+            radius={barRadius(i)}
+            barSize={barSize}
+            animationDuration={animationDuration}
+            animationEasing="ease-out"
+            label={showLabels && !stacked ? { position: labelId as 'top' | 'right', offset: 8 } : undefined}
+          />
+        ))}
+      </>
+    );
+  };
+
+  return (
+    <R.ResponsiveContainer width="100%" height={height}>
+      <R.BarChart data={data} margin={m} barCategoryGap={barCategoryGap} barGap={barGap}>
+        {grid && (
+          <R.CartesianGrid
+            strokeDasharray="4 8"
+            stroke="var(--grid-line)"
+            horizontal={layout === 'horizontal'}
+            vertical={layout === 'vertical'}
+          />
+        )}
+        {!hideXAxis && (
+          <R.XAxis
+            dataKey={categoryKey}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: 'var(--text-dim)', fontSize: 11, ...(xAngle != null ? { angle: xAngle, textAnchor: 'end' } : null) }}
+            height={xHeight}
+            interval="preserveStartEnd"
+          />
+        )}
+        {!hideYAxis && (
+          <R.YAxis
+            axisLine={false}
+            tickLine={false}
+            width={38}
+            tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
+            tickFormatter={yTickFormatter}
+            allowDecimals={false}
+            {...(yDomain != null ? { domain: yDomain } : null)}
+          />
+        )}
+        {renderBars()}
+        {children}
+      </R.BarChart>
+    </R.ResponsiveContainer>
+  );
+}
+
+export interface ModernLineSeries {
+  key: string;
+  name?: string;
+  color: string;
+}
+
+export interface ModernLineChartProps {
+  R: RechartsShim;
+  data: Array<Record<string, unknown>>;
+  series: ModernLineSeries[];
+  categoryKey?: string;
+  area?: boolean;
+  strokeWidth?: number;
+  dots?: boolean;
+  highlightLast?: boolean;
+  height?: number;
+  yDomain?: [number | 'auto', number | 'auto'];
+  yTickFormatter?: (value: number) => string;
+  hideXAxis?: boolean;
+  hideYAxis?: boolean;
+  grid?: boolean;
+  animationDuration?: number;
+  children?: ReactNode;
+}
+
+export function ModernLineChart({
+  R,
+  data,
+  series,
+  categoryKey = 'name',
+  area = true,
+  strokeWidth = 3,
+  dots = false,
+  highlightLast = true,
+  height = 260,
+  yDomain,
+  yTickFormatter,
+  hideXAxis = false,
+  hideYAxis = false,
+  grid = true,
+  animationDuration = 800,
+  children,
+}: ModernLineChartProps) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+
+  if (!data || data.length === 0 || !series || series.length === 0) return null;
+
+  const lastPoint = data[data.length - 1];
+  const lastSeries = series[0];
+  const lastValue = lastSeries && lastPoint ? Number(lastPoint[lastSeries.key] ?? 0) : null;
+  const lastLabel =
+    lastSeries && lastPoint ? String(lastPoint[categoryKey] ?? '') : '';
+
+  const Chart = area ? R.AreaChart : R.LineChart;
+  const Path = area ? R.Area : R.Line;
+
+  const defs = (
+    <defs key="line-grads">
+      {series.map((s, i) => (
+        <linearGradient key={i} id={`${uid}-la${i}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={s.color} stopOpacity={0.32} />
+          <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+        </linearGradient>
+      ))}
+    </defs>
+  );
+
+  return (
+    <R.ResponsiveContainer width="100%" height={height}>
+      <Chart data={data} margin={{ top: 24, right: 12, left: 0, bottom: 0 }}>
+        {defs}
+        {grid && (
+          <R.CartesianGrid strokeDasharray="4 8" stroke="var(--grid-line)" vertical={false} />
+        )}
+        {!hideXAxis && (
+          <R.XAxis
+            dataKey={categoryKey}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
+            interval="preserveStartEnd"
+          />
+        )}
+        {!hideYAxis && (
+          <R.YAxis
+            axisLine={false}
+            tickLine={false}
+            width={38}
+            domain={yDomain}
+            tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
+            tickFormatter={yTickFormatter}
+          />
+        )}
+        {series.map((s, i) =>
+          area ? (
+            <R.Area
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.name ?? s.key}
+              stroke={s.color}
+              strokeWidth={strokeWidth}
+              fill={`url(#${uid}-la${i})`}
+              dot={dots}
+              activeDot={{ r: 5, strokeWidth: 0 }}
+              animationDuration={animationDuration}
+              animationEasing="ease-out"
+            />
+          ) : (
+            <R.Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.name ?? s.key}
+              stroke={s.color}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              dot={dots}
+              activeDot={{ r: 5, strokeWidth: 0 }}
+              animationDuration={animationDuration}
+              animationEasing="ease-out"
+            />
+          )
+        )}
+        {highlightLast && lastSeries && lastPoint && lastValue != null && (
+          <R.ReferenceDot
+            x={lastPoint[categoryKey] as string | number}
+            y={lastValue}
+            r={4.5}
+            fill={lastSeries.color}
+            stroke="var(--card)"
+            strokeWidth={2}
+          >
+            <R.Label
+              value={lastValue}
+              position="top"
+              offset={8}
+              fill={lastSeries.color}
+              fontSize={12}
+              fontWeight={700}
+            />
+          </R.ReferenceDot>
+        )}
+        {children}
+      </Chart>
+    </R.ResponsiveContainer>
+  );
+}
+
+export default { ChartCard, ChartTooltip, Sparkline, ProgressRing, DonutChart, ModernBarChart, ModernLineChart };

@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, Badge, SkeletonCards, SkeletonTable } from '../components/ui';
 import { loadRecharts } from '../lib/lazy-recharts';
-import { ChartTooltip, DonutChart } from '../design-system';
+import { ChartTooltip, DonutChart, ModernBarChart } from '../design-system';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];
 const CASE_TYPES = ['behavioral', 'academic', 'personal', 'career', 'bullying', 'substance', 'other'];
@@ -192,17 +192,15 @@ export default function Guidance() {
           <div className="card" style={{ padding: 14 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><TrendingUp size={14} style={{ verticalAlign: -2, marginRight: 4 }} />By Priority</h4>
             <div style={{ height: 180 }}>
-              <R.ResponsiveContainer width="100%" height="100%">
-                <R.BarChart data={priorityData}>
-                  <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" vertical={false} />
-                  <R.XAxis dataKey="name" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
-                  <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 11 }} allowDecimals={false} />
-                  <R.Tooltip content={<ChartTooltip />} />
-                  <R.Bar dataKey="value" name="Cases" radius={[4, 4, 0, 0]}>
-                    {priorityData.map((d) => <R.Cell key={d.name} fill={PRIORITY_DOT[d.name.toLowerCase()] || '#94a3b8'} />)}
-                  </R.Bar>
-                </R.BarChart>
-              </R.ResponsiveContainer>
+              <ModernBarChart
+                R={R}
+                data={priorityData}
+                categoryKey="name"
+                series={[{ key: 'value', name: 'Cases' }]}
+                perBarColors={priorityData.map((d) => PRIORITY_DOT[d.name.toLowerCase()] || '#94a3b8')}
+                height={180}
+                showLabels={false}
+              />
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { api, getCurrentSchoolYear } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SCHOOL_YEARS } from '../lib/constants';
 import { Spinner, Modal } from './ui';
-import { ChartTooltip } from '../design-system';
+import { ModernBarChart } from '../design-system';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
@@ -321,17 +321,19 @@ export default function DashboardSections() {
           </div>
         </div>
         {chartData.length > 0 && R && (
-          <div style={{ height: 180, margin: '14px 0' }}>
-            <R.ResponsiveContainer width="100%" height="100%">
-              <R.BarChart data={chartData}>
-                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-                <R.XAxis dataKey="section" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
-                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip content={<ChartTooltip />} />
-                <R.Bar dataKey="Male" fill="#4D96FF" radius={[4, 4, 0, 0]} />
-                <R.Bar dataKey="Female" fill="#F5B942" radius={[4, 4, 0, 0]} />
-              </R.BarChart>
-            </R.ResponsiveContainer>
+          <div style={{ margin: '14px 0' }}>
+            <ModernBarChart
+              R={R}
+              data={chartData}
+              categoryKey="section"
+              series={[
+                { key: 'Male', color: '#4D96FF' },
+                { key: 'Female', color: '#F5B942' },
+              ]}
+              height={180}
+              showLabels={false}
+              barCategoryGap="24%"
+            />
           </div>
         )}
         <div className="table-wrap">
@@ -428,21 +430,23 @@ export default function DashboardSections() {
             ))}
           </div>
         </div>
-        {strandDist?.data?.length > 0 && R ? (
+{strandDist?.data?.length > 0 && R ? (
           <div style={{ height: 180, margin: '14px 0' }}>
-            <R.ResponsiveContainer width="100%" height="100%">
-              <R.BarChart data={strandDist.data}>
-                <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
-                <R.XAxis dataKey="strand" tick={{ fill: 'var(--text-dim)', fontSize: 10 }} angle={-15} textAnchor="end" height={60} />
-                <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                <R.Tooltip content={<ChartTooltip />} />
-                <R.Bar dataKey="students" name="Students" radius={[4, 4, 0, 0]}>
-                  {strandDist.data.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </R.Bar>
-              </R.BarChart>
-            </R.ResponsiveContainer>
+            <ModernBarChart
+              R={R}
+              data={strandDist.data}
+              categoryKey="strand"
+              series={[
+                { key: 'grade_11', name: 'Grade 11', color: 'var(--accent-2)' },
+                { key: 'grade_12', name: 'Grade 12', color: 'var(--accent)' },
+              ]}
+              height={180}
+              showLabels={false}
+              xAngle={-15}
+              xHeight={60}
+            />
           </div>
-        ) : <div className="sub">No strand distribution data available for {sy}.</div>}
+        ) : null}
         <div className="table-wrap" style={{ marginTop: 8 }}>
           <table>
             <thead><tr><th>Strand</th><th style={{ textAlign: 'center' }}>Students</th><th style={{ textAlign: 'center' }}>Sections</th></tr></thead>

@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, ErrorBanner, Spinner } from '../components/ui';
 import { loadRecharts } from '../lib/lazy-recharts';
-import { ChartTooltip, DonutChart } from '../design-system';
+import { ChartTooltip, DonutChart, ModernBarChart } from '../design-system';
 import PlacementMap, { BADGE_FOR } from '../components/PlacementMap';
 
 // Capitalize first letter of string (used for status name formatting)
@@ -228,17 +228,18 @@ export default function CareerTVL() {
           <h3 style={{ marginTop: 0 }}><Users size={16} /> {t('careerTvl.learnersPerPartner', 'Learners per Partner Institution')}</h3>
           {immPartnerData.length > 0 && R ? (
             <div style={{ height: 215 }}>
-              <R.ResponsiveContainer width="100%" height="100%">
-                <R.BarChart data={immPartnerData} layout="vertical" margin={{ left: 8, right: 24 }}>
-                  <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" horizontal={false} />
-                  <R.XAxis type="number" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} allowDecimals={false} />
-                  <R.YAxis type="category" dataKey="name" width={150} tick={{ fill: 'var(--text-dim)', fontSize: 10.5 }} />
-                  <R.Tooltip content={<ChartTooltip />} />
-                  <R.Bar dataKey="value" name={t('careerTvl.learners', 'Learners')} radius={[0, 4, 4, 0]}>
-                    {immPartnerData.map((_, i) => <R.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </R.Bar>
-                </R.BarChart>
-              </R.ResponsiveContainer>
+              <ModernBarChart
+                R={R}
+                data={immPartnerData}
+                categoryKey="name"
+                layout="vertical"
+                series={[{ key: 'value', name: t('careerTvl.learners', 'Learners') }]}
+                perBarColors={PIE_COLORS}
+                height={215}
+                showLabels={true}
+                labelSuffix=" learners"
+                margin={{ left: 8, right: 24 }}
+              />
             </div>
           ) : <div className="sub">{t('careerTvl.noPartnerRecords', 'No partner institutions recorded yet.')}</div>}
         </div>
@@ -247,18 +248,24 @@ export default function CareerTVL() {
           <h3 style={{ marginTop: 0 }}><Briefcase size={16} /> {t('careerTvl.immByBatchStatus', 'Immersion Learners by Batch & Status')}</h3>
           {immBatchData.length > 0 && R ? (
             <div style={{ height: 220 }}>
-              <R.ResponsiveContainer width="100%" height="100%">
-                <R.BarChart data={immBatchData} margin={{ top: 4 }}>
-                  <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" vertical={false} />
-                  <R.XAxis dataKey="batch" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
-                  <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                  <R.Tooltip content={<ChartTooltip />} />
-                  <R.Legend wrapperStyle={{ fontSize: 12 }} />
-                  {['Pending', 'Ongoing', 'Completed', 'Served', 'Withdrawn'].filter((s) => immBatchData.some((b) => b[s] > 0)).map((s) => (
-                    <R.Bar key={s} dataKey={s} name={t(`careerTvl.status.${s.toLowerCase()}`, s)} stackId="s" fill={STATUS_COLORS[s.toLowerCase()] || '#94a3b8'} radius={[0, 0, 0, 0]} />
-                  ))}
-                </R.BarChart>
-              </R.ResponsiveContainer>
+              <ModernBarChart
+                R={R}
+                data={immBatchData}
+                categoryKey="batch"
+                series={['Pending', 'Ongoing', 'Completed', 'Served', 'Withdrawn']
+                  .filter((s) => immBatchData.some((b) => b[s] > 0))
+                  .map((s) => ({
+                    key: s,
+                    name: t(`careerTvl.status.${s.toLowerCase()}`, s),
+                    color: STATUS_COLORS[s.toLowerCase()] || '#94a3b8',
+                  }))}
+                stacked
+                height={220}
+                showLabels={false}
+              >
+                <R.Tooltip content={<ChartTooltip />} />
+                <R.Legend wrapperStyle={{ fontSize: 12 }} />
+              </ModernBarChart>
             </div>
           ) : <div className="sub">{t('careerTvl.noBatchData', 'No batch data yet.')}</div>}
         </div>
@@ -267,17 +274,21 @@ export default function CareerTVL() {
           <h3 style={{ marginTop: 0 }}><BadgeCheck size={16} /> {t('careerTvl.jdvpByBatchGender', 'JDVP Recipients by Batch & Gender')}</h3>
           {jdvpBatchData.length > 0 && R ? (
             <div style={{ height: 220 }}>
-              <R.ResponsiveContainer width="100%" height="100%">
-                <R.BarChart data={jdvpBatchData} margin={{ top: 4 }}>
-                  <R.CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" vertical={false} />
-                  <R.XAxis dataKey="batch" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} />
-                  <R.YAxis tick={{ fill: 'var(--text-dim)', fontSize: 12 }} allowDecimals={false} />
-                  <R.Tooltip content={<ChartTooltip />} />
-                  <R.Legend wrapperStyle={{ fontSize: 12 }} />
-                  <R.Bar dataKey="Male" stackId="g" fill="#4D96FF" name={t('careerTvl.genderMale', 'Male')} />
-                  <R.Bar dataKey="Female" stackId="g" fill="#F5B942" radius={[4, 4, 0, 0]} name={t('careerTvl.genderFemale', 'Female')} />
-                </R.BarChart>
-              </R.ResponsiveContainer>
+              <ModernBarChart
+                R={R}
+                data={jdvpBatchData}
+                categoryKey="batch"
+                series={[
+                  { key: 'Male', name: t('careerTvl.genderMale', 'Male'), color: '#4D96FF' },
+                  { key: 'Female', name: t('careerTvl.genderFemale', 'Female'), color: '#F5B942' },
+                ]}
+                stacked
+                height={220}
+                showLabels={false}
+              >
+                <R.Tooltip content={<ChartTooltip />} />
+                <R.Legend wrapperStyle={{ fontSize: 12 }} />
+              </ModernBarChart>
             </div>
           ) : <div className="sub">{t('careerTvl.noJdvpRecords', 'No JDVP recipients recorded yet.')}</div>}
         </div>

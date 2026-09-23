@@ -4,7 +4,7 @@ import { Target, BarChart3, Users } from 'lucide-react';
 import { loadRecharts } from '../lib/lazy-recharts';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, ErrorBanner } from '../components/ui';
-import { ChartTooltip } from '../design-system';
+import { ModernBarChart } from '../design-system';
 
 const LEVEL_COLORS = { Advanced: 'var(--success)', Proficient: 'var(--accent)', 'Approaching Proficiency': 'var(--warn)', Developing: 'var(--danger)', Beginning: 'var(--danger)' };
 const LEVELS = ['Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced'];
@@ -64,8 +64,6 @@ export default function CompetencyTracker() {
 
   if (!R) return <Spinner />;
 
-  const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } = R;
-
   return (
     <div>
       <PageHead title={t('compTracker.title', 'Competency Tracker')} sub={t('compTracker.subtitle', 'Monitor and assess student mastery of curriculum competencies')} />
@@ -121,17 +119,16 @@ export default function CompetencyTracker() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}><BarChart3 size={15} /> Competency Average Scores</h3>
                 {chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-dim)' }} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} domain={[0, 100]} />
-                      <Tooltip content={<ChartTooltip />} formatter={(v) => [v, 'Average Score']} />
-                      <Bar dataKey="Average" radius={[4, 4, 0, 0]}>
-                        {chartData.map((d, i) => <Cell key={i} fill={d.Average >= 85 ? 'var(--success)' : d.Average >= 75 ? 'var(--warn)' : 'var(--danger)'} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={chartData}
+                    categoryKey="name"
+                    series={[{ key: 'Average', name: 'Average Score', color: 'var(--accent)' }]}
+                    perBarColors={chartData.map((d) => d.Average >= 85 ? 'var(--success)' : d.Average >= 75 ? 'var(--warn)' : 'var(--danger)')}
+                    height={320}
+                    yDomain={[0, 100]}
+                    showLabels={false}
+                  />
                 ) : <Empty text={t('compTracker.noData', 'No competency data yet.')} />}
               </div>
               <div className="card">
@@ -200,17 +197,17 @@ export default function CompetencyTracker() {
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Proficiency Level Distribution</h3>
                 {levelPieData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={levelPieData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--text-dim)' }} allowDecimals={false} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="value" name="Students" radius={[4, 4, 0, 0]}>
-                        {levelPieData.map((d) => <Cell key={d.name} fill={LEVEL_COLORS[d.name] || 'var(--text-dim)'} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernBarChart
+                    R={R}
+                    data={levelPieData}
+                    categoryKey="name"
+                    series={[{ key: 'value', name: 'Students', color: 'var(--accent)' }]}
+                    perBarColors={levelPieData.map((d) => LEVEL_COLORS[d.name] || 'var(--text-dim)')}
+                    height={300}
+                    showLabels={false}
+                    xAngle={-20}
+                    xHeight={50}
+                  />
                 ) : <Empty text="No level data yet." />}
               </div>
               <div className="card">
