@@ -380,6 +380,32 @@ a { color: var(--accent); text-decoration: none; }
 .grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 
+/* Compact KPI strip — all cards in one line */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.kpi-strip .card.kpi {
+  min-height: 96px;
+  padding: 14px 12px;
+}
+.kpi-strip .kpi-card {
+  min-height: 0;
+  gap: 6px;
+}
+.kpi-strip .kpi-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+.kpi-strip .kpi-icon svg { width: 16px; height: 16px; }
+.kpi-strip .kpi-value { font-size: 21px; }
+.kpi-strip .kpi-label { font-size: 12px; }
+.kpi-strip .kpi-sub { font-size: 11px; padding-right: 0; margin-top: 2px; }
+@media (max-width: 1180px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);

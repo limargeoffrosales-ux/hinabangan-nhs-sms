@@ -150,7 +150,7 @@ export default function Dashboard() {
         sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
       />
 
-      <div className="grid grid-3">
+      <div className="kpi-strip">
         {kpis.map((k) => (
           <KPICard key={k.label} to={k.to} icon={k.icon} value={k.value} label={k.label} sub={k.sub} color={k.color} />
         ))}
