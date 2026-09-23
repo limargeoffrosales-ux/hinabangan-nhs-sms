@@ -538,36 +538,31 @@ export function ModernBarChart({
           animationEasing="ease-out"
           label={showLabels ? { position: labelId as 'top' | 'right', offset: 8 } : undefined}
         >
-          {defs}
           {data.map((_, i) => (
             <R.Cell key={i} fill={`url(#${uid}-pg${i})`} />
           ))}
         </R.Bar>
       );
     }
-    return (
-      <>
-        {defs}
-        {series.map((s, i) => (
-          <R.Bar
-            key={s.key}
-            dataKey={s.key}
-            name={s.name ?? s.key}
-            fill={`url(#${uid}-g${i})`}
-            radius={barRadius(i)}
-            barSize={barSize}
-            animationDuration={animationDuration}
-            animationEasing="ease-out"
-            label={showLabels && !stacked ? { position: labelId as 'top' | 'right', offset: 8 } : undefined}
-          />
-        ))}
-      </>
-    );
+    return series.map((s, i) => (
+      <R.Bar
+        key={s.key}
+        dataKey={s.key}
+        name={s.name ?? s.key}
+        fill={`url(#${uid}-g${i})`}
+        radius={barRadius(i)}
+        barSize={barSize}
+        animationDuration={animationDuration}
+        animationEasing="ease-out"
+        label={showLabels && !stacked ? { position: labelId as 'top' | 'right', offset: 8 } : undefined}
+      />
+    ));
   };
 
   return (
     <R.ResponsiveContainer width="100%" height={height}>
       <R.BarChart data={data} margin={m} barCategoryGap={barCategoryGap} barGap={barGap}>
+        {defs}
         {grid && (
           <R.CartesianGrid
             strokeDasharray="4 8"
