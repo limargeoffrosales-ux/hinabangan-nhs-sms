@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { q, qa } = db;
+const { q, qa, qr } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
 const { linkedStudentIds } = require('../scope');
@@ -421,6 +421,88 @@ router.get('/announcements', requireRole(...PORTAL), asyncH(async (req, res) => 
      ORDER BY a.created_at DESC LIMIT ?`,
     [limit]);
   res.json({ data: rows });
+}));
+
+// Fields a student/parent may self-edit on the linked student record.
+const SELF_EDITABLE = [
+  'contact', 'address', 'religion',
+  'guardian_name', 'guardian_contact', 'guardian_relation',
+];
+const SELF_EDITABLE_ACCOUNT = ['name', 'email', 'phone'];
+
+// GET /profile — profile the caller may self-edit (contact, address, guardian,
+// religion) plus the linked account fields. Parents pass student_id to target a
+// child; students default to their own record. Locked fields (LRN, name, grade
+// level, etc.) are read-only to keep the school record authoritative.
+router.get('/profile', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = await resolvePortalStudent(ids, req, res);
+  if (!studentId) return res.json({ student: null });
+  const student = await q(
+    `SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, grade_level,
+            track_strand, status, photo_url, contact, address, religion,
+            guardian_name, guardian_contact, guardian_relation
+     FROM students WHERE id = ?`, [studentId]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  const account = await q('SELECT id, username, name, email, phone, role FROM users WHERE id = ?', [req.user.id]);
+  res.json({
+    student,
+    editable: SELF_EDITABLE,
+    account: account ? { id: account.id, username: account.username, name: account.name, email: account.email, phone: account.phone, role: account.role } : null,
+    editable_account: SELF_EDITABLE_ACCOUNT,
+  });
+}));
+
+// PUT /profile — update the caller-editable portions of a linked student's
+// record (and optionally their own account name/email/phone). The registrar's
+// canonical fields are never touched here.
+router.put('/profile', requireRole(...PORTAL), asyncH(async (req, res) => {
+  const ids = await linkedStudentIds(req.user);
+  const studentId = await resolvePortalStudent(ids, req, res);
+  if (!studentId) return res.status(403).json({ error: 'No linked student record to update' });
+  const student = await q('SELECT id FROM students WHERE id = ?', [studentId]);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+
+  const b = req.body || {};
+  const updates = [];
+  const params = [];
+  for (const field of SELF_EDITABLE) {
+    if (b[field] === undefined) continue;
+    let v = typeof b[field] === 'string' ? b[field].trim().slice(0, 500) : (b[field] == null ? null : String(b[field]).slice(0, 500));
+    v = v === '' ? null : v;
+    updates.push(`${field} = ?`);
+    params.push(v);
+  }
+  if (updates.length) {
+    params.push(studentId);
+    await qr(`UPDATE students SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
+  }
+
+  // Account-level name/email/phone updates apply to the caller, not the child.
+  const acct = [];
+  const acctParams = [];
+  for (const field of SELF_EDITABLE_ACCOUNT) {
+    if (b[field] === undefined) continue;
+    let v = typeof b[field] === 'string' ? b[field].trim().slice(0, 200) : (b[field] == null ? null : String(b[field]).slice(0, 200));
+    v = v === '' ? null : v;
+    if (field === 'email' && v && !/.+@.+\..+/.test(v)) {
+      return res.status(400).json({ error: 'Please enter a valid email address' });
+    }
+    acct.push(`${field} = ?`);
+    acctParams.push(v);
+  }
+  if (acct.length) {
+    acctParams.push(req.user.id);
+    await qr(`UPDATE users SET ${acct.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, acctParams);
+  }
+
+  const account = await q('SELECT id, username, name, email, phone, role FROM users WHERE id = ?', [req.user.id]);
+  const updated = await q(
+    `SELECT id, lrn, first_name, middle_name, last_name, suffix, sex, birth_date, grade_level,
+            track_strand, status, photo_url, contact, address, religion,
+            guardian_name, guardian_contact, guardian_relation
+     FROM students WHERE id = ?`, [studentId]);
+  res.json({ ok: true, student: updated, account: account ? { id: account.id, username: account.username, name: account.name, email: account.email, phone: account.phone, role: account.role } : null });
 }));
 
 module.exports = router;

@@ -70,6 +70,7 @@ const ResetPassword = lazyWithRetry(() => import('./pages/ResetPassword'));
 const Consent = lazyWithRetry(() => import('./pages/Consent'));
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
 const Students = lazyWithRetry(() => import('./pages/Students'));
+const StudentProfile = lazyWithRetry(() => import('./pages/StudentProfile'));
 const Teachers = lazyWithRetry(() => import('./pages/Teachers'));
 const Subjects = lazyWithRetry(() => import('./pages/Subjects'));
 const Sections = lazyWithRetry(() => import('./pages/Sections'));
@@ -113,6 +114,7 @@ const PortalPortfolio = lazyWithRetry(() => import('./pages/PortalPortfolio'));
 const PortalImmersion = lazyWithRetry(() => import('./pages/PortalImmersion'));
 const PortalAnalytics = lazyWithRetry(() => import('./pages/PortalAnalytics'));
 const PortalCertifications = lazyWithRetry(() => import('./pages/PortalCertifications'));
+const PortalProfile = lazyWithRetry(() => import('./pages/PortalProfile'));
 const DepedForms = lazyWithRetry(() => import('./pages/DepedForms'));
 const AIPage = lazyWithRetry(() => import('./pages/AIPage'));
 const Achievements = lazyWithRetry(() => import('./pages/Achievements'));
@@ -210,6 +212,7 @@ export default function App() {
       <Route path="/reset-password" element={<Page><ResetPassword /></Page>} />
       <Route path="/" element={<Protected><Page><Dashboard /></Page></Protected>} />
       <Route path="/students" element={<Protected><Page><Students /></Page></Protected>} />
+      <Route path="/students/:id" element={<Protected><Page><StudentProfile /></Page></Protected>} />
       <Route path="/teachers" element={<Protected><Page><Teachers /></Page></Protected>} />
       <Route path="/subjects" element={<Protected><Page><Subjects /></Page></Protected>} />
       <Route path="/sections" element={<Protected><Page><Sections /></Page></Protected>} />
@@ -245,6 +248,7 @@ export default function App() {
       <Route path="/portal/immersion" element={<PortalProtected><Page><PortalImmersion /></Page></PortalProtected>} />
       <Route path="/portal/analytics" element={<PortalProtected><Page><PortalAnalytics /></Page></PortalProtected>} />
       <Route path="/portal/certifications" element={<PortalProtected><Page><PortalCertifications /></Page></PortalProtected>} />
+      <Route path="/portal/profile" element={<PortalProtected><Page><PortalProfile /></Page></PortalProtected>} />
       <Route path="/parent-portal" element={<ParentProtected><Page><ParentPortal /></Page></ParentProtected>} />
       <Route path="/privacy" element={<Protected><AdminOnly><Page><Privacy /></Page></AdminOnly></Protected>} />
       <Route path="/consent" element={<Protected><Page><Consent /></Page></Protected>} />

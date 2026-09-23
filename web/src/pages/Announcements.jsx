@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Pencil, Trash2, Megaphone } from 'lucide-react';
-import { api } from '../lib/api';
+import { Plus, Pencil, Trash2, Megaphone, X, Film } from 'lucide-react';
+import { api, fileUrl } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
 import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
+import FileUpload from '../components/FileUpload';
 
 export default function Announcements() {
   const { t } = useTranslation();
@@ -12,7 +13,7 @@ export default function Announcements() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ title: '', body: '', audience: 'all', priority: 'normal' });
+  const [form, setForm] = useState({ title: '', body: '', audience: 'all', priority: 'normal', media: [] });
   const [editing, setEditing] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -39,16 +40,27 @@ export default function Announcements() {
   }), [load]);
 
   function openCreate() {
-    setForm({ title: '', body: '', audience: 'all', priority: 'normal' });
+    setForm({ title: '', body: '', audience: 'all', priority: 'normal', media: [] });
     setEditing(null);
     setShowModal(true);
   }
 
   function openEdit(a) {
-    setForm({ title: a.title, body: a.body, audience: a.audience, priority: a.priority });
+    setForm({ title: a.title, body: a.body, audience: a.audience, priority: a.priority, media: a.media || [] });
     setEditing(a.id);
     setShowModal(true);
   }
+
+  const onUploadMedia = (file) => {
+    setForm((f) => ({
+      ...f,
+      media: [...f.media, { url: file.url || `/api/v1/uploads/file/${file.key}`, type: file.name?.match(/\.(mp4|webm|ogg|mov)$/i) ? 'video' : 'image', name: file.name }],
+    }));
+  };
+
+  const removeMedia = (idx) => {
+    setForm((f) => ({ ...f, media: f.media.filter((_, i) => i !== idx) }));
+  };
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -107,6 +119,19 @@ export default function Announcements() {
                 )}
               </div>
               <p style={{ margin: '10px 0 0', color: 'var(--text-dim)', lineHeight: 1.7, fontSize: 14 }}>{a.body}</p>
+              {(a.media || []).length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, marginTop: 12 }}>
+                  {(a.media || []).map((m, i) => (
+                    <div key={i} style={{ borderRadius: 8, overflow: 'hidden', background: 'var(--bg-2)', aspectRatio: '4/3' }}>
+                      {m.type === 'video' || (m.url && /\.(mp4|webm|ogg|mov)$/i.test(m.url)) ? (
+                        <video src={fileUrl(m.url)} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} preload="metadata" />
+                      ) : (
+                        <img src={fileUrl(m.url)} alt={m.name || a.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -123,30 +148,44 @@ export default function Announcements() {
             <input required value={form.title} onChange={(e) => set('title', e.target.value)} />
             <label>{t('announcements.message')} *</label>
             <textarea required rows={5} value={form.body} onChange={(e) => set('body', e.target.value)} />
-            <div className="form-row">
-              <div>
-                <label>{t('announcements.audienceLabel')}</label>
-                <select value={form.audience} onChange={(e) => set('audience', e.target.value)}>
-                  <option value="all">{t('announcements.everyone')}</option>
-                  <option value="teachers">{t('announcements.teachersStaff')}</option>
-                  <option value="students">{t('announcements.students')}</option>
-                  <option value="parents">{t('announcements.parents')}</option>
-                </select>
+              <div className="form-row">
+                <div>
+                  <label>{t('announcements.audienceLabel')}</label>
+                  <select value={form.audience} onChange={(e) => set('audience', e.target.value)}>
+                    <option value="all">{t('announcements.everyone')}</option>
+                    <option value="teachers">{t('announcements.teachersStaff')}</option>
+                    <option value="students">{t('announcements.students')}</option>
+                    <option value="parents">{t('announcements.parents')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label>{t('announcements.priorityLabel')}</label>
+                  <select value={form.priority} onChange={(e) => set('priority', e.target.value)}>
+                    <option value="normal">{t('announcements.normal')}</option>
+                    <option value="high">{t('announcements.high')}</option>
+                    <option value="urgent">{t('announcements.urgent')}</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label>{t('announcements.priorityLabel')}</label>
-                <select value={form.priority} onChange={(e) => set('priority', e.target.value)}>
-                  <option value="normal">{t('announcements.normal')}</option>
-                  <option value="high">{t('announcements.high')}</option>
-                  <option value="urgent">{t('announcements.urgent')}</option>
-                </select>
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
-              <button className="btn btn-primary">{t('announcements.publish')}</button>
-            </div>
-          </form>
+              <label>{t('announcements.media')}</label>
+              {form.media.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                  {form.media.map((m, i) => (
+                    <div key={i} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', position: 'relative', background: 'var(--bg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {m.type === 'video' ? (
+                        <Film size={24} style={{ color: 'var(--accent-2)' }} />
+                      ) : (
+                        <img src={fileUrl(m.url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      )}
+                      <button type="button" onClick={() => removeMedia(i)} aria-label="Remove media" style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <FileUpload folder="announcements" accept="image/*,video/mp4,video/webm,video/ogg,video/quicktime" onUpload={onUploadMedia} label={t('announcements.mediaHint')} compact />
+            </form>
         </Modal>
       )}
       {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}

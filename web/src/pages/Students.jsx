@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Link2, Upload, Camera, AlertTriangle, UserPlus, CheckCircle2, XCircle, Download, FileSpreadsheet } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Link2, Upload, Camera, AlertTriangle, UserPlus, CheckCircle2, XCircle, Download, FileSpreadsheet, Eye } from 'lucide-react';
 import readXlsxFile from 'read-excel-file';
 import { useTranslation } from 'react-i18next';
 import { api, fileUrl } from '../lib/api';
@@ -21,6 +22,8 @@ const GRADE_LEVELS = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', '
 export default function Students() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canWrite = can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar');
   const canManageAccounts = can(user?.role, 'super_admin', 'school_admin');
   const canApproveRegistrations = can(user?.role, 'super_admin');
@@ -213,6 +216,20 @@ export default function Students() {
     const timer = setTimeout(load, query ? 250 : 0);
     return () => clearTimeout(timer);
   }, [query, gradeLevel, load]);
+
+  // Support /students?edit=<id> — opens the edit modal for that student
+  // (deep-linked from the profile page's "Edit record" button).
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId) {
+      const target = rows.find((r) => String(r.id) === String(editId));
+      if (target) {
+        openEdit(target);
+        setSearchParams({}, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, rows]);
 
   const exportStudents = async () => {
     try {
@@ -519,7 +536,11 @@ export default function Students() {
               {rows.map((s) => (
                 <tr key={s.id}>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{s.lrn}</td>
-                  <td><strong>{s.last_name}, {s.first_name} {s.middle_name || ''}</strong> {s.suffix}</td>
+                  <td>
+                    <Link to={`/students/${s.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <strong>{s.last_name}, {s.first_name} {s.middle_name || ''}</strong> {s.suffix}
+                    </Link>
+                  </td>
                   <td>{s.sex}</td>
                   <td>{s.grade_level}</td>
                   <td>{s.track_strand || '—'}</td>
@@ -527,6 +548,7 @@ export default function Students() {
                   <td><Badge status={s.status} /></td>
                   {canWrite && (
                     <td className="row-actions" style={{ textAlign: 'right' }}>
+                      <Link className="btn btn-sm" to={`/students/${s.id}`} title={t('profile.viewProfile')}><Eye size={13} /></Link>{' '}
                       <button className="btn btn-sm" title={t('students.portalAccounts')} onClick={() => openAccounts(s)}><Link2 size={13} /></button>{' '}
                        {canViewPhoto && <button className="btn btn-sm" onClick={() => openEdit(s)} aria-label={t('students.editStudent')}><Pencil size={13} aria-hidden="true" /></button>}{' '}
                        <button className="btn btn-sm btn-danger" onClick={() => remove(s)} aria-label={t('students.deleteStudentBtn')}><Trash2 size={13} aria-hidden="true" /></button>

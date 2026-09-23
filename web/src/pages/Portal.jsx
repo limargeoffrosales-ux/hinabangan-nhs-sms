@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, Megaphone, CalendarDays, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { RefreshCw, Megaphone, CalendarDays, Users, NotebookPen, Clock, ChevronRight } from 'lucide-react';
 import { api, getCurrentSchoolYear } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { ErrorBanner, Spinner } from '../components/ui';
@@ -17,6 +18,8 @@ export default function Portal() {
   const [error, setError] = useState(null);
   const [teachers, setTeachers] = useState([]);
   const [weekly, setWeekly] = useState([]);
+  const [today, setToday] = useState([]);
+  const [assignments, setAssignments] = useState([]);
 
   useEffect(() => {
     getCurrentSchoolYear().then((y) => { if (y) setSy((prev) => (prev === '2026-2027' ? y : prev)); });
@@ -29,8 +32,16 @@ export default function Portal() {
       api(`/portal/overview?school_year=${encodeURIComponent(sy)}`),
       api(`/portal/teacher-contacts?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
       api(`/portal/weekly-schedule?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
+      api(`/portal/today-schedule?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
+      api(`/portal/upcoming-assignments?school_year=${encodeURIComponent(sy)}`).catch(() => ({ data: [] })),
     ])
-      .then(([ov, tc, ws]) => { setData(ov); setTeachers(tc.data); setWeekly(ws.data); })
+      .then(([ov, tc, ws, td, as]) => {
+        setData(ov);
+        setTeachers(tc.data);
+        setWeekly(ws.data);
+        setToday(td.data);
+        setAssignments(as.data);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [sy]);
@@ -109,6 +120,55 @@ export default function Portal() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+            {/* Today's schedule */}
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <h3 style={{ margin: 0 }}><Clock size={15} style={{ verticalAlign: -2 }} /> {t('portal.today', 'Today')}</h3>
+                <Link to="/portal/schedule" style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none' }}>
+                  {t('portal.viewSchedule', 'View schedule')} <ChevronRight size={12} style={{ verticalAlign: -1 }} />
+                </Link>
+              </div>
+              {today.length === 0 ? (
+                <div className="sub" style={{ marginTop: 8 }}>{t('portal.noToday', 'No classes today.')}</div>
+              ) : (
+                <div style={{ marginTop: 4 }}>
+                  {today.map((r, i) => (
+                    <div key={i} style={{ fontSize: 12, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontWeight: 600 }}>{r.subject_code}</span> — {r.subject_title}
+                      <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>{r.start_time?.slice(0, 5)}–{r.end_time?.slice(0, 5)}</span>
+                      {r.room && <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>Room {r.room}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Upcoming assignments */}
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <h3 style={{ margin: 0 }}><NotebookPen size={15} style={{ verticalAlign: -2 }} /> {t('portal.upcoming', 'Upcoming assignments')}</h3>
+                <Link to="/portal/assignments" style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none' }}>
+                  {t('portal.viewAll', 'View all')} <ChevronRight size={12} style={{ verticalAlign: -1 }} />
+                </Link>
+              </div>
+              {assignments.length === 0 ? (
+                <div className="sub" style={{ marginTop: 8 }}>{t('portal.noAssignments', 'Nothing due soon.')}</div>
+              ) : (
+                <div style={{ marginTop: 4 }}>
+                  {assignments.map((a) => (
+                    <div key={a.id} style={{ fontSize: 12, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontWeight: 600 }}>{a.title}</div>
+                      <span style={{ color: 'var(--text-dim)' }}>
+                        {a.subject_code} · {a.due_date ? t('portal.due', 'due') + ' ' + new Date(a.due_date).toLocaleDateString() : t('portal.noDue', 'no due date')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
