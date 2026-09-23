@@ -41,7 +41,7 @@ export default function PortalGrades() {
   if (!students.length) {
     return (
       <>
-        <PageHead title="Grades" sub={t('grades.portalSub', 'Full school-year report cards for your linked students.')} />
+        <PageHead title={t('portal.grades')} sub={t('grades.portalSub', 'Full school-year report cards for your linked students.')} />
         <PortalNoLinked />
       </>
     );
@@ -70,7 +70,7 @@ export default function PortalGrades() {
 
   return (
     <>
-      <PageHead title="Grades" sub={t('grades.portalSub2', 'Full school-year report cards with written work, performance tasks and exams.')} />
+      <PageHead title={t('portal.grades')} sub={t('grades.portalSub2', 'Full school-year report cards with written work, performance tasks and exams.')} />
       <ErrorBanner error={meError || error} />
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ margin: 0, alignItems: 'end' }}>

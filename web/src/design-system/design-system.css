@@ -1212,6 +1212,7 @@
 }
 .ds-navgroup__head.is-toggle { cursor: pointer; }
 .ds-navgroup__head.is-toggle:hover { color: var(--text); }
+.ds-navgroup__head:not(.is-toggle) .ds-navgroup__chev { display: none; }
 .ds-navgroup__chev {
   display: inline-flex;
   transition: transform 0.16s ease;

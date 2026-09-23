@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Award } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, ErrorBanner } from '../components/ui';
@@ -7,6 +8,7 @@ const STATUS_COLORS = { active: 'badge-green', expired: 'badge-red', pending: 'b
 const TYPE_COLORS = { NCII: 'badge-blue', TESDA: 'badge-purple', OTHER: 'badge-gray' };
 
 export default function PortalCertifications() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,7 +25,7 @@ export default function PortalCertifications() {
 
   return (
     <div>
-      <PageHead title="My Certifications" sub="NCII, TESDA, and other vocational certifications" />
+      <PageHead title={t('portal.certifications')} sub={t('portal.certificationsSub')} />
       <ErrorBanner error={error} />
       {rows.length === 0 ? (
         <Empty text="No certification records found." />

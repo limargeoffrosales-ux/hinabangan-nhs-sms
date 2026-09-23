@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import PortalNoLinked from '../components/PortalNoLinked';
@@ -12,7 +13,8 @@ function currentMonth() {
 }
 
 export default function PortalAttendance() {
-  const { students, loading: meLoading, error: meError } = useLinkedStudents();
+  const { t } = useTranslation();
+  const { me, students, loading: meLoading, error: meError } = useLinkedStudents();
   const [studentId, setStudentId] = useState('');
   // Linked students arrive after mount (fetch), so the old lazy initializer
   // always saw an empty list. Auto-select the first child once they load, and
@@ -39,10 +41,11 @@ export default function PortalAttendance() {
   useEffect(() => { load(); }, [load]);
 
   if (meLoading) return <Spinner />;
+  const isParent = me?.user?.role === 'parent';
   if (!students.length) {
     return (
       <>
-        <PageHead title="Attendance" sub="Daily attendance records for your linked students." />
+        <PageHead title={t('portal.attendance')} sub={t(isParent ? 'portal.attendanceSubParent' : 'portal.attendanceSub')} />
         <PortalNoLinked />
       </>
     );
@@ -51,7 +54,7 @@ export default function PortalAttendance() {
   const s = data?.summary;
   return (
     <>
-      <PageHead title="Attendance" sub="Daily attendance records by month." />
+      <PageHead title={t('portal.attendance')} sub={t('portal.attendanceSub')} />
       <ErrorBanner error={meError || error} />
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ margin: 0, alignItems: 'end' }}>

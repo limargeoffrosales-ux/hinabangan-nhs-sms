@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, fileUrl } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 
 export default function PortalAnnouncements() {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,7 +25,7 @@ export default function PortalAnnouncements() {
 
   return (
     <>
-      <PageHead title="Announcements" sub="Official announcements from Hinabangan National High School." />
+      <PageHead title={t('portal.announcements')} sub={t('portal.announcementsSub')} />
       <ErrorBanner error={error} />
       {loading ? <Spinner /> : (
         <div className="card">

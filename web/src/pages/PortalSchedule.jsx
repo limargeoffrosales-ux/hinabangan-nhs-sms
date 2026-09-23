@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
@@ -7,7 +8,8 @@ import PortalNoLinked from '../components/PortalNoLinked';
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 export default function PortalSchedule() {
-  const { students, loading: meLoading, error: meError } = useLinkedStudents();
+  const { t } = useTranslation();
+  const { me, students, loading: meLoading, error: meError } = useLinkedStudents();
   const [studentId, setStudentId] = useState('');
   // Linked students arrive after mount (fetch), so the old lazy initializer
   // always saw an empty list. Auto-select the first child once they load, and
@@ -34,10 +36,11 @@ export default function PortalSchedule() {
   useEffect(() => { load(); }, [load]);
 
   if (meLoading) return <Spinner />;
+  const isParent = me?.user?.role === 'parent';
   if (!students.length) {
     return (
       <>
-        <PageHead title="Schedule" sub="Weekly class schedule for your linked students." />
+        <PageHead title={t('portal.schedule')} sub={t(isParent ? 'portal.scheduleSubParent' : 'portal.scheduleSub')} />
         <PortalNoLinked />
       </>
     );
@@ -53,7 +56,7 @@ export default function PortalSchedule() {
 
   return (
     <>
-      <PageHead title="Schedule" sub="Weekly class schedule." />
+      <PageHead title={t('portal.schedule')} sub={t('portal.scheduleSub')} />
       <ErrorBanner error={meError || error} />
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ margin: 0, alignItems: 'end' }}>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Send } from 'lucide-react';
 import { api } from '../lib/api';
 import { safeHttpUrl } from '../lib/utils';
@@ -29,7 +30,8 @@ function dueLabel(a) {
 }
 
 export default function PortalAssignments() {
-  const { students, loading: meLoading, error: meError } = useLinkedStudents();
+  const { t } = useTranslation();
+  const { me, students, loading: meLoading, error: meError } = useLinkedStudents();
   const [studentId, setStudentId] = useState('');
   // Linked students arrive after mount (fetch), so the old lazy initializer
   // always saw an empty list. Auto-select the first child once they load, and
@@ -77,10 +79,11 @@ export default function PortalAssignments() {
   }
 
   if (meLoading) return <Spinner />;
+  const isParent = me?.user?.role === 'parent';
   if (!students.length) {
     return (
       <>
-        <PageHead title="Assignments" sub="Homework and classwork with due dates and scores." />
+        <PageHead title={t('portal.assignments')} sub={t(isParent ? 'portal.assignmentsSubParent' : 'portal.assignmentsSub')} />
         <PortalNoLinked />
       </>
     );
@@ -90,7 +93,7 @@ export default function PortalAssignments() {
 
   return (
     <>
-      <PageHead title="Assignments" sub="Homework and classwork with due dates, submissions, and scores." />
+      <PageHead title={t('portal.assignments')} sub={t('portal.assignmentsSub')} />
       <ErrorBanner error={meError || error} />
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-row" style={{ margin: 0, alignItems: 'end' }}>
