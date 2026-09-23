@@ -31,14 +31,18 @@ export function RoleScopedEmptyState({
   className,
 }: RoleScopedEmptyStateProps) {
   const showAction = canEdit ? action : (flagAction ?? readOnlyNote);
+  const emptyProps: {
+    icon?: ReactNode;
+    title: string;
+    description?: string;
+    action?: ReactNode;
+  } = { title };
+  if (icon !== undefined) emptyProps.icon = icon;
+  if (description !== undefined) emptyProps.description = description;
+  if (showAction !== undefined) emptyProps.action = showAction;
   return (
     <div className={cn('ds-empty-role', className)}>
-      <EmptyState
-        icon={icon}
-        title={title}
-        description={description}
-        action={showAction}
-      />
+      <EmptyState {...emptyProps} />
       {!canEdit && readOnlyNote && action && !flagAction && (
         <p className="ds-empty-role__note">{readOnlyNote}</p>
       )}

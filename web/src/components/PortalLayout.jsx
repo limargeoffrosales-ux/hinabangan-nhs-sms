@@ -1,52 +1,58 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound,
   NotebookPen, Globe, Briefcase, BookOpen, BarChart3, Award, ClipboardList, UserRound,
-  Menu, Moon, Sun, Check,
+  Menu, Moon, Sun, Check, Search,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
-import { useTheme } from '../design-system';
+import { GroupedNav, useTheme } from '../design-system';
 import { Modal, initials } from './ui';
+import PortalCommandPalette from './PortalCommandPalette';
 import { api } from '../lib/api';
 
 const PORTAL_NAV_GROUPS = [
   {
+    id: 'overview',
     label: 'portal.group.overview',
     items: [
-      { to: '/portal', labelKey: 'portal.home', icon: Home, end: true },
+      { id: '/portal', label: 'portal.home', icon: <Home size={16} /> },
     ],
   },
   {
+    id: 'learning',
     label: 'portal.group.learning',
     items: [
-      { to: '/portal/grades', labelKey: 'portal.grades', icon: GraduationCap },
-      { to: '/portal/analytics', labelKey: 'portal.analytics', icon: BarChart3 },
-      { to: '/portal/schedule', labelKey: 'portal.schedule', icon: CalendarRange },
-      { to: '/portal/assignments', labelKey: 'portal.assignments', icon: NotebookPen },
-      { to: '/portal/attendance', labelKey: 'portal.attendance', icon: CalendarCheck },
+      { id: '/portal/grades', label: 'portal.grades', icon: <GraduationCap size={16} /> },
+      { id: '/portal/analytics', label: 'portal.analytics', icon: <BarChart3 size={16} /> },
+      { id: '/portal/schedule', label: 'portal.schedule', icon: <CalendarRange size={16} /> },
+      { id: '/portal/assignments', label: 'portal.assignments', icon: <NotebookPen size={16} /> },
+      { id: '/portal/attendance', label: 'portal.attendance', icon: <CalendarCheck size={16} /> },
     ],
   },
   {
+    id: 'career',
     label: 'portal.group.career',
     items: [
-      { to: '/portal/portfolio', labelKey: 'portal.portfolio', icon: BookOpen },
-      { to: '/portal/immersion', labelKey: 'portal.immersion', icon: Briefcase },
-      { to: '/portal/certifications', labelKey: 'portal.certifications', icon: Award },
-      { to: '/portal/enroll', labelKey: 'portal.enroll', icon: ClipboardList },
+      { id: '/portal/portfolio', label: 'portal.portfolio', icon: <BookOpen size={16} /> },
+      { id: '/portal/immersion', label: 'portal.immersion', icon: <Briefcase size={16} /> },
+      { id: '/portal/certifications', label: 'portal.certifications', icon: <Award size={16} /> },
+      { id: '/portal/enroll', label: 'portal.enroll', icon: <ClipboardList size={16} /> },
     ],
   },
   {
+    id: 'news',
     label: 'portal.group.news',
     items: [
-      { to: '/portal/announcements', labelKey: 'portal.announcements', icon: Megaphone },
+      { id: '/portal/announcements', label: 'portal.announcements', icon: <Megaphone size={16} /> },
     ],
   },
   {
+    id: 'account',
     label: 'portal.group.account',
     items: [
-      { to: '/portal/profile', labelKey: 'portal.profile', icon: UserRound },
+      { id: '/portal/profile', label: 'portal.profile', icon: <UserRound size={16} /> },
     ],
   },
 ];
@@ -54,6 +60,7 @@ const PORTAL_NAV_GROUPS = [
 export default function PortalLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const isParent = can(user?.role, 'parent', 'guardian');
@@ -94,8 +101,17 @@ export default function PortalLayout({ children }) {
     setLangOpen(false);
   }
 
+  function go(to) {
+    setMenuOpen(false);
+    if (to.startsWith('/')) navigate(to);
+  }
+
+  const activeId = location.pathname;
+
   return (
     <div className="app-shell">
+      <PortalCommandPalette />
+      <a href="#main-content" className="skip-link">{t('layout.skipToContent')}</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('portalTitle')}>
         <div className="brand">
@@ -108,22 +124,36 @@ export default function PortalLayout({ children }) {
           </div>
         </div>
         <div className="brand-divider"></div>
-        {PORTAL_NAV_GROUPS.map((group) => (
-          <div key={group.label}>
-            <div className="nav-label">{t(group.label)}</div>
-            {group.items.map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-                <n.icon size={17} /> <span>{t(n.labelKey)}</span>
-              </NavLink>
-            ))}
+        <GroupedNav
+          collapsible={false}
+          groups={PORTAL_NAV_GROUPS.map((g) => ({
+            id: g.id,
+            label: t(g.label),
+            items: g.items.map((i) => ({
+              id: i.id,
+              label: t(i.label),
+              icon: i.icon,
+            })),
+          }))}
+          activeId={activeId}
+          onNavigate={go}
+          className="portal-sidebar-nav"
+        />
+        <div style={{ marginTop: 'auto', padding: '12px 4px 4px', borderTop: '1px solid var(--border)' }}>
+          <button
+            className="sidebar-link"
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', cursor: 'pointer' }}
+            onClick={() => window.dispatchEvent(new Event('portal-palette-toggle'))}
+          >
+            <span><Search size={12} style={{ verticalAlign: -2, marginRight: 6 }} />{t('layout.quickSearch')}</span>
+            <kbd style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>⌘K</kbd>
+          </button>
+          <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+            <div>{t('schoolTagline')}</div>
           </div>
-        ))}
-        <div style={{ marginTop: 'auto', padding: '12px 4px 4px', borderTop: '1px solid var(--border)', fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-          <div>{t('schoolName')}</div>
-          <div>{t('schoolAddress')}</div>
         </div>
       </aside>
-      <div className="main">
+      <div className="main" id="main-content" role="main">
         <div className="topbar" role="banner">
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
             <Menu size={17} aria-hidden="true" />
@@ -180,7 +210,7 @@ export default function PortalLayout({ children }) {
           </Modal>
         )}
         <div className="content">{children}</div>
-        <div className="footer-note">{t('schoolName')} · {t('schoolAddress')}</div>
+        <div className="footer-note">{t('schoolName')} · {t('schoolAddress')} · {t('schoolTagline')}</div>
       </div>
     </div>
   );

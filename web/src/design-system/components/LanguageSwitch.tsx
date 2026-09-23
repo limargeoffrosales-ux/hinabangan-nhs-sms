@@ -15,6 +15,12 @@ export interface LanguageSwitchProps {
   onLanguageChange?: (code: string) => void;
   popupAlign?: 'left' | 'right';
   className?: string;
+  /** Popover heading; consumers pass `t('common.language')`. Defaults to "Language". */
+  title?: string;
+  /** Accessible name for the globe trigger. Defaults to "Language". */
+  triggerLabel?: string;
+  /** Accessible name for the selected option. Defaults to the option label. */
+  optionLabel?: (code: string) => string;
 }
 
 const DEFAULT_LANGUAGES: LanguageOption[] = [
@@ -46,6 +52,9 @@ export function LanguageSwitch({
   storageKey = 'meridianed_lang',
   onLanguageChange,
   popupAlign = 'right',
+  title = 'Language',
+  triggerLabel = 'Language',
+  optionLabel,
   className,
 }: LanguageSwitchProps) {
   const { i18n } = useTranslation();
@@ -54,7 +63,6 @@ export function LanguageSwitch({
   useClickOutside(wrapRef, () => setOpen(false));
 
   const current = i18n.language?.toLowerCase() || 'en';
-  const active = languages.find((l) => current.startsWith(l.code));
 
   function pick(code: string) {
     try { localStorage.setItem(storageKey, code); } catch { /* storage unavailable */ }
@@ -69,8 +77,8 @@ export function LanguageSwitch({
         type="button"
         className="ds-lang__trigger"
         onClick={() => setOpen((o) => !o)}
-        title={active ? active.label : undefined}
-        aria-label={active ? active.label : 'Language'}
+        title={title}
+        aria-label={triggerLabel}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -78,7 +86,7 @@ export function LanguageSwitch({
       </button>
       {open && (
         <div role="menu" className={cn('ds-lang__pop', `is-${popupAlign}`)}>
-          <p className="ds-lang__title">Language</p>
+          <p className="ds-lang__title">{title}</p>
           {languages.map((option) => {
             const isActive = current.startsWith(option.code);
             return (
@@ -87,6 +95,7 @@ export function LanguageSwitch({
                 type="button"
                 role="menuitemradio"
                 aria-checked={isActive}
+                aria-label={optionLabel ? optionLabel(option.code) : option.label}
                 className={cn('ds-lang__opt', isActive && 'is-on')}
                 onClick={() => pick(option.code)}
               >

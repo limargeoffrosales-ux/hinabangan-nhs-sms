@@ -18,6 +18,9 @@ export interface CalendarHeatmapProps extends HTMLAttributes<HTMLDivElement> {
   /** Weekday header labels (defaults to M T W T F S S). */
   weekdayLabels?: string[];
   formatTooltip?: (day: HeatmapDay) => string;
+  /** Legend labels — pass translated strings, e.g. t('attendance.less'). */
+  legendLow?: string;
+  legendHigh?: string;
 }
 
 const DATE_KEY = (d: Date) => d.toISOString().slice(0, 10);
@@ -47,6 +50,8 @@ export function CalendarHeatmap({
   onDayClick,
   weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
   formatTooltip,
+  legendLow = 'Less',
+  legendHigh = 'More',
   className,
   ...props
 }: CalendarHeatmapProps) {
@@ -120,11 +125,11 @@ export function CalendarHeatmap({
         </div>
       ))}
       <div className="ds-heatmap__legend" aria-hidden="true">
-        <span>Less</span>
+        <span>{legendLow}</span>
         {Array.from({ length: levels }, (_, i) => (
           <span key={i} className={cn('ds-heatmap__swatch', `is-lvl-${i}`)} />
         ))}
-        <span>More</span>
+        <span>{legendHigh}</span>
       </div>
     </div>
   );

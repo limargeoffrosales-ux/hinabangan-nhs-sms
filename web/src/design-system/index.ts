@@ -52,6 +52,19 @@ export {
 } from './components/layout';
 export type { ContainerProps, StackProps, GridProps, PageHeaderProps, TabsProps, BreadcrumbsProps } from './components/layout';
 
+// App-shell components
+export { ViewToggle, DataTable, ProfileDrawer, RankCard, CalendarHeatmap, LiveStatusPill, RoleScopedEmptyState, LiveActivityFeed, LanguageSwitch, GroupedNav } from './components';
+export type { ViewToggleProps, ViewToggleOption } from './components/ViewToggle';
+export type { DataTableProps, DataTableColumn } from './components/DataTable';
+export type { ProfileDrawerProps } from './components/ProfileDrawer';
+export type { RankCardProps } from './components/RankCard';
+export type { CalendarHeatmapProps, HeatmapDay } from './components/CalendarHeatmap';
+export type { LiveStatusPillProps, LiveStatusTone } from './components/LiveStatusPill';
+export type { RoleScopedEmptyStateProps } from './components/RoleScopedEmptyState';
+export type { LiveActivityFeedProps } from './components/LiveActivityFeed';
+export type { LanguageSwitchProps, LanguageOption } from './components/LanguageSwitch';
+export type { GroupedNavProps, GroupedNavItem, GroupedNavGroup } from './components/GroupedNav';
+
 // Hooks
 export * from './hooks';
 
