@@ -22,6 +22,7 @@ const PORTAL_PALETTE_GROUPS = [
   ]},
   { groupKey: 'portal.group.news', items: [
     { labelKey: 'portal.announcements', to: '/portal/announcements' },
+    { labelKey: 'portal.sportsNews', to: '/portal/sports-news' },
   ]},
   { groupKey: 'portal.group.account', items: [
     { labelKey: 'portal.profile', to: '/portal/profile' },

@@ -20,6 +20,7 @@ const studentsRoutes = require('./routes/students.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
 const gradesRoutes = require('./routes/grades.routes');
 const announcementsRoutes = require('./routes/announcements.routes');
+const sportsRoutes = require('./routes/sports.routes');
 
 // Legacy routes (to be migrated)
 const authRoutes = require('./routes/auth.routes');
@@ -277,6 +278,7 @@ const parentRoutes = require('./routes/parent.routes');
   app.use('/api/v1/attendance', attendanceRoutes);
   app.use('/api/v1/grades', gradesRoutes);
   app.use('/api/v1/announcements', announcementsRoutes);
+  app.use('/api/v1/sports-news', sportsRoutes);
 
   // Legacy routes (to be migrated)
   app.use('/api/v1/auth', authRoutes);

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Home, GraduationCap, CalendarCheck, CalendarRange, Megaphone, LogOut, KeyRound,
   NotebookPen, Globe, Briefcase, BookOpen, BarChart3, Award, ClipboardList, UserRound,
-  Menu, Moon, Sun, Check, Search,
+  Menu, Moon, Sun, Check, Search, Trophy,
 } from 'lucide-react';
 import { useAuth, can } from '../lib/auth';
 import { GroupedNav, useTheme } from '../design-system';
@@ -46,6 +46,7 @@ const PORTAL_NAV_GROUPS = [
     label: 'portal.group.news',
     items: [
       { id: '/portal/announcements', label: 'portal.announcements', icon: <Megaphone size={16} /> },
+      { id: '/portal/sports-news', label: 'portal.sportsNews', icon: <Trophy size={16} /> },
     ],
   },
   {

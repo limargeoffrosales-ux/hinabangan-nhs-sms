@@ -85,8 +85,10 @@ const PortalAttendance = lazyWithRetry(() => import('./pages/PortalAttendance'))
 const PortalSchedule = lazyWithRetry(() => import('./pages/PortalSchedule'));
 const PortalAssignments = lazyWithRetry(() => import('./pages/PortalAssignments'));
 const PortalAnnouncements = lazyWithRetry(() => import('./pages/PortalAnnouncements'));
+const PortalSportsNews = lazyWithRetry(() => import('./pages/PortalSportsNews'));
 const Attendance = lazyWithRetry(() => import('./pages/Attendance'));
 const Announcements = lazyWithRetry(() => import('./pages/Announcements'));
+const SportsNews = lazyWithRetry(() => import('./pages/SportsNews'));
 const Assignments = lazyWithRetry(() => import('./pages/Assignments'));
 const Users = lazyWithRetry(() => import('./pages/Users'));
 const AuditLogs = lazyWithRetry(() => import('./pages/AuditLogs'));
@@ -231,9 +233,11 @@ export default function App() {
       <Route path="/portal/schedule" element={<PortalProtected><Page><PortalSchedule /></Page></PortalProtected>} />
       <Route path="/portal/assignments" element={<PortalProtected><Page><PortalAssignments /></Page></PortalProtected>} />
       <Route path="/portal/announcements" element={<PortalProtected><Page><PortalAnnouncements /></Page></PortalProtected>} />
+      <Route path="/portal/sports-news" element={<PortalProtected><Page><PortalSportsNews /></Page></PortalProtected>} />
       <Route path="/attendance" element={<Protected><Page><Attendance /></Page></Protected>} />
       <Route path="/assignments" element={<Protected><Page><Assignments /></Page></Protected>} />
       <Route path="/announcements" element={<Protected><AdminOnly><Page><Announcements /></Page></AdminOnly></Protected>} />
+      <Route path="/sports-news" element={<Protected><AdminOnly><Page><SportsNews /></Page></AdminOnly></Protected>} />
       <Route path="/achievements" element={<Protected><Page><Achievements /></Page></Protected>} />
       <Route path="/users" element={<Protected><AdminOnly><Page><Users /></Page></AdminOnly></Protected>} />
       <Route path="/audit" element={<Protected><AdminOnly><Page><AuditLogs /></Page></AdminOnly></Protected>} />
