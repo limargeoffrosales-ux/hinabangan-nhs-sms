@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { loadRecharts } from '../lib/lazy-recharts';
 import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
 import { api, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { CHART_PALETTE } from '../lib/constants';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
 import ChartExportButton from '../components/ChartExportButton';
-import { ChartTooltip, DonutChart, ModernBarChart, ModernLineChart, ProgressRing, StatCard } from '../design-system';
+import { DonutChart, ModernBarChart, ModernLineChart, ProgressRing, StatCard } from '../design-system';
 
 export default function Analytics() {
   const { t } = useTranslation();
@@ -25,8 +24,6 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('overview');
-  const [R, setR] = useState(null);
-  useEffect(() => { loadRecharts().then(setR); }, []);
 
   const refGradePie = useRef(null);
   const refGradeBars = useRef(null);
@@ -134,10 +131,6 @@ export default function Analytics() {
   const filteredRisk = riskThreshold ? riskData.filter((r) => r.risk_score >= riskThreshold) : riskData;
   const riskSummary = studentRisk?.summary || {};
 
-  if (!R) return <Spinner />;
-
-  const { Tooltip, Legend } = R;
-
   return (
     <div>
       <PageHead title={t('analytics.title')} sub={t('analytics.subtitle')}>
@@ -213,14 +206,14 @@ export default function Analytics() {
                 <div ref={refGradeBars} style={{ minWidth: 0 }}>
                   {gradeBuckets.length ? (
                     <ModernBarChart
-                      R={R}
+                      
                       data={gradeBuckets}
                       categoryKey="band"
                       perBarColors={CHART_PALETTE}
                       height={280}
                       showLabels={false}
                     >
-                      <Tooltip content={<ChartTooltip />} />
+                      
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -244,16 +237,17 @@ export default function Analytics() {
                 <div ref={refAttTrend} style={{ minWidth: 0 }}>
                   {attMonthly.length ? (
                     <ModernLineChart
-                      R={R}
+                      
                       data={attMonthly}
+                      legend
                       categoryKey="month"
                       series={[{ key: 'rate', name: t('analytics.rate'), color: 'var(--accent)' }]}
                       area
                       yDomain={[0, 100]}
                       height={300}
                     >
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
+                      
+                      
                     </ModernLineChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -266,7 +260,7 @@ export default function Analytics() {
                 <div ref={refAttGrade} style={{ minWidth: 0 }}>
                   {attByGrade.length ? (
                     <ModernBarChart
-                      R={R}
+                      
                       data={attByGrade}
                       categoryKey="grade_level"
                       layout="vertical"
@@ -274,7 +268,7 @@ export default function Analytics() {
                       yDomain={[0, 100]}
                       height={300}
                     >
-                      <Tooltip content={<ChartTooltip />} />
+                      
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -300,8 +294,9 @@ export default function Analytics() {
                 <div ref={refRetByGrade} style={{ minWidth: 0 }}>
                   {retByGrade.length ? (
                     <ModernBarChart
-                      R={R}
+                      
                       data={retByGrade}
+                      legend
                       categoryKey="grade_level"
                       series={[
                         { key: 'total', name: t('analytics.total'), color: 'var(--accent)' },
@@ -309,8 +304,8 @@ export default function Analytics() {
                       ]}
                       height={280}
                     >
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
+                      
+                      
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -323,14 +318,14 @@ export default function Analytics() {
                 <div ref={refRetYoy} style={{ minWidth: 0 }}>
                   {retYoy.length ? (
                     <ModernBarChart
-                      R={R}
+                      
                       data={retYoy}
                       categoryKey="school_year"
                       series={[{ key: 'retention_rate', name: t('analytics.retention'), color: 'var(--warn)' }]}
                       yDomain={[0, 100]}
                       height={280}
                     >
-                      <Tooltip content={<ChartTooltip />} />
+                      
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -377,8 +372,9 @@ export default function Analytics() {
                 <div ref={refPassByGrade} style={{ minWidth: 0 }}>
                   {passByGrade.length ? (
                     <ModernBarChart
-                      R={R}
+                      
                       data={passByGrade}
+                      legend
                       categoryKey="grade_level"
                       stacked
                       series={[
@@ -388,8 +384,8 @@ export default function Analytics() {
                       height={200}
                       showLabels={false}
                     >
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
+                      
+                      
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -455,8 +451,9 @@ export default function Analytics() {
                 <div ref={refStrandBars} style={{ minWidth: 0 }}>
                   {strandComp?.data?.length ? (
                     <ModernBarChart
-                      R={R}
+                      
                       data={strandComp.data}
+                      legend
                       categoryKey="strand"
                       series={[
                         { key: 'mean_grade', name: t('analytics.meanGrade'), color: 'var(--accent)' },
@@ -467,8 +464,8 @@ export default function Analytics() {
                       xHeight={60}
                       showLabels={false}
                     >
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
+                      
+                      
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -585,8 +582,9 @@ export default function Analytics() {
                   <div ref={refSubjectBars} style={{ minWidth: 0 }}>
                     {compMastery?.by_subject?.length ? (
                       <ModernBarChart
-                        R={R}
+                        
                         data={compMastery.by_subject}
+                      legend
                         categoryKey="subject_code"
                         layout="vertical"
                         series={[
@@ -597,8 +595,8 @@ export default function Analytics() {
                         height={360}
                         showLabels={false}
                       >
-                        <Tooltip content={<ChartTooltip />} />
-                        <Legend />
+                        
+                        
                       </ModernBarChart>
                     ) : <Empty text={t('analytics.noCompetencyData')} />}
                   </div>

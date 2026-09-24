@@ -12,7 +12,6 @@ import { SEX_COLORS } from '../lib/constants';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
-import { loadRecharts } from '../lib/lazy-recharts';
 
 const READINESS_STATUS = {
   done: { badge: 'badge-green', tri: 'dashboard.readinessDone' },
@@ -53,9 +52,6 @@ export default function Dashboard() {
   const [activity, setActivity] = useState(null);
   const [lastLive, setLastLive] = useState(null);
   const [error, setError] = useState(null);
-  const [R, setR] = useState(null);
-
-  useEffect(() => { loadRecharts().then(setR); }, []);
 
   const loadActivity = useCallback(() => api('/dashboard/latest-activity?limit=8', { timeoutMs: 30000, retryNetwork: false })
     .then((r) => setActivity(r?.data || []))
@@ -182,9 +178,8 @@ export default function Dashboard() {
         </SectionCard>
 
         <SectionCard title={t('dashboard.enrolledByGrade')} icon={Layers}>
-          {gradeData.length > 0 ? (R ? (
+          {gradeData.length > 0 ? (
             <ModernBarChart
-              R={R}
               data={gradeData}
               categoryKey="grade"
               series={[
@@ -194,12 +189,9 @@ export default function Dashboard() {
               height={190}
               showLabels={false}
               barCategoryGap="24%"
+              unavailable={t('dashboard.chartUnavailable', 'Chart could not be loaded.')}
             />
-          ) : R === null ? (
-            <div className="empty-state" style={{ height: 190 }}>
-              <div className="empty-state-text">{t('dashboard.chartUnavailable', 'Chart could not be loaded.')}</div>
-            </div>
-          ) : <div style={{ height: 190 }}><Spinner /></div>) : (
+          ) : (
             <Empty text={t('dashboard.noEnrolledGrade', 'No enrolled learners for the current school year yet.')} />
           )}
           <div className="sub" style={{ display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'center', fontSize: 13, marginTop: 8 }}>

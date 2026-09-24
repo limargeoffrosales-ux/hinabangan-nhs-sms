@@ -5,7 +5,6 @@ import { useAuth, can } from '../lib/auth';
 import { SCHOOL_YEARS, CHART_PALETTE } from '../lib/constants';
 import { Spinner, Modal } from './ui';
 import { ModernBarChart } from '../design-system';
-import { loadRecharts } from '../lib/lazy-recharts';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const STATUS_COLORS = { present: 'badge-green', absent: 'badge-red', late: 'badge-yellow', on_leave: 'badge-blue' };
@@ -63,9 +62,6 @@ export default function DashboardSections() {
   const [aralRoll, setAralRoll] = useState([]);
   const [rollLoading, setRollLoading] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [R, setR] = useState(null);
-
-  useEffect(() => { loadRecharts().then(setR); }, []);
 
   // Restore the last dashboard view (school year / term / date) from the server.
   useEffect(() => {
@@ -319,10 +315,9 @@ export default function DashboardSections() {
             <StatChip label="Total" value={totalEnrolled} color="#A78BFA" />
           </div>
         </div>
-        {chartData.length > 0 && R && (
+        {chartData.length > 0 && (
           <div style={{ margin: '14px 0' }}>
             <ModernBarChart
-              R={R}
               data={chartData}
               categoryKey="section"
               series={[
@@ -429,10 +424,9 @@ export default function DashboardSections() {
             ))}
           </div>
         </div>
-{strandDist?.data?.length > 0 && R ? (
+{strandDist?.data?.length > 0 ? (
           <div style={{ height: 180, margin: '14px 0' }}>
             <ModernBarChart
-              R={R}
               data={strandDist.data}
               categoryKey="strand"
               series={[

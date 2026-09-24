@@ -66,7 +66,19 @@ export type { LanguageSwitchProps, LanguageOption } from './components/LanguageS
 export type { GroupedNavProps, GroupedNavItem, GroupedNavGroup } from './components/GroupedNav';
 
 // Chart components + SVG primitives
-export { ChartCard, ChartTooltip, Sparkline, ProgressRing, DonutChart, ModernBarChart, ModernLineChart } from './components/charts';
+export {
+  ChartCard,
+  ChartTooltip,
+  Sparkline,
+  ProgressRing,
+  DonutChart,
+  ModernBarChart,
+  ModernLineChart,
+  ModernAreaChart,
+  ModernPieChart,
+  ModernComposedChart,
+  useRecharts,
+} from './components/charts';
 export type {
   ChartCardProps,
   ChartTooltipProps,
@@ -79,6 +91,11 @@ export type {
   ModernBarSeries,
   ModernLineChartProps,
   ModernLineSeries,
+  ModernAreaChartProps,
+  ModernPieChartProps,
+  ModernPieDatum,
+  ModernComposedChartProps,
+  ComposedSeriesDef,
   RechartsShim,
 } from './components/charts';
 

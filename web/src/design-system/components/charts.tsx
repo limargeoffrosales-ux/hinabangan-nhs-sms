@@ -1,11 +1,14 @@
 // Design System Chart Components
 // ChartCard + ChartTooltip (recharts-friendly shell + theming) and lightweight
 // pure-SVG primitives (Sparkline, ProgressRing, DonutChart) with zero recharts
-// dependency. Styled via `ds-*` classes in `design-system/design-system.css`.
+// dependency. The Modern* wrappers lazily load the recharts module themselves
+// via useRecharts() — pages never wire up dynamic imports. Styled via `ds-*`
+// classes in `design-system/design-system.css`.
 
-import React, { ReactNode, useCallback, useId, useMemo } from 'react';
+import React, { ReactNode, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { cn } from '../../lib/cn';
 import { Card, Skeleton } from './feedback';
+import { loadRecharts } from '../../lib/lazy-recharts';
 
 const BAR_CURSOR_FILL = 'color-mix(in srgb, var(--text) 5%, transparent)';
 const LINE_CURSOR_STROKE = 'color-mix(in srgb, var(--text) 18%, transparent)';
@@ -456,6 +459,45 @@ export interface RechartsShim {
   Line: RechartsComp;
   ReferenceDot: RechartsComp;
   Label: RechartsComp;
+  Legend: RechartsComp;
+  PieChart: RechartsComp;
+  Pie: RechartsComp;
+  ComposedChart: RechartsComp;
+}
+
+// useRecharts — lazily loads the recharts module once (module-level singleton
+// shared across the whole app) so chart wrappers render themselves. Returns
+// `failed` so wrappers can surface an "unavailable" fallback when the chunk
+// fails to load.
+export function useRecharts(): { R: RechartsShim | null; failed: boolean } {
+  const [R, setR] = useState<RechartsShim | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    loadRecharts().then((m: unknown) => {
+      if (!alive) return;
+      if (m) setR(m as RechartsShim);
+      else setFailed(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return { R, failed };
+}
+
+function chartLoadingSkeleton(height: number) {
+  return (
+    <div style={{ height }} aria-hidden="true">
+      <Skeleton height="100%" />
+    </div>
+  );
+}
+
+function chartUnavailable(unavailable: ReactNode | undefined) {
+  return unavailable != null ? <>{unavailable}</> : null;
 }
 
 export interface ModernBarSeries {
@@ -465,7 +507,7 @@ export interface ModernBarSeries {
 }
 
 export interface ModernBarChartProps {
-  R: RechartsShim;
+  R?: RechartsShim;
   data: Array<Record<string, unknown>>;
   series: ModernBarSeries[];
   categoryKey?: string;
@@ -489,10 +531,12 @@ export interface ModernBarChartProps {
   xAngle?: number;
   xHeight?: number;
   axisWidth?: number;
+  legend?: boolean;
+  unavailable?: ReactNode;
   children?: ReactNode;
 }
 
-export function ModernBarChart({
+function ModernBarChartInner({
   R,
   data,
   series,
@@ -517,8 +561,9 @@ export function ModernBarChart({
   xAngle,
   xHeight,
   axisWidth,
+  legend = false,
   children,
-}: ModernBarChartProps) {
+}: ModernBarChartProps & { R: RechartsShim }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const perBar = perBarColors && perBarColors.length > 0 ? perBarColors : null;
 
@@ -684,10 +729,19 @@ export function ModernBarChart({
             cursor={{ fill: BAR_CURSOR_FILL }}
           />
         )}
+        {legend && <R.Legend wrapperStyle={{ fontSize: 12, marginTop: 4 }} />}
         {themedChildren}
       </R.BarChart>
     </R.ResponsiveContainer>
   );
+}
+
+export function ModernBarChart(props: ModernBarChartProps) {
+  const { R, failed } = useRecharts();
+  const { data, series, height = 270, unavailable } = props;
+  if (!data || data.length === 0 || !series || series.length === 0) return null;
+  if (!R) return failed ? chartUnavailable(unavailable) : chartLoadingSkeleton(height);
+  return <ModernBarChartInner {...props} R={R} />;
 }
 
 export interface ModernLineSeries {
@@ -697,7 +751,7 @@ export interface ModernLineSeries {
 }
 
 export interface ModernLineChartProps {
-  R: RechartsShim;
+  R?: RechartsShim;
   data: Array<Record<string, unknown>>;
   series: ModernLineSeries[];
   categoryKey?: string;
@@ -712,10 +766,12 @@ export interface ModernLineChartProps {
   hideYAxis?: boolean;
   grid?: boolean;
   animationDuration?: number;
+  legend?: boolean;
+  unavailable?: ReactNode;
   children?: ReactNode;
 }
 
-export function ModernLineChart({
+function ModernLineChartInner({
   R,
   data,
   series,
@@ -731,8 +787,9 @@ export function ModernLineChart({
   hideYAxis = false,
   grid = true,
   animationDuration = 800,
+  legend = false,
   children,
-}: ModernLineChartProps) {
+}: ModernLineChartProps & { R: RechartsShim }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
 
   if (!data || data.length === 0 || !series || series.length === 0) return null;
@@ -852,10 +909,292 @@ export function ModernLineChart({
             cursor={{ stroke: LINE_CURSOR_STROKE }}
           />
         )}
+        {legend && <R.Legend wrapperStyle={{ fontSize: 12, marginTop: 4 }} />}
         {themedChildren}
       </Chart>
     </R.ResponsiveContainer>
   );
 }
 
-export default { ChartCard, ChartTooltip, Sparkline, ProgressRing, DonutChart, ModernBarChart, ModernLineChart };
+export function ModernLineChart(props: ModernLineChartProps) {
+  const { R, failed } = useRecharts();
+  const { data, series, height = 260, unavailable } = props;
+  if (!data || data.length === 0 || !series || series.length === 0) return null;
+  if (!R) return failed ? chartUnavailable(unavailable) : chartLoadingSkeleton(height);
+  return <ModernLineChartInner {...props} R={R} />;
+}
+
+// ============================================
+// ModernAreaChart — ModernLineChart pinned to area mode
+// ============================================
+
+export type ModernAreaChartProps = Omit<ModernLineChartProps, 'area'>;
+
+export function ModernAreaChart(props: ModernAreaChartProps) {
+  return <ModernLineChart {...props} area />;
+}
+
+// ============================================
+// ModernPieChart — recharts donut/sector chart with cell theming
+// ============================================
+
+export interface ModernPieDatum {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface ModernPieChartProps {
+  data: ModernPieDatum[];
+  height?: number;
+  innerRadius?: number | string;
+  outerRadius?: number | string;
+  paddingAngle?: number;
+  startAngle?: number;
+  endAngle?: number;
+  showLabels?: boolean;
+  legend?: boolean;
+  valueFormatter?: (value: number | string, entry: ChartTooltipEntry) => string;
+  labelSuffix?: string;
+  animationDuration?: number;
+  unavailable?: ReactNode;
+  children?: ReactNode;
+}
+
+export function ModernPieChart({
+  data,
+  height = 260,
+  innerRadius = 60,
+  outerRadius = 90,
+  paddingAngle = 2,
+  startAngle = 90,
+  endAngle = -270,
+  showLabels = false,
+  legend = false,
+  valueFormatter = (value: number | string) => String(value),
+  labelSuffix = '',
+  animationDuration = 800,
+  unavailable,
+  children,
+}: ModernPieChartProps) {
+  const { R, failed } = useRecharts();
+  if (!data || data.length === 0) return null;
+  if (!R) return failed ? chartUnavailable(unavailable) : chartLoadingSkeleton(height);
+
+  const palette = data.map((d) => d.color);
+
+  return (
+    <R.ResponsiveContainer width="100%" height={height}>
+      <R.PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+        <R.Pie
+          data={data}
+          dataKey="value"
+          nameKey="name"
+          cx="50%"
+          cy="50%"
+          innerRadius={innerRadius}
+          outerRadius={outerRadius}
+          paddingAngle={paddingAngle}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          cornerRadius={4}
+          animationDuration={animationDuration}
+          animationEasing="ease-out"
+          label={showLabels ? { position: 'outside', offset: 6, fontSize: 11, fill: 'var(--text-dim)' } : undefined}
+        >
+          {data.map((d, i) => (
+            <R.Cell key={i} fill={d.color} stroke="transparent" />
+          ))}
+        </R.Pie>
+        <R.Tooltip
+          content={(p: Record<string, unknown>) => (
+            <ChartTooltip {...(p as ChartTooltipProps)} palette={palette} valueFormatter={valueFormatter} {...(labelSuffix ? { unit: labelSuffix } : {})} />
+          )}
+        />
+        {legend && <R.Legend wrapperStyle={{ fontSize: 12, marginTop: 4 }} />}
+        {children}
+      </R.PieChart>
+    </R.ResponsiveContainer>
+  );
+}
+
+// ============================================
+// ModernComposedChart — bars + lines + areas in one chart
+// ============================================
+
+export interface ComposedSeriesDef {
+  key: string;
+  name?: string;
+  color: string;
+  type?: 'bar' | 'line' | 'area';
+}
+
+export interface ModernComposedChartProps {
+  data: Array<Record<string, unknown>>;
+  series: ComposedSeriesDef[];
+  categoryKey?: string;
+  height?: number;
+  yDomain?: [number | 'auto', number | 'auto'];
+  yTickFormatter?: (value: number) => string;
+  hideXAxis?: boolean;
+  hideYAxis?: boolean;
+  grid?: boolean;
+  legend?: boolean;
+  barSize?: number;
+  barCategoryGap?: number | string;
+  xAngle?: number;
+  xHeight?: number;
+  animationDuration?: number;
+  unavailable?: ReactNode;
+  children?: ReactNode;
+}
+
+export function ModernComposedChart({
+  data,
+  series,
+  categoryKey = 'name',
+  height = 270,
+  yDomain,
+  yTickFormatter,
+  hideXAxis = false,
+  hideYAxis = false,
+  grid = true,
+  legend = false,
+  barSize,
+  barCategoryGap = '28%',
+  xAngle,
+  xHeight,
+  animationDuration = 800,
+  unavailable,
+  children,
+}: ModernComposedChartProps) {
+  const { R, failed } = useRecharts();
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+
+  const hasTooltip = useMemo(
+    () => React.Children.toArray(children).some((c) => isRechartsTooltip(c)),
+    [children]
+  );
+
+  if (!data || data.length === 0 || !series || series.length === 0) return null;
+  if (!R) return failed ? chartUnavailable(unavailable) : chartLoadingSkeleton(height);
+
+  const themedChildren = React.Children.toArray(children).map((c) => {
+    if (!React.isValidElement(c)) return c;
+    if (c.type !== R.Tooltip) return c;
+    const el = c as React.ReactElement<{ cursor?: unknown }>;
+    if (el.props.cursor != null) return c;
+    return React.cloneElement(el, { cursor: { fill: BAR_CURSOR_FILL } });
+  });
+
+  return (
+    <R.ResponsiveContainer width="100%" height={height}>
+      <R.ComposedChart data={data} margin={{ top: 20, right: 12, left: 0, bottom: 0 }} barCategoryGap={barCategoryGap}>
+        <defs>
+          {series.map((s, i) => (
+            <linearGradient key={i} id={`${uid}-s${i}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity={0.45} />
+              <stop offset="100%" stopColor={s.color} stopOpacity={1} />
+            </linearGradient>
+          ))}
+          {series.map((s, i) => (
+            <linearGradient key={`a${i}`} id={`${uid}-a${i}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity={0.32} />
+              <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+            </linearGradient>
+          ))}
+        </defs>
+        {grid && <R.CartesianGrid strokeDasharray="4 8" stroke="var(--grid-line)" vertical={false} />}
+        {!hideXAxis && (
+          <R.XAxis
+            dataKey={categoryKey}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: 'var(--text-dim)', fontSize: 11, ...(xAngle != null ? { angle: xAngle, textAnchor: 'end' } : null) }}
+            {...(xHeight != null ? { height: xHeight } : null)}
+            interval="preserveStartEnd"
+          />
+        )}
+        {!hideYAxis && (
+          <R.YAxis
+            axisLine={false}
+            tickLine={false}
+            width={38}
+            tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
+            tickFormatter={yTickFormatter}
+            allowDecimals={false}
+            {...(yDomain != null ? { domain: yDomain } : null)}
+          />
+        )}
+        {series.map((s, i) => {
+          if (s.type === 'line') {
+            return (
+              <R.Line
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                name={s.name ?? s.key}
+                stroke={s.color}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+                animationDuration={animationDuration}
+                animationEasing="ease-out"
+              />
+            );
+          }
+          if (s.type === 'area') {
+            return (
+              <R.Area
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                name={s.name ?? s.key}
+                stroke={s.color}
+                strokeWidth={3}
+                fill={`url(#${uid}-a${i})`}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+                animationDuration={animationDuration}
+                animationEasing="ease-out"
+              />
+            );
+          }
+          return (
+            <R.Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.name ?? s.key}
+              fill={`url(#${uid}-s${i})`}
+              radius={[8, 8, 0, 0]}
+              {...(barSize != null ? { barSize } : null)}
+              animationDuration={animationDuration}
+              animationEasing="ease-out"
+            />
+          );
+        })}
+        {hasTooltip ? null : (
+          <R.Tooltip
+            content={(p: Record<string, unknown>) => <ChartTooltip {...(p as ChartTooltipProps)} palette={series.map((s) => s.color)} />}
+            cursor={{ fill: BAR_CURSOR_FILL }}
+          />
+        )}
+        {legend && <R.Legend wrapperStyle={{ fontSize: 12, marginTop: 4 }} />}
+        {themedChildren}
+      </R.ComposedChart>
+    </R.ResponsiveContainer>
+  );
+}
+
+export default {
+  ChartCard,
+  ChartTooltip,
+  Sparkline,
+  ProgressRing,
+  DonutChart,
+  ModernBarChart,
+  ModernLineChart,
+  ModernAreaChart,
+  ModernPieChart,
+  ModernComposedChart,
+  useRecharts,
+};

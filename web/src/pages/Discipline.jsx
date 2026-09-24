@@ -4,8 +4,7 @@ import { Plus, Trash2, ClipboardPenLine, Eye, CheckCircle2, FilePlus2, Shield, A
 import { api } from '../lib/api';
 import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
-import { loadRecharts } from '../lib/lazy-recharts';
-import { ChartTooltip, DonutChart, ModernBarChart } from '../design-system';
+import { DonutChart, ModernBarChart } from '../design-system';
 
 const TYPES = ['call_slip', 'bullying', 'inappropriate_behavior', 'fighting', 'vandalism', 'tardiness', 'disrespect', 'other'];
 
@@ -104,7 +103,6 @@ export default function Discipline() {
   const [showCreate, setShowCreate] = useState(false);
   const [sel, setSel] = useState(null);
   const [selLoading, setSelLoading] = useState(false);
-  const [R, setR] = useState(null);
 
   const [createForm, setCreateForm] = useState({
     student_id: '', incident_type: 'call_slip', incident_date: today(), severity: 'minor', description: '',
@@ -113,8 +111,6 @@ export default function Discipline() {
 
   const [actionForm, setActionForm] = useState({ action_type: 'warning', action_date: today(), notes: '' });
   const [confirmAction, setConfirmAction] = useState(null);
-
-  useEffect(() => { loadRecharts().then(setR); }, []);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -260,13 +256,12 @@ export default function Discipline() {
       </div>
 
       {/* Charts */}
-      {R && rows.length > 0 && (
+      {rows.length > 0 && (
         <div className="grid grid-2" style={{ marginBottom: 14 }}>
           <div className="card" style={{ padding: 14 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><BarChart3 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />{t('discipline.incidentsByType', 'Incidents by Type')}</h4>
             <div style={{ height: 180 }}>
               <ModernBarChart
-                R={R}
                 data={typeData}
                 categoryKey="name"
                 layout="vertical"

@@ -6,8 +6,7 @@ import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { CHART_PALETTE } from '../lib/constants';
 import { PageHead, ErrorBanner, Spinner } from '../components/ui';
-import { loadRecharts } from '../lib/lazy-recharts';
-import { ChartTooltip, DonutChart, ModernBarChart } from '../design-system';
+import { DonutChart, ModernBarChart } from '../design-system';
 import PlacementMap, { BADGE_FOR } from '../components/PlacementMap';
 
 // Capitalize first letter of string (used for status name formatting)
@@ -47,7 +46,6 @@ export default function CareerTVL() {
   const [jdvpSummary, setJdvpSummary] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [R, setR] = useState(null);
 
   // Live location tracking overlay (polled while enabled)
   const [liveOn, setLiveOn] = useState(false);
@@ -90,8 +88,6 @@ export default function CareerTVL() {
   }, [pollLive, liveOn]);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
-
-  useEffect(() => { loadRecharts().then(setR); }, []);
 
   const isImmersion = tab === 'immersion';
 
@@ -226,10 +222,9 @@ export default function CareerTVL() {
 
         <div className="card">
           <h3 style={{ marginTop: 0 }}><Users size={16} /> {t('careerTvl.learnersPerPartner', 'Learners per Partner Institution')}</h3>
-          {immPartnerData.length > 0 && R ? (
+          {immPartnerData.length > 0 ? (
             <div style={{ height: 215 }}>
               <ModernBarChart
-                R={R}
                 data={immPartnerData}
                 categoryKey="name"
                 layout="vertical"
@@ -246,10 +241,9 @@ export default function CareerTVL() {
 
         <div className="card">
           <h3 style={{ marginTop: 0 }}><Briefcase size={16} /> {t('careerTvl.immByBatchStatus', 'Immersion Learners by Batch & Status')}</h3>
-          {immBatchData.length > 0 && R ? (
+          {immBatchData.length > 0 ? (
             <div style={{ height: 220 }}>
               <ModernBarChart
-                R={R}
                 data={immBatchData}
                 categoryKey="batch"
                 series={['Pending', 'Ongoing', 'Completed', 'Served', 'Withdrawn']
@@ -262,20 +256,17 @@ export default function CareerTVL() {
                 stacked
                 height={220}
                 showLabels={false}
-              >
-                <R.Tooltip content={<ChartTooltip />} />
-                <R.Legend wrapperStyle={{ fontSize: 12 }} />
-              </ModernBarChart>
+                legend
+              />
             </div>
           ) : <div className="sub">{t('careerTvl.noBatchData', 'No batch data yet.')}</div>}
         </div>
 
         <div className="card">
           <h3 style={{ marginTop: 0 }}><BadgeCheck size={16} /> {t('careerTvl.jdvpByBatchGender', 'JDVP Recipients by Batch & Gender')}</h3>
-          {jdvpBatchData.length > 0 && R ? (
+          {jdvpBatchData.length > 0 ? (
             <div style={{ height: 220 }}>
               <ModernBarChart
-                R={R}
                 data={jdvpBatchData}
                 categoryKey="batch"
                 series={[
@@ -285,10 +276,8 @@ export default function CareerTVL() {
                 stacked
                 height={220}
                 showLabels={false}
-              >
-                <R.Tooltip content={<ChartTooltip />} />
-                <R.Legend wrapperStyle={{ fontSize: 12 }} />
-              </ModernBarChart>
+                legend
+              />
             </div>
           ) : <div className="sub">{t('careerTvl.noJdvpRecords', 'No JDVP recipients recorded yet.')}</div>}
         </div>

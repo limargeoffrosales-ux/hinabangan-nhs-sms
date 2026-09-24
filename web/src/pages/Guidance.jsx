@@ -3,8 +3,7 @@ import { Plus, Pencil, Trash2, Filter, Users, AlertTriangle, CheckCircle2, Clock
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, Badge, SkeletonCards, SkeletonTable } from '../components/ui';
-import { loadRecharts } from '../lib/lazy-recharts';
-import { ChartTooltip, DonutChart, ModernBarChart } from '../design-system';
+import { DonutChart, ModernBarChart } from '../design-system';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];
 const CASE_TYPES = ['behavioral', 'academic', 'personal', 'career', 'bullying', 'substance', 'other'];
@@ -57,9 +56,7 @@ export default function Guidance() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [students, setStudents] = useState([]);
   const [studentSearch, setStudentSearch] = useState('');
-  const [R, setR] = useState(null);
 
-  useEffect(() => { loadRecharts().then(setR); }, []);
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
@@ -173,7 +170,7 @@ export default function Guidance() {
       </div>
 
       {/* Charts */}
-      {R && cases.length > 0 && (
+      {cases.length > 0 && (
         <div className="grid grid-2" style={{ marginBottom: 14 }}>
           <div className="card" style={{ padding: 14 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><BarChart3 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />Cases by Type</h4>
@@ -193,7 +190,6 @@ export default function Guidance() {
             <h4 style={{ margin: '0 0 8px', fontSize: 13.5 }}><TrendingUp size={14} style={{ verticalAlign: -2, marginRight: 4 }} />By Priority</h4>
             <div style={{ height: 180 }}>
               <ModernBarChart
-                R={R}
                 data={priorityData}
                 categoryKey="name"
                 series={[{ key: 'value', name: 'Cases' }]}

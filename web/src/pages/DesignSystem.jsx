@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Palette, Layout, Type, Box, Bell, Circle, Hash, Sun, Moon, BarChart3 } from 'lucide-react';
 import { PageHead, SectionCard } from '../components/ui';
-import { loadRecharts } from '../lib/lazy-recharts';
 import {
   Button, IconButton, Badge, StatusBadge, Card, CardHeader, CardBody, CardFooter,
   CardTitle, Alert, Skeleton, EmptyState, Divider, Progress, StatCard, SectionTitle,
   Container, Stack, Grid, PageHeader, Tabs, Breadcrumbs, Spacer,
   Input, Textarea, Select, Label, FormField,
   Sparkline, ProgressRing, DonutChart, ModernBarChart, ModernLineChart,
+  ModernPieChart, ModernComposedChart,
   useTheme, useIsDark,
 } from '../design-system';
 
@@ -63,12 +63,12 @@ const SHADE_TABLE = [
 ];
 
 const DEMO_BARS = [
-  { name: 'Grade 7', Male: 96, Female: 104 },
-  { name: 'Grade 8', Male: 88, Female: 97 },
-  { name: 'Grade 9', Male: 101, Female: 92 },
-  { name: 'Grade 10', Male: 79, Female: 86 },
-  { name: 'Grade 11', Male: 64, Female: 71 },
-  { name: 'Grade 12', Male: 58, Female: 66 },
+  { name: 'Grade 7', Male: 96, Female: 104, rate: 88 },
+  { name: 'Grade 8', Male: 88, Female: 97, rate: 91 },
+  { name: 'Grade 9', Male: 101, Female: 92, rate: 90 },
+  { name: 'Grade 10', Male: 79, Female: 86, rate: 93 },
+  { name: 'Grade 11', Male: 64, Female: 71, rate: 95 },
+  { name: 'Grade 12', Male: 58, Female: 66, rate: 94 },
 ];
 
 const DEMO_LINE = [
@@ -93,8 +93,6 @@ export default function DesignSystem() {
   const [tab, setTab] = useState('tokens');
   const [tone, setTone] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [R, setR] = useState(null);
-  useEffect(() => { loadRecharts().then(setR); }, []);
 
   return (
     <div>
@@ -453,34 +451,28 @@ export default function DesignSystem() {
             <Card>
               <CardBody>
                 <SectionTitle>ModernBarChart</SectionTitle>
-                {R ? (
-                  <ModernBarChart
-                    R={R}
-                    data={DEMO_BARS}
-                    categoryKey="name"
-                    series={[
-                      { key: 'Male', name: 'Male', color: '#4D96FF' },
-                      { key: 'Female', name: 'Female', color: '#F5B942' },
-                    ]}
-                    height={240}
-                  />
-                ) : <Skeleton lines={4} />}
+                <ModernBarChart
+                  data={DEMO_BARS}
+                  categoryKey="name"
+                  series={[
+                    { key: 'Male', name: 'Male', color: '#4D96FF' },
+                    { key: 'Female', name: 'Female', color: '#F5B942' },
+                  ]}
+                  height={240}
+                />
               </CardBody>
             </Card>
             <Card>
               <CardBody>
                 <SectionTitle>ModernLineChart</SectionTitle>
-                {R ? (
-                  <ModernLineChart
-                    R={R}
-                    data={DEMO_LINE}
-                    categoryKey="m"
-                    series={[{ key: 'rate', name: 'Attendance', color: 'var(--accent)' }]}
-                    area
-                    yDomain={[0, 100]}
-                    height={240}
-                  />
-                ) : <Skeleton lines={4} />}
+                <ModernLineChart
+                  data={DEMO_LINE}
+                  categoryKey="m"
+                  series={[{ key: 'rate', name: 'Attendance', color: 'var(--accent)' }]}
+                  area
+                  yDomain={[0, 100]}
+                  height={240}
+                />
               </CardBody>
             </Card>
           </div>
@@ -508,6 +500,37 @@ export default function DesignSystem() {
                   <ProgressRing value={72} size={84} stroke={8} tone="success" />
                   <ProgressRing value={45} size={84} stroke={8} tone="warning" />
                 </Stack>
+              </CardBody>
+            </Card>
+          </div>
+
+          <div className="ds-chart-grid cols-2">
+            <Card>
+              <CardBody>
+                <SectionTitle>ModernPieChart</SectionTitle>
+                <ModernPieChart
+                  data={DEMO_DONUT}
+                  height={240}
+                  legend
+                  valueFormatter={(v) => `${v}%`}
+                />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody>
+                <SectionTitle>ModernComposedChart</SectionTitle>
+                <ModernComposedChart
+                  data={DEMO_BARS}
+                  categoryKey="name"
+                  series={[
+                    { key: 'Male', name: 'Male', color: '#4D96FF', type: 'bar' },
+                    { key: 'Female', name: 'Female', color: '#F5B942', type: 'bar' },
+                    { key: 'rate', name: 'Pass %', color: 'var(--accent-2)', type: 'line' },
+                  ]}
+                  legend
+                  yDomain={[0, 100]}
+                  height={240}
+                />
               </CardBody>
             </Card>
           </div>

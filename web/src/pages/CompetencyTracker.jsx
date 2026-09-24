@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Target, BarChart3, Users } from 'lucide-react';
-import { loadRecharts } from '../lib/lazy-recharts';
 import { api } from '../lib/api';
 import { PageHead, Spinner, Empty, ErrorBanner } from '../components/ui';
 import { ModernBarChart } from '../design-system';
@@ -19,8 +18,6 @@ export default function CompetencyTracker() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('overview');
-  const [R, setR] = useState(null);
-  useEffect(() => { loadRecharts().then(setR); }, []);
 
   useEffect(() => {
     Promise.all([api('/sections?limit=200'), api('/subjects?limit=300')])
@@ -61,8 +58,6 @@ export default function CompetencyTracker() {
   }, {}) || {};
 
   const levelPieData = Object.entries(levelDistribution).map(([name, value]) => ({ name, value })).filter((d) => d.value > 0);
-
-  if (!R) return <Spinner />;
 
   return (
     <div>
@@ -120,7 +115,7 @@ export default function CompetencyTracker() {
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}><BarChart3 size={15} /> Competency Average Scores</h3>
                 {chartData.length > 0 ? (
                   <ModernBarChart
-                    R={R}
+                    
                     data={chartData}
                     categoryKey="name"
                     series={[{ key: 'Average', name: 'Average Score', color: 'var(--accent)' }]}
@@ -198,7 +193,7 @@ export default function CompetencyTracker() {
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Proficiency Level Distribution</h3>
                 {levelPieData.length > 0 ? (
                   <ModernBarChart
-                    R={R}
+                    
                     data={levelPieData}
                     categoryKey="name"
                     series={[{ key: 'value', name: 'Students', color: 'var(--accent)' }]}
