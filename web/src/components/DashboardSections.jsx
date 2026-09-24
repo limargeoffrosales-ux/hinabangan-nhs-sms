@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Users, CalendarCheck, UserCheck, BookOpen, Briefcase, BadgeCheck, GraduationCap, TrendingUp, ClipboardList, Target, GitBranch, Clock, BarChart3 } from 'lucide-react';
 import { api, getCurrentSchoolYear } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { SCHOOL_YEARS } from '../lib/constants';
+import { SCHOOL_YEARS, CHART_PALETTE } from '../lib/constants';
 import { Spinner, Modal } from './ui';
 import { ModernBarChart } from '../design-system';
 import { loadRecharts } from '../lib/lazy-recharts';
@@ -10,7 +10,6 @@ import { loadRecharts } from '../lib/lazy-recharts';
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const STATUS_COLORS = { present: 'badge-green', absent: 'badge-red', late: 'badge-yellow', on_leave: 'badge-blue' };
 const TEACHER_STATUSES = ['present', 'absent', 'on_leave'];
-const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
 
 function StatChip({ label, value, color }) {
   return (
@@ -426,7 +425,7 @@ export default function DashboardSections() {
           <h3 style={{ margin: 0 }}><GitBranch size={16} /> Enrollment by Strand — {sy}</h3>
           <div className="kpi-row">
             {strandDist?.data?.slice(0, 4).map((s, i) => (
-              <StatChip key={i} label={s.strand?.length > 20 ? s.strand.slice(0, 18) + '...' : s.strand} value={s.students} color={PIE_COLORS[i % PIE_COLORS.length]} />
+              <StatChip key={i} label={s.strand?.length > 20 ? s.strand.slice(0, 18) + '...' : s.strand} value={s.students} color={CHART_PALETTE[i % CHART_PALETTE.length]} />
             ))}
           </div>
         </div>

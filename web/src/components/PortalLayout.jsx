@@ -166,12 +166,12 @@ export default function PortalLayout({ children }) {
               <Globe size={16} aria-hidden="true" />
             </button>
             {langOpen && (
-              <div className="theme-pop">
-                <div className="theme-pop-title">{t('topbar.language')}</div>
-                <button className={`theme-opt ${i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('fil')}>
+              <div className="lang-pop">
+                <div className="lang-pop-title">{t('topbar.language')}</div>
+                <button className={`lang-opt ${i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('fil')}>
                   Filipino {i18n.language?.startsWith('fil') && <Check size={14} />}
                 </button>
-                <button className={`theme-opt ${!i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('en')}>
+                <button className={`lang-opt ${!i18n.language?.startsWith('fil') ? 'on' : ''}`} onClick={() => pickLang('en')}>
                   English {!i18n.language?.startsWith('fil') && <Check size={14} />}
                 </button>
               </div>

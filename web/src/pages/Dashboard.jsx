@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
+import { SEX_COLORS } from '../lib/constants';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
@@ -19,8 +20,6 @@ const READINESS_STATUS = {
   pending: { badge: 'badge-yellow', tri: 'dashboard.readinessPending' },
   note: { badge: 'badge-gray', tri: 'dashboard.readinessNote' },
 };
-
-const SEX_COLORS = { Male: '#4D96FF', Female: '#F5B942' };
 
 function fmtWhen(iso) {
   if (!iso) return '';

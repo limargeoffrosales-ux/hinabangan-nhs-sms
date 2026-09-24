@@ -320,7 +320,7 @@
 .ds-input.has-addon-left { padding-left: 38px; }
 .ds-input.has-addon-right { padding-right: 38px; }
 .ds-input.is-error { border-color: var(--danger); }
-.ds-input.is-error:focus { box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.18); }
+.ds-input.is-error:focus { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18); }
 
 .ds-textarea { resize: vertical; min-height: 88px; }
 
@@ -465,7 +465,7 @@
 .ds-badge__dot-core.is-success, .ds-badge__dot-halo.is-success { background: var(--success); }
 .ds-badge__dot-core.is-warning, .ds-badge__dot-halo.is-warning { background: var(--warn); }
 .ds-badge__dot-core.is-danger, .ds-badge__dot-halo.is-danger { background: var(--danger); }
-.ds-badge__dot-core.is-info, .ds-badge__dot-halo.is-info { background: var(--accent-3); }
+.ds-badge__dot-core.is-info, .ds-badge__dot-halo.is-info { background: var(--info); }
 .ds-badge__dot-core.is-primary, .ds-badge__dot-halo.is-primary { background: var(--accent); }
 .ds-badge__dot-core.is-secondary, .ds-badge__dot-halo.is-secondary { background: var(--accent-2); }
 .ds-badge__dot-core.is-neutral, .ds-badge__dot-halo.is-neutral { background: var(--text-dim); }
@@ -475,8 +475,8 @@
 .ds-badge--secondary { background: rgba(var(--rgb-green), 0.15); color: var(--accent-2); border-color: rgba(var(--rgb-green), 0.3); }
 .ds-badge--success { background: var(--toast-success-bg, rgba(52, 211, 153, 0.14)); color: var(--success); border-color: var(--toast-success-border, rgba(52, 211, 153, 0.4)); }
 .ds-badge--warning { background: var(--toast-warn-bg, rgba(251, 191, 36, 0.14)); color: var(--warn); border-color: var(--toast-warn-border, rgba(251, 191, 36, 0.4)); }
-.ds-badge--danger { background: var(--toast-error-bg, rgba(251, 113, 133, 0.14)); color: var(--danger); border-color: var(--toast-error-border, rgba(251, 113, 133, 0.4)); }
-.ds-badge--info { background: rgba(var(--rgb-teal), 0.15); color: var(--accent-3); border-color: rgba(var(--rgb-teal), 0.35); }
+.ds-badge--danger { background: var(--toast-error-bg, rgba(248, 113, 113, 0.14)); color: var(--danger); border-color: var(--toast-error-border, rgba(248, 113, 113, 0.4)); }
+.ds-badge--info { background: rgba(var(--rgb-info), 0.13); color: var(--info); border-color: rgba(var(--rgb-info), 0.35); }
 .ds-badge--neutral { background: var(--bg-soft); color: var(--text-dim); border-color: var(--border); }
 .ds-badge--outline { background: transparent; color: var(--text); border-color: var(--border-strong); }
 
@@ -560,13 +560,13 @@
 .ds-alert__dismiss:hover { color: var(--text); background: var(--card-hover); }
 .ds-alert__dismiss:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--rgb-accent), 0.4); }
 
-.ds-alert--info { border-color: rgba(var(--rgb-teal), 0.4); background: rgba(var(--rgb-teal), 0.1); }
-.ds-alert--info .ds-alert__icon, .ds-alert--info .ds-alert__title { color: var(--accent-3); }
+.ds-alert--info { border-color: rgba(var(--rgb-info), 0.4); background: rgba(var(--rgb-info), 0.1); }
+.ds-alert--info .ds-alert__icon, .ds-alert--info .ds-alert__title { color: var(--info); }
 .ds-alert--success { border-color: var(--toast-success-border, rgba(52, 211, 153, 0.4)); background: var(--toast-success-bg, rgba(52, 211, 153, 0.1)); }
 .ds-alert--success .ds-alert__icon, .ds-alert--success .ds-alert__title { color: var(--success); }
 .ds-alert--warning { border-color: var(--toast-warn-border, rgba(251, 191, 36, 0.4)); background: var(--toast-warn-bg, rgba(251, 191, 36, 0.1)); }
 .ds-alert--warning .ds-alert__icon, .ds-alert--warning .ds-alert__title { color: var(--warn); }
-.ds-alert--danger { border-color: var(--toast-error-border, rgba(251, 113, 133, 0.4)); background: var(--toast-error-bg, rgba(251, 113, 133, 0.1)); }
+.ds-alert--danger { border-color: var(--toast-error-border, rgba(248, 113, 113, 0.4)); background: var(--toast-error-bg, rgba(248, 113, 113, 0.1)); }
 .ds-alert--danger .ds-alert__icon, .ds-alert--danger .ds-alert__title { color: var(--danger); }
 .ds-alert--neutral { border-color: var(--border); background: var(--bg-soft); }
 .ds-alert--neutral .ds-alert__icon { color: var(--text-dim); }

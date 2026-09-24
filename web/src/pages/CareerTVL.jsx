@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Briefcase, BadgeCheck, MapPin, LocateFixed, Users, CheckCircle2, XCircle, Radio } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
+import { CHART_PALETTE } from '../lib/constants';
 import { PageHead, ErrorBanner, Spinner } from '../components/ui';
 import { loadRecharts } from '../lib/lazy-recharts';
 import { ChartTooltip, DonutChart, ModernBarChart } from '../design-system';
@@ -22,7 +23,6 @@ const STATUS_COLORS = {
   served: '#22c55e',
   withdrawn: '#ef4444',
 };
-const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
 
 function StatChip({ icon: Icon, label, value, color }) {
   return (
@@ -202,7 +202,7 @@ export default function CareerTVL() {
               data={immStatusData.map((s, i) => ({
                 name: s.name,
                 value: s.value,
-                color: STATUS_COLORS[s.name] || PIE_COLORS[i % PIE_COLORS.length],
+                color: STATUS_COLORS[s.name] || CHART_PALETTE[i % CHART_PALETTE.length],
               }))}
               centerValue={immLearners}
               centerLabel={t('careerTvl.immersionLearners', 'Learners')}
@@ -234,7 +234,7 @@ export default function CareerTVL() {
                 categoryKey="name"
                 layout="vertical"
                 series={[{ key: 'value', name: t('careerTvl.learners', 'Learners') }]}
-                perBarColors={PIE_COLORS}
+                perBarColors={CHART_PALETTE}
                 height={215}
                 showLabels={true}
                 labelSuffix=" learners"

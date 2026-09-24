@@ -91,3 +91,9 @@ export const CAN_VIEW_ANALYTICS = ['super_admin', 'school_admin', 'principal', '
 export const CAN_MANAGE_GUIDANCE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];
 export const CAN_MANAGE_REPORTS = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 export const MAX_INPUT_LENGTH = 1000;
+
+// Central chart palette — matches --accent, --accent-2, --accent-3, --warn, --danger, --purple tokens.
+// Keep in sync with the six base colors (pages may extend with extra entries).
+export const CHART_PALETTE = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#F87171', '#A78BFA'];
+
+export const SEX_COLORS = { Male: '#4D96FF', Female: '#F5B942' };

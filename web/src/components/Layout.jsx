@@ -22,6 +22,7 @@ const NAV_GROUPS = [
     label: 'nav.main',
     items: [
       { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard, end: true },
+      { to: '/parent-portal', labelKey: 'nav.parentPortal', icon: Users, parentOnly: true },
     ],
   },
   {
@@ -41,11 +42,6 @@ const NAV_GROUPS = [
       { to: '/enroll', labelKey: 'nav.enrollment', icon: ClipboardList },
       { to: '/lessons', labelKey: 'nav.lessons', icon: BookOpen },
       { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
-    ],
-  },
-  {
-    label: 'nav.assessment',
-    items: [
       { to: '/grades', labelKey: 'nav.classRecords', icon: BarChart3 },
       { to: '/assignments', labelKey: 'nav.assignments', icon: ClipboardPenLine },
       { to: '/grading-scales', labelKey: 'nav.gradingScales', icon: Scale },
@@ -60,11 +56,6 @@ const NAV_GROUPS = [
       { to: '/immersion', labelKey: 'nav.immersion', icon: Briefcase },
       { to: '/career-tvl', labelKey: 'nav.careerTvl', icon: Map },
       { to: '/certifications', labelKey: 'nav.certifications', icon: Award },
-    ],
-  },
-  {
-    label: 'nav.teaching',
-    items: [
       { to: '/programs', labelKey: 'nav.programs', icon: CalendarRange },
       { to: '/submissions', labelKey: 'nav.submissions', icon: FileText },
       { to: '/compliance', labelKey: 'nav.compliance', icon: Gauge },
@@ -82,19 +73,8 @@ const NAV_GROUPS = [
       { to: '/achievements', labelKey: 'nav.achievements', icon: Award },
       { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
       { to: '/consent', labelKey: 'nav.consent', icon: FileCheck2 },
-    ],
-  },
-  {
-    label: 'nav.reports',
-    items: [
       { to: '/analytics', labelKey: 'nav.analytics', icon: TrendingUp },
       { to: '/deped-forms', labelKey: 'nav.depedForms', icon: FileSpreadsheet },
-    ],
-  },
-  {
-    label: 'nav.parent-portal',
-    items: [
-      { to: '/parent-portal', labelKey: 'nav.parentPortal', icon: Users, parentOnly: true },
     ],
   },
   {

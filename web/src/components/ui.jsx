@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Search } from 'lucide-react';
 import DOMPurify from 'dompurify';
 
-export function Badge({ status, children }) {
+export function Badge({ status = '', children, ...rest }) {
   const map = {
     present: 'badge-green', active: 'badge-green', enrolled: 'badge-green', PASSED: 'badge-green', ok: 'badge-green',
     absent: 'badge-red', FAILED: 'badge-red', dropped: 'badge-red', disabled: 'badge-red',
@@ -13,8 +13,8 @@ export function Badge({ status, children }) {
     green: 'badge-green', red: 'badge-red', yellow: 'badge-yellow', blue: 'badge-blue', gray: 'badge-gray',
     'badge-green': 'badge-green', 'badge-red': 'badge-red', 'badge-yellow': 'badge-yellow', 'badge-blue': 'badge-blue', 'badge-gray': 'badge-gray',
   };
-  const cls = map[status] || 'badge-gray';
-  return <span className={`badge ${cls}`} role="status">{children || String(status).toUpperCase()}</span>;
+  const cls = map[String(status)] || 'badge-gray';
+  return <span className={`badge ${cls}`} role="status" {...rest}>{children || String(status).toUpperCase()}</span>;
 }
 
 export function PageHead({ title, sub, children }) {
@@ -336,8 +336,6 @@ const PALETTE_GROUPS = [
     { labelKey: 'nav.sections', to: '/sections' },
     { labelKey: 'nav.enrollment', to: '/enroll' },
     { labelKey: 'nav.lessons', to: '/lessons' },
-  ]},
-  { groupKey: 'palette.group.assessment', items: [
     { labelKey: 'nav.classRecords', to: '/grades' },
     { labelKey: 'nav.assignments', to: '/assignments' },
     { labelKey: 'nav.gradingScales', to: '/grading-scales' },
@@ -349,9 +347,6 @@ const PALETTE_GROUPS = [
     { labelKey: 'nav.immersion', to: '/immersion' },
     { labelKey: 'nav.careerTvl', to: '/career-tvl' },
     { labelKey: 'nav.certifications', to: '/certifications' },
-  ]},
-  { groupKey: 'palette.group.teaching', items: [
-    { labelKey: 'nav.programs', to: '/programs' },
     { labelKey: 'nav.submissions', to: '/submissions' },
     { labelKey: 'nav.compliance', to: '/compliance' },
     { labelKey: 'nav.interventions', to: '/interventions' },
@@ -363,8 +358,6 @@ const PALETTE_GROUPS = [
     { labelKey: 'nav.announcements', to: '/announcements' },
     { labelKey: 'nav.notifications', to: '/notifications' },
     { labelKey: 'nav.consent', to: '/consent' },
-  ]},
-  { groupKey: 'palette.group.reports', items: [
     { labelKey: 'nav.analytics', to: '/analytics' },
     { labelKey: 'nav.depedForms', to: '/deped-forms' },
   ]},
