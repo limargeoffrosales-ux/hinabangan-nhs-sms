@@ -145,7 +145,7 @@ router.post('/login', userRateLimit({ windowMs: 15 * 60 * 1000, limit: 15, messa
   const accessToken = signAccess(user);
   const refreshToken = await issueRefresh(user.id);
   const csrfToken = generateCsrfToken();
-  storeCsrfToken(user.id, csrfToken);
+  await storeCsrfToken(user.id, csrfToken);
   await audit(req, 'LOGIN', 'auth', user.id, { username: user.username, role: user.role });
   res.json({
     token: accessToken,
@@ -180,7 +180,7 @@ router.post('/refresh', asyncH(async (req, res) => {
   const accessToken = signAccess({ id: row.user_id, username: row.username, name: row.name, role: row.role });
   const newRefresh = await issueRefresh(row.user_id);
   const csrfToken = generateCsrfToken();
-  storeCsrfToken(row.user_id, csrfToken);
+  await storeCsrfToken(row.user_id, csrfToken);
   res.json({ token: accessToken, refreshToken: newRefresh, csrfToken });
 }));
 
@@ -191,7 +191,7 @@ router.get('/me', authenticate, asyncH(async (req, res) => {
 
 router.get('/csrf-token', authenticate, asyncH(async (req, res) => {
   const token = generateCsrfToken();
-  storeCsrfToken(req.user.id, token);
+  await storeCsrfToken(req.user.id, token);
   res.json({ csrfToken: token });
 }));
 
@@ -200,7 +200,7 @@ router.post('/logout', asyncH(async (req, res) => {
   if (!refreshToken) {
     if (req.user && req.user.id) {
       await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
-      clearCsrfToken(req.user.id);
+      await clearCsrfToken(req.user.id);
       return res.json({ ok: true });
     }
     return res.status(400).json({ error: 'refreshToken is required' });
@@ -208,7 +208,7 @@ router.post('/logout', asyncH(async (req, res) => {
   const row = await q('SELECT user_id FROM refresh_tokens WHERE token_hash = ?', [hashToken(refreshToken)]);
   if (!row) return res.status(401).json({ error: 'Invalid refresh token' });
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [row.user_id]);
-  clearCsrfToken(row.user_id);
+  await clearCsrfToken(row.user_id);
   res.json({ ok: true });
 }));
 
@@ -327,7 +327,7 @@ router.post('/reset-password',
     // A successful reset is a full session reset: kill all refresh tokens so
     // any device signed in with the old password loses access.
     await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
-    clearCsrfToken(user.id);
+    await clearCsrfToken(user.id);
     clearUserCache(user.id);
     await qi(
       'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',

@@ -171,16 +171,39 @@ async function init() {
     };
   }
   if (usePg) {
-    // Neon free tier is capped at 512 MB logical size. The prune+VACUUM must
-    // run BEFORE migrations: a DDL migration (e.g. CREATE TABLE/INDEX) extends
-    // data files, which fails with 53100 if the branch is still over the cap.
-    await pruneHighChurn();
-    await reclaimSpace();
+    // Neon free tier caps logical size at 512 MB. Prune+VACUUM must run BEFORE
+    // migrations: a DDL migration (CREATE TABLE/INDEX) extends data files,
+    // which fails with 53100 if the branch is still over the cap. But VACUUM
+    // FULL is expensive (locks the table), so only run it when near the cap.
+    const sizeMb = await dbSizeMb();
+    if (sizeMb >= RECLAIM_THRESHOLD_MB) {
+      logger.info({ sizeMb: Math.round(sizeMb) }, 'db near storage cap — pruning + VACUUM FULL before migrations');
+      await pruneHighChurn();
+      await reclaimSpace();
+    }
     await logTopTables();
   }
   await migrate();
-  await reclaimSpace();
   return driver;
+}
+
+// Neon project storage cap: 512 MB. Once the branch exceeds it, Postgres
+// refuses to extend files (53100). Deleting rows marks them dead but does not
+// release pages; VACUUM FULL compacts high-churn tables so Neon's garbage
+// collector can actually reclaim the space. Only run all of this when close to
+// the cap — VACUUM FULL takes locks, so we avoid it on a healthy install.
+const NEON_CAP_MB = 512;
+const RECLAIM_THRESHOLD_MB = Math.floor(NEON_CAP_MB * 0.75); // 75% of the 512 MB cap
+
+async function dbSizeMb() {
+  if (!usePg) return 0;
+  try {
+    const row = await driver.get('SELECT pg_database_size(current_database()) AS bytes');
+    return Number(row?.bytes || 0) / 1024 / 1024;
+  } catch (err) {
+    console.warn('[SIZE] could not read database size: ' + err.message);
+    return 0;
+  }
 }
 
 // Neon project storage cap: once the branch exceeds the size limit, Postgres

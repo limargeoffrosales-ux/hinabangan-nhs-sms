@@ -68,7 +68,7 @@ router.post('/verify', asyncH(async (req, res) => {
   await audit(req, 'LOGIN_MFA', 'auth', user.id, { username: user.username, role: user.role });
 
   const csrfToken = generateCsrfToken();
-  storeCsrfToken(user.id, csrfToken);
+  await storeCsrfToken(user.id, csrfToken);
   res.json({
     token: accessToken,
     refreshToken: rawRefresh,

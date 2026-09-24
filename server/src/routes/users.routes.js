@@ -55,7 +55,7 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
       [await bcrypt.hash(String(password), 12), user.id]);
     await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
-    clearCsrfToken(user.id);
+    await clearCsrfToken(user.id);
     await qi(
       'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
       [user.id, req.user.id, 'reset', req.ip]);
@@ -97,7 +97,7 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
     const hash = await bcrypt.hash(String(password), 12);
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
     await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
-    clearCsrfToken(user.id);
+    await clearCsrfToken(user.id);
     clearUserCache(user.id);
     await qi(
       'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',

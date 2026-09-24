@@ -365,7 +365,9 @@ const parentRoutes = require('./routes/parent.routes');
 
   const server = app.listen(PORT, HOST, () => {
     logger.info({ port: PORT, host: HOST, dialect: db.dialect }, `MeridianEd API listening on http://${HOST}:${PORT}`);
-    ensureSmtp().then(startNotifySweep);
+    ensureSmtp()
+      .then(() => startNotifySweep())
+      .catch((err) => logger.error({ err: err.message }, 'notify sweep startup failed:'));
     startStorageCleanup();
     startBackupSweep();
   });
@@ -380,4 +382,8 @@ const parentRoutes = require('./routes/parent.routes');
   }
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-})();
+})().catch((err) => {
+  logger.error({ err: err.message, stack: err.stack }, 'Fatal boot error — shutting down');
+  try { db.close(); } catch (_) {}
+  process.exit(1);
+});

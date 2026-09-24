@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.checks.json",
+    "typecheck:js": "tsc -p tsconfig.checks.json",
     "check": "npm run lint && npm run typecheck",
     "i18n:check": "node scripts/i18n-check.mjs"
   },

@@ -14,6 +14,10 @@ const SCHOOL_CONTEXT =
 let client = null;
 let clientProvider = null;
 
+// OpenAI SDK default timeout is 10 minutes — far too long for a chat reply.
+// 30s keeps a hung provider from pinning a request (or its awaited caller).
+const AI_TIMEOUT_MS = 30_000;
+
 // Default model per provider (2026 comparison-informed picks for school Q&A:
 // small context in, concise answers out — cheap, fast, strong reasoning):
 //   groq  -> openai/gpt-oss-120b  flagship open reasoning model, $0.15/$0.60/M, 131k ctx, ~500 tok/s
@@ -52,7 +56,16 @@ function getClient() {
   const apiKey = cfg.keyEnv ? process.env[cfg.keyEnv] : 'ollama';
   if (!apiKey || (apiKey === 'ollama' && provider !== 'ollama')) return null;
   if (!client) {
-    client = new OpenAI({ apiKey, baseURL: cfg.baseUrl });
+    client = new OpenAI({
+      apiKey,
+      baseURL: cfg.baseUrl,
+      // OpenAI SDK default is 10 minutes — far too long for a chat reply. Cap
+      // it so a hung provider can never pin a request (or its awaited caller,
+      // e.g. a report render) longer than this. maxRetries:1 keeps one SDK-level
+      // retry for transient 429/5xx without tripling latency.
+      timeout: AI_TIMEOUT_MS,
+      maxRetries: 1,
+    });
   }
   return client;
 }

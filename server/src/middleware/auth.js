@@ -1,10 +1,9 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL } = require('../config');
-const { q, qa } = require('../db');
+const { q, qa, qr } = require('../db');
 const crypto = require('crypto');
 
 const userCache = new Map();
-const csrfTokenCache = new Map();
 const CACHE_TTL_MS = 60_000;
 const CSRF_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -42,47 +41,48 @@ function generateCsrfToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function storeCsrfToken(userId, token) {
-  const expiresAt = Date.now() + CSRF_TTL_MS;
-  const tokens = csrfTokenCache.get(userId) || [];
-  tokens.push({ token, expiresAt });
-  csrfTokenCache.set(userId, tokens);
-  evictIfNeeded(csrfTokenCache);
+// CSRF tokens are stored hashed in the csrf_tokens table (migration 089) so
+// they survive deploys and Render's sleep cycle. Only the hash is kept — the
+// plaintext token is returned to the client once at issue time.
+function hashCsrfToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function getCsrfToken(userId) {
-  const tokens = csrfTokenCache.get(userId) || [];
-  const now = Date.now();
-  const valid = tokens.filter((t) => t.expiresAt > now);
-  if (valid.length === 0) {
-    csrfTokenCache.delete(userId);
-    return null;
-  }
-  csrfTokenCache.set(userId, valid);
-  evictIfNeeded(csrfTokenCache);
-  return valid[valid.length - 1].token;
+async function storeCsrfToken(userId, token) {
+  const expiresAt = new Date(Date.now() + CSRF_TTL_MS).toISOString();
+  await qr(
+    'INSERT INTO csrf_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?) ON CONFLICT (user_id, token_hash) DO NOTHING',
+    [userId, hashCsrfToken(token), expiresAt]
+  );
+  // Best-effort sweep of that user's stale rows so a long-lived session can't
+  // accumulate tokens faster than the TTL cleanup.
+  await qr('DELETE FROM csrf_tokens WHERE user_id = ? AND expires_at < ?', [userId, new Date().toISOString()])
+    .catch(() => {});
 }
 
-function validateCsrfToken(userId, providedToken) {
+async function getCsrfToken(userId) {
+  const row = await q(
+    'SELECT token_hash FROM csrf_tokens WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+    [userId, new Date().toISOString()]
+  );
+  return row ? row.token_hash : null;
+}
+
+// Single-use validation: the matching row is deleted atomically so a token can
+// never be replayed (PG RETURNING not needed — the delete's change count is the
+// verdict). Constant-time compare is not required here because we only ever
+// look up by the SHA-256 hash.
+async function validateCsrfToken(userId, providedToken) {
   if (!providedToken) return false;
-  const tokens = csrfTokenCache.get(userId) || [];
-  const now = Date.now();
-  const valid = tokens.filter((t) => t.expiresAt > now);
-  for (let i = 0; i < valid.length; i++) {
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(valid[i].token, 'hex'), Buffer.from(providedToken, 'hex'))) {
-        valid.splice(i, 1);
-        csrfTokenCache.set(userId, valid);
-        return true;
-      }
-    } catch {}
-  }
-  csrfTokenCache.set(userId, valid);
-  return false;
+  const res = await qr(
+    'DELETE FROM csrf_tokens WHERE user_id = ? AND token_hash = ? AND expires_at > ?',
+    [userId, hashCsrfToken(String(providedToken)), new Date().toISOString()]
+  );
+  return Number(res?.changes || 0) > 0;
 }
 
-function clearCsrfToken(userId) {
-  csrfTokenCache.delete(userId);
+async function clearCsrfToken(userId) {
+  await qr('DELETE FROM csrf_tokens WHERE user_id = ?', [userId]).catch(() => {});
 }
 
 async function authenticate(req, res, next) {
@@ -167,11 +167,17 @@ function clearUserCache(id) {
   userCache.delete(String(id));
 }
 
-function requireCsrf(req, res, next) {
+async function requireCsrf(req, res, next) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
   if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication required for CSRF validation' });
   const providedToken = req.headers['x-csrf-token'] || req.body?.csrf_token;
-  if (!validateCsrfToken(req.user.id, providedToken)) {
+  let ok = false;
+  try {
+    ok = await validateCsrfToken(req.user.id, providedToken);
+  } catch (err) {
+    return next(err);
+  }
+  if (!ok) {
     return res.status(403).json({ error: 'Invalid or missing CSRF token' });
   }
   next();

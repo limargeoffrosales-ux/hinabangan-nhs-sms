@@ -7,6 +7,25 @@ const logger = require('../logger');
 
 const router = Router();
 
+// fetch with an AbortController hard cap so a hung Google endpoint can never
+// pin a send request forever (fetch has no default timeout).
+async function fetchWithTimeout(url, init = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      const e = new Error(`FCM request timed out after ${timeoutMs}ms`);
+      e.code = 'FCM_TIMEOUT';
+      throw e;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // POST /push/register - Register device token
 router.post('/register', authenticate, async (req, res) => {
   try {
@@ -107,11 +126,11 @@ async function getFcmConfig() {
     grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
     assertion,
   });
-  const tokenResp = await fetch(tokenUri, {
+  const tokenResp = await fetchWithTimeout(tokenUri, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString(),
-  });
+  }, 10_000);
   if (!tokenResp.ok) {
     logger.error({ status: tokenResp.status }, 'FCM OAuth token exchange failed');
     const err = new Error('Failed to obtain FCM access token');
@@ -127,7 +146,7 @@ async function getFcmConfig() {
 
 async function sendFcmMessage(token, payload) {
   const { accessToken, projectId } = await getFcmConfig();
-  const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+  const resp = await fetchWithTimeout(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -140,7 +159,7 @@ async function sendFcmMessage(token, payload) {
         data: payload.data,
       },
     }),
-  });
+  }, 10_000);
   return resp.ok;
 }
 
