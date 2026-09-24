@@ -170,6 +170,14 @@ async function init() {
       }),
     };
   }
+  if (usePg) {
+    // Neon free tier is capped at 512 MB logical size. The prune+VACUUM must
+    // run BEFORE migrations: a DDL migration (e.g. CREATE TABLE/INDEX) extends
+    // data files, which fails with 53100 if the branch is still over the cap.
+    await pruneHighChurn();
+    await reclaimSpace();
+    await logTopTables();
+  }
   await migrate();
   await reclaimSpace();
   return driver;
@@ -178,8 +186,43 @@ async function init() {
 // Neon project storage cap: once the branch exceeds the size limit, Postgres
 // refuses to extend files (53100). Deleting rows marks them dead but does not
 // release pages; VACUUM FULL compacts the high-churn tables so Neon's garbage
-// collector can actually reclaim the space. Runs after migrations, out of any
-// transaction (VACUUM cannot run inside one). Table names are fixed constants.
+// collector can actually reclaim the space. Runs at boot BEFORE migrations so
+// DDL that extends files (CREATE TABLE/INDEX) has room. Table names are fixed
+// constants.
+async function pruneHighChurn() {
+  if (!usePg) return;
+  const pruneStatements = [
+    "DELETE FROM data_access_logs WHERE created_at < now() - interval '90 days'",
+    "DELETE FROM audit_logs       WHERE created_at < now() - interval '180 days'",
+    "DELETE FROM notifications    WHERE created_at < now() - interval '90 days'",
+    "DELETE FROM ai_chat_logs     WHERE created_at < now() - interval '90 days'",
+    "DELETE FROM password_resets  WHERE created_at < now() - interval '30 days' OR used_at IS NOT NULL",
+    "DELETE FROM refresh_tokens   WHERE revoked = TRUE OR expires_at < now()",
+    "DELETE FROM device_tokens    WHERE updated_at < now() - interval '180 days'",
+  ];
+  for (const stmt of pruneStatements) {
+    try {
+      await driver.exec(stmt);
+    } catch (err) {
+      console.warn('[PRUNE] skipped statement: ' + err.message);
+    }
+  }
+}
+
+async function logTopTables() {
+  if (!usePg) return;
+  try {
+    const rows = await driver.all(
+      "SELECT relname AS table, pg_total_relation_size(c.oid) AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','m') ORDER BY bytes DESC LIMIT 8"
+    );
+    for (const r of rows) {
+      console.log('[SIZE]', r.table, Math.round(r.bytes / 1024 / 1024) + 'MB');
+    }
+  } catch (err) {
+    console.warn('[SIZE] could not read table sizes: ' + err.message);
+  }
+}
+
 async function reclaimSpace() {
   if (!usePg) return;
   const tables = ['data_access_logs', 'audit_logs', 'notifications', 'ai_chat_logs', 'password_resets', 'refresh_tokens', 'device_tokens'];
@@ -207,17 +250,29 @@ async function migrate() {
     for (const file of files) {
       if (appliedSet.has(file)) continue;
       const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-      const client = await poolRef.connect();
-      try {
-        await client.query('BEGIN');
-        await client.query(sql);
-        await client.query('INSERT INTO schema_migrations (file, applied_at) VALUES ($1, now()) ON CONFLICT (file) DO NOTHING', [file]);
-        await client.query('COMMIT');
-      } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-      } finally {
-        client.release();
+      // 53100 = Neon branch at/over the project size limit. The statement rolls
+      // back, then we free space and retry once — deletes+VACUUM are the only
+      // writes Neon tolerates at the cap.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const client = await poolRef.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(sql);
+          await client.query('INSERT INTO schema_migrations (file, applied_at) VALUES ($1, now()) ON CONFLICT (file) DO NOTHING', [file]);
+          await client.query('COMMIT');
+          break;
+        } catch (err) {
+          await client.query('ROLLBACK').catch(() => {});
+          if (err.code === '53100' && attempt === 1) {
+            console.warn('[MIGRATE] ' + file + ' hit 53100 (size cap) — pruning + VACUUM, retrying once');
+            try { await pruneHighChurn(); } catch (_) {}
+            try { await reclaimSpace(); } catch (_) {}
+          } else {
+            throw err;
+          }
+        } finally {
+          client.release();
+        }
       }
     }
   } else {
