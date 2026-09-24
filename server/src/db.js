@@ -170,20 +170,43 @@ async function init() {
       }),
     };
   }
-  if (usePg) {
-    // Neon free tier caps logical size at 512 MB. Prune+VACUUM must run BEFORE
+if (usePg) {
+    // Neon free tier caps logical size at 512 MB. Prune must run BEFORE
     // migrations: a DDL migration (CREATE TABLE/INDEX) extends data files,
-    // which fails with 53100 if the branch is still over the cap. But VACUUM
-    // FULL is expensive (locks the table), so only run it when near the cap.
-    const sizeMb = await dbSizeMb();
-    if (sizeMb >= RECLAIM_THRESHOLD_MB) {
-      logger.info({ sizeMb: Math.round(sizeMb) }, 'db near storage cap — pruning + VACUUM FULL before migrations');
-      await pruneHighChurn();
+    // which fails with 53100 if the branch is still over the cap. Deletes never
+    // extend the file, so they run on every boot; VACUUM FULL (which locks
+    // tables and needs temp space) only runs when near the cap. The size before
+    // and after, plus the biggest tables, are logged so Render logs show where
+    // the space actually went when diagnosing a cap.
+    const sizeBefore = await dbSizeMb();
+    await logTopTables();
+    await pruneHighChurn();
+    if (sizeBefore >= RECLAIM_THRESHOLD_MB) {
+      logger.info({ sizeMb: Math.round(sizeBefore) }, 'db near storage cap — pruning + VACUUM FULL before migrations');
       await reclaimSpace();
     }
-    await logTopTables();
+    const sizeAfter = await dbSizeMb();
+    if (sizeAfter > 0) {
+      logger.info(
+        { beforeMb: Math.round(sizeBefore), afterMb: Math.round(sizeAfter), freedMb: Math.round(Math.max(0, sizeBefore - sizeAfter)) },
+        'db size after boot prune'
+      );
+    }
+    if (sizeAfter >= RECLAIM_THRESHOLD_MB) {
+      logger.warn(
+        { sizeMb: Math.round(sizeAfter) },
+        'db still at/over storage cap after prune — writes may fail (53100) until Neon reclaims physical space'
+      );
+    }
   }
   await migrate();
+  if (usePg) {
+    // Keep high-churn tables from refilling toward the cap while the instance
+    // stays awake (Render free tier can remain up for hours between requests).
+    const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+    const timer = setInterval(() => { pruneHighChurn().catch(() => {}); }, PRUNE_INTERVAL_MS);
+    if (typeof timer.unref === 'function') timer.unref();
+  }
   return driver;
 }
 
@@ -215,13 +238,14 @@ async function dbSizeMb() {
 async function pruneHighChurn() {
   if (!usePg) return;
   const pruneStatements = [
-    "DELETE FROM data_access_logs WHERE created_at < now() - interval '90 days'",
-    "DELETE FROM audit_logs       WHERE created_at < now() - interval '180 days'",
-    "DELETE FROM notifications    WHERE created_at < now() - interval '90 days'",
-    "DELETE FROM ai_chat_logs     WHERE created_at < now() - interval '90 days'",
-    "DELETE FROM password_resets  WHERE created_at < now() - interval '30 days' OR used_at IS NOT NULL",
+    "DELETE FROM data_access_logs WHERE created_at < now() - interval '30 days'",
+    "DELETE FROM audit_logs       WHERE created_at < now() - interval '90 days'",
+    "DELETE FROM notifications    WHERE created_at < now() - interval '45 days'",
+    "DELETE FROM ai_chat_logs     WHERE created_at < now() - interval '45 days'",
+    "DELETE FROM password_resets  WHERE created_at < now() - interval '14 days' OR used_at IS NOT NULL",
     "DELETE FROM refresh_tokens   WHERE revoked = TRUE OR expires_at < now()",
-    "DELETE FROM device_tokens    WHERE updated_at < now() - interval '180 days'",
+    "DELETE FROM device_tokens    WHERE updated_at < now() - interval '90 days'",
+    "DELETE FROM doc_generations  WHERE created_at < now() - interval '45 days'",
   ];
   for (const stmt of pruneStatements) {
     try {
@@ -236,7 +260,7 @@ async function logTopTables() {
   if (!usePg) return;
   try {
     const rows = await driver.all(
-      "SELECT relname AS table, pg_total_relation_size(c.oid) AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','m') ORDER BY bytes DESC LIMIT 8"
+      "SELECT relname AS table, pg_total_relation_size(c.oid) AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','m') ORDER BY bytes DESC LIMIT 15"
     );
     for (const r of rows) {
       console.log('[SIZE]', r.table, Math.round(r.bytes / 1024 / 1024) + 'MB');
@@ -248,7 +272,7 @@ async function logTopTables() {
 
 async function reclaimSpace() {
   if (!usePg) return;
-  const tables = ['data_access_logs', 'audit_logs', 'notifications', 'ai_chat_logs', 'password_resets', 'refresh_tokens', 'device_tokens'];
+  const tables = ['data_access_logs', 'audit_logs', 'notifications', 'ai_chat_logs', 'password_resets', 'refresh_tokens', 'device_tokens', 'doc_generations'];
   for (const table of tables) {
     try {
       await driver.exec('VACUUM FULL ' + table);
