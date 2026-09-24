@@ -10,7 +10,7 @@ import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
-import { LiveActivityFeed, LiveStatusPill, ChartTooltip, ModernBarChart, Sparkline } from '../design-system';
+import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
 import { loadRecharts } from '../lib/lazy-recharts';
 
 const READINESS_STATUS = {

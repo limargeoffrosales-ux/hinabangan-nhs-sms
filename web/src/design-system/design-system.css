@@ -1484,3 +1484,44 @@
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.08));
 }
 .recharts-cartesian-grid line { stroke-dasharray: 4 8; }
+
+/* --------------------------------------------------------------------------
+   Chart refresh — responsive grid utility, themed hover cursor, touch-ups
+   -------------------------------------------------------------------------- */
+
+/* Keep chart chart bodies from pushing their card wider on small screens. */
+.ds-chart__body { min-width: 0; }
+
+/* Responsive analytics grid: 1 column on phones, paired on ≥880px. */
+.ds-chart-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 880px) {
+  .ds-chart-grid.cols-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ds-chart-grid.cols-21 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .ds-chart-grid.cols-12 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+}
+
+/* Replace recharts' default blue-grey hover cursor with a soft blend and
+   keep tooltips above sticky tables/nav. */
+.recharts-tooltip-cursor .recharts-rectangle { fill: color-mix(in srgb, var(--text) 5%, transparent); }
+.recharts-tooltip-cursor line { stroke: color-mix(in srgb, var(--text) 16%, transparent); }
+.recharts-tooltip-wrapper { z-index: 40; outline: none; }
+
+/* Numeric axes keep tabular alignment; labels render crisply. */
+.recharts-cartesian-axis-tick-value { font-variant-numeric: tabular-nums; }
+.recharts-responsive-container { text-rendering: optimizeLegibility; }
+
+/* Hover depth on bars + segments. */
+.recharts-bar-rectangle { transform-origin: bottom; transition: filter 0.16s ease; }
+.recharts-bar-rectangle:hover { filter: brightness(1.12) saturate(1.05); }
+.ds-donut__seg { cursor: pointer; transition: opacity 0.14s ease, filter 0.14s ease; }
+.ds-donut__seg:hover { opacity: 1; filter: saturate(1.2) brightness(1.05); }
+
+@media (prefers-reduced-motion: reduce) {
+  .recharts-bar-rectangle,
+  .recharts-curve,
+  .recharts-reference-dot,
+  .ds-ring__value,
+  .ds-donut__seg { transition: none !important; animation: none; }
+  .recharts-bar-rectangle:hover { filter: none; }
+  .ds-donut__seg:hover { filter: none; }
+}

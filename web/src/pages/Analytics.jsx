@@ -176,7 +176,7 @@ export default function Analytics() {
 
           {/* ── Grade Distribution Tab ────────────────── */}
           {tab === 'grades' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="ds-chart-grid cols-2">
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.gradeDistribution')}</h3>
                 {gradePieData.length ? (
@@ -213,7 +213,7 @@ export default function Analytics() {
 
           {/* ── Attendance Tab ───────────────────────── */}
           {tab === 'attendance' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+            <div className="ds-chart-grid cols-21">
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.dailyTrend')}</h3>
                 {attMonthly.length ? (
@@ -259,7 +259,7 @@ export default function Analytics() {
 
           {/* ── Retention Tab ────────────────────────── */}
           {tab === 'retention' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="ds-chart-grid cols-2">
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.enrollmentByGrade')}</h3>
                 {retByGrade.length ? (
@@ -308,7 +308,7 @@ export default function Analytics() {
 
           {/* ── At-Risk / Pass Rate Tab ──────────────── */}
           {tab === 'atRisk' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="ds-chart-grid cols-2">
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.passFailSplit')}</h3>
                 {passPieData.length && passPieData.some((d) => d.value > 0) ? (
@@ -394,7 +394,7 @@ export default function Analytics() {
 
           {/* ── Strand Comparison Tab ─────────────────── */}
           {tab === 'strand' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="ds-chart-grid cols-2">
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandComparison')}</h3>
                 {strandComp?.data?.length ? (
@@ -471,7 +471,7 @@ export default function Analytics() {
                 <StatCard label={t('analytics.aiInsights')} value={aiInsights?.insights?.filter((i) => i.ai_ready).length ?? 0} sub={`${aiInsights?.insights?.filter((i) => !i.ai_ready).length ?? 0} coming soon`} icon={<Brain size={22} />} iconBg="#A78BFA" />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+              <div className="ds-chart-grid cols-2" style={{ marginBottom: 24 }}>
                 {/* Competency Mastery Heatmap */}
                 <div className="card">
                   <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.competencyMastery')}</h3>

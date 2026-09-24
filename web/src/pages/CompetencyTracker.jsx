@@ -115,7 +115,7 @@ export default function CompetencyTracker() {
           </div>
 
           {tab === 'overview' && (
-            <div style={{ display: 'grid', gridTemplateColumns: overview?.summary?.length > 0 ? '2fr 1fr' : '1fr', gap: 20 }}>
+            <div className={`ds-chart-grid${overview?.summary?.length > 0 ? ' cols-21' : ''}`}>
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}><BarChart3 size={15} /> Competency Average Scores</h3>
                 {chartData.length > 0 ? (
@@ -193,7 +193,7 @@ export default function CompetencyTracker() {
           )}
 
           {tab === 'levels' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="ds-chart-grid cols-2">
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Proficiency Level Distribution</h3>
                 {levelPieData.length > 0 ? (

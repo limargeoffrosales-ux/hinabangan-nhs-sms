@@ -3,9 +3,38 @@
 // pure-SVG primitives (Sparkline, ProgressRing, DonutChart) with zero recharts
 // dependency. Styled via `ds-*` classes in `design-system/design-system.css`.
 
-import React, { ReactNode, useId, useMemo } from 'react';
+import React, { ReactNode, useCallback, useId, useMemo } from 'react';
 import { cn } from '../../lib/cn';
 import { Card, Skeleton } from './feedback';
+
+const BAR_CURSOR_FILL = 'color-mix(in srgb, var(--text) 5%, transparent)';
+const LINE_CURSOR_STROKE = 'color-mix(in srgb, var(--text) 18%, transparent)';
+const FALLBACK_SWATCHES = [
+  'var(--accent)',
+  'var(--accent-2)',
+  'var(--accent-3)',
+  'var(--warn)',
+  'var(--success)',
+  'var(--danger)',
+];
+
+// svg gradient fills come back from recharts as "url(#id)" — never valid as a
+// CSS background, so skip them when picking a solid swatch color.
+function sanitizeCssColor(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim();
+  if (!t || t.startsWith('url(')) return undefined;
+  return t;
+}
+
+// Recharts' <Tooltip> can arrive as a static import ("Tooltip") or via the
+// lazy module namespace (R.Tooltip) — detect it by name either way so charts
+// never end up with a duplicate default tooltip.
+function isRechartsTooltip(el: unknown): boolean {
+  if (!React.isValidElement(el)) return false;
+  const type = el.type as React.ComponentType | string;
+  return typeof type === 'function' && typeof type.name === 'string' && type.name.toLowerCase().includes('tooltip');
+}
 
 // ============================================
 // ChartCard — shared chart shell
@@ -80,6 +109,8 @@ export interface ChartTooltipProps {
   labelFormatter?: (label: string | number, payload?: ChartTooltipEntry[]) => string;
   valueFormatter?: (value: number | string, entry: ChartTooltipEntry) => string;
   unit?: string;
+  palette?: string[];
+  resolveColor?: (entry: ChartTooltipEntry, index: number) => string | undefined;
 }
 
 export function ChartTooltip({
@@ -89,6 +120,8 @@ export function ChartTooltip({
   labelFormatter,
   valueFormatter,
   unit,
+  palette,
+  resolveColor,
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const title = labelFormatter
@@ -104,12 +137,18 @@ export function ChartTooltip({
         {payload.map((entry, i) => {
           const raw = Array.isArray(entry.value) ? entry.value[0] : entry.value;
           const value =
-            raw == null
+            raw == null || (typeof raw === 'number' && !Number.isFinite(raw))
               ? '—'
               : valueFormatter
-                ? valueFormatter(raw, entry)
+                ? valueFormatter(raw as number | string, entry)
                 : String(raw);
-          const dotColor = entry.color || entry.stroke || entry.fill || 'var(--accent)';
+          const dotColor =
+            resolveColor?.(entry, i) ??
+            sanitizeCssColor(entry.color) ??
+            sanitizeCssColor(entry.stroke) ??
+            sanitizeCssColor(entry.fill) ??
+            palette?.[i % palette.length] ??
+            FALLBACK_SWATCHES[i % FALLBACK_SWATCHES.length];
           return (
             <div key={i} className="ds-chart-tip__row">
               <span className="ds-chart-tip__swatch" style={{ background: dotColor }} />
@@ -151,6 +190,7 @@ export function Sparkline({
   className,
   ariaLabel,
 }: SparklineProps) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const points = useMemo(() => {
     if (!data || data.length === 0) return [];
     const min = Math.min(...data);
@@ -186,13 +226,13 @@ export function Sparkline({
     >
       <defs>
         {fill && (
-          <linearGradient id="ds-spark-fill" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={`${uid}-fill`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={stroke} stopOpacity="0.25" />
             <stop offset="100%" stopColor={stroke} stopOpacity="0" />
           </linearGradient>
         )}
       </defs>
-      {fill && <path d={areaPath} fill="url(#ds-spark-fill)" stroke="none" />}
+      {fill && <path d={areaPath} fill={`url(#${uid}-fill)`} stroke="none" />}
       <polyline
         points={line}
         fill="none"
@@ -448,6 +488,7 @@ export interface ModernBarChartProps {
   radius?: number;
   xAngle?: number;
   xHeight?: number;
+  axisWidth?: number;
   children?: ReactNode;
 }
 
@@ -475,12 +516,51 @@ export function ModernBarChart({
   radius = 8,
   xAngle,
   xHeight,
+  axisWidth,
   children,
 }: ModernBarChartProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const perBar = perBarColors && perBarColors.length > 0 ? perBarColors : null;
 
   if (!data || data.length === 0 || !series || series.length === 0) return null;
+
+  // Row-index lookup so per-bar tooltips can resolve the exact CSS color that
+  // backs each bar's gradient (recharts only surfaces the "url(#...)" fill).
+  const catIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    data.forEach((d, i) => {
+      const k = d[categoryKey];
+      if (k != null) m.set(String(k), i);
+    });
+    return m;
+  }, [data, categoryKey]);
+
+  const palette = perBar || series.map((s) => s.color);
+
+  const resolveColor = useCallback(
+    (entry: ChartTooltipEntry) => {
+      if (!perBar) return undefined;
+      const payload = (entry as ChartTooltipEntry & { payload?: Record<string, unknown> }).payload;
+      const key = payload && payload[categoryKey];
+      if (key == null) return undefined;
+      const idx = catIndex.get(String(key));
+      return idx != null ? perBar[idx % perBar.length] : undefined;
+    },
+    [perBar, catIndex, categoryKey]
+  );
+
+  const hasTooltip = useMemo(
+    () => React.Children.toArray(children).some((c) => isRechartsTooltip(c)),
+    [children]
+  );
+
+  const themedChildren = React.Children.toArray(children).map((c) => {
+    if (!React.isValidElement(c)) return c;
+    if (c.type !== R.Tooltip) return c;
+    const el = c as React.ReactElement<{ cursor?: unknown }>;
+    if (el.props.cursor != null) return c;
+    return React.cloneElement(el, { cursor: { fill: BAR_CURSOR_FILL } });
+  });
 
   const topRadius: [number, number, number, number] = layout === 'vertical' ? [0, radius, radius, 0] : [radius, radius, 0, 0];
   const zeroRadius: [number, number, number, number] = [0, 0, 0, 0];
@@ -590,7 +670,7 @@ export function ModernBarChart({
           <R.YAxis
             axisLine={false}
             tickLine={false}
-            width={38}
+            {...(layout === 'horizontal' || axisWidth != null ? { width: layout === 'vertical' && axisWidth != null ? axisWidth : 38 } : null)}
             tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
             tickFormatter={yTickFormatter}
             allowDecimals={false}
@@ -598,7 +678,13 @@ export function ModernBarChart({
           />
         )}
         {renderBars()}
-        {children}
+        {hasTooltip ? null : (
+          <R.Tooltip
+            content={(p: Record<string, unknown>) => <ChartTooltip {...(p as ChartTooltipProps)} palette={palette} resolveColor={resolveColor} />}
+            cursor={{ fill: BAR_CURSOR_FILL }}
+          />
+        )}
+        {themedChildren}
       </R.BarChart>
     </R.ResponsiveContainer>
   );
@@ -650,6 +736,19 @@ export function ModernLineChart({
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
 
   if (!data || data.length === 0 || !series || series.length === 0) return null;
+
+  const hasTooltip = useMemo(
+    () => React.Children.toArray(children).some((c) => isRechartsTooltip(c)),
+    [children]
+  );
+
+  const themedChildren = React.Children.toArray(children).map((c) => {
+    if (!React.isValidElement(c)) return c;
+    if (c.type !== R.Tooltip) return c;
+    const el = c as React.ReactElement<{ cursor?: unknown }>;
+    if (el.props.cursor != null) return c;
+    return React.cloneElement(el, { cursor: { stroke: LINE_CURSOR_STROKE } });
+  });
 
   const lastPoint = data[data.length - 1];
   const lastSeries = series[0];
@@ -747,7 +846,13 @@ export function ModernLineChart({
             />
           </R.ReferenceDot>
         )}
-        {children}
+        {hasTooltip ? null : (
+          <R.Tooltip
+            content={(p: Record<string, unknown>) => <ChartTooltip {...(p as ChartTooltipProps)} palette={series.map((s) => s.color)} />}
+            cursor={{ stroke: LINE_CURSOR_STROKE }}
+          />
+        )}
+        {themedChildren}
       </Chart>
     </R.ResponsiveContainer>
   );
