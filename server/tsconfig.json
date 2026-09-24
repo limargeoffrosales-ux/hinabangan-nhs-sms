@@ -21,8 +21,7 @@
     "exactOptionalPropertyTypes": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@meridianed/shared": ["../packages/shared/dist"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["src/**/*"],

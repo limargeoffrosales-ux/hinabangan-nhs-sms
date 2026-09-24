@@ -8,16 +8,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.checks.json",
     "check": "npm run lint && npm run typecheck",
     "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
-    "@meridianed/shared": "^0.1.0",
     "@sentry/browser": "^10.72.0",
     "@sentry/react": "^10.72.0",
-    "@tanstack/react-query": "^5.103.2",
-    "@tanstack/react-query-devtools": "^5.103.2",
     "dompurify": "^3.4.14",
     "i18next": "^26.3.6",
     "i18next-browser-languagedetector": "^8.2.1",
@@ -28,14 +25,13 @@
     "react-i18next": "^17.0.11",
     "react-router-dom": "^7.6.0",
     "read-excel-file": "^5.8.5",
-    "recharts": "^2.15.0",
-    "zod": "^3.23.8"
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@types/dompurify": "^3.0.5",
     "@types/leaflet": "^1.9.12",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.5",

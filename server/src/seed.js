@@ -123,12 +123,17 @@ async function seed() {
       logger.info({ count: accounts.length }, '+ new demo accounts written to accounts.txt (local demo only)');
     } else {
       // Production/boot seeding — surface the one-time bootstrap credential in
-      // the boot log. Non-bootstrap accounts are logged WITHOUT their password
-      // (logs are retained by the host); reset those via Users > set password.
+      // the boot log ONLY outside NODE_ENV=production. In production the
+      // password never touches the log (Render retains logs); bootstrap that
+      // account via the forgot-password flow or Users > set password instead.
+      // Non-bootstrap accounts are always logged WITHOUT their password.
+      const canPrintSecret = process.env.NODE_ENV !== 'production';
       for (const line of accounts) {
         const [u, , role] = line.split(' | ');
-        if (role === 'super_admin') logger.info('+ new super_admin account: ' + line);
-        else logger.info('+ new account (password withheld): ' + u + ' | ' + role);
+        if (role === 'super_admin') {
+          if (canPrintSecret) logger.info('+ new super_admin account: ' + line);
+          else logger.info('+ new super_admin account created (bootstrap password withheld in production; reset via /api/v1/auth/forgot-password): ' + u);
+        } else logger.info('+ new account (password withheld): ' + u + ' | ' + role);
       }
     }
   } else {

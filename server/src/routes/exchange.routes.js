@@ -96,7 +96,8 @@ function sendCsv(res, rows, summary) {
 
 function csvCell(v) {
   const s = String(v == null ? '' : v);
-  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  const safe = /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+  return /[",\n]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe;
 }
 
 async function sendExcel(res, rows, summary) {

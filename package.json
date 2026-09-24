@@ -7,13 +7,11 @@
     "node": ">=22.9.0"
   },
   "workspaces": [
-    "packages/*",
     "server",
     "web"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "build:shared": "npm run build --workspace=@meridianed/shared",
     "build:web": "npm run build --workspace=web",
     "check": "npm run check:web && npm test",
     "check:web": "npm run lint:web && npm run typecheck:web && npm run build:web && npm run i18n:check",

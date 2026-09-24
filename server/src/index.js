@@ -177,7 +177,7 @@ const parentRoutes = require('./routes/parent.routes');
       const limit = isBulkImport ? MAX_BULK_BODY_FIELD : MAX_BODY_FIELD;
       for (const [k, v] of Object.entries(req.body)) {
         if (typeof v === 'string' && v.length > limit) {
-          req.body[k] = v.slice(0, limit);
+          return res.status(413).json({ error: `Field "${k}" exceeds the ${limit.toLocaleString()}-character limit` });
         }
       }
     }

@@ -151,7 +151,7 @@ export function useThrottle<T>(value: T, limit: number): T {
 
 // Click outside hook
 export function useClickOutside<T extends HTMLElement>(
-  ref: RefObject<T>,
+  ref: RefObject<T | null>,
   handler: (event: MouseEvent | TouchEvent) => void
 ): void {
   useEffect(() => {
@@ -323,7 +323,7 @@ export function useScrollPosition(): { x: number; y: number } {
 }
 
 // Focus trap hook
-export function useFocusTrap(ref: RefObject<HTMLElement>, enabled = true): void {
+export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true): void {
   useEffect(() => {
     if (!enabled || !ref.current) return;
 

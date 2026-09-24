@@ -92,8 +92,10 @@ async function saveSubjects(conn, enrollmentId, subjectIds) {
   const ids = Array.isArray(subjectIds) ? [...new Set(subjectIds.map(Number).filter(Boolean))] : [];
   const c = conn || { run: qr, runId: qi };
   await c.run('DELETE FROM enrollment_subjects WHERE enrollment_id = ?', [enrollmentId]);
-  for (const sid of ids) {
-    await c.runId('INSERT INTO enrollment_subjects (enrollment_id, subject_id) VALUES (?, ?)', [enrollmentId, sid]);
+  if (ids.length) {
+    const values = ids.map(() => '(?, ?)').join(', ');
+    const params = ids.flatMap((sid) => [enrollmentId, sid]);
+    await c.run(`INSERT INTO enrollment_subjects (enrollment_id, subject_id) VALUES ${values}`, params);
   }
   return ids.length;
 }

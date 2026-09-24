@@ -4,7 +4,11 @@
 
 function csvCell(v) {
   const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  // Spreadsheet formula injection guard: a leading = + - @ (tab/CR) makes
+  // Excel/Docs evaluate the cell as a formula. Prefix with a single quote,
+  // which is stripped by Excel and renders the value as text.
+  const safe = /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+  return /[",\n]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe;
 }
 
 function slug(s) {

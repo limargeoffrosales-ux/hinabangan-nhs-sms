@@ -132,9 +132,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             className={cn(
               'ds-input',
-              leftIcon && 'has-addon-left',
-              rightIcon && 'has-addon-right',
-              error && 'is-error',
+              leftIcon ? 'has-addon-left' : undefined,
+              rightIcon ? 'has-addon-right' : undefined,
+              error ? 'is-error' : undefined,
               className
             )}
             aria-invalid={error ? 'true' : 'false'}

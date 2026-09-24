@@ -9,19 +9,30 @@ const ABORT_RE = /aborted/i;
 // Browser-cancelled requests and AbortController timeouts both surface as an
 // opaque AbortError whose message is "signal is aborted without reason".
 // Translate it everywhere so that text never reaches the UI.
+/**
+ * @param {unknown} err
+ * @returns {string | null}
+ */
 export function friendlyAbortMessage(err) {
-  if (err && (err.name === 'AbortError' || ABORT_RE.test(String(err.message)))) {
+  const e = /** @type {{ name?: string; message?: string }} */ (/** @type {unknown} */ (err));
+  if (e && (e.name === 'AbortError' || ABORT_RE.test(String(e.message)))) {
     return 'Request was interrupted — please try again.';
   }
   return null;
 }
 
+/**
+ * @returns {string}
+ */
 export function getApiBase() {
   const stored = localStorage.getItem(BASE_KEY);
   if (stored && stored.trim()) return stored.trim().replace(/\/+$/, '');
   return '/api/v1';
 }
 
+/**
+ * @param {string} base
+ */
 export function setApiBase(base) {
   if (base && base.trim()) localStorage.setItem(BASE_KEY, base.trim().replace(/\/+$/, ''));
   else localStorage.removeItem(BASE_KEY);
@@ -36,6 +47,10 @@ export function getStoredApiBase() {
 // working after the bucket is flipped private — the proxy then redirects to a
 // short-lived presigned URL instead of the CDN.
 const R2_HOST_RE = /^https?:\/\/[^/]+\.r2\.dev\//i;
+/**
+ * @param {string} url
+ * @returns {string | null}
+ */
 export function fileUrl(url) {
   if (!url || typeof url !== 'string') return null;
   if (R2_HOST_RE.test(url)) {
@@ -45,6 +60,7 @@ export function fileUrl(url) {
   return url;
 }
 
+/** @type {Promise<boolean> | null} */
 let refreshPromise = null;
 
 export function getToken() {
@@ -59,6 +75,12 @@ export function getCsrfToken() {
   return sessionStorage.getItem(CSRF_KEY);
 }
 
+/**
+ * @param {string} token
+ * @param {string} refreshToken
+ * @param {object | undefined} user
+ * @param {string} csrfToken
+ */
 export function setSession(token, refreshToken, user, csrfToken) {
   sessionStorage.setItem(TOKEN_KEY, token);
   if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
@@ -90,6 +112,7 @@ export function clearSession() {
   localStorage.removeItem('meridianed_ai_chat');
 }
 
+/** @type {Promise<string | null> | null} */
 let currentSchoolYearPromise = null;
 
 // Fetches the server-driven current school year (cached per session).
@@ -144,6 +167,7 @@ async function requestCsrfToken() {
   }
 }
 
+/** @param {number | undefined} status @param {string | undefined} message @returns {boolean} */
 function isCsrfFailure(status, message) {
   if (status !== 403) return false;
   if (!message) return false;
@@ -162,6 +186,7 @@ let warmLast = 0;
 // an instant "Request failed" error.
 const BOOT_STATUSES = new Set([408, 502, 503, 504, 520]);
 
+/** @param {HttpError} err @returns {boolean} */
 function isRetryableNetworkFail(err) {
   if (!err) return false;
   if (friendlyAbortMessage(err)) return false; // user/browser cancel — never retry
@@ -177,7 +202,7 @@ function isRetryableNetworkFail(err) {
     || /timed out|failed to fetch|fetch failed|networkerror|network error|load failed/i.test(m);
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = /** @param {number} ms @returns {Promise<void>} */ (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Render free tier sleeps the instance when idle; the first request after a
 // nap can hang for 60–90s while it boots. Warming up on page load hides that
@@ -190,9 +215,50 @@ export async function warmServer(options = {}) {
   } catch { /* best-effort only */ }
 }
 
+/**
+ * @typedef {object} ApiOptions
+ * @property {string} [method]
+ * @property {unknown} [body]
+ * @property {boolean} [auth]
+ * @property {number} [timeoutMs]
+ * @property {boolean} [retryNetwork]
+ * @property {boolean} [__csrfRetry]
+ */
+
+/**
+ * @typedef {Error & { status?: number, name?: string, message?: string }} HttpError
+ */
+
+/**
+ * @param {string} message
+ * @param {number} status
+ * @returns {HttpError}
+ */
+function httpError(message, status) {
+  /** @type {HttpError} */
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+/**
+ * @param {unknown} err
+ * @returns {HttpError}
+ */
+function toHttpError(err) {
+  if (err instanceof Error) return /** @type {HttpError} */ (err);
+  const e = new Error(typeof err === 'string' ? err : 'Request failed');
+  return e;
+}
+
+/**
+ * @param {string} path
+ * @param {ApiOptions} opts
+ */
 async function apiInternal(path, opts) {
   const { method = 'GET', body, auth = true, timeoutMs = 75000 } = opts;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  /** @type {Record<string, string>} */
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
   if (auth && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
@@ -205,43 +271,37 @@ async function apiInternal(path, opts) {
   try {
     let res;
     try {
-      res = await fetch(`${getApiBase()}${path}`, {
-        method,
-        headers,
-        body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
-        signal: controller.signal,
-      });
+      /** @type {RequestInit} */
+      const init = { method, headers, signal: controller.signal };
+      if (body !== undefined) {
+        init.body = isFormData ? /** @type {FormData} */ (body) : JSON.stringify(body);
+      }
+      res = await fetch(`${getApiBase()}${path}`, init);
     } catch (err) {
       // fetch aborts for two reasons: our timeout, or the browser cancelling
       // the request (navigation, connection drop, resource pressure). Both
       // surface as an opaque AbortError ("signal is aborted without reason") —
       // turn them into errors people can act on.
       if (timedOut) {
-        const e = new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
-        e.status = 408;
-        throw e;
+        throw httpError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`, 408);
       }
       const abortMsg = friendlyAbortMessage(err);
-      if (abortMsg) throw new Error(abortMsg);
-      throw err;
+      if (abortMsg) throw httpError(abortMsg, 0);
+      throw /** @type {unknown} */ (err);
     }
     if (res.status === 401 && auth) {
       const ok = await tryRefresh();
       if (ok) return apiInternal(path, opts);
       clearSession();
       notifyUnauthorized();
-      const err = new Error('Session expired — please sign in again');
-      err.status = 401;
-      throw err;
+      throw httpError('Session expired — please sign in again', 401);
     }
     const text = await res.text();
     let data;
     try { data = text ? JSON.parse(text) : {}; }
     catch { data = { error: `Request failed (${res.status})` }; }
     if (!res.ok) {
-      const err = new Error(data.error || `Request failed (${res.status})`);
-      err.status = res.status;
-      throw err;
+      throw httpError(data.error || `Request failed (${res.status})`, res.status);
     }
     return data;
   } finally {
@@ -249,15 +309,24 @@ async function apiInternal(path, opts) {
   }
 }
 
+/**
+ * @param {string} path
+ * @param {ApiOptions & object} opts
+ * @returns {Promise<Record<string, unknown>>}
+ */
 export async function api(path, opts = {}) {
   const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(opts.method || 'GET');
-  const allowRetry = (opts.method || 'GET') === 'GET' || opts.retryNetwork === true;
+  // Retrying every GET by default is too aggressive: silent long blocks (up to
+  // 36s) stack with the 30s page polls and pause UIs during an outage. Boot
+  // backoff stays automatic; general network retries are opt-in.
+  const allowRetry = opts.retryNetwork === true;
+  /** @type {HttpError | undefined} */
   let lastErr;
   for (let attempt = 0; ; attempt++) {
     try {
       return await apiInternal(path, opts);
     } catch (err) {
-      lastErr = err;
+      lastErr = /** @type {HttpError} */ (toHttpError(err));
     }
     // Self-heal stale/missing CSRF tokens: refresh the token once and retry.
     if (isMutating && opts.auth !== false && isCsrfFailure(lastErr.status, lastErr.message)) {
@@ -266,32 +335,30 @@ export async function api(path, opts = {}) {
         try {
           return await apiInternal(path, { ...opts, __csrfRetry: true });
         } catch (retryErr) {
-          if (isCsrfFailure(retryErr.status, retryErr.message)) {
+          const retryErr2 = /** @type {HttpError} */ (toHttpError(retryErr));
+          if (isCsrfFailure(retryErr2.status, retryErr2.message)) {
             clearSession();
             notifyUnauthorized();
-            const e = new Error('Session expired — please sign in again');
-            e.status = 401;
-            throw e;
+            throw httpError('Session expired — please sign in again', 401);
           }
-          throw retryErr;
+          throw retryErr2;
         }
       }
     }
     const boot = BOOT_STATUSES.has(Number(lastErr.status));
     const delay = boot ? BOOT_DELAYS_MS[attempt] : RETRY_DELAYS_MS[attempt];
-    if (!allowRetry || delay === undefined || !isRetryableNetworkFail(lastErr)) break;
+    if (delay === undefined || !isRetryableNetworkFail(lastErr)) break;
+    if (!boot && !allowRetry) break;
     await sleep(delay);
   }
   // Last-resort guard: no remaining abort (browser-cancelled request) may
   // surface the opaque "signal is aborted without reason" text to the UI.
   const abortMsg = friendlyAbortMessage(lastErr);
-  if (abortMsg) throw new Error(abortMsg);
+  if (abortMsg) throw httpError(abortMsg, 0);
   // A sleeping instance that never finished booting should say so, not show a
   // bare "Request failed (NNN)".
   if (BOOT_STATUSES.has(Number(lastErr.status))) {
-    const e = new Error('The server is starting up — please wait a moment and try again.');
-    e.status = lastErr.status;
-    throw e;
+    throw httpError('The server is starting up — please wait a moment and try again.', lastErr.status || 0);
   }
   throw lastErr;
 }

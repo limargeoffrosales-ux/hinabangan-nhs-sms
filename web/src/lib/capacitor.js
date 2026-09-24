@@ -26,6 +26,13 @@ export async function pickImage() {
   });
 }
 
+/**
+ * Share via the Web Share API when available. Degrades to no-op on unsupported
+ * browsers (desktop Chrome, older Safari).
+ * @param {string} title
+ * @param {string} text
+ * @param {string} url
+ */
 export async function shareContent(title, text, url) {
   if (navigator.share) await navigator.share({ title, text, url });
 }

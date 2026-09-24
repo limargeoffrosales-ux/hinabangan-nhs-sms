@@ -11,7 +11,7 @@ database/ migrations/  — paired .sql (PG) + .sqlite.sql files, auto-run on boo
 ```
 
 Root `package.json` scripts:
-- `npm run build` — `cd web && npm ci && npm run build && cd ../server && npm ci`
+- `npm run build` — `npm run build --workspaces --if-present` (web vite build; prod server deps via `npm ci` on Render)
 - `npm start` — `cd server && npm start`
 - `npm run check` — full gate (web lint + typecheck + build + i18n:check + server tests)
 - `npm run check:web` — web-only gate (lint + typecheck + build + i18n:check)
@@ -32,6 +32,9 @@ cd web && npm run dev            # port 5173
 # Web-only checks from web/
 npm run lint && npm run typecheck && npm run i18n:check
 
+# Server tests only (node --test)
+cd server && npm test
+
 # Production build + run
 npm run build && npm start
 
@@ -40,7 +43,7 @@ docker compose up -d
 # Then: $env:DATABASE_URL = "postgresql://meridianed:meridianed-dev@localhost:5432/meridianed"
 ```
 
-No test suite exists. No lint/typecheck scripts.
+Server has a `node --test` suite in `server/test/` (covers migrations/parity, schedule, auth, notify). Every push to `main` runs `npm run check` in CI before triggering the Render deploy hook.
 
 ## Database
 
@@ -98,7 +101,7 @@ React 19 + React Router 7 + Vite. Lazy-loaded pages via `React.lazy()`. Auth via
 ## Deployment
 
 - **Render**: Auto-deploys on push to `main`. Build: `npm run build`, Start: `npm start`, Health: `/api/v1/health`.
-- GitHub Actions workflow triggers Render deploy hook on push to main.
+- GitHub Actions runs `npm run check` (quality gate) on every push to main, then triggers the Render deploy hook on success.
 - Render free tier: ~60s cold start after idle. Service sleeps between requests.
 - Env vars needed: `DATABASE_URL`, `JWT_SECRET` (auto-generated), `SEED_ON_BOOT=1`.
 
@@ -120,7 +123,7 @@ These features were intentionally removed in commit `5aeb3b8` to reduce bloat:
 - **Password audit trail** (`password-audit.routes`, Users.jsx history modal)
 - **Security incidents page** (`security-incidents.routes`, `SecurityIncidents`)
 - **Data erasure requests** (erasure endpoints removed from `privacy.routes`)
-- **Capacitor Android shell** (config, `android/` directory)
+- **Capacitor Android/iOS shell** (config, `android/` and `ios/` directories, APK artifacts, `android-build.yml`)
 - **Consent forms** (`consent.routes`, `ConsentForms`, `PortalConsent`)
 - **Reading & Numeracy** (`ReadingNumeracy` page)
 
@@ -128,4 +131,4 @@ Note: `password_audit` and `security_incidents` **tables are retained** — they
 
 ## Login
 
-Superadmin: username `superadmin`. The password is generated at first boot and printed once in the boot log (or written to `accounts.txt` for local demo seeds). If the production password was ever stored in a file or chat, rotate it in production.
+Superadmin: username `superadmin`. The password is generated at first boot and printed once in the boot log (or written to `accounts.txt` for local demo seeds) — but never printed when `NODE_ENV=production`; recover a production superadmin via the forgot-password flow or reset it as a bootstrap seed. If the production password was ever stored in a file or chat, rotate it in production.

@@ -24,20 +24,33 @@ async function sendSmsBlast(message, studentIds) {
   }
   let sent = 0;
   let failed = 0;
+  const batch = [];
+  const flush = async () => {
+    if (!batch.length) return;
+    try {
+      const values = batch.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
+      await qr(
+        `INSERT INTO notifications (channel, event, recipient_address, body, status, attempts)
+         VALUES ${values}`,
+        batch.flatMap((phone) => ['sms', 'blast', phone, message, 'queued', 0])
+      );
+      sent += batch.length;
+    } catch {
+      failed += batch.length;
+    }
+    batch.length = 0;
+  };
   for (const c of contacts) {
     try {
       const phone = c.guardian_contact.replace(/\s+/g, '');
       if (!phone) { failed++; continue; }
-      await qr(
-        `INSERT INTO notifications (channel, event, recipient_address, body, status, attempts)
-         VALUES ('sms', 'blast', ?, ?, 'queued', 0)`,
-        [phone, message]
-      );
-      sent++;
+      batch.push(phone);
+      if (batch.length >= 200) await flush();
     } catch {
       failed++;
     }
   }
+  await flush();
   return { sent, failed, total: contacts.length };
 }
 

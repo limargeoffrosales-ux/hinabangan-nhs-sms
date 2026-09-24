@@ -278,8 +278,9 @@ export default function Dashboard() {
             renderItem={(a) => {
               const detail = (() => {
                 try {
-                  const d = JSON.parse(a.details || '{}');
-                  return d.name || d.title || d.username || d.lrn || '';
+                  const raw = a.details;
+                  const d = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
+                  return d?.name || d?.title || d?.username || d?.lrn || '';
                 } catch { return ''; }
               })();
               return (

@@ -8,7 +8,9 @@ const initPromise = Promise.all([
   bundles.en(),
   bundles.fil(),
 ]).then(([enMod, filMod]) => {
-  return i18n.use(LanguageDetector).use(initReactI18next).init({
+  // i18next's .init() overloads get confused by the chained .use() calls above
+  // under checkJs; the call shape is correct at runtime.
+  const config = {
     resources: {
       en: { translation: enMod.default },
       fil: { translation: filMod.default },
@@ -18,9 +20,12 @@ const initPromise = Promise.all([
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
-      key: 'meridianed_lang',
+      // NB: the installed i18next-browser-languagedetector persists under
+      // 'i18nextLng' — the `key` option was dropped in newer versions, so it
+      // was removed here rather than silently ignored.
     },
-  });
+  };
+  return /** @type {Promise<void>} */ (/** @type {unknown} */ (i18n.use(LanguageDetector).use(initReactI18next).init(config)));
 });
 
 export const initI18n = () => initPromise;

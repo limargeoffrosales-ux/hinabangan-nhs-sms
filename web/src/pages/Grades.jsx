@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, FileText, Target, Printer, Copy, Download } from 'lucide-react';
 import { api } from '../lib/api';
@@ -27,6 +27,8 @@ export default function Grades() {
   const [competencies, setCompetencies] = useState([]);
   const [compScores, setCompScores] = useState({});
   const [compSaving, setCompSaving] = useState(false);
+  const dirtyRef = useRef(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -64,6 +66,9 @@ export default function Grades() {
   useEffect(() => {
     if (!sectionId || !subjectId) return;
     const interval = setInterval(() => {
+      // Never clobber in-progress edits: skip the tick while the user has
+      // unsaved changes, a save is running, or the tab isn't focused.
+      if (dirtyRef.current || savingRef.current || !document.hasFocus()) return;
       api(`/grades/class?section_id=${sectionId}&subject_id=${subjectId}&school_year=${encodeURIComponent(schoolYear)}&term=${term}`)
         .then((res) => {
           setRows(res.data);
@@ -84,7 +89,8 @@ export default function Grades() {
       const map = {};
       for (const s of (sc.data || [])) map[`${s.student_id}-${s.competency_id}`] = s;
       setCompScores(map);
-    } catch { setCompetencies([]); setCompScores({}); }
+      setError(null);
+    } catch (e) { setError(e.message); }
   }
 
   async function saveCompScores() {
@@ -107,10 +113,12 @@ export default function Grades() {
   }
 
   function update(studentId, key, value) {
+    dirtyRef.current = true;
     setRows((rs) => rs ? rs.map((r) => (r.id === studentId ? { ...r, [key]: value === '' ? null : Number(value) } : r)) : []);
   }
 
   function quickFill(key, value) {
+    dirtyRef.current = true;
     const n = value === '' ? null : Number(value);
     setRows((rs) => rs ? rs.map((r) => ({ ...r, [key]: n != null && (n < 0 || n > 100) ? r[key] : n })) : []);
   }
@@ -163,6 +171,7 @@ export default function Grades() {
 
   async function save() {
     setSaving(true);
+    savingRef.current = true;
     setError(null);
     try {
       const payload = rows
@@ -172,12 +181,14 @@ export default function Grades() {
         method: 'POST',
         body: { section_id: Number(sectionId), subject_id: Number(subjectId), school_year: schoolYear, term, rows: payload },
       });
+      dirtyRef.current = false;
       toast.success(`Saved grades for ${res.saved} student(s).`);
       loadClass();
     } catch (e) {
       setError(e.message);
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   }
 
