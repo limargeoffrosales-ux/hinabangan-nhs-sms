@@ -263,7 +263,9 @@ async function logTopTables() {
       "SELECT relname AS table, pg_total_relation_size(c.oid) AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','m') ORDER BY bytes DESC LIMIT 15"
     );
     for (const r of rows) {
-      console.log('[SIZE]', r.table, Math.round(r.bytes / 1024 / 1024) + 'MB');
+      // pg driver returns BIGINT as a string; coerce before arithmetics.
+      const mb = Number(r.bytes) / 1024 / 1024;
+      console.log('[SIZE]', r.table, mb.toFixed(1) + 'MB');
     }
   } catch (err) {
     console.warn('[SIZE] could not read table sizes: ' + err.message);
@@ -272,12 +274,26 @@ async function logTopTables() {
 
 async function reclaimSpace() {
   if (!usePg) return;
-  const tables = ['data_access_logs', 'audit_logs', 'notifications', 'ai_chat_logs', 'password_resets', 'refresh_tokens', 'device_tokens', 'doc_generations'];
-  for (const table of tables) {
+  // 1. Plain VACUUM ANALYZE on the whole database. On Neon this is the documented
+  //    remedy for a bloated logical size: it lets the storage garbage-collect old
+  //    MVCC page versions and detached relfiles WITHOUT taking table locks. Cheap
+  //    even at the cap (bloat that has already been deleted is dropped, not grown).
+  try {
+    console.log('[VACUUM] whole-database VACUUM ANALYZE');
+    await driver.exec('VACUUM (ANALYZE)');
+  } catch (err) {
+    console.warn('[VACUUM] plain VACUUM failed: ' + err.message);
+  }
+  const afterPlainMb = await dbSizeMb();
+  console.log('[VACUUM] size after VACUUM ANALYZE: ' + Math.round(afterPlainMb) + 'MB');
+  // 2. If still near the cap, escalate to VACUUM FULL (takes locks, compacts the
+  //    physical files / orphaned relfilenodes).
+  if (afterPlainMb >= RECLAIM_THRESHOLD_MB) {
     try {
-      await driver.exec('VACUUM FULL ' + table);
+      console.log('[VACUUM] whole-database VACUUM FULL (locks)');
+      await driver.exec('VACUUM (FULL, ANALYZE)');
     } catch (err) {
-      console.warn('[VACUUM] skipped ' + table + ': ' + err.message);
+      console.warn('[VACUUM] VACUUM FULL failed: ' + err.message);
     }
   }
 }
@@ -290,8 +306,6 @@ async function migrate() {
     .sort();
   if (usePg) {
     await driver.exec('CREATE TABLE IF NOT EXISTS schema_migrations (file TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
-  }
-  if (usePg) {
     const applied = await driver.all('SELECT file FROM schema_migrations');
     const appliedSet = new Set(applied.map((r) => r.file));
     for (const file of files) {
@@ -314,6 +328,13 @@ async function migrate() {
             console.warn('[MIGRATE] ' + file + ' hit 53100 (size cap) — pruning + VACUUM, retrying once');
             try { await pruneHighChurn(); } catch (_) {}
             try { await reclaimSpace(); } catch (_) {}
+          } else if (err.code === '53100' && attempt === 2 && /^\s*--|CREATE INDEX/i.test(sql.replace(/--.*$/gm, '').trim()) && !/CREATE TABLE|ALTER TABLE|CREATE TYPE|INSERT |UPDATE |DELETE /.test(sql)) {
+            // Index-only migration at a hard storage cap: the tables exist (the
+            // indexes are a performance nicety), so boot instead of crash-looping.
+            // NOT recorded in schema_migrations — it will retry on a later boot
+            // once space is freed.
+            console.error('[MIGRATE] ' + file + ' SKIPPED (storage cap 53100) — indexes not created; will retry next boot once capacity is freed');
+            break;
           } else {
             throw err;
           }
