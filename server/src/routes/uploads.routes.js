@@ -1,13 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const { authenticate, requireRole } = require('../auth');
+const { authenticate, requireRole, ROLES } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { uploadFile, deleteFile, getDownloadUrl, fileKeyFromUrl } = require('../storage');
 const { UPLOAD_MAX_MB } = require('../config');
 const { optimizeUpload } = require('../image');
 const { q, qr } = require('../db');
-const { ensureTeacherSeesStudent } = require('../scope');
+const { ensureTeacherSeesStudent, linkedStudentIds } = require('../scope');
 const logger = require('../logger');
 
 // Sniff the real file signature instead of trusting the client Content-Type
@@ -124,11 +124,60 @@ router.post('/file', requireRole(...STAFF_UPLOAD), upload.single('file'), asyncH
 // ── Serve uploaded file ─────────────────────────────────────────
 // Redirects to the public bucket when configured, or to a short-lived
 // presigned URL once the bucket is private. Route is behind authenticate, so
-// file access requires a valid session.
+// file access requires a valid session AND an authorization check: staff roles
+// may fetch any stored file, while portal roles (student/parent/guardian) may
+// only fetch files belonging to their own/linked students (photos, enrollment
+// documents) or broadcast media attached to announcements / published sports
+// posts / achievements.
 // GET /uploads/file/:key(*)
+
+const STAFF_FILE_ROLES = new Set(ROLES.filter((r) => r !== 'student' && r !== 'parent'));
+
+async function canReadFile(user, key) {
+  if (!key) return false;
+  if (STAFF_FILE_ROLES.has(user.role)) return true;
+
+  const ids = await linkedStudentIds(user);
+  if (!ids || ids.length === 0) return false;
+
+  const marks = ids.map(() => '?').join(',');
+  const urlLike = `%/${key}`;
+
+  const selfPhoto = await q(
+    'SELECT 1 FROM students WHERE id IN (' + marks + ') AND photo_url LIKE ? LIMIT 1',
+    [...ids, urlLike]);
+  if (selfPhoto) return true;
+
+  const doc = await q(
+    `SELECT 1 FROM enrollment_documents d JOIN enrollments e ON e.id = d.enrollment_id
+     WHERE e.student_id IN (${marks}) AND (d.file_key = ? OR d.file_url LIKE ?) LIMIT 1`,
+    [...ids, key, urlLike]);
+  if (doc) return true;
+
+  try {
+    // Media is stored as a JSON array of {url, type, name}. CAST(media AS TEXT)
+    // keeps the containment check dialect-agnostic (PG jsonb -> text, SQLite text).
+    const like = `%${key}%`;
+    const broadcast = await q(
+      `SELECT 1 WHERE
+          EXISTS (SELECT 1 FROM announcements WHERE CAST(media AS TEXT) LIKE ?)
+       OR EXISTS (SELECT 1 FROM sports_posts WHERE status IN ('published', 'pinned') AND CAST(media AS TEXT) LIKE ?)
+       OR EXISTS (SELECT 1 FROM achievements WHERE CAST(media AS TEXT) LIKE ?)
+       LIMIT 1`,
+      [like, like, like]);
+    if (broadcast) return true;
+  } catch (e) {
+    logger.warn({ err: e.message, key }, '[UPLOADS] broadcast media scan failed');
+  }
+
+  return false;
+}
+
 router.get('/file/*', asyncH(async (req, res) => {
   const key = req.params[0];
   if (!key) return res.status(400).json({ error: 'Key required' });
+  const allowed = await canReadFile(req.user, key);
+  if (!allowed) return res.status(403).json({ error: 'You do not have access to this file' });
   const url = await getDownloadUrl(key);
   if (!url) return res.status(404).json({ error: 'File not found or storage not configured' });
   res.redirect(url);

@@ -126,7 +126,7 @@ router.post('/:id/like', asyncH(async (req, res) => {
 
   if (existing) {
     await qr('DELETE FROM achievement_likes WHERE id = ?', [existing.id]);
-    await qr('UPDATE achievements SET likes_count = MAX(0, likes_count - 1) WHERE id = ?', [req.params.id]);
+    await qr('UPDATE achievements SET likes_count = CASE WHEN likes_count > 0 THEN likes_count - 1 ELSE 0 END WHERE id = ?', [req.params.id]);
     res.json({ liked: false });
   } else {
     await qi('INSERT INTO achievement_likes (achievement_id, user_id) VALUES (?, ?)',
@@ -176,7 +176,7 @@ router.delete('/:id/comments/:commentId', asyncH(async (req, res) => {
     if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
   }
   await qr('DELETE FROM achievement_comments WHERE id = ?', [req.params.commentId]);
-  await qr('UPDATE achievements SET comments_count = MAX(0, comments_count - 1) WHERE id = ?', [req.params.id]);
+  await qr('UPDATE achievements SET comments_count = CASE WHEN comments_count > 0 THEN comments_count - 1 ELSE 0 END WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
 }));
 

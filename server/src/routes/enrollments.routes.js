@@ -338,8 +338,12 @@ router.get('/default-subjects', requireRole(...WRITE), asyncH(async (req, res) =
 
 router.get('/:id/documents', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
   const id = Number(req.params.id);
-  const row = await q('SELECT id FROM enrollments WHERE id = ?', [id]);
+  const row = await q('SELECT id, student_id FROM enrollments WHERE id = ?', [id]);
   if (!row) return res.status(404).json({ error: 'Enrollment not found' });
+  if (req.role === 'teacher') {
+    const stuChk = await ensureTeacherSeesStudent(req.user, row.student_id);
+    if (!stuChk.ok) return res.status(403).json({ error: stuChk.reason });
+  }
   const rows = await qa(
     `SELECT d.*, u.name AS uploaded_by_name
      FROM enrollment_documents d
