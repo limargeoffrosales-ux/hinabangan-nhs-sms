@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Palette, Layout, Type, Box, Bell, Circle, Hash, Sun, Moon } from 'lucide-react';
+import { Palette, Layout, Type, Box, Bell, Circle, Hash, Sun, Moon, BarChart3 } from 'lucide-react';
 import { PageHead, SectionCard } from '../components/ui';
+import { loadRecharts } from '../lib/lazy-recharts';
 import {
   Button, IconButton, Badge, StatusBadge, Card, CardHeader, CardBody, CardFooter,
   CardTitle, Alert, Skeleton, EmptyState, Divider, Progress, StatCard, SectionTitle,
   Container, Stack, Grid, PageHeader, Tabs, Breadcrumbs, Spacer,
   Input, Textarea, Select, Label, FormField,
+  Sparkline, ProgressRing, DonutChart, ModernBarChart, ModernLineChart,
   useTheme, useIsDark,
 } from '../design-system';
 
@@ -60,6 +62,30 @@ const SHADE_TABLE = [
   { name: '900', value: '#0A2468' },
 ];
 
+const DEMO_BARS = [
+  { name: 'Grade 7', Male: 96, Female: 104 },
+  { name: 'Grade 8', Male: 88, Female: 97 },
+  { name: 'Grade 9', Male: 101, Female: 92 },
+  { name: 'Grade 10', Male: 79, Female: 86 },
+  { name: 'Grade 11', Male: 64, Female: 71 },
+  { name: 'Grade 12', Male: 58, Female: 66 },
+];
+
+const DEMO_LINE = [
+  { m: 'Jun', rate: 92 },
+  { m: 'Aug', rate: 94 },
+  { m: 'Sep', rate: 91 },
+  { m: 'Oct', rate: 96 },
+  { m: 'Nov', rate: 93 },
+  { m: 'Jan', rate: 97 },
+  { m: 'Feb', rate: 95 },
+];
+
+const DEMO_DONUT = [
+  { name: 'Passing', value: 78, color: 'var(--accent-2)' },
+  { name: 'Failing', value: 22, color: 'var(--danger)' },
+];
+
 export default function DesignSystem() {
   const { t } = useTranslation();
   const { toggleTheme } = useTheme();
@@ -67,6 +93,8 @@ export default function DesignSystem() {
   const [tab, setTab] = useState('tokens');
   const [tone, setTone] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [R, setR] = useState(null);
+  useEffect(() => { loadRecharts().then(setR); }, []);
 
   return (
     <div>
@@ -89,6 +117,7 @@ export default function DesignSystem() {
           { id: 'components', label: t('ds.components', 'Components'), icon: <Box size={15} /> },
           { id: 'feedback', label: t('ds.feedback', 'Feedback'), icon: <Bell size={15} /> },
           { id: 'forms', label: t('ds.forms', 'Forms'), icon: <Hash size={15} /> },
+          { id: 'charts', label: t('ds.charts', 'Charts'), icon: <BarChart3 size={15} /> },
         ]}
       />
 
@@ -414,6 +443,74 @@ export default function DesignSystem() {
               )}
             </CardBody>
           </Card>
+        </Stack>
+      )}
+
+      {tab === 'charts' && (
+        <Stack spacing="lg">
+          <SectionTitle>{t('ds.charts', 'Charts')}</SectionTitle>
+          <div className="ds-chart-grid cols-2">
+            <Card>
+              <CardBody>
+                <SectionTitle>ModernBarChart</SectionTitle>
+                {R ? (
+                  <ModernBarChart
+                    R={R}
+                    data={DEMO_BARS}
+                    categoryKey="name"
+                    series={[
+                      { key: 'Male', name: 'Male', color: '#4D96FF' },
+                      { key: 'Female', name: 'Female', color: '#F5B942' },
+                    ]}
+                    height={240}
+                  />
+                ) : <Skeleton lines={4} />}
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody>
+                <SectionTitle>ModernLineChart</SectionTitle>
+                {R ? (
+                  <ModernLineChart
+                    R={R}
+                    data={DEMO_LINE}
+                    categoryKey="m"
+                    series={[{ key: 'rate', name: 'Attendance', color: 'var(--accent)' }]}
+                    area
+                    yDomain={[0, 100]}
+                    height={240}
+                  />
+                ) : <Skeleton lines={4} />}
+              </CardBody>
+            </Card>
+          </div>
+
+          <div className="ds-chart-grid cols-2">
+            <Card>
+              <CardBody>
+                <SectionTitle>DonutChart</SectionTitle>
+                <DonutChart
+                  data={DEMO_DONUT}
+                  centerValue="78%"
+                  centerLabel="Pass rate"
+                  size={170}
+                />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody>
+                <SectionTitle>Sparkline + ProgressRing</SectionTitle>
+                <Stack direction="row" spacing="lg" align="center" wrap>
+                  <Stack spacing="sm">
+                    <Sparkline data={[12, 16, 9, 18, 14, 22, 19]} stroke="#4D96FF" ariaLabel="Sparkline demo" />
+                    <Sparkline data={[20, 14, 17, 12, 8, 11, 6]} stroke="#FB7185" ariaLabel="Sparkline demo 2" />
+                  </Stack>
+                  <ProgressRing value={72} size={84} stroke={8} tone="success" />
+                  <ProgressRing value={45} size={84} stroke={8} tone="warning" />
+                </Stack>
+              </CardBody>
+            </Card>
+          </div>
         </Stack>
       )}
     </div>

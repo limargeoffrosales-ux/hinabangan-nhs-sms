@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { loadRecharts } from '../lib/lazy-recharts';
 import { BarChart3, TrendingUp, Users, GraduationCap, AlertTriangle, Download, Brain, Shield, Zap, Target } from 'lucide-react';
 import { api, getApiBase, friendlyAbortMessage } from '../lib/api';
+import { CHART_PALETTE } from '../lib/constants';
 import { PageHead, Spinner, Empty, Badge } from '../components/ui';
+import ChartExportButton from '../components/ChartExportButton';
 import { ChartTooltip, DonutChart, ModernBarChart, ModernLineChart, ProgressRing, StatCard } from '../design-system';
-
-const PIE_COLORS = ['#4D96FF', '#2FD6A0', '#2DD4BF', '#F5B942', '#FB7185', '#A78BFA'];
 
 export default function Analytics() {
   const { t } = useTranslation();
@@ -27,6 +27,18 @@ export default function Analytics() {
   const [tab, setTab] = useState('overview');
   const [R, setR] = useState(null);
   useEffect(() => { loadRecharts().then(setR); }, []);
+
+  const refGradePie = useRef(null);
+  const refGradeBars = useRef(null);
+  const refAttTrend = useRef(null);
+  const refAttGrade = useRef(null);
+  const refRetByGrade = useRef(null);
+  const refRetYoy = useRef(null);
+  const refPassPie = useRef(null);
+  const refPassByGrade = useRef(null);
+  const refStrandBars = useRef(null);
+  const refStrandPie = useRef(null);
+  const refSubjectBars = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -178,30 +190,40 @@ export default function Analytics() {
           {tab === 'grades' && (
             <div className="ds-chart-grid cols-2">
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.gradeDistribution')}</h3>
-                {gradePieData.length ? (
-                  <DonutChart
-                    data={gradePieData.map((d, i) => ({ name: d.name, value: d.value, color: PIE_COLORS[i % PIE_COLORS.length] }))}
-                    centerValue={gradeSummary.total ?? '—'}
-                    centerLabel={t('analytics.totalGrades')}
-                    size={180}
-                  />
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.gradeDistribution')}</h3>
+                  <ChartExportButton targetRef={refGradePie} filename="grade-distribution.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refGradePie} style={{ minWidth: 0 }}>
+                  {gradePieData.length ? (
+                    <DonutChart
+                      data={gradePieData.map((d, i) => ({ name: d.name, value: d.value, color: CHART_PALETTE[i % CHART_PALETTE.length] }))}
+                      centerValue={gradeSummary.total ?? '—'}
+                      centerLabel={t('analytics.totalGrades')}
+                      size={180}
+                    />
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
               </div>
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.gradeBands')}</h3>
-                {gradeBuckets.length ? (
-                  <ModernBarChart
-                    R={R}
-                    data={gradeBuckets}
-                    categoryKey="band"
-                    perBarColors={PIE_COLORS}
-                    height={280}
-                    showLabels={false}
-                  >
-                    <Tooltip content={<ChartTooltip />} />
-                  </ModernBarChart>
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.gradeBands')}</h3>
+                  <ChartExportButton targetRef={refGradeBars} filename="grade-bands.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refGradeBars} style={{ minWidth: 0 }}>
+                  {gradeBuckets.length ? (
+                    <ModernBarChart
+                      R={R}
+                      data={gradeBuckets}
+                      categoryKey="band"
+                      perBarColors={CHART_PALETTE}
+                      height={280}
+                      showLabels={false}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                    </ModernBarChart>
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
 
                 <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <div className="kpi-mini"><div className="kpi-mini-value" style={{ color: 'var(--accent-2)' }}>{gradeSummary.passing}</div><div className="kpi-mini-label">{t('analytics.passing')}</div></div>
@@ -215,37 +237,47 @@ export default function Analytics() {
           {tab === 'attendance' && (
             <div className="ds-chart-grid cols-21">
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.dailyTrend')}</h3>
-                {attMonthly.length ? (
-                  <ModernLineChart
-                    R={R}
-                    data={attMonthly}
-                    categoryKey="month"
-                    series={[{ key: 'rate', name: t('analytics.rate'), color: 'var(--accent)' }]}
-                    area
-                    yDomain={[0, 100]}
-                    height={300}
-                  >
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend />
-                  </ModernLineChart>
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.dailyTrend')}</h3>
+                  <ChartExportButton targetRef={refAttTrend} filename="attendance-trend.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refAttTrend} style={{ minWidth: 0 }}>
+                  {attMonthly.length ? (
+                    <ModernLineChart
+                      R={R}
+                      data={attMonthly}
+                      categoryKey="month"
+                      series={[{ key: 'rate', name: t('analytics.rate'), color: 'var(--accent)' }]}
+                      area
+                      yDomain={[0, 100]}
+                      height={300}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend />
+                    </ModernLineChart>
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
               </div>
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.byGradeLevel')}</h3>
-                {attByGrade.length ? (
-                  <ModernBarChart
-                    R={R}
-                    data={attByGrade}
-                    categoryKey="grade_level"
-                    layout="vertical"
-                    series={[{ key: 'rate', name: t('analytics.rate'), color: 'var(--accent-3)' }]}
-                    yDomain={[0, 100]}
-                    height={300}
-                  >
-                    <Tooltip content={<ChartTooltip />} />
-                  </ModernBarChart>
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.byGradeLevel')}</h3>
+                  <ChartExportButton targetRef={refAttGrade} filename="attendance-by-grade.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refAttGrade} style={{ minWidth: 0 }}>
+                  {attByGrade.length ? (
+                    <ModernBarChart
+                      R={R}
+                      data={attByGrade}
+                      categoryKey="grade_level"
+                      layout="vertical"
+                      series={[{ key: 'rate', name: t('analytics.rate'), color: 'var(--accent-3)' }]}
+                      yDomain={[0, 100]}
+                      height={300}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                    </ModernBarChart>
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
 
                 <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
                   <ProgressRing value={attOverall.overall_rate ?? 0} size={68} stroke={7} tone="primary" />
@@ -261,37 +293,47 @@ export default function Analytics() {
           {tab === 'retention' && (
             <div className="ds-chart-grid cols-2">
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.enrollmentByGrade')}</h3>
-                {retByGrade.length ? (
-                  <ModernBarChart
-                    R={R}
-                    data={retByGrade}
-                    categoryKey="grade_level"
-                    series={[
-                      { key: 'total', name: t('analytics.total'), color: 'var(--accent)' },
-                      { key: 'enrolled', name: t('analytics.enrolled'), color: 'var(--accent-2)' },
-                    ]}
-                    height={280}
-                  >
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend />
-                  </ModernBarChart>
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.enrollmentByGrade')}</h3>
+                  <ChartExportButton targetRef={refRetByGrade} filename="retention-by-grade.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refRetByGrade} style={{ minWidth: 0 }}>
+                  {retByGrade.length ? (
+                    <ModernBarChart
+                      R={R}
+                      data={retByGrade}
+                      categoryKey="grade_level"
+                      series={[
+                        { key: 'total', name: t('analytics.total'), color: 'var(--accent)' },
+                        { key: 'enrolled', name: t('analytics.enrolled'), color: 'var(--accent-2)' },
+                      ]}
+                      height={280}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend />
+                    </ModernBarChart>
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
               </div>
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.yearOverYear')}</h3>
-                {retYoy.length ? (
-                  <ModernBarChart
-                    R={R}
-                    data={retYoy}
-                    categoryKey="school_year"
-                    series={[{ key: 'retention_rate', name: t('analytics.retention'), color: 'var(--warn)' }]}
-                    yDomain={[0, 100]}
-                    height={280}
-                  >
-                    <Tooltip content={<ChartTooltip />} />
-                  </ModernBarChart>
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.yearOverYear')}</h3>
+                  <ChartExportButton targetRef={refRetYoy} filename="retention-yoy.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refRetYoy} style={{ minWidth: 0 }}>
+                  {retYoy.length ? (
+                    <ModernBarChart
+                      R={R}
+                      data={retYoy}
+                      categoryKey="school_year"
+                      series={[{ key: 'retention_rate', name: t('analytics.retention'), color: 'var(--warn)' }]}
+                      yDomain={[0, 100]}
+                      height={280}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                    </ModernBarChart>
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
 
                 <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
                   <ProgressRing value={retention?.retention_rate ?? 0} size={68} stroke={7} tone="success" />
@@ -310,37 +352,47 @@ export default function Analytics() {
           {tab === 'atRisk' && (
             <div className="ds-chart-grid cols-2">
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.passFailSplit')}</h3>
-                {passPieData.length && passPieData.some((d) => d.value > 0) ? (
-                  <DonutChart
-                    data={[
-                      { name: t('analytics.passing'), value: passPieData[0]?.value || 0, color: 'var(--accent-2)' },
-                      { name: t('analytics.failing'), value: passPieData[1]?.value || 0, color: 'var(--danger)' },
-                    ]}
-                    centerValue={passRate?.pass_rate != null ? `${passRate.pass_rate}%` : '—'}
-                    centerLabel={t('analytics.passRate')}
-                    size={170}
-                  />
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.passFailSplit')}</h3>
+                  <ChartExportButton targetRef={refPassPie} filename="pass-fail-split.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refPassPie} style={{ minWidth: 0 }}>
+                  {passPieData.length && passPieData.some((d) => d.value > 0) ? (
+                    <DonutChart
+                      data={[
+                        { name: t('analytics.passing'), value: passPieData[0]?.value || 0, color: 'var(--accent-2)' },
+                        { name: t('analytics.failing'), value: passPieData[1]?.value || 0, color: 'var(--danger)' },
+                      ]}
+                      centerValue={passRate?.pass_rate != null ? `${passRate.pass_rate}%` : '—'}
+                      centerLabel={t('analytics.passRate')}
+                      size={170}
+                    />
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
 
-                <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>{t('analytics.byGradeLevel')}</h3>
-                {passByGrade.length ? (
-                  <ModernBarChart
-                    R={R}
-                    data={passByGrade}
-                    categoryKey="grade_level"
-                    stacked
-                    series={[
-                      { key: 'failing', name: t('analytics.failing'), color: 'var(--danger)' },
-                      { key: 'passing', name: t('analytics.passing'), color: 'var(--accent-2)' },
-                    ]}
-                    height={200}
-                    showLabels={false}
-                  >
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend />
-                  </ModernBarChart>
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>{t('analytics.byGradeLevel')}</h3>
+                  <ChartExportButton targetRef={refPassByGrade} filename="pass-fail-by-grade.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refPassByGrade} style={{ minWidth: 0 }}>
+                  {passByGrade.length ? (
+                    <ModernBarChart
+                      R={R}
+                      data={passByGrade}
+                      categoryKey="grade_level"
+                      stacked
+                      series={[
+                        { key: 'failing', name: t('analytics.failing'), color: 'var(--danger)' },
+                        { key: 'passing', name: t('analytics.passing'), color: 'var(--accent-2)' },
+                      ]}
+                      height={200}
+                      showLabels={false}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend />
+                    </ModernBarChart>
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
               </div>
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.atRiskStudents')}</h3>
@@ -396,25 +448,30 @@ export default function Analytics() {
           {tab === 'strand' && (
             <div className="ds-chart-grid cols-2">
               <div className="card">
-                <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandComparison')}</h3>
-                {strandComp?.data?.length ? (
-                  <ModernBarChart
-                    R={R}
-                    data={strandComp.data}
-                    categoryKey="strand"
-                    series={[
-                      { key: 'mean_grade', name: t('analytics.meanGrade'), color: 'var(--accent)' },
-                      { key: 'pass_rate', name: t('analytics.passRate'), color: 'var(--accent-2)' },
-                    ]}
-                    height={300}
-                    xAngle={-15}
-                    xHeight={60}
-                    showLabels={false}
-                  >
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend />
-                  </ModernBarChart>
-                ) : <Empty text={t('analytics.noData')} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandComparison')}</h3>
+                  <ChartExportButton targetRef={refStrandBars} filename="strand-comparison.png" label={t('analytics.exportChart')} />
+                </div>
+                <div ref={refStrandBars} style={{ minWidth: 0 }}>
+                  {strandComp?.data?.length ? (
+                    <ModernBarChart
+                      R={R}
+                      data={strandComp.data}
+                      categoryKey="strand"
+                      series={[
+                        { key: 'mean_grade', name: t('analytics.meanGrade'), color: 'var(--accent)' },
+                        { key: 'pass_rate', name: t('analytics.passRate'), color: 'var(--accent-2)' },
+                      ]}
+                      height={300}
+                      xAngle={-15}
+                      xHeight={60}
+                      showLabels={false}
+                    >
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend />
+                    </ModernBarChart>
+                  ) : <Empty text={t('analytics.noData')} />}
+                </div>
               </div>
               <div className="card">
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandBreakdown')}</h3>
@@ -447,13 +504,18 @@ export default function Analytics() {
 
                 {strandComp?.data?.length > 0 && (
                   <div style={{ marginTop: 16 }}>
-                    <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandPie')}</h3>
-                    <DonutChart
-                      data={strandComp.data.map((s, i) => ({ name: s.strand, value: Number(s.total_grades), color: PIE_COLORS[i % PIE_COLORS.length] }))}
-                      centerValue={strandComp.data.reduce((a, s) => a + Number(s.total_grades), 0) || '—'}
-                      centerLabel={t('analytics.totalGrades')}
-                      size={170}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.strandPie')}</h3>
+                      <ChartExportButton targetRef={refStrandPie} filename="strand-total.png" label={t('analytics.exportChart')} />
+                    </div>
+                    <div ref={refStrandPie} style={{ minWidth: 0 }}>
+                      <DonutChart
+                        data={strandComp.data.map((s, i) => ({ name: s.strand, value: Number(s.total_grades), color: CHART_PALETTE[i % CHART_PALETTE.length] }))}
+                        centerValue={strandComp.data.reduce((a, s) => a + Number(s.total_grades), 0) || '—'}
+                        centerLabel={t('analytics.totalGrades')}
+                        size={170}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -516,25 +578,30 @@ export default function Analytics() {
 
                 {/* Subject Mastery Overview */}
                 <div className="card">
-                  <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.subjectMastery')}</h3>
-                  {compMastery?.by_subject?.length ? (
-                    <ModernBarChart
-                      R={R}
-                      data={compMastery.by_subject}
-                      categoryKey="subject_code"
-                      layout="vertical"
-                      series={[
-                        { key: 'avg_score', name: t('analytics.avgScore'), color: 'var(--accent)' },
-                        { key: 'mastery_rate', name: t('analytics.masteryRate'), color: 'var(--accent-2)' },
-                      ]}
-                      yDomain={[0, 100]}
-                      height={360}
-                      showLabels={false}
-                    >
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend />
-                    </ModernBarChart>
-                  ) : <Empty text={t('analytics.noCompetencyData')} />}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{t('analytics.subjectMastery')}</h3>
+                    <ChartExportButton targetRef={refSubjectBars} filename="subject-mastery.png" label={t('analytics.exportChart')} />
+                  </div>
+                  <div ref={refSubjectBars} style={{ minWidth: 0 }}>
+                    {compMastery?.by_subject?.length ? (
+                      <ModernBarChart
+                        R={R}
+                        data={compMastery.by_subject}
+                        categoryKey="subject_code"
+                        layout="vertical"
+                        series={[
+                          { key: 'avg_score', name: t('analytics.avgScore'), color: 'var(--accent)' },
+                          { key: 'mastery_rate', name: t('analytics.masteryRate'), color: 'var(--accent-2)' },
+                        ]}
+                        yDomain={[0, 100]}
+                        height={360}
+                        showLabels={false}
+                      >
+                        <Tooltip content={<ChartTooltip />} />
+                        <Legend />
+                      </ModernBarChart>
+                    ) : <Empty text={t('analytics.noCompetencyData')} />}
+                  </div>
 
                   {/* Weakest competencies */}
                   {compMastery?.weakest?.length > 0 && (
