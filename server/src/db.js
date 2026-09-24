@@ -171,7 +171,25 @@ async function init() {
     };
   }
   await migrate();
+  await reclaimSpace();
   return driver;
+}
+
+// Neon project storage cap: once the branch exceeds the size limit, Postgres
+// refuses to extend files (53100). Deleting rows marks them dead but does not
+// release pages; VACUUM FULL compacts the high-churn tables so Neon's garbage
+// collector can actually reclaim the space. Runs after migrations, out of any
+// transaction (VACUUM cannot run inside one). Table names are fixed constants.
+async function reclaimSpace() {
+  if (!usePg) return;
+  const tables = ['data_access_logs', 'audit_logs', 'notifications', 'ai_chat_logs', 'password_resets', 'refresh_tokens', 'device_tokens'];
+  for (const table of tables) {
+    try {
+      await driver.exec('VACUUM FULL ' + table);
+    } catch (err) {
+      console.warn('[VACUUM] skipped ' + table + ': ' + err.message);
+    }
+  }
 }
 
 async function migrate() {
