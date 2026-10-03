@@ -34,6 +34,14 @@ services:
       # Idempotent foundation on every boot: report taxonomy, superadmin + staff accounts.
       - key: SEED_ON_BOOT
         value: '1'
+
+      # --- Operating hours (school availability window) --------------------------
+      # Block API requests outside 06:00-24:00 (school time, Asia/Manila UTC+8).
+      # Set OPEN >= CLOSE (e.g. both 0) to disable the gate. Health stays exempt.
+      - key: SYSTEM_OPEN_HOUR
+        value: '6'
+      - key: SYSTEM_CLOSE_HOUR
+        value: '24'
       # Optional demo sandbox (students/grades/attendance) on a FRESH database only.
       - key: DEMO_SEED
         value: '0'

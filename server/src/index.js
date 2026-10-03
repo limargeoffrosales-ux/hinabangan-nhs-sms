@@ -14,6 +14,7 @@ const { PORT, HOST, WEB_DIR } = require('./config');
 const logger = require('./logger');
 const { authenticate, requireCsrf } = require('./auth');
 const { streamHandler } = require('./realtime');
+const { gate: operatingHoursGate } = require('./operating-hours');
 
 // Core routes
 const studentsRoutes = require('./routes/students.routes');
@@ -250,6 +251,10 @@ const parentRoutes = require('./routes/parent.routes');
     message: { error: 'AI request limit reached. Please try again in a minute.' },
   });
   app.use('/api/v1/ai', aiLimiter);
+
+  // Operating hours gate — blocks API requests outside school hours (423).
+  // Health stays exempt so Render health checks + pinger monitors keep working.
+  app.use('/api/', operatingHoursGate());
 
   app.get('/api/v1/school-year', async (req, res) => {
     try {
