@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole, clearUserCache } = require('../auth');
-const { asyncH, audit, page } = require('../utils');
+const { asyncH, audit, page, safeJsonParse } = require('../utils');
 const { deleteFile, fileKeyFromUrl } = require('../storage');
 const logger = require('../logger');
 
@@ -10,6 +10,12 @@ const router = express.Router();
 router.use(authenticate);
 
 const ADMIN_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+
+// Literal-string escaping for the case-insensitive redaction below. Without it a
+// name like "Dela Cruz" or "A+" would be treated as a regex and match wrongly.
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 // The audit trail is the forensic record of who did what. Letting any admin
 // role shorten its retention window — or purge it outright — makes the logging
@@ -141,7 +147,10 @@ router.get('/access-logs', requireRole(...ADMIN_ROLES), asyncH(async (req, res) 
   const totalRow = (await qa(
     `SELECT COUNT(*) AS n FROM data_access_logs dal LEFT JOIN users u ON u.id = dal.user_id LEFT JOIN students s ON s.id = dal.student_id ${where}`,
     params))[0];
-  res.json({ data: rows, total: totalRow.n, limit, offset });
+  // Postgres returns COUNT(*) as a string ("123"), SQLite as a number. Left
+  // unnormalized the client got a string and `total === 0` / `total < 10`
+  // comparisons silently failed.
+  res.json({ data: rows, total: Number(totalRow.n), limit, offset });
 }));
 
 // ── Role Reviews (mirrored from privacy-audit) ────────────────
@@ -155,7 +164,7 @@ router.get('/role-reviews', requireRole(...ADMIN_ROLES), asyncH(async (req, res)
      ORDER BY u.role, u.name
      LIMIT ? OFFSET ?`,
     [limit, offset]);
-  const total = (await qa('SELECT COUNT(*) AS n FROM users'))[0].n;
+  const total = Number((await qa('SELECT COUNT(*) AS n FROM users'))[0].n);
   res.json({ data: rows, total, limit, offset });
 }));
 
@@ -239,9 +248,17 @@ router.post('/erasure-requests', requireRole(...ADMIN_ROLES), asyncH(async (req,
 router.get('/erasure-requests/:id/export', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
   const reqRow = await q('SELECT * FROM data_erasure_requests WHERE id = ?', [req.params.id]);
   if (!reqRow) return res.status(404).json({ error: 'Erasure request not found' });
-  if (!reqRow.student_id) return res.status(400).json({ error: 'This request has no linked student' });
-  const bundle = await gatherStudentPii(reqRow.student_id);
-  res.json({ request_id: Number(reqRow.id), request: reqRow, ...bundle });
+if (!reqRow.student_id) return res.status(400).json({ error: 'This request has no linked student' });
+const bundle = await gatherStudentPii(reqRow.student_id);
+  // exported_json is JSONB on Postgres (already a JS object after parse) but TEXT
+  // on SQLite (still a string). Normalize so the client sees one shape.
+  const request = {
+    ...reqRow,
+    exported_json: typeof reqRow.exported_json === 'string'
+      ? safeJsonParse(reqRow.exported_json)
+      : (reqRow.exported_json ?? null),
+  };
+  res.json({ request_id: Number(reqRow.id), request, ...bundle });
 }));
 
 // Approve & process: permanently erase the student's PII and mark done.
@@ -285,21 +302,28 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
     // AI chat logs may reference the erased student in free-text messages.
     // Per data minimization (RA 10173), redact the student's name rather than
     // deleting all chat history, which would destroy other users' data.
-    const student = await conn.q('SELECT first_name, last_name FROM students WHERE id = ?', [studentId]);
-    if (student) {
-      const redacted = '[REDACTED]';
-      await conn.qr(
-        `UPDATE ai_chat_logs SET
-           messages = CASE WHEN messages::text ILIKE ? THEN
-             regexp_replace(messages::text, ?, ?, 'gi')::jsonb
-           ELSE messages END`,
-        [`%${student.first_name}%`, student.first_name, redacted]);
-      await conn.qr(
-        `UPDATE ai_chat_logs SET
-           messages = CASE WHEN messages::text ILIKE ? THEN
-             regexp_replace(messages::text, ?, ?, 'gi')::jsonb
-           ELSE messages END`,
-        [`%${student.last_name}%`, student.last_name, redacted]);
+    //
+    // ai_chat_logs has a single `message` TEXT column — there is no `messages`
+    // column — so the old `UPDATE ... SET messages = ... ::jsonb` form failed on
+    // BOTH dialects with "no such column", rolled the whole transaction back and
+    // left the request permanently unprocessable. SQLite has no regexp_replace
+    // either, so the substitution is done in JS: same result on both dialects.
+    const chatStudent = await conn.q('SELECT first_name, last_name FROM students WHERE id = ?', [studentId]);
+    if (chatStudent) {
+      for (const needle of [chatStudent.first_name, chatStudent.last_name]) {
+        const term = String(needle || '').trim();
+        if (!term) continue;
+        const matches = await conn.qa(
+          'SELECT id, message FROM ai_chat_logs WHERE lower(message) LIKE lower(?)',
+          [`%${term}%`]);
+        for (const row of matches) {
+          const next = String(row.message || '').replace(
+            new RegExp(escapeRegExp(term), 'gi'), '[REDACTED]');
+          if (next !== row.message) {
+            await conn.qr('UPDATE ai_chat_logs SET message = ? WHERE id = ?', [next, row.id]);
+          }
+        }
+      }
     }
     await conn.qr('DELETE FROM students WHERE id = ?', [studentId]);
   });

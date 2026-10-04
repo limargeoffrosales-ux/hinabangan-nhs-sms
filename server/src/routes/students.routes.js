@@ -218,12 +218,21 @@ router.post('/link-requests/:id/approve', requireRole(...LINK_APPROVE_ROLES), as
   if (student.user_id) return res.status(409).json({ error: 'This learner is already linked to a portal account' });
   const u = await q('SELECT id, role, status FROM users WHERE id = ?', [reqRow.user_id]);
   if (!u) return res.status(404).json({ error: 'The applicant account no longer exists' });
-  if (u.role !== 'student') return res.status(400).json({ error: 'The applicant is not a student-role account' });
-  if (u.status !== 'active') return res.status(400).json({ error: 'The applicant account is not active' });
+if (u.role !== 'student') return res.status(400).json({ error: 'The applicant is not a student-role account' });
+    // Self-registration creates the account as 'pending' so it cannot be used
+    // before review. A request whose account is still 'active' is a legacy row
+    // from before that change; anything else (suspended/expired) must not be
+    // silently reactivated by an approval.
+    if (!['pending', 'active'].includes(u.status)) {
+      return res.status(400).json({ error: `The applicant account is not approvable (status: ${u.status})` });
+    }
 
   await db.tx(async (conn) => {
     await conn.qr('UPDATE students SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [reqRow.user_id, student.id]);
     await conn.qr("UPDATE student_link_requests SET status = 'approved', decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?", [req.user.id, reqRow.id]);
+    // Activate the account in the SAME transaction as the link, so a failure can
+    // never leave an approved learner whose portal login still says pending.
+    await conn.qr("UPDATE users SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [reqRow.user_id]);
   });
   await audit(req, 'STUDENT_LINK_APPROVE', 'students', student.id, { request_id: reqRow.id, user_id: reqRow.user_id });
   await notifyEvent('link_approved', { user_id: reqRow.user_id, data: { url: APP_URL ? APP_URL.replace(/\/+$/, '') : '' } });

@@ -125,6 +125,15 @@ const DEFAULT_TEMPLATES = {
       body: 'Account for {{username}} created. The registrar will review your portal request. — {{school}}',
     },
   },
+  account_locked: {
+    email: {
+      subject: 'Your account was temporarily locked',
+      body: 'Hi {{name}},\n\nAfter {{attempts}} failed sign-in attempts, your account ({{username}}) was locked for {{minutes}} minutes to protect it from further misuse.\n\nIf this was you, simply sign in again after the lock expires and check your password. If you do not recognise these attempts, contact the school administrator to have the account reviewed and your password reset.\n\n— {{school}}',
+    },
+    sms: {
+      body: 'Your account was locked after {{attempts}} failed sign-in attempts. It unlocks in {{minutes}} minutes. Contact the school if this was not you. — {{school}}',
+    },
+  },
   link_approved: {
     email: {
       subject: 'Your portal account is now linked',
@@ -566,6 +575,8 @@ async function resolveRecipientsFor(event, ctx) {
       if (!ctx.user_id) return { emails: [], phones: [] };
       return resolveUserRecipients(ctx.user_id);
     case 'account_registered':
+      return ctx.user_id ? resolveUserRecipients(ctx.user_id, { includePending: true }) : { emails: [], phones: [] };
+    case 'account_locked':
     case 'link_approved':
     case 'link_rejected':
     case 'enrollment_approved':
@@ -605,9 +616,16 @@ async function resolveRoleRecipients(roles) {
 }
 
 // Password reset goes to the account holder's own contact details.
-async function resolveUserRecipients(userId) {
+// includePending is used only for the self-registration confirmation: that
+// account is created with status 'pending' precisely so it cannot be signed into
+// before a registrar reviews it, so the usual status='active' filter would
+// silently swallow the "we received your request" email. Every other event keeps
+// the strict filter.
+async function resolveUserRecipients(userId, { includePending = false } = {}) {
   const u = await q(
-    'SELECT id, email, phone, name FROM users WHERE id = ? AND status = \'active\'',
+    includePending
+      ? 'SELECT id, email, phone, name FROM users WHERE id = ?'
+      : 'SELECT id, email, phone, name FROM users WHERE id = ? AND status = \'active\'',
     [userId]);
   if (!u) return { emails: [], phones: [] };
   const emails = [];

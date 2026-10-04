@@ -28,6 +28,11 @@ const { todayStr, shiftDateStr, normalizeDateStr, daysAgoStr } = require('../src
 
 const MIGRATIONS = path.join(__dirname, '..', '..', 'database', 'migrations');
 
+/** Strips // line comments so assertions target live code, not documentation. */
+function stripComments(src) {
+  return src.replace(/^\s*\/\/.*$/gm, '');
+}
+
 before(async () => {
   await init();
 });
@@ -108,6 +113,342 @@ test('stuck notification recovery query is dialect-correct', async () => {
   } finally {
     await qr('DELETE FROM notifications WHERE event = ?', ['__stale']);
   }
+});
+
+// ── Claimed-at upgrade path (091) ───────────────────────────────────────────
+// Editing 090 does nothing for a database that already recorded it, so 091 has to
+// repair the column. These assert the repair exists and behaves.
+
+test('091 exists for both dialects to convert claimed_at on deployed databases', () => {
+  for (const f of ['091-notification-claimed-at-type.sql', '091-notification-claimed-at-type.sqlite.sql']) {
+    assert.ok(fs.existsSync(path.join(MIGRATIONS, f)), `${f} must exist`);
+  }
+  const pg = fs.readFileSync(path.join(MIGRATIONS, '091-notification-claimed-at-type.sql'), 'utf8');
+  // The conversion MUST be guarded: a fresh database already got TIMESTAMPTZ from
+  // 090, and an unguarded ALTER COLUMN TYPE would fail on it.
+  assert.match(pg, /information_schema\.columns/,
+    'the PG type conversion must be conditional on the current column type');
+  assert.match(pg, /data_type IN \('text', 'character varying'\)/);
+  assert.match(pg, /ALTER COLUMN claimed_at TYPE TIMESTAMPTZ/);
+});
+
+test('091 PG neutralises unreadable claimed_at values before casting them', () => {
+  const pg = fs.readFileSync(path.join(MIGRATIONS, '091-notification-claimed-at-type.sql'), 'utf8');
+  // Migrations run inside one transaction that also records schema_migrations, so
+  // a single unparseable row would abort the file and crash-loop every boot.
+  const blank = pg.indexOf('SET claimed_at = NULL');
+  const alter = pg.indexOf('ALTER COLUMN claimed_at TYPE TIMESTAMPTZ');
+  assert.ok(blank !== -1, '091 must blank unparseable values');
+  assert.ok(blank < alter, 'blanking must happen BEFORE the type conversion');
+});
+
+test('091 SQLite clears junk claims but preserves a real one', async () => {
+  const sql = fs.readFileSync(path.join(MIGRATIONS, '091-notification-claimed-at-type.sqlite.sql'), 'utf8');
+  const ins = `INSERT INTO notifications (event, channel, recipient_address, body, status, claimed_at)
+               VALUES (?, 'email', 'a@b.c', 'x', 'sending', ?)`;
+  await qr(ins, ['__091junk', '']);
+  await qr(ins, ['__091junk2', 'not-a-date']);
+  await qr(ins, ['__091good', '2026-10-04 01:00:00']);
+  try {
+    await qr(sql, []);
+    const rows = await qa(`SELECT event, claimed_at FROM notifications WHERE event LIKE '__091%'`, []);
+    const byEvent = Object.fromEntries(rows.map((r) => [r.event, r.claimed_at]));
+    assert.equal(byEvent.__091junk, null, 'an empty claim must become NULL');
+    assert.equal(byEvent.__091junk2, null, 'an unparseable claim must become NULL');
+    assert.equal(byEvent.__091good, '2026-10-04 01:00:00', 'a real claim must survive');
+  } finally {
+    await qr(`DELETE FROM notifications WHERE event LIKE '__091%'`, []);
+  }
+});
+
+test('a NULL claimed_at claim is still reclaimable by the sweep', async () => {
+  const [row] = await qa(
+    `INSERT INTO notifications (event, channel, recipient_address, body, status)
+     VALUES ('__reclaim', 'email', 'a@b.c', 'x', 'sending') RETURNING *`, []);
+  try {
+    // Mirrors the sweep predicate. NULL claimed_at means "not really claimed",
+    // so the row must still be selectable for recovery rather than stranded.
+    const stuck = await qa(
+      `SELECT id FROM notifications
+        WHERE status = 'sending'
+          AND (claimed_at IS NULL OR claimed_at < datetime('now', '-10 minutes'))`, []);
+    assert.ok(stuck.some((r) => r.id === row.id),
+      'a NULL claim must be reclaimable, not stranded forever');
+  } finally {
+    await qr('DELETE FROM notifications WHERE event = ?', ['__reclaim']);
+  }
+});
+
+// ── Right-to-erasure must actually run ──────────────────────────────────────
+
+test('ai_chat_logs has a message column, not messages', async () => {
+  const cols = (await qa('PRAGMA table_info(ai_chat_logs)', [])).map((c) => c.name);
+  assert.ok(cols.includes('message'), 'ai_chat_logs.message must exist');
+  assert.ok(!cols.includes('messages'),
+    'the erasure UPDATE referenced a nonexistent messages column');
+});
+
+test('erasure route never references the nonexistent messages column', () => {
+  // Comments are stripped first: the fix documents the broken SQL it replaced, so
+  // a raw text search would match the explanation instead of live code.
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'privacy.routes.js'), 'utf8'));
+  assert.doesNotMatch(src, /UPDATE\s+ai_chat_logs\s+SET\s+messages/i,
+    'must not write to ai_chat_logs.messages');
+  assert.doesNotMatch(src, /messages::text/);
+  assert.doesNotMatch(src, /regexp_replace/,
+    'regexp_replace does not exist in SQLite; redaction must be portable');
+  assert.match(src, /UPDATE ai_chat_logs SET message = \? WHERE id = \?/,
+    'redaction must update the real message column');
+});
+
+test('erasure redacts the student name from chat history, case-insensitively', async () => {
+  const admin = await q(
+    `INSERT INTO users (username, role, password_hash, name) VALUES (?, 'super_admin', 'x', 'Erasure')
+     RETURNING id`, [`erase-admin-${Date.now()}`]);
+  const [student] = await qa(
+    `INSERT INTO students (lrn, first_name, last_name, sex, grade_level, status)
+     VALUES ('999999999940', 'Dela', 'Cruz', 'Female', '10', 'enrolled') RETURNING *`, []);
+  const chatUser = await q(
+    `INSERT INTO users (username, role, password_hash, name) VALUES (?, 'teacher', 'x', 'Chatter')
+     RETURNING id`, [`erase-chat-${Date.now()}`]);
+  const chatIds = [];
+  try {
+    for (const body of [
+      'ask about dela cruz grades',  // lower-cased
+      'DELA CRUZ submitted late',   // upper-cased
+      'unrelated conversation',     // must be untouched
+    ]) {
+      chatIds.push((await qa(
+        `INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, 'user', ?) RETURNING id`,
+        [chatUser.id, body]))[0].id);
+    }
+    const ordered = [...chatIds].sort((a, b) => a - b);
+
+    // Replay the route's redaction against the real schema.
+    for (const needle of [student.first_name, student.last_name]) {
+      const term = String(needle || '').trim();
+      if (!term) continue;
+      const matches = await qa(
+        'SELECT id, message FROM ai_chat_logs WHERE lower(message) LIKE lower(?)',
+        [`%${term}%`]);
+      for (const row of matches) {
+        const next = String(row.message || '').replace(
+          new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '[REDACTED]');
+        if (next !== row.message) {
+          await qr('UPDATE ai_chat_logs SET message = ? WHERE id = ?', [next, row.id]);
+        }
+      }
+    }
+
+    const rows = await qa('SELECT message FROM ai_chat_logs WHERE id IN (?, ?, ?)', ordered);
+    assert.match(rows[0].message, /\[REDACTED\] grades/, 'lower-case name must be redacted');
+    assert.match(rows[1].message, /\[REDACTED\] submitted/, 'upper-case name must be redacted');
+    assert.equal(rows[2].message, 'unrelated conversation',
+      'a message without the name must not be modified');
+    assert.ok(admin.id);
+  } finally {
+    await qr('DELETE FROM ai_chat_logs WHERE id IN (?, ?, ?)', [...chatIds].sort((a, b) => a - b));
+    await qr('DELETE FROM students WHERE id = ?', [student.id]);
+    await qr('DELETE FROM users WHERE id IN (?, ?)', [admin.id, chatUser.id]);
+  }
+});
+
+test('every count exposed as a total is normalized to a number', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'privacy.routes.js'), 'utf8');
+  // Postgres returns COUNT(*) as a string. Any `total:` fed straight from a count
+  // row leaks that string to the client and breaks numeric comparisons.
+  assert.doesNotMatch(src, /total:\s*totalRow\.n[,}]/,
+    'access-logs total must be Number()-wrapped');
+  assert.doesNotMatch(src, /const total = \(await qa\(/,
+    'role-reviews total must be Number()-wrapped');
+  assert.match(src, /total: Number\(totalRow\.n\)/);
+});
+
+// ── Self-registration must not hand out a usable account ────────────────────
+
+test('self-registration creates a pending, not an active, account', async () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'auth.routes.js'), 'utf8'));
+  // The endpoint replies "submitted for review" while inserting 'active', so the
+  // applicant could sign in before any registrar looked at it.
+  const ins = src.slice(src.indexOf("router.post('/register'"));
+  assert.match(ins, /INSERT INTO users[\s\S]*?status\) VALUES \(\?, \?, \?, \?, \?, \?, \?\)[\s\S]*?'pending'\s*\]\)/,
+    'the registered account must be created pending');
+});
+
+test('approval activates the account inside the link transaction', () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'students.routes.js'), 'utf8'));
+  const approve = src.slice(src.indexOf("link-requests/:id/approve"), src.indexOf("link-requests/:id/reject"));
+  assert.match(approve, /UPDATE users SET status = 'active'/,
+    'approval must activate the pending account');
+  // The activation has to be in the transaction with the link itself.
+  const txStart = approve.indexOf('db.tx(async (conn) =>');
+  assert.ok(txStart !== -1, 'approval must run in a transaction');
+  assert.ok(approve.indexOf("UPDATE users SET status = 'active'") > txStart,
+    'activation must be inside the transaction');
+  assert.match(approve, /\['pending', 'active'\]\.includes\(u\.status\)/,
+    'a suspended or expired applicant must not be silently reactivated');
+});
+
+test('a pending account cannot satisfy the login active check', async () => {
+  // /login requires `user.status === 'active'`. Mirror that predicate exactly.
+  const [pending] = await qa(
+    `INSERT INTO users (username, role, password_hash, name, email, status)
+     VALUES (?, 'student', 'x', 'Pending', 'p@x.com', 'pending') RETURNING *`,
+    [`pending-user-${Date.now()}`]);
+  try {
+    assert.equal(pending.status, 'pending');
+    assert.notEqual(pending.status, 'active',
+      'if this ever equals active, the account is usable before review');
+
+    // And the promotion the approval performs is the only thing that changes it.
+    await qr("UPDATE users SET status = 'active' WHERE id = ?", [pending.id]);
+    const after = await q('SELECT status FROM users WHERE id = ?', [pending.id]);
+    assert.equal(after.status, 'active', 'approval must be able to activate it');
+  } finally {
+    await qr('DELETE FROM users WHERE id = ?', [pending.id]);
+  }
+});
+
+test('registration confirmation still reaches a pending applicant', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'notify.js'), 'utf8');
+  assert.match(src, /case 'account_registered':\s*\n\s*return ctx\.user_id \? resolveUserRecipients\(ctx\.user_id, \{ includePending: true \}\)/,
+    'the active-only recipient filter would swallow the confirmation email');
+  // And every other event must keep the strict filter.
+  assert.match(src, /status = \\'active\\'/);
+  assert.match(src, /includePending = false \} = \{\}/);
+});
+
+// ── Lockout DoS mitigation ──────────────────────────────────────────────────
+
+test('a lockout notifies the account holder', () => {
+  const auth = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'auth.routes.js'), 'utf8'));
+  const fn = auth.slice(auth.indexOf('async function recordFailedLogin'));
+  assert.match(fn, /notifyEvent\('account_locked'/,
+    'locking a user must not be silent, or lockout DoS is undetectable');
+
+  const notify = fs.readFileSync(path.join(__dirname, '..', 'src', 'notify.js'), 'utf8');
+  assert.match(notify, /account_locked: \{/, 'an account_locked template must exist');
+  // Without a template dispatchEvent skips the event, so the notification is a
+  // no-op unless the event is also routable to recipients.
+  assert.match(notify, /case 'account_locked':/);
+  // The template must be able to state how many attempts and how long, since the
+  // message is the compensating control the account owner acts on.
+  const tpl = notify.slice(notify.indexOf('account_locked: {'), notify.indexOf('link_approved: {'));
+  assert.match(tpl, /\{\{attempts\}\}/);
+  assert.match(tpl, /\{\{minutes\}\}/);
+  assert.match(tpl, /contact the school administrator/i,
+    'the message must tell the owner what to do');
+});
+
+test('the lockout response stays indistinguishable from a bad password', () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'auth.routes.js'), 'utf8'));
+  const login = src.slice(src.indexOf("router.post('/login'"), src.indexOf("router.post('/refresh'"));
+  // A distinct 423/429 for a locked account would confirm the username exists.
+  assert.match(login, /locked_until[\s\S]*?status\(401\)\.json\(\{ error: 'Invalid username or password' \}\)/);
+  assert.doesNotMatch(login, /status\(423\)/);
+});
+
+// ── Achievements: dialect portability ───────────────────────────────────────
+
+test('boolLiteral emits the type each dialect actually accepts', () => {
+  const { boolLiteral } = require('../src/db');
+  // normParams coerces booleans to 1/0, which PG refuses for a BOOLEAN column.
+  // On the SQLite test dialect it must therefore be 1/0, never TRUE/FALSE.
+  assert.equal(boolLiteral(true), '1');
+  assert.equal(boolLiteral(false), '0');
+  assert.equal(boolLiteral(1), '1');
+  assert.equal(boolLiteral('0'), '0');
+  assert.equal(boolLiteral(null), '0');
+  // And it must never be quoted: it is SQL, not a bound parameter.
+  assert.doesNotMatch(boolLiteral(true), /'/);
+});
+
+test('achievements: pinned is inlined as a literal, not bound', () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'achievements.routes.js'), 'utf8'));
+  assert.doesNotMatch(src, /visibility = \?, pinned = \?/,
+    'binding pinned as a parameter breaks on PG BOOLEAN columns');
+  assert.match(src, /pinned = \$\{boolLiteral\(pinned\)\}/);
+  assert.match(src, /VALUES \(\?, \?, \?, \?, \?, \?, \$\{boolLiteral\(pinned\)\}\)/);
+});
+
+test('achievements route has no Postgres-only SQL left', () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'achievements.routes.js'), 'utf8'));
+  assert.doesNotMatch(src, /ILIKE/, 'SQLite has no ILIKE');
+  assert.doesNotMatch(src, /=\s*NOW\(\)/, 'SQLite has no NOW(); use nowSql()');
+  assert.match(src, /updated_at = \$\{nowSql\(\)\}/);
+  assert.match(src, /lower\(a\.title\) LIKE lower\(\?\)/);
+});
+
+test('achievements: create, search and pin round-trip on SQLite', async () => {
+  const user = await q(
+    `INSERT INTO users (username, role, password_hash, name) VALUES (?, 'teacher', 'x', 'Ach')
+     RETURNING id`, [`ach-user-${Date.now()}`]);
+  const likeReader = await q(
+    `INSERT INTO users (username, role, password_hash, name) VALUES (?, 'student', 'x', 'Liker')
+     RETURNING id`, [`ach-liker-${Date.now()}`]);
+  let achId = null;
+  try {
+    // Replay the exact INSERT shape the route uses.
+    const { boolLiteral } = require('../src/db');
+    const id = (await qa(
+      `INSERT INTO achievements (title, content, author_id, category, media, visibility, pinned)
+       VALUES (?, ?, ?, ?, ?, ?, ${boolLiteral(true)}) RETURNING id`,
+      ['Science Fair Win', 'Group B topped the quiz', user.id, 'academic',
+        JSON.stringify(['a.jpg']), 'school']))[0].id;
+    achId = id;
+    assert.ok(id, 'insert must succeed with pinned = TRUE');
+
+    // The PATCH shape: same inlined literal plus nowSql().
+    const r = await qr(
+      `UPDATE achievements SET title = ?, content = ?, category = ?, media = ?, visibility = ?,
+         pinned = ${boolLiteral(false)}, updated_at = ${require('../src/db').nowSql()} WHERE id = ?`,
+      ['Renamed', 'Body', 'academic', JSON.stringify([]), 'staff', id]);
+    assert.ok(r.changes, 'update must affect the row');
+
+    const row = await q('SELECT * FROM achievements WHERE id = ?', [id]);
+    assert.equal(row.title, 'Renamed');
+    assert.equal(Number(row.pinned), 0, 'unpin must take effect');
+    assert.ok(row.updated_at, 'updated_at must be stamped by nowSql()');
+
+    // Portable search predicate from the list endpoint.
+    const hits = await qa(
+      'SELECT id FROM achievements WHERE id = ? AND (lower(title) LIKE lower(?) OR lower(content) LIKE lower(?))',
+      [id, '%RENAMED%', '%nope%']);
+    assert.equal(hits.length, 1, 'case-insensitive search must match');
+  } finally {
+    if (achId) await qr('DELETE FROM achievements WHERE id = ?', [achId]);
+    await qr('DELETE FROM users WHERE id IN (?, ?)', [user.id, likeReader.id]);
+  }
+});
+
+test('achievement counters normalize so "0" is never truthy', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'achievements.routes.js'), 'utf8');
+  assert.match(src, /row\.user_liked = bool\(row\.user_liked\)/,
+    'a PG COUNT of "0" arriving as a string is truthy and fakes a like');
+  assert.match(src, /row\.likes_count = Number\(row\.likes_count \|\| 0\)/);
+  assert.match(src, /row\.comments_count = Number\(row\.comments_count \|\| 0\)/);
+  // And decorate must actually be applied to both read endpoints.
+  assert.match(src, /\(await qa\(sql, params\)\)\.map\(decorate\)/);
+});
+
+test('bool() treats a string zero as false on every dialect', () => {
+  const { bool } = require('../src/db');
+  // This is the exact PG COUNT behaviour that broke user_liked.
+  assert.equal(bool('0'), false);
+  assert.equal(bool('1'), true);
+  assert.equal(bool(0), false);
+  assert.equal(bool(1), true);
+  assert.equal(bool(null), false);
+  assert.equal(bool(undefined), false);
+  assert.equal(bool(true), true);
+  assert.equal(bool(false), false);
 });
 
 // ── Attendance upsert ───────────────────────────────────────────────────────

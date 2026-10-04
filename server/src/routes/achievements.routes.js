@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr } = require('../db');
+const { q, qa, qi, qr, nowSql, bool, boolLiteral } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
@@ -7,6 +7,23 @@ const router = express.Router();
 router.use(authenticate);
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher'];
+
+// Postgres returns COUNT(*) as a string ("0", "7"), so `user_liked` used to reach
+// the client as the string "0" - which is truthy in JS and made every achievement
+// render as already-liked on production. SQLite returns numbers and PG BOOLEAN
+// columns return real booleans, so both shapes have to be normalized.
+function decorate(row) {
+  row.likes_count = Number(row.likes_count || 0);
+  row.comments_count = Number(row.comments_count || 0);
+  row.user_liked = bool(row.user_liked);
+  // JSONB (PG) already arrives parsed; SQLite stores the same column as TEXT.
+  if (typeof row.media === 'string') {
+    try { row.media = JSON.parse(row.media); } catch { row.media = []; }
+  } else if (!Array.isArray(row.media)) {
+    row.media = [];
+  }
+  return row;
+}
 
 // ── List achievements (feed) ─────────────────────────────
 router.get('/', asyncH(async (req, res) => {
@@ -27,20 +44,17 @@ router.get('/', asyncH(async (req, res) => {
     params.push(category);
   }
   if (search) {
-    sql += ' AND (a.title ILIKE ? OR a.content ILIKE ?)';
+    // ILIKE is Postgres-only; SQLite has no such operator and the search 500'd.
+    // lower() on both sides is the portable form and matches ASCII case the same
+    // way ILIKE did.
+    sql += ' AND (lower(a.title) LIKE lower(?) OR lower(a.content) LIKE lower(?))';
     params.push(`%${search}%`, `%${search}%`);
   }
 
   sql += ' ORDER BY a.pinned DESC, a.created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const data = await qa(sql, params);
-  // Parse media JSON for each row
-  for (const row of data) {
-    if (typeof row.media === 'string') {
-      try { row.media = JSON.parse(row.media); } catch { row.media = []; }
-    }
-  }
+  const data = (await qa(sql, params)).map(decorate);
   res.json({ data, limit, offset });
 }));
 
@@ -54,9 +68,7 @@ router.get('/:id', asyncH(async (req, res) => {
      FROM achievements a LEFT JOIN users u ON a.author_id = u.id WHERE a.id = ?`,
     [req.user.id, req.params.id]);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  if (typeof row.media === 'string') {
-    try { row.media = JSON.parse(row.media); } catch { row.media = []; }
-  }
+  decorate(row);
   // Fetch comments
   row.comments = await qa(
     `SELECT c.*, u.name AS author_name FROM achievement_comments c
@@ -77,10 +89,12 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
   const pinned = b.pinned ? true : false;
   const media = JSON.stringify(b.media || []);
 
+  // pinned is a BOOLEAN on Postgres and an INTEGER on SQLite, so it is inlined
+  // as a dialect literal instead of being bound as a parameter.
   const id = await qi(
     `INSERT INTO achievements (title, content, author_id, category, media, visibility, pinned)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [title, content, req.user.id, category, media, visibility, pinned]);
+     VALUES (?, ?, ?, ?, ?, ?, ${boolLiteral(pinned)})`,
+    [title, content, req.user.id, category, media, visibility]);
 
   await audit(req, 'CREATE_ACHIEVEMENT', 'achievements', id, { title, category });
   res.status(201).json({ id });
@@ -100,8 +114,11 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   const media = b.media !== undefined ? JSON.stringify(b.media) : cur.media;
 
   await qr(
-    `UPDATE achievements SET title = ?, content = ?, category = ?, media = ?, visibility = ?, pinned = ?, updated_at = NOW() WHERE id = ?`,
-    [title, content, category, media, visibility, pinned, req.params.id]);
+    // NOW() does not exist in SQLite; updated_at is TIMESTAMPTZ on PG and TEXT
+    // on SQLite, and nowSql() returns the matching expression for each.
+    `UPDATE achievements SET title = ?, content = ?, category = ?, media = ?, visibility = ?,
+       pinned = ${boolLiteral(pinned)}, updated_at = ${nowSql()} WHERE id = ?`,
+    [title, content, category, media, visibility, req.params.id]);
 
   await audit(req, 'UPDATE_ACHIEVEMENT', 'achievements', req.params.id, { title });
   res.json({ ok: true });

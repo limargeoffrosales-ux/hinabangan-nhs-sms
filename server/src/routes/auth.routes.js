@@ -33,6 +33,22 @@ async function recordFailedLogin(username, userId, ip) {
       const until = new Date(Date.now() + lockMinutes * 60000).toISOString();
       await qr('UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?', [attempts, until, userId]);
       await logSecurityIncident('ACCOUNT_LOCKOUT', 'high', ip, username, userId, { attempts, lockMinutes, lockedUntil: until });
+      // Lockout is deliberately available to an unauthenticated caller, which
+      // makes it a denial-of-service primitive: knowing a username is enough to
+      // lock a real user out. It cannot be removed outright (it is what stops an
+      // online password guess), so the compensating control is to tell the
+      // account holder immediately - the attack stops being silent and the
+      // genuine owner can get an admin to review and reset the account.
+      // resolveUserRecipients only returns ACTIVE users, and a locked account is
+      // still 'active' (lock is time-based via locked_until), so this delivers.
+      await notifyEvent('account_locked', {
+        user_id: userId,
+        data: {
+          username: username || '',
+          attempts,
+          minutes: lockMinutes,
+        },
+      });
     } else {
       await qr('UPDATE users SET failed_attempts = ? WHERE id = ?', [attempts, userId]);
     }
@@ -414,8 +430,14 @@ router.post('/register',
 
     const hash = await bcrypt.hash(password, 12);
     const name = [firstName, lastName].filter(Boolean).join(' ');
+    // status MUST be 'pending'. The endpoint answers "Registration submitted...
+    // will approve the link", but the account was created 'active', so the
+    // applicant could sign in immediately and reach every route that only
+    // requires authentication - before any registrar review. 'pending' makes the
+    // account inert: /login rejects anything whose status is not 'active', and
+    // students.routes.js flips it to 'active' inside the approval transaction.
     const userId = await qi('INSERT INTO users (username, password_hash, name, role, email, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [username, hash, name, 'student', email || null, phone || null, 'active']);
+      [username, hash, name, 'student', email || null, phone || null, 'pending']);
     await qi('INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)', [userId, userId, 'created', req.ip]);
     await qi(
       'INSERT INTO student_link_requests (student_id, user_id, status, verified, email, phone) VALUES (?, ?, ?, ?, ?, ?)',

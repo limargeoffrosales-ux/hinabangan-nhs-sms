@@ -400,6 +400,22 @@ function bool(v) {
   return Number(v) > 0;
 }
 
+// Writing a BOOLEAN is the mirror problem. normParams maps JS true/false to 1/0
+// so SQLite binds them as integers, but PostgreSQL refuses an integer for a
+// BOOLEAN column:
+//   column "pinned" is of type boolean but expression is of type integer
+// That made every achievement create/update fail on production. Booleans
+// therefore cannot be bound as parameters at all - they have to be inlined as
+// dialect literals, exactly like the `revoked = TRUE` literals elsewhere.
+//
+// The value is coerced through bool(), so it must only ever be called with a
+// boolean-ish value, never with raw user input interpolated into SQL.
+function boolLiteral(v) {
+  const t = bool(v);
+  if (dialect === 'pg') return t ? 'TRUE' : 'FALSE';
+  return t ? '1' : '0';
+}
+
 // PG reports unique violations as SQLSTATE 23505; node:sqlite throws
 // ERR_SQLITE_ERROR with a "UNIQUE constraint failed" message and no code. Call
 // sites that do read-then-insert use this to fall back to an UPDATE instead of
@@ -412,4 +428,4 @@ function isUniqueViolation(err) {
   return typeof err.message === 'string' && /UNIQUE constraint failed|duplicate key value/i.test(err.message);
 }
 
-module.exports = { init, q, qa, qr, qi, close, nowSql, bool, isUniqueViolation, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
+module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
