@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { q, qa, qi, qr } = require('../db');
-const { authenticate, requireRole, ROLES, ADMIN_ROLES, isAdminRole, clearUserCache, clearCsrfToken } = require('../auth');
+const { authenticate, requireRole, ROLES, PRIVILEGED_ROLES, isAdminRole, clearUserCache, clearCsrfToken } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 
 const router = express.Router();
@@ -20,7 +20,7 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
   const { username, password, name, role, email, phone } = req.body || {};
   if (!username || !password || !name || !role) return res.status(400).json({ error: 'username, password, name, role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: `role must be one of: ${ROLES.join(', ')}` });
-  if (req.user.role === 'school_admin' && ADMIN_ROLES.includes(role)) {
+  if (req.user.role === 'school_admin' && PRIVILEGED_ROLES.includes(role)) {
     return res.status(403).json({ error: 'school_admin cannot create accounts with admin-level roles' });
   }
   if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
@@ -36,6 +36,19 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
   res.status(201).json({ id });
 }));
 
+// Escalation guard: a school_admin may never touch a peer admin, the principal,
+// or the regional/divisional tiers. Resetting a privileged account's password
+// would otherwise grant full control of that account on next sign-in, which is
+// the same privilege escalation the role-assignment branch below prevents.
+// Uses PRIVILEGED_ROLES (not ADMIN_ROLES) so region_admin/division_admin are
+// covered too.
+function forbidTargetEscalation(actorRole, targetRole) {
+  if (actorRole === 'super_admin') return null;
+  return PRIVILEGED_ROLES.includes(targetRole)
+    ? { status: 403, error: 'Only super_admin can modify an account with an admin-level role' }
+    : null;
+}
+
 router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const { name, role, email, phone, status, password } = req.body || {};
   const user = await q('SELECT * FROM users WHERE id = ?', [req.params.id]);
@@ -44,12 +57,14 @@ router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (r
   if (Number(req.params.id) === req.user.id && role && role !== user.role && req.user.role !== 'super_admin') {
     return res.status(403).json({ error: 'You cannot change your own role' });
   }
-  if (req.user.role === 'school_admin' && role && ADMIN_ROLES.includes(role)) {
+  if (req.user.role === 'school_admin' && role && PRIVILEGED_ROLES.includes(role)) {
     return res.status(403).json({ error: 'school_admin cannot assign admin-level roles' });
   }
   if (user.role === 'super_admin' && req.user.role !== 'super_admin') {
     return res.status(403).json({ error: 'Only super_admin can modify another super_admin' });
   }
+  const escalation = forbidTargetEscalation(req.user.role, user.role);
+  if (escalation) return res.status(escalation.status).json({ error: escalation.error });
   if (password) {
     if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -90,11 +105,14 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
     return res.status(400).json({ error: 'Password must be at least 12 characters' });
   }
   let reset = 0;
+  let skipped = 0;
+  // One hash for every recipient: bcrypt at cost 12 is deliberately slow, so
+  // hashing inside the loop cost seconds per bulk operation for no benefit.
+  const hash = await bcrypt.hash(String(password), 12);
   for (const uid of user_ids) {
     const user = await q('SELECT id, username, role FROM users WHERE id = ?', [Number(uid)]);
     if (!user) continue;
-    if (user.role === 'super_admin' && req.user.role !== 'super_admin') continue;
-    const hash = await bcrypt.hash(String(password), 12);
+    if (forbidTargetEscalation(req.user.role, user.role)) { skipped++; continue; }
     await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
     await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
     await clearCsrfToken(user.id);
@@ -104,8 +122,11 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
       [user.id, req.user.id, 'bulk_reset', req.ip]);
     reset++;
   }
+  if (skipped) {
+    await audit(req, 'BULK_PASSWORD_RESET_SKIPPED', 'users', null, { skipped, reason: 'insufficient_role' });
+  }
   await audit(req, 'BULK_PASSWORD_RESET', 'users', null, { count: reset });
-  res.json({ ok: true, reset });
+  res.json({ ok: true, reset, skipped });
 }));
 
 module.exports = router;

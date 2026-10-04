@@ -1,10 +1,12 @@
 const express = require('express');
-const { q, qa, qi, qr, tx } = require('../db');
+const { q, qa, qr, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
 const { notifyEvent } = require('../notify');
 const { sendSpreadsheet } = require('../export');
+const { todayStr, normalizeDateStr } = require('../dates');
+const { getCurrentSchoolYear } = require('../schoolYear');
 const logger = require('../logger');
 
 const router = express.Router();
@@ -108,6 +110,7 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!b.section_id || !b.date || !Array.isArray(b.records) || b.records.length === 0) {
     return res.status(400).json({ error: 'section_id, date and non-empty records are required' });
   }
+  if (!normalizeDateStr(b.date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
   if (!section) return res.status(404).json({ error: 'Section not found' });
   if (req.role === 'teacher') {
@@ -115,9 +118,10 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const valid = ['present', 'absent', 'late', 'excused', 'half_day'];
+  const sy = await getCurrentSchoolYear();
   const enrolled = await qa(
-    `SELECT student_id FROM enrollments WHERE section_id = ? AND status = 'enrolled'`,
-    [b.section_id]);
+    `SELECT student_id FROM enrollments WHERE section_id = ? AND status = 'enrolled' AND school_year = ?`,
+    [b.section_id, sy]);
   const allowedIds = new Set(enrolled.map((e) => Number(e.student_id)));
   if (allowedIds.size === 0) {
     return res.status(400).json({ error: 'Section has no enrolled students' });
@@ -138,20 +142,25 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
     for (const r of b.records) {
       if (!r.student_id || !valid.includes(r.status)) continue;
       const sess = r.session || null;
-      const existing = await conn.get(
-        sess
-          ? 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?'
-          : 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NULL',
-        [r.student_id, b.date, sess]
-      );
-      if (existing) {
-        await conn.run('UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ? WHERE id = ?',
-          [r.status, sess, r.remarks || null, req.user.id, existing.id]);
-      } else {
-        await conn.runId(
-          'INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [r.student_id, b.section_id, b.date, r.status, sess, r.remarks || null, req.user.id]);
-      }
+      // Upsert without a read-then-write race, and without relying on catching a
+      // unique violation: on PostgreSQL any statement error aborts the whole
+      // transaction (25P02), so a "try insert, on 23505 go back and SELECT the
+      // winner" fallback could never run inside tx() — it would throw on the
+      // poisoned connection and roll back the entire batch.
+      //
+      // ON CONFLICT DO NOTHING (no conflict target) works on both dialects and
+      // is required here because the unique index is expression-based:
+      // (student_id, date, COALESCE(session,'default')), which a targeted
+      // ON CONFLICT (student_id, date, session) clause would not match.
+      await conn.run(
+        'INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        [r.student_id, b.section_id, b.date, r.status, sess, r.remarks || null, req.user.id]);
+      // Whether we inserted the row or a concurrent teacher beat us to it, this
+      // update settles on the requested value.
+      await conn.run(
+        `UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ?
+         WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?`,
+        [r.status, sess, r.remarks || null, req.user.id, r.student_id, b.date, sess]);
       n++;
     }
   });
@@ -162,7 +171,10 @@ router.post('/bulk', requireRole(...WRITE), asyncH(async (req, res) => {
 
 router.post('/:studentId/check', requireRole(...WRITE), asyncH(async (req, res) => {
   const b = req.body || {};
-  const date = b.date || new Date().toISOString().slice(0, 10);
+  // Defaults to the SCHOOL-local date. Render runs UTC, so a UTC default
+  // wrote yesterday's date during the first 8 hours of every school day.
+  const date = b.date || todayStr();
+  if (!normalizeDateStr(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   const student = await q('SELECT id FROM students WHERE id = ?', [req.params.studentId]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
   if (req.role === 'teacher') {
@@ -170,20 +182,15 @@ router.post('/:studentId/check', requireRole(...WRITE), asyncH(async (req, res) 
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
   const sess = b.session || null;
-  const existing = await q(
-    sess
-      ? 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?'
-      : 'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NULL',
-    [req.params.studentId, date, sess]
-  );
   const status = b.status || 'present';
-  if (existing) {
-    await qr('UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ? WHERE id = ?',
-      [status, sess, b.remarks || null, req.user.id, existing.id]);
-  } else {
-    await qi('INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [req.params.studentId, b.section_id || null, date, status, sess, b.remarks || null, req.user.id]);
-  }
+  // Same conflict-free upsert as the bulk endpoint: insert-or-skip, then settle
+  // the value with an update on the natural key. No prior SELECT is needed, so a
+  // concurrent write by another teacher cannot slip between the two steps.
+  await qr('INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+    [req.params.studentId, b.section_id || null, date, status, sess, b.remarks || null, req.user.id]);
+  await qr(`UPDATE attendance SET status = ?, session = ?, remarks = ?, recorded_by = ?
+            WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?`,
+    [status, sess, b.remarks || null, req.user.id, req.params.studentId, date, sess]);
   await audit(req, 'ATTENDANCE_CHECK', 'attendance', req.params.studentId, { date, status });
   fireAttendanceAlerts([{ student_id: req.params.studentId, status, remarks: b.remarks }], date);
   res.json({ ok: true, date, status });

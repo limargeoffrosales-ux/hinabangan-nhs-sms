@@ -142,7 +142,11 @@ router.get('/export', requireRole(...WRITE, 'teacher', 'guidance'), asyncH(async
     r.subject_count = bool(r.subject_count) > 0 ? Number(r.subject_count) : 0;
   }
   if (req.role === 'teacher' || req.role === 'guidance') {
-    rows.forEach((r) => maskPII(r, ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'religion']));
+    // maskPII is pure — it returns a NEW object, so the result must be
+    // assigned back. A bare forEach call silently exported unmasked PII.
+    for (let i = 0; i < rows.length; i++) {
+      rows[i] = maskPII(rows[i], ['contact', 'guardian_contact', 'guardian_name', 'guardian_relation', 'address', 'religion']);
+    }
   }
   const columns = [
     { key: 'lrn', header: 'LRN', width: 16 },

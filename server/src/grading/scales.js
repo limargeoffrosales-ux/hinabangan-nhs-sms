@@ -37,21 +37,77 @@ async function getScaleByCode(code) {
   return parseScale(row);
 }
 
+// Scale lookups are read-heavy and change rarely, but getScaleForSubject costs
+// two queries per call. The grading aggregations call it once per subject per
+// student, so a 60x10 class list meant ~1200 queries against a table with a
+// handful of rows. Memoize per request-lifetime window and expose a batch
+// resolver so a whole list costs one query per distinct subject.
+const SCALE_CACHE_TTL_MS = 30 * 1000;
+let subjectScaleCache = new Map(); // subjectId -> { at, scale }
+let defaultScaleCache = null;
+
+function invalidateScaleCaches() {
+  subjectScaleCache = new Map();
+  defaultScaleCache = null;
+}
+
 async function getDefaultScale() {
+  if (defaultScaleCache && Date.now() - defaultScaleCache.at < SCALE_CACHE_TTL_MS) {
+    return defaultScaleCache.scale;
+  }
   let row = await q('SELECT * FROM grading_scales WHERE is_default = TRUE AND active = TRUE ORDER BY id LIMIT 1');
   if (!row) row = await q('SELECT * FROM grading_scales WHERE active = TRUE ORDER BY id LIMIT 1');
-  return parseScale(row);
+  const scale = parseScale(row);
+  defaultScaleCache = { at: Date.now(), scale };
+  return scale;
 }
 
 async function getScaleForSubject(subjectId) {
   if (subjectId != null) {
+    const hit = subjectScaleCache.get(Number(subjectId));
+    if (hit && Date.now() - hit.at < SCALE_CACHE_TTL_MS) return hit.scale;
     const subj = await q('SELECT scale_id FROM subjects WHERE id = ?', [subjectId]);
     if (subj && subj.scale_id != null) {
       const scale = await getScale(subj.scale_id);
-      if (scale && scale.active) return scale;
+      if (scale && scale.active) {
+        subjectScaleCache.set(Number(subjectId), { at: Date.now(), scale });
+        return scale;
+      }
     }
   }
   return getDefaultScale();
+}
+
+/**
+ * Resolve scales for many subjects at once — one query for all subject rows,
+ * plus one per distinct scale rather than one per (student x subject).
+ * @param {Array<number|string>} subjectIds
+ * @returns {Promise<Map<number, object>>}
+ */
+async function getScalesForSubjects(subjectIds) {
+  /** @type {Map<number, object>} */
+  const out = new Map();
+  const ids = [...new Set((subjectIds || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  if (!ids.length) return out;
+  const fallback = await getDefaultScale();
+  const rows = await qa(
+    `SELECT s.id, s.scale_id FROM subjects s WHERE s.id IN (${ids.map(() => '?').join(',')})`,
+    ids);
+  const scaleIds = [...new Set(rows.map((r) => Number(r.scale_id)).filter((n) => Number.isFinite(n) && n > 0))];
+  /** @type {Map<number, object>} */
+  const byScaleId = new Map();
+  if (scaleIds.length) {
+    const scaleRows = await qa(
+      `SELECT * FROM grading_scales WHERE id IN (${scaleIds.map(() => '?').join(',')}) AND active = TRUE`,
+      scaleIds);
+    for (const s of scaleRows) byScaleId.set(Number(s.id), parseScale(s));
+  }
+  for (const r of rows) {
+    const scale = byScaleId.get(Number(r.scale_id)) || fallback;
+    out.set(Number(r.id), scale);
+    subjectScaleCache.set(Number(r.id), { at: Date.now(), scale });
+  }
+  return out;
 }
 
 async function listScales() {
@@ -95,6 +151,7 @@ async function createScale(data) {
   if (errors.length) throw Object.assign(new Error(errors.join(', ')), { status: 400 });
   const existing = await q('SELECT id FROM grading_scales WHERE code = ?', [d.code]);
   if (existing) throw Object.assign(new Error(`A scale with code '${d.code}' already exists`), { status: 409 });
+  invalidateScaleCaches();
   const id = await qi(
     `INSERT INTO grading_scales (name, code, scale_type, description, passing_grade, weights, bands,
        credits_pass_only, is_system, is_default, active, updated_at)
@@ -130,6 +187,7 @@ async function updateScale(id, data) {
      WHERE id = ?`,
     [d.name, d.code, d.scale_type, String(data.description !== undefined ? data.description : scale.description).trim(),
       d.passing_grade, JSON.stringify(d.weights), JSON.stringify(d.bands), creditsPass, id]);
+  invalidateScaleCaches();
   return getScale(id);
 }
 
@@ -146,6 +204,7 @@ async function deleteScale(id) {
     if (fallback) await setDefault(fallback.id);
   }
   await qr('DELETE FROM grading_scales WHERE id = ?', [id]);
+  invalidateScaleCaches();
   return { ok: true };
 }
 
@@ -154,6 +213,7 @@ async function setDefault(codeOrId, byCode) {
   if (!target) throw Object.assign(new Error('Scale not found'), { status: 404 });
   await qr('UPDATE grading_scales SET is_default = FALSE');
   await qr('UPDATE grading_scales SET is_default = TRUE WHERE id = ?', [target.id]);
+  invalidateScaleCaches();
   return getScale(target.id);
 }
 
@@ -164,7 +224,14 @@ function convertGrade(value, scale) {
   if (Number.isNaN(v)) return null;
   const passing = Number(scale.passing_grade);
   const bands = Array.isArray(scale.bands) ? scale.bands : [];
-  const band = bands.find((b) => v >= Number(b.min) && v <= Number(b.max)) || null;
+  // Look up by descending `min` rather than requiring min <= v <= max. Band
+  // definitions written with one-decimal maxima (…89.9) leave fractional gaps,
+  // so an exact min/max match returned null for values like 89.95 — the grade
+  // then counted toward GWA but was dropped from GPA and showed no letter.
+  const band =
+    bands
+      .filter((b) => Number.isFinite(Number(b.min)) && v >= Number(b.min))
+      .sort((a, b) => Number(b.min) - Number(a.min))[0] || null;
   return {
     value: v,
     passed: v >= passing,
@@ -184,6 +251,6 @@ function gpaFrom(subjects) {
 
 module.exports = {
   SCALE_TYPES, DEFAULT_WEIGHTS, parseScale, getScale, getScaleByCode, getDefaultScale,
-  getScaleForSubject, listScales, createScale, updateScale, deleteScale, setDefault,
-  convertGrade, gpaFrom,
+  getScaleForSubject, getScalesForSubjects, invalidateScaleCaches, listScales, createScale,
+  updateScale, deleteScale, setDefault, convertGrade, gpaFrom,
 };

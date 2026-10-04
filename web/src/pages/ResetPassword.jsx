@@ -69,11 +69,11 @@ export default function ResetPassword() {
                   id="reset-code"
                   name="code"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 12))}
                   autoComplete="one-time-code"
                   inputMode="numeric"
-                  maxLength={6}
-                  placeholder="••••••"
+                  maxLength={12}
+                  placeholder="••••••••"
                   autoFocus
                 />
                 <label htmlFor="reset-pw">{t('reset.newPassword')}</label>

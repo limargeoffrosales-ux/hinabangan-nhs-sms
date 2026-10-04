@@ -3,6 +3,7 @@ const { qa } = require('../db');
 const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH } = require('../utils');
+const { todayStr } = require('../dates');
 
 const router = express.Router();
 router.use(authenticate);
@@ -61,7 +62,7 @@ router.get('/grade-distribution', requireRole(...READ), asyncH(async (req, res) 
 router.get('/attendance-kpi', requireRole(...READ), asyncH(async (req, res) => {
   const { school_year, start_date, end_date } = req.query;
   const startDate = start_date || (school_year ? `${school_year.split('-')[0]}-06-01` : null);
-  const endDate = end_date || new Date().toISOString().slice(0, 10);
+  const endDate = end_date || todayStr();
 
   if (!startDate) return res.status(400).json({ error: 'start_date or school_year is required' });
 
@@ -304,13 +305,16 @@ router.get('/report/csv', requireRole(...READ), asyncH(async (req, res) => {
   const syEnd = (Number(school_year.split('-')[0]) + 1) + '-03-31';
   lines.push('ATTENDANCE SUMMARY');
   lines.push('Total Records,Present/Late,Absent,Attendance Rate %');
+  // Never report attendance beyond today: the school year ends in March, so for
+  // the current year the window must be clamped to the current Manila date.
+  const _today = todayStr();
   const att = await qa(`
     SELECT COUNT(*) AS total,
       ${fc("a.status IN ('present', 'late')")} AS present_late,
       ${fc("a.status = 'absent'")} AS absent_count,
       ROUND(${fc("a.status IN ('present', 'late')")} * 1.0 / NULLIF(COUNT(*), 0) * 100, 1) AS rate
     FROM attendance a WHERE a.date >= ? AND a.date <= ?
-  `, [syStart, syEnd > new Date().toISOString().slice(0, 10) ? new Date().toISOString().slice(0, 10) : syEnd]);
+  `, [syStart, syEnd > _today ? _today : syEnd]);
   if (att[0]) lines.push(`${att[0].total},${att[0].present_late},${att[0].absent_count},${att[0].rate}`);
 
   lines.push('');
@@ -488,7 +492,7 @@ router.get('/student-risk', requireRole(...READ), asyncH(async (req, res) => {
 
   // ── Factor 2: Attendance (30% weight) ───────────────────────
   const syStart = school_year.split('-')[0] + '-06-01';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const syEnd = today < (Number(school_year.split('-')[0]) + 1) + '-03-31' ? today : (Number(school_year.split('-')[0]) + 1) + '-03-31';
 
   const attRows = await qa(`

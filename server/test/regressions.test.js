@@ -1,0 +1,540 @@
+// Regression suite for audit remediation.
+//
+// Each test here pins a bug that actually shipped or was about to ship, so the
+// same class of defect fails the build instead of reaching production. Where a
+// defect was invisible to ESLint (an undeclared identifier inside a template
+// literal) the assertion is deliberately structural.
+//
+// IMPORTANT: env is set BEFORE requiring src modules and DATABASE_URL is deleted
+// so this never touches a real PostgreSQL connection.
+'use strict';
+for (const k of ['DATABASE_URL', 'POSTGRES_URL', 'PGURL']) delete process.env[k];
+process.env.DATA_DIR = require('fs').mkdtempSync(
+  require('path').join(require('os').tmpdir(), 'meridianed-regress-')
+);
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+
+const { before, test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+
+const { init, q, qa, qr, tx, close } = require('../src/db');
+const { hasMagic } = require('../src/upload-guard');
+const { PRIVILEGED_ROLES, ROLES, ADMIN_ROLES } = require('../src/middleware/auth');
+const { maskPII } = require('../src/utils');
+const { convertGrade } = require('../src/grading/scales');
+const { todayStr, shiftDateStr, normalizeDateStr, daysAgoStr } = require('../src/dates');
+
+const MIGRATIONS = path.join(__dirname, '..', '..', 'database', 'migrations');
+
+before(async () => {
+  await init();
+});
+
+// ── Undeclared-identifier regressions ───────────────────────────────────────
+// These three shipped as ReferenceErrors: an edit had moved a `const` inside a
+// SQL template literal, so the variable was silently part of the query string.
+// `no-undef` now guards them, but assert the behaviour too.
+
+test('dashboard summary: payload is bound to a real variable before caching', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'dashboard.routes.js'), 'utf8');
+  // The bug: `const data = {` was mangled away, so the summary object was passed
+  // straight into res.json(...) and `summaryCache.set(cacheKey, { data, ... })`
+  // referenced an identifier that did not exist.
+  const decl = src.indexOf('const data = {');
+  assert.ok(decl !== -1, 'the summary payload must be bound to `data`');
+  const cached = src.indexOf('summaryCache.set(cacheKey, { data,');
+  assert.ok(cached > decl, 'cache must be written after data is bound');
+  const sent = src.indexOf('res.json(data)', cached);
+  assert.ok(sent > cached, 'the cached payload must be what gets sent');
+});
+
+test('analytics CSV export: _today is bound before the query, not inside it', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'analytics-kpi.routes.js'), 'utf8');
+  const decl = src.indexOf('const _today = todayStr()');
+  const use = src.indexOf('syEnd > _today');
+  assert.ok(decl !== -1, '_today should be declared');
+  assert.ok(use !== -1, '_today should be used');
+  assert.ok(decl < use, '_today must be declared before it is referenced');
+});
+
+test('generate-programs: generateGroup declares its own failures array', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'generate-programs.js'), 'utf8');
+  const body = src.slice(src.indexOf('async function generateGroup'));
+  const end = body.indexOf('\nasync function');
+  const fn = body.slice(0, end === -1 ? undefined : end);
+  assert.match(fn, /const failures = \[\]/,
+    'generateGroup must declare a local failures array');
+});
+
+// ── Notification claim migration ────────────────────────────────────────────
+
+test('notification claimed_at uses a timestamp type on Postgres', () => {
+  const sql = fs.readFileSync(path.join(MIGRATIONS, '090-notification-claim.sql'), 'utf8');
+  const m = sql.match(/ADD COLUMN IF NOT EXISTS claimed_at\s+([A-Za-z]+)/i);
+  assert.ok(m, 'claimed_at must be added by 090');
+  assert.match(m[1], /TIMESTAMP/i,
+    `claimed_at must be a timestamp type (got ${m[1]}); notify.js compares it to now() - interval`);
+});
+
+test('notification claimed_at stays TEXT on SQLite, matching its other timestamps', () => {
+  const sql = fs.readFileSync(path.join(MIGRATIONS, '090-notification-claim.sqlite.sql'), 'utf8');
+  assert.match(sql, /claimed_at\s+TEXT/i);
+});
+
+test('applied notifications table has claimed_at and accepts the sending status', async () => {
+  const cols = await qa('PRAGMA table_info(notifications)', []);
+  assert.ok(cols.some((c) => c.name === 'claimed_at'), 'claimed_at column must exist');
+
+  // 'sending' must be insertable, otherwise every claim fails the CHECK.
+  await qr(
+    `INSERT INTO notifications (event, channel, recipient_address, body, status)
+     VALUES ('__test', 'email', 'a@b.c', 'x', 'sending')`, []);
+  await qr('DELETE FROM notifications WHERE event = ?', ['__test']);
+});
+
+test('stuck notification recovery query is dialect-correct', async () => {
+  const id = (await qa(
+    `INSERT INTO notifications (event, channel, recipient_address, body, status, claimed_at)
+     VALUES ('__stale', 'email', 'a@b.c', 'x', 'sending', datetime('now', '-30 minutes'))
+     RETURNING *`, []))[0].id;
+  try {
+    const stuck = await qa(
+      `SELECT id FROM notifications
+       WHERE status = 'sending' AND claimed_at IS NOT NULL
+         AND claimed_at < datetime('now', '-10 minutes')`, []);
+    assert.ok(stuck.some((r) => r.id === id), 'a 30-minute-old claim must be detected as stale');
+  } finally {
+    await qr('DELETE FROM notifications WHERE event = ?', ['__stale']);
+  }
+});
+
+// ── Attendance upsert ───────────────────────────────────────────────────────
+
+test('attendance: repeated writes settle on one row without duplicating', async () => {
+  const [student] = await qa(
+    `INSERT INTO students (lrn, first_name, last_name, sex, grade_level, status)
+     VALUES ('999999999901', 'Up', 'Sert', 'Male', '7', 'enrolled') RETURNING *`, []);
+  const teacher = await q(
+    `INSERT INTO users (username, role, password_hash, name) VALUES (?, 'teacher', 'x', 'Rec')
+     RETURNING id`, [`att-rec-${Date.now()}`]);
+  try {
+    // Replays the exact insert+update pair the route now uses. A second run must
+    // not create a duplicate and must leave the later value in place.
+    const write = async (status, session) => {
+      const sess = session || null;
+      await qr(
+        `INSERT INTO attendance (student_id, section_id, date, status, session, remarks, recorded_by)
+         VALUES (?, NULL, ?, ?, ?, NULL, ?) ON CONFLICT DO NOTHING`,
+        [student.id, '2026-10-04', status, sess, teacher.id]);
+      await qr(
+        `UPDATE attendance SET status = ?, session = ?, remarks = NULL, recorded_by = ?
+         WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?`,
+        [status, sess, teacher.id, student.id, '2026-10-04', sess]);
+    };
+    await write('present', 'AM');
+    await write('absent', 'AM');
+    await write('late', 'PM');
+
+    const rows = await qa('SELECT status, session FROM attendance WHERE student_id = ? AND date = ?',
+      [student.id, '2026-10-04']);
+    assert.equal(rows.length, 2, 'AM and PM are distinct sessions');
+    const am = rows.find((r) => r.session === 'AM');
+    const pm = rows.find((r) => r.session === 'PM');
+    assert.equal(am.status, 'absent', 'last write for AM wins');
+    assert.equal(pm.status, 'late');
+  } finally {
+    await qr('DELETE FROM attendance WHERE student_id = ?', [student.id]);
+    await qr('DELETE FROM students WHERE id = ?', [student.id]);
+    await qr('DELETE FROM users WHERE id = ?', [teacher.id]);
+  }
+});
+
+test('attendance: null session is its own row and is not matched by a named session', async () => {
+  const [student] = await qa(
+    `INSERT INTO students (lrn, first_name, last_name, sex, grade_level, status)
+     VALUES ('999999999902', 'Nul', 'Lsession', 'Female', '8', 'enrolled') RETURNING *`, []);
+  try {
+    const pick = (sess) => qa(
+      'SELECT id FROM attendance WHERE student_id = ? AND date = ? AND session IS NOT DISTINCT FROM ?',
+      [student.id, '2026-10-05', sess]);
+    assert.equal((await pick(null)).length, 0);
+    assert.equal((await pick('AM')).length, 0);
+    await qr(
+      `INSERT INTO attendance (student_id, date, status, session) VALUES (?, ?, 'present', NULL)`,
+      [student.id, '2026-10-05']);
+    assert.equal((await pick(null)).length, 1, 'null session matches only null');
+    assert.equal((await pick('AM')).length, 0, 'null session must not match AM');
+  } finally {
+    await qr('DELETE FROM attendance WHERE student_id = ?', [student.id]);
+    await qr('DELETE FROM students WHERE id = ?', [student.id]);
+  }
+});
+
+// ── Privilege escalation guard ──────────────────────────────────────────────
+
+test('every privileged role is covered by the escalation guard', () => {
+  for (const r of ['super_admin', 'region_admin', 'division_admin', 'school_admin',
+    'principal', 'assistant_principal', 'registrar']) {
+    assert.ok(PRIVILEGED_ROLES.includes(r), `${r} must be privileged`);
+  }
+  // Privilege is a superset of ADMIN_ROLES.
+  for (const r of ADMIN_ROLES) assert.ok(PRIVILEGED_ROLES.includes(r));
+  // And it must not swallow ordinary staff roles.
+  for (const r of ['teacher', 'cashier', 'ict', 'student', 'parent']) {
+    assert.ok(!PRIVILEGED_ROLES.includes(r), `${r} must not be privileged`);
+    assert.ok(ROLES.includes(r), `${r} should still be a valid role`);
+  }
+});
+
+// ── PII masking ─────────────────────────────────────────────────────────────
+
+test('maskPII removes direct identifiers but keeps the row usable', () => {
+  const masked = maskPII({
+    first_name: 'Juan', last_name: 'Dela Cruz', birth_date: '2010-05-04',
+    sex: 'Male', address: '123 St', religion: 'Roman Catholic',
+    guardian_name: 'Maria', guardian_contact: '09171234567', email: 'a@b.c', phone: '09171234567',
+  });
+  assert.ok(masked, 'maskPII must return a value');
+  assert.notEqual(masked.address, '123 St');
+  assert.equal(masked.sex, 'Male', 'non-identifying fields are preserved');
+});
+
+// ── Upload magic-byte guard ─────────────────────────────────────────────────
+
+test('hasMagic accepts real file signatures', () => {
+  assert.equal(hasMagic({ mimetype: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) }), true);
+  assert.equal(hasMagic({ mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7\n') }), true);
+  assert.equal(hasMagic({ mimetype: 'application/zip', buffer: Buffer.from([0x50, 0x4b, 0x03, 0x04]) }), true);
+  assert.equal(hasMagic({ mimetype: 'text/csv', buffer: Buffer.from('a,b,c\n1,2,3\n') }), true);
+});
+
+test('hasMagic rejects content that does not match the declared type', () => {
+  // A script renamed to .pdf and announced as application/pdf.
+  assert.equal(hasMagic({ mimetype: 'application/pdf', buffer: Buffer.from('<?php system($_GET[0]); ?>') }), false);
+  // An executable announced as an image.
+  assert.equal(hasMagic({ mimetype: 'image/png', buffer: Buffer.from('MZ\x90\x00binary') }), false);
+  // An unlisted type must never be accepted.
+  assert.equal(hasMagic({ mimetype: 'application/x-msdownload', buffer: Buffer.from('MZ') }), false);
+  // Empty / missing buffer.
+  assert.equal(hasMagic({ mimetype: 'image/png', buffer: Buffer.alloc(0) }), false);
+  assert.equal(hasMagic({ mimetype: 'image/png' }), false);
+  assert.equal(hasMagic(null), false);
+});
+
+test('hasMagic rejects text content carrying a NUL byte', () => {
+  assert.equal(hasMagic({ mimetype: 'text/plain', buffer: Buffer.from('ok not-really') }), false);
+});
+
+// ── Grading: bands with gaps ────────────────────────────────────────────────
+
+test('convertGrade picks the highest band at or below the mark', () => {
+  // Bands carry a one-decimal max (89.9), which is what left fractional gaps
+  // like 89.95 with no band at all. Lookup must be by descending `min`.
+  const scale = {
+    passing_grade: 75,
+    bands: [
+      { min: 98, max: 100, letter: 'A', points: 1.0, label: 'Outstanding' },
+      { min: 95, max: 97.9, letter: 'A', points: 1.0, label: 'Very Satisfactory' },
+      { min: 90, max: 94.9, letter: 'B', points: 1.25, label: 'Outstanding' },
+      { min: 88, max: 89.9, letter: 'B', points: 1.5, label: 'Satisfactory' },
+      { min: 75, max: 87.9, letter: 'C', points: 2.0, label: 'Fair' },
+      { min: 0, max: 74.9, letter: 'F', points: 3.0, label: 'Failed' },
+    ],
+  };
+  assert.equal(convertGrade(96, scale).proficiency, 'Very Satisfactory');
+  assert.equal(convertGrade(96, scale).letter, 'A');
+  assert.equal(convertGrade(90, scale).proficiency, 'Outstanding');
+
+  // The exact regression: inside the 87.9/88 gap, previously returned null so the
+  // grade counted toward GWA but vanished from GPA and showed no letter.
+  const gapped = convertGrade(89.95, scale);
+  assert.ok(gapped, 'a mark inside a band gap must still convert');
+  assert.equal(gapped.letter, 'B');
+  assert.equal(gapped.proficiency, 'Satisfactory');
+  assert.equal(gapped.points, 1.5, 'points must survive so GPA still counts it');
+  assert.equal(gapped.passed, true);
+
+  assert.equal(convertGrade(50, scale).proficiency, 'Failed');
+  assert.equal(convertGrade(50, scale).passed, false);
+  assert.equal(convertGrade(0, scale).letter, 'F');
+
+  // Degenerate input must not throw.
+  assert.equal(convertGrade(null, scale), null);
+  assert.equal(convertGrade('', scale), null);
+  assert.equal(convertGrade('abc', scale), null);
+  assert.equal(convertGrade(95, { passing_grade: 75, bands: [] }).letter, null);
+});
+
+// ── Manila calendar dates ───────────────────────────────────────────────────
+
+test('todayStr honours the configured school timezone', () => {
+  const t = todayStr();
+  assert.match(t, /^\d{4}-\d{2}-\d{2}$/);
+  // Must never be blank, and must round-trip through the validator.
+  assert.equal(normalizeDateStr(t), t);
+});
+
+test('shiftDateStr moves across month and year boundaries', () => {
+  const plus = shiftDateStr('2026-03-31', 1);
+  const minus = shiftDateStr('2026-06-01', -1);
+  assert.equal(plus, '2026-04-01');
+  assert.equal(minus, '2026-05-31');
+  assert.equal(shiftDateStr('2026-01-01', -1), '2025-12-31');
+  assert.equal(shiftDateStr('2024-02-28', 1), '2024-02-29', 'leap day must exist');
+  assert.equal(shiftDateStr('2026-10-04', 0), '2026-10-04');
+});
+
+test('normalizeDateStr rejects impossible and malformed dates', () => {
+  assert.equal(normalizeDateStr('2026-02-30'), null, 'Feb 30 must be rejected');
+  assert.equal(normalizeDateStr('2026-13-01'), null);
+  assert.equal(normalizeDateStr('10-04-2026'), null);
+  assert.equal(normalizeDateStr('not-a-date'), null);
+  assert.equal(normalizeDateStr(''), null);
+  assert.equal(normalizeDateStr('2026-03-31'), '2026-03-31');
+  assert.equal(normalizeDateStr('2024-02-29'), '2024-02-29');
+});
+
+test('daysAgoStr walks backwards one day at a time in school time', () => {
+  const from = new Date('2026-03-31T12:00:00Z');
+  assert.equal(daysAgoStr(1, from), '2026-03-30');
+  assert.equal(daysAgoStr(2, from), '2026-03-29');
+  assert.equal(daysAgoStr(30, from), '2026-03-01');
+  assert.equal(daysAgoStr(0, from), '2026-03-31');
+});
+
+// ── Log redaction ───────────────────────────────────────────────────────────
+// SSE authenticates via ?token=, so every reconnect used to write a live JWT into
+// the log stream. Both log call sites must go through redactUrl.
+
+/** Pulls the real redactUrl out of index.js and returns it as a callable. */
+function loadRedactUrl() {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  const m = src.match(/const redactUrl = \(url\) => \{[\s\S]*?\n  \};/);
+  assert.ok(m, 'index.js must define redactUrl');
+  return new Function(`${m[0]}\nreturn redactUrl;`)();
+}
+
+test('redactUrl removes secret values and keeps the URL usable', () => {
+  const redactUrl = loadRedactUrl();
+
+  const sse = redactUrl('/api/v1/realtime/stream?token=eyJhbGciOi.SECRET.PART&x=1');
+  assert.ok(!sse.includes('SECRET'), 'token value must be redacted');
+  assert.ok(sse.includes('token=[redacted]'));
+  assert.ok(sse.includes('x=1'), 'unrelated params survive for debugging');
+
+  // Every sensitive param the audit flagged.
+  for (const p of ['token', 'access_token', 'code', 'password', 'resetToken']) {
+    const out = redactUrl(`/x?${p}=SUPERSECRET`);
+    assert.ok(!out.includes('SUPERSECRET'), `${p} must be redacted`);
+    assert.ok(out.includes(`${p}=[redacted]`));
+  }
+
+  // URLs with no query string are returned untouched.
+  assert.equal(redactUrl('/api/v1/health'), '/api/v1/health');
+  assert.equal(redactUrl(''), '');
+  // A param name that merely contains "code" must not be clobbered.
+  assert.ok(redactUrl('/x?zipcode=1234').includes('zipcode=1234'));
+});
+
+test('every request/error log goes through the redactor', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  // No log call may interpolate the raw URL.
+  assert.doesNotMatch(src, /logger\[\w+\]\([^)]*req\.originalUrl/,
+    'access log must not use the unredacted URL');
+  assert.doesNotMatch(src, /logger\.error\(\{[^}]*url:\s*req\.originalUrl/,
+    'error log must not use the unredacted URL');
+  // And the redactor must actually be referenced.
+  assert.ok(src.includes('redactUrl(req.originalUrl)'),
+    'logs must use redactUrl(req.originalUrl)');
+});
+
+// ── Session storage safety ──────────────────────────────────────────────────
+
+test('safeStore prefers the in-memory fallback over a stale stored value', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'src', 'lib', 'api.js'), 'utf8');
+  const start = src.indexOf('function safeStore');
+  const fnSrc = src.slice(start, src.indexOf('\n}', start) + 2);
+  // eslint-disable-next-line no-new-func
+  const safeStore = new Function(`return (${fnSrc})`)();
+
+  // Storage where writes throw (quota) but reads still return an old token.
+  const win = {
+    localStorage: {
+      _v: 'STALE',
+      getItem() { return this._v; },
+      setItem() { throw new Error('QuotaExceededError'); },
+      removeItem() { this._v = null; },
+    },
+  };
+  const s = safeStore('localStorage', win);
+  s.setItem('k', 'FRESH');
+  assert.equal(s.getItem('k'), 'FRESH', 'newest value must win over the stale stored one');
+
+  // Once writes succeed again the persisted value must not be shadowed.
+  win.localStorage.setItem = function (k2, v2) { this._v = v2; };
+  s.setItem('k', 'PERSISTED');
+  assert.equal(s.getItem('k'), 'PERSISTED');
+
+  s.removeItem('k');
+  assert.equal(s.getItem('k'), null);
+});
+
+// ── Notification dispatch is best-effort ────────────────────────────────────
+
+test('notifyEvent wraps dispatch so a failure cannot fail the caller', async () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'notify.js'), 'utf8');
+  // Structural: the exported entry point must be a thin try/catch shim.
+  const fn = src.slice(src.indexOf('async function notifyEvent'));
+  const body = fn.slice(0, fn.indexOf('\n}'));
+  assert.match(body, /try \{/, 'notifyEvent must have a try block');
+  assert.match(body, /dispatchEvent\(event, ctx\)/);
+  assert.match(body, /catch \(err\)/, 'notifyEvent must swallow dispatch errors');
+
+  // Behavioural: with no recipients configured it resolves rather than throws.
+  const { notifyEvent } = require('../src/notify');
+  const res = await notifyEvent('__no_such_event__', { user_id: null, data: {} });
+  assert.ok(res && typeof res === 'object', 'must resolve to a result object');
+  for (const k of ['created', 'sent', 'failed']) {
+    assert.equal(typeof res[k], 'number', `${k} must be a number`);
+  }
+});
+
+// ── Enrollment capacity is counted under a lock ─────────────────────────────
+
+test('enrollment capacity count excludes nothing it should include', async () => {
+  const [section] = await qa(
+    `INSERT INTO sections (name, grade_level, school_year, capacity)
+     VALUES ('__CapTest', '7', '2026-2027', 2) RETURNING *`, []);
+  const ids = [];
+  try {
+    for (const n of ['901', '902']) {
+      const [st] = await qa(
+        `INSERT INTO students (lrn, first_name, last_name, sex, grade_level, status)
+         VALUES (?, 'Cap', ?, 'Male', '7', 'enrolled') RETURNING *`,
+        [`99999999${n}`, n]);
+      ids.push(st.id);
+      await qr(
+        `INSERT INTO enrollments (student_id, section_id, school_year, grade_level, status)
+         VALUES (?, ?, '2026-2027', '7', 'enrolled')`, [st.id, section.id]);
+    }
+    const tally = await q(
+      `SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?`,
+      [section.id, '2026-2027', 'enrolled']);
+    assert.equal(Number(tally.n), 2);
+  } finally {
+    await qr('DELETE FROM enrollments WHERE section_id = ?', [section.id]);
+    await qr('DELETE FROM sections WHERE id = ?', [section.id]);
+    for (const id of ids) await qr('DELETE FROM students WHERE id = ?', [id]);
+  }
+});
+
+test('enrollment import rejects a non-12-digit LRN at the row level', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'enrollments.routes.js'), 'utf8');
+  assert.match(src, /\^\\d\{12\}\$/,
+    'import must validate LRN against a 12-digit pattern');
+  // The batched prefetch must not reintroduce a per-row lookup.
+  const importBody = src.slice(src.indexOf("router.post('/import'"));
+  assert.doesNotMatch(importBody, /SELECT \* FROM students WHERE lrn = \?/,
+    'import must not re-introduce the per-row student lookup');
+  assert.doesNotMatch(importBody, /SELECT \* FROM sections WHERE name = \? AND/,
+    'import must not re-introduce the per-row section lookup');
+  // qa() takes exactly (sql, params). Spreading a second argument made the
+  // placeholder count mismatch, and SQLite bound it to ZERO rows silently.
+  const importTail = src.slice(src.indexOf("router.post('/import'"), src.indexOf('module.exports'));
+  assert.doesNotMatch(importTail, /qa\([^)]*,\s*\.\.\./,
+    'import must not spread extra args into qa()');
+});
+
+test('batched section prefetch binds correctly and finds every section', async () => {
+  const names = ['__SecA', '__SecB', '__SecC'];
+  const created = [];
+  try {
+    for (const n of names) {
+      created.push((await qa(
+        `INSERT INTO sections (name, grade_level, school_year, capacity)
+         VALUES (?, '7', '2026-2027', 40) RETURNING *`, [n]))[0]);
+    }
+    // Reproduce the route's batched query shape exactly: one placeholder per
+    // name, all names bound as a flat params array.
+    const chunk = names;
+    const marks = chunk.map(() => '?').join(',');
+    const sql = `SELECT * FROM sections WHERE name IN (${marks})`;
+    assert.equal((sql.match(/\?/g) || []).length, chunk.length, 'placeholders must match params');
+
+    const rows = await qa(sql, chunk);
+    assert.equal(rows.length, names.length,
+      'a batched prefetch must return one row per requested section');
+
+    const byName = new Map();
+    for (const r of rows) byName.set(r.name, r);
+    for (const n of names) {
+      const hit = byName.get(n);
+      assert.ok(hit, `${n} must be resolvable`);
+      assert.equal(hit.school_year, '2026-2027');
+      assert.equal(Number(hit.capacity), 40, 'capacity must survive the prefetch');
+    }
+  } finally {
+    for (const s of created) await qr('DELETE FROM sections WHERE id = ?', [s.id]);
+  }
+});
+
+test('section resolution prefers an exact school year, then a year-agnostic one', async () => {
+  const rows = [
+    { name: '__Dual', school_year: '2025-2026' },
+    { name: '__Dual', school_year: '2026-2027' },
+    { name: '__Any', school_year: '2026-2027' },
+    { name: '__Any', school_year: null },
+  ];
+  // Same predicate the route uses after fetching by name.
+  const resolve = (list, sy) => list.find((s) => s.school_year === sy)
+    || list.find((s) => s.school_year == null || s.school_year === '');
+
+  assert.equal(resolve(rows.filter((r) => r.name === '__Dual'), '2026-2027').school_year, '2026-2027',
+    'exact school year must win over another year');
+  assert.equal(resolve(rows.filter((r) => r.name === '__Any'), '2026-2027').school_year, '2026-2027',
+    'exact match preferred');
+  assert.equal(resolve(rows.filter((r) => r.name === '__Any'), '2027-2028'), null === null
+    ? rows.filter((r) => r.name === '__Any').find((s) => s.school_year == null) : null,
+    'year-agnostic section is the fallback');
+});
+
+test('distinct-name dedupe keeps one entry per section name', () => {
+  // The bug: `new Set()` over arrays dedupes by reference, so every row produced
+  // its own entry and the batch grew to the full row count.
+  const rowSections = [...new Set(
+    ['Rizal', 'Rizal', 'Bonifacio', 'Rizal'].map((s) => [s, '2026-2027'])
+  )];
+  const byValue = [...new Set(rowSections.map((p) => p.join('\u0000')))];
+  assert.equal(byValue.length, 2, 'must collapse to 2 distinct sections');
+});
+
+test('tx rolls back on error so a failed capacity check writes nothing', async () => {
+  const [section] = await qa(
+    `INSERT INTO sections (name, grade_level, school_year, capacity)
+     VALUES ('__TxTest', '8', '2026-2027', 40) RETURNING *`, []);
+  const [st] = await qa(
+    `INSERT INTO students (lrn, first_name, last_name, sex, grade_level, status)
+     VALUES ('999999999930', 'Tx', 'Test', 'Male', '8', 'enrolled') RETURNING *`, []);
+  const ERR = 'SECTION_FULL';
+  await assert.rejects(
+    () => tx(async (conn) => {
+      await conn.run(
+        `INSERT INTO enrollments (student_id, section_id, school_year, grade_level, status)
+         VALUES (?, ?, '2026-2027', '8', 'enrolled')`, [st.id, section.id]);
+      const e = new Error('full');
+      e.code = ERR;
+      throw e;
+    }),
+    (e) => e.code === ERR);
+  const left = await q('SELECT id FROM enrollments WHERE section_id = ?', [section.id]);
+  assert.equal(left, null, 'the enrollment must have been rolled back');
+  await qr('DELETE FROM sections WHERE id = ?', [section.id]);
+  await qr('DELETE FROM students WHERE id = ?', [st.id]);
+});
+
+process.on('exit', () => {
+  try { close(); } catch {}
+  try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch {}
+});

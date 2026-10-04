@@ -23,7 +23,11 @@ export interface CalendarHeatmapProps extends HTMLAttributes<HTMLDivElement> {
   legendHigh?: string;
 }
 
-const DATE_KEY = (d: Date) => d.toISOString().slice(0, 10);
+// LOCAL calendar date, not UTC. toISOString() renders the UTC date, so in any
+// timezone east of Greenwich (the Philippines is UTC+8) every grid cell was
+// keyed to the previous day and looked up against data belonging to today.
+const DATE_KEY = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function startOfDay(value: Date): Date {
   const d = new Date(value);

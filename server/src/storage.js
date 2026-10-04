@@ -101,10 +101,21 @@ async function getSignedDownloadUrl(key, expiresIn = 3600) {
 
 // Resolve a key to a fetchable URL. With a public bucket configured this is the
 // plain CDN URL; once the bucket is private we fall back to a presigned GET.
+//
+// Callers must have already run the authorization check: a public-bucket URL is
+// fetchable by anyone holding the link, with no session and no per-file check,
+// so routing sensitive keys through PUBLIC_URL would bypass canReadFile entirely
+// and make those files permanently public. Use getSignedDownloadUrl for those.
 async function getDownloadUrl(key, expiresIn = 3600) {
   if (!key) return null;
   if (PUBLIC_URL && bucketForKey(key) === BUCKET) return `${PUBLIC_URL}/${key}`;
   return getSignedDownloadUrl(key, expiresIn);
 }
 
-module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, getDownloadUrl, genKey, fileKeyFromUrl, bucketForMime, bucketForKey };
+// Always-presigned variant, for keys that must not be publicly linkable.
+async function getPrivateDownloadUrl(key, expiresIn = 300) {
+  if (!key) return null;
+  return getSignedDownloadUrl(key, expiresIn);
+}
+
+module.exports = { uploadFile, uploadBuffer, deleteFile, fileExists, getPublicUrl, getSignedDownloadUrl, getDownloadUrl, getPrivateDownloadUrl, genKey, fileKeyFromUrl, bucketForMime, bucketForKey };

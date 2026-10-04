@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { ThemeName, themeColors } from '../../design-system/tokens/colors';
 
+/** Shape of a single theme's color tokens. */
+type ThemeColorSet = (typeof themeColors)[ThemeName];
+
 interface ThemeContextValue {
   theme: ThemeName;
   setTheme: (theme: ThemeName) => void;
@@ -27,11 +30,38 @@ function resolveTheme(theme: ThemeName): ThemeName {
   return LEGACY_THEME_MAP[theme] || theme;
 }
 
+function isThemeName(value: string | null): value is ThemeName {
+  return !!value && Object.prototype.hasOwnProperty.call(themeColors, value);
+}
+
+// localStorage throws SecurityError when storage is unavailable (Safari private
+// mode, hardened profiles, blocked third-party storage). That exception fired
+// inside the state initializer and the effect, so the whole tree failed to mount.
+// Fall back to the default theme instead of crashing.
+function readStoredTheme(): ThemeName | null {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return isThemeName(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistTheme(theme: ThemeName): void {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    /* storage unavailable — theme still applies for this session */
+  }
+}
+
 export function ThemeProvider({ children, defaultTheme = 'auto' }: { children: React.ReactNode; defaultTheme?: ThemeName }) {
   const [theme, setThemeState] = useState<ThemeName>(() => {
     if (typeof window === 'undefined') return defaultTheme;
-    const stored = localStorage.getItem(THEME_STORAGE_KEY) as ThemeName | null;
-    return stored || defaultTheme;
+    // A value left over from the removed 7-theme picker (e.g. "forest") would
+    // leave data-theme set to a name with no CSS variables, and useCSSVariables
+    // would crash reading themeColors[theme].
+    return readStoredTheme() || defaultTheme;
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<ThemeName>(() => resolveTheme(theme));
@@ -41,7 +71,7 @@ export function ThemeProvider({ children, defaultTheme = 'auto' }: { children: R
     const resolved = resolveTheme(theme);
     setResolvedTheme(resolved);
     document.documentElement.dataset.theme = resolved;
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    persistTheme(theme);
   }, [theme]);
 
   // Listen for system theme changes when in auto mode
@@ -105,7 +135,11 @@ export function useIsDark(): boolean {
 export function useCSSVariables(themeName?: ThemeName) {
   const { resolvedTheme } = useTheme();
   const theme = themeName || resolvedTheme;
-  const colors = themeColors[theme];
+  // Fall back to the active theme rather than throwing on an unknown name
+  // (e.g. a stale value in storage from the removed 7-theme picker).
+  const colors: ThemeColorSet = themeColors[theme]
+    ?? themeColors[resolvedTheme]
+    ?? themeColors.midnight;
 
   return useMemo(() => {
     const cssVars: Record<string, string> = {};
@@ -113,7 +147,7 @@ export function useCSSVariables(themeName?: ThemeName) {
       cssVars[`--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`] = value;
     });
     return cssVars;
-  }, [theme]);
+  }, [colors]);
 }
 
 export default ThemeProvider;

@@ -7,6 +7,10 @@ const { asyncH, audit, safeJsonParse } = require('../utils');
 const { uploadFile, deleteFile } = require('../storage');
 const { UPLOAD_MAX_MB } = require('../config');
 const { optimizeUpload } = require('../image');
+const { todayStr } = require('../dates');
+const { getCurrentSchoolYear, DEFAULT_SCHOOL_YEAR } = require('../schoolYear');
+const { hasMagic } = require('../upload-guard');
+const { userRateLimit } = require('../limiters');
 const logger = require('../logger');
 
 const router = express.Router();
@@ -105,7 +109,7 @@ router.get('/teachers', requireRole('super_admin', 'school_admin', 'principal', 
 }));
 
 router.get('/compliance', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
-  const schoolYear = req.query.school_year || '2026-2027';
+  const schoolYear = req.query.school_year || (await getCurrentSchoolYear());
   const all = await qa('SELECT id, username, name, role FROM users WHERE status = ?', ['active']);
   const staff = all.filter((u) => !isAdminRole(u.role));
   const tasks = await qa(
@@ -114,7 +118,9 @@ router.get('/compliance', requireRole('super_admin', 'school_admin'), asyncH(asy
      JOIN report_types t ON t.id = r.report_type_id
      WHERE r.school_year = ? AND r.assigned_by IS NOT NULL`,
     [schoolYear]);
-  const today = new Date().toISOString().slice(0, 10);
+  // School-local "today": with a UTC default, reports due this morning were
+  // silently excluded from the overdue count.
+  const today = todayStr();
   const kpis = { draft: 0, submitted: 0, reviewed: 0, approved: 0, returned: 0, overdue: 0, missing: 0 };
   const byUser = {};
   const taskByUser = {};
@@ -258,7 +264,7 @@ router.post('/', requireRole('super_admin', 'school_admin', 'principal', 'assist
   const id = await qi(
     `INSERT INTO report_submissions (report_type_id, user_id, teacher_id, school_year, period, status, notes, due_date, draft_body, files_json)
      VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
-    [type.id, req.user.id, teacherId, b.school_year || '2026-2027', b.period, b.notes || null, b.due_date || null, b.draft_body || null, b.files_json || null]);
+    [type.id, req.user.id, teacherId, b.school_year || (await getCurrentSchoolYear()), b.period, b.notes || null, b.due_date || null, b.draft_body || null, b.files_json || null]);
   await audit(req, 'CREATE_SUBMISSION', 'report_submissions', id, { report: type.code, period: b.period });
   res.status(201).json({ id, detail: await submissionDetail(req, id) });
 }));
@@ -355,7 +361,7 @@ router.delete('/:id', requireRole(...ADMIN_ROLES, 'teacher'), asyncH(async (req,
 }));
 
 function draftFor(code, ctx) {
-  const school = 'Hinabangan National High School\nHinabangan, Samar\nSchool Year: ' + (ctx.school_year || '2026-2027');
+  const school = 'Hinabangan National High School\nHinabangan, Samar\nSchool Year: ' + (ctx.school_year || DEFAULT_SCHOOL_YEAR);
   const by = ctx.user_name || '______________________';
   const period = ctx.period || '';
   const footer = 'Prepared by: ' + by + '\nNoted by / Approved by:\n\n______________________\n______________________';
@@ -436,7 +442,7 @@ router.post('/generate-draft', requireRole('super_admin', 'school_admin', 'princ
   if (!type.auto_generate) return res.status(400).json({ error: 'This report type does not support auto-drafting' });
   const ctx = {
     user_name: req.user.name,
-    school_year: b.school_year || '2026-2027',
+    school_year: b.school_year || (await getCurrentSchoolYear()),
     period: b.period || '',
     subject: b.subject || '____________',
     quarter: b.quarter || '1',
@@ -455,7 +461,7 @@ router.post('/assign', requireRole('super_admin', 'school_admin'), asyncH(async 
   if (!userIds.length) return res.status(400).json({ error: 'Select at least one teacher to assign the task to' });
   const users = await qa('SELECT id, username FROM users WHERE id IN (' + userIds.map(() => '?').join(',') + ') AND status = ?', [...userIds, 'active']);
   const validIds = new Set(users.map((u) => u.id));
-  const sy = b.school_year || '2026-2027';
+  const sy = b.school_year || (await getCurrentSchoolYear());
   const created = [];
   const skipped = [];
   for (const uid of userIds) {
@@ -498,6 +504,14 @@ const upload = multer({
 const ATTACH_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'];
 const ATTACH_FULL_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
+// Cap attachment uploads per authenticated user. Sized generously for real use
+// (a teacher attaching a full year's paperwork) while bounding memory pressure.
+const attachmentRateLimit = userRateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  message: { error: 'Too many attachment uploads. Try again later.' },
+});
+
 async function assertAttachmentAccess(req, submissionId, res) {
   const sub = await q('SELECT user_id FROM report_submissions WHERE id = ?', [submissionId]);
   if (!sub) return res.status(404).json({ error: 'Submission not found' });
@@ -507,18 +521,28 @@ async function assertAttachmentAccess(req, submissionId, res) {
   return sub;
 }
 
-router.post('/:id/attachments', requireRole(...ATTACH_ROLES), upload.single('file'), asyncH(async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  req.file = await optimizeUpload(req.file);
-  const sub = await assertAttachmentAccess(req, req.params.id, res);
-  if (!sub) return;
-  const { key } = await uploadFile('submissions', req.file, req.file.originalname);
-  const fileId = await qi(
-    `INSERT INTO submission_files (submission_id, filename, stored_name, size_bytes, mime) VALUES (?, ?, ?, ?, ?)`,
-    [sub.id, req.file.originalname, key, req.file.size, req.file.mimetype]);
-  await audit(req, 'UPLOAD_SUBMISSION_FILE', 'submission_files', fileId, { submission_id: sub.id, key });
-  res.json({ ok: true, file: { id: fileId, submission_id: sub.id, filename: req.file.originalname, stored_name: key, size_bytes: req.file.size, mime: req.file.mimetype } });
-}));
+router.post('/:id/attachments',
+  requireRole(...ATTACH_ROLES),
+  // The global limiter only covers /auth, so this endpoint had no per-user cap
+  // of its own: each request buffers up to UPLOAD_MAX_MB in RAM (multer
+  // memoryStorage), so a handful of concurrent uploads could exhaust the heap.
+  attachmentRateLimit,
+  upload.single('file'),
+  asyncH(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    // Extension + client MIME are both attacker-controlled; verify the actual
+    // bytes match the declared type before optimizing or storing anything.
+    if (!hasMagic(req.file)) return res.status(400).json({ error: 'File content does not match its declared type.' });
+    req.file = await optimizeUpload(req.file);
+    const sub = await assertAttachmentAccess(req, req.params.id, res);
+    if (!sub) return;
+    const { key } = await uploadFile('submissions', req.file, req.file.originalname);
+    const fileId = await qi(
+      `INSERT INTO submission_files (submission_id, filename, stored_name, size_bytes, mime) VALUES (?, ?, ?, ?, ?)`,
+      [sub.id, req.file.originalname, key, req.file.size, req.file.mimetype]);
+    await audit(req, 'UPLOAD_SUBMISSION_FILE', 'submission_files', fileId, { submission_id: sub.id, key });
+    res.json({ ok: true, file: { id: fileId, submission_id: sub.id, filename: req.file.originalname, stored_name: key, size_bytes: req.file.size, mime: req.file.mimetype } });
+  }));
 
 router.get('/:id/attachments', requireRole(...ATTACH_ROLES), asyncH(async (req, res) => {
   const sub = await assertAttachmentAccess(req, req.params.id, res);

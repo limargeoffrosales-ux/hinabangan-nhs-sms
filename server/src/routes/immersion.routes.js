@@ -5,6 +5,7 @@ const { asyncH, audit, page } = require('../utils');
 const { linkedStudentIds, ensurePortalSeesStudent, teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
 
 const { geocodeAddress } = require('../geocode');
+const { todayStr, normalizeDateStr } = require('../dates');
 
 // UTC cutoff string for a "last N minutes" window — kept in the storage format
 // of each dialect so a plain >= comparison works (PG: ISO-with-Z; SQLite:
@@ -21,7 +22,7 @@ const JDVP_STATUSES = ['pending', 'served', 'withdrawn'];
 const ATTENDANCE_STATUSES = ['present', 'absent', 'late', 'excused'];
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayStr();
 }
 
 function computeHours(timeIn, timeOut) {
@@ -502,7 +503,7 @@ tracking.post('/reports', requireRole(...WRITE), asyncH(async (req, res) => {
 
   const reportId = await qi(
     `INSERT INTO work_immersion_reports (teacher_id, venue_id, report_date, period_covered, students_count, attendance_rate, performance_summary, issues_raised, recommendations, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.user.id, b.venue_id, new Date().toISOString().slice(0, 10), b.period_covered, b.students_count, b.attendance_rate || null, b.performance_summary || null, b.issues_raised || null, b.recommendations || null, req.user.id]
+    [req.user.id, b.venue_id, normalizeDateStr(b.report_date) || today(), b.period_covered, b.students_count, b.attendance_rate || null, b.performance_summary || null, b.issues_raised || null, b.recommendations || null, req.user.id]
   );
 
   await audit(req, 'SUBMIT_REPORT', 'work_immersion_reports', reportId, { venue_id: b.venue_id, teacher_id: req.user.id, students_count: b.students_count });
@@ -566,8 +567,8 @@ tracking.post('/location', requireRole('student', 'parent'), asyncH(async (req, 
   }
   // Constrain to the placement window if dates are recorded.
   if (wi.start_date && wi.end_date) {
-    const today = new Date().toISOString().slice(0, 10);
-    if (today < wi.start_date || today > wi.end_date) {
+    const todayLocal = today();
+    if (todayLocal < wi.start_date || todayLocal > wi.end_date) {
       return res.status(400).json({ error: 'Outside immersion schedule dates' });
     }
   }

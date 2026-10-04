@@ -1,5 +1,5 @@
 const { q, qa } = require('../db');
-const { getScaleForSubject, convertGrade, gpaFrom } = require('./scales');
+const { getScaleForSubject, getScalesForSubjects, convertGrade, gpaFrom } = require('./scales');
 
 const HONOR_KEY = 'honor_roll';
 
@@ -138,9 +138,19 @@ function honorDesignation(summary, settings) {
 function assignRanks(rows, key = 'gwa') {
   rows.sort((a, b) => (b[key] == null ? -1 : b[key]) - (a[key] == null ? -1 : a[key]));
   let prev = null;
-  let prevRank = 0;
+  // Start at 1, and treat "no ranked value" as no rank. Previously prevRank
+  // started at 0 while prev started at null, so when every row had a null value
+  // the very first comparison (null !== null) was false and every student was
+  // assigned rank 0.
+  let prevRank = 1;
+  let seen = false;
   for (let i = 0; i < rows.length; i++) {
-    if (rows[i][key] !== prev) {
+    if (rows[i][key] == null) {
+      rows[i].rank = null;
+      continue;
+    }
+    if (!seen || rows[i][key] !== prev) {
+      seen = true;
       prev = rows[i][key];
       prevRank = i + 1;
     }
@@ -173,11 +183,15 @@ async function finalsForStudents(studentIds, schoolYear) {
     const sid = Number(r.student_id);
     (byStudent[sid] = byStudent[sid] || []).push(r);
   }
+  // Resolve every distinct subject's scale ONCE for the whole batch. The cache
+  // used to be declared inside the per-student loop, so it was rebuilt (and
+  // re-queried) for each student — defeating the "avoids N+1" comment above and
+  // costing ~1200 queries for a 60x10 list.
+  const scales = await getScalesForSubjects(rows.map((r) => r.subject_id));
   for (const sid of ids) {
     const out = [];
-    const scaleCache = {};
     for (const r of byStudent[sid] || []) {
-      const scale = scaleCache[r.subject_id] || (scaleCache[r.subject_id] = await getScaleForSubject(r.subject_id));
+      const scale = scales.get(Number(r.subject_id));
       const converted = convertGrade(r.final, scale);
       out.push({
         subject_id: Number(r.subject_id),

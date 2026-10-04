@@ -3,57 +3,13 @@ const multer = require('multer');
 const path = require('path');
 const { authenticate, requireRole, ROLES } = require('../auth');
 const { asyncH, audit } = require('../utils');
-const { uploadFile, deleteFile, getDownloadUrl, fileKeyFromUrl } = require('../storage');
+const { uploadFile, deleteFile, getPrivateDownloadUrl, fileKeyFromUrl } = require('../storage');
 const { UPLOAD_MAX_MB } = require('../config');
 const { optimizeUpload } = require('../image');
 const { q, qr } = require('../db');
 const { ensureTeacherSeesStudent, linkedStudentIds } = require('../scope');
+const { hasMagic } = require('../upload-guard');
 const logger = require('../logger');
-
-// Sniff the real file signature instead of trusting the client Content-Type
-// (OWASP File Upload Cheat Sheet). Rejects content that does not match the
-// declared type.
-function hasMagic(file) {
-  const b = file && file.buffer;
-  if (!b || b.length === 0) return false;
-  const sw = (off, arr) => b.length >= off + arr.length && arr.every((x, i) => b[off + i] === x);
-  const ascii = (off, s) => b.toString('latin1', off, off + s.length) === s;
-  switch (file.mimetype) {
-    case 'image/png':
-      return sw(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    case 'image/jpeg':
-      return sw(0, [0xff, 0xd8, 0xff]);
-    case 'image/gif':
-      return ascii(0, 'GIF87a') || ascii(0, 'GIF89a');
-    case 'image/webp':
-      return sw(0, [0x52, 0x49, 0x46, 0x46]) && sw(8, [0x57, 0x45, 0x42, 0x50]);
-    case 'application/pdf':
-      return ascii(0, '%PDF-');
-    case 'application/msword':
-    case 'application/vnd.ms-excel':
-    case 'application/vnd.ms-powerpoint':
-      return sw(0, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
-    case 'video/mp4':
-    case 'video/quicktime':
-    case 'video/x-m4v':
-      return ascii(4, 'ftyp');
-    case 'video/webm':
-    case 'video/x-matroska':
-      return sw(0, [0x1a, 0x45, 0xdf, 0xa3]);
-    case 'video/x-msvideo':
-      return ascii(0, 'RIFF') && ascii(8, 'AVI ');
-    case 'application/zip':
-    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-    case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
-      return sw(0, [0x50, 0x4b, 0x03, 0x04]) || sw(0, [0x50, 0x4b, 0x05, 0x06]);
-    case 'text/plain':
-    case 'text/csv':
-      return !b.includes(0);
-    default:
-      return false;
-  }
-}
 
 const router = express.Router();
 router.use(authenticate);
@@ -131,11 +87,35 @@ router.post('/file', requireRole(...STAFF_UPLOAD), upload.single('file'), asyncH
 // posts / achievements.
 // GET /uploads/file/:key(*)
 
+// Roles that handle student records and may read sensitive files (photos,
+// birth certificates, enrollment documents) for any student. Every other
+// authenticated staff role (cashier, accounting, hr, ict, property_custodian,
+// security) previously passed the blanket `STAFF_FILE_ROLES` check and could
+// fetch ANY stored file by key — a much wider grant than their duties require.
+const STUDENT_DATA_FILE_ROLES = new Set([
+  'super_admin', 'region_admin', 'division_admin', 'school_admin',
+  'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance',
+]);
+
+// Storage keys are `${folder}/${id}.${ext}`, so the folder prefix is a reliable
+// signal for what a file holds.
+const SENSITIVE_FILE_PREFIXES = ['enrollment_docs', 'photos', 'students', 'birth_certificate'];
+
+function isSensitiveFileKey(key) {
+  const folder = String(key || '').split('/')[0].toLowerCase();
+  return SENSITIVE_FILE_PREFIXES.includes(folder);
+}
+
 const STAFF_FILE_ROLES = new Set(ROLES.filter((r) => r !== 'student' && r !== 'parent'));
 
 async function canReadFile(user, key) {
   if (!key) return false;
-  if (STAFF_FILE_ROLES.has(user.role)) return true;
+  if (STAFF_FILE_ROLES.has(user.role)) {
+    // Non-student-data staff keep broad access to operational uploads (receipts,
+    // forms, incident photos) but not to student PII documents.
+    if (STUDENT_DATA_FILE_ROLES.has(user.role) || !isSensitiveFileKey(key)) return true;
+    return false;
+  }
 
   const ids = await linkedStudentIds(user);
   if (!ids || ids.length === 0) return false;
@@ -178,7 +158,10 @@ router.get('/file/*', asyncH(async (req, res) => {
   if (!key) return res.status(400).json({ error: 'Key required' });
   const allowed = await canReadFile(req.user, key);
   if (!allowed) return res.status(403).json({ error: 'You do not have access to this file' });
-  const url = await getDownloadUrl(key);
+  // Always presign: getDownloadUrl would hand back a public-bucket URL when
+  // R2_PUBLIC_URL is set, which anyone could open without a session and which
+  // would silently defeat the canReadFile check above.
+  const url = await getPrivateDownloadUrl(key);
   if (!url) return res.status(404).json({ error: 'File not found or storage not configured' });
   res.redirect(url);
 }));

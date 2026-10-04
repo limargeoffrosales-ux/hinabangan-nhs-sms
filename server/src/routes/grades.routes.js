@@ -96,7 +96,12 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!b.section_id || !b.subject_id || !b.school_year || !period || !Array.isArray(b.rows)) {
     return res.status(400).json({ error: 'section_id, subject_id, school_year, term, rows are required' });
   }
-  if (Number(period) < 1 || Number(period) > 3) return res.status(400).json({ error: 'term must be 1-3' });
+  // Require an INTEGER 1-3. `Number(period)` alone let 'Q2', '2abc' and '' all
+  // through as NaN, because every comparison against NaN is false.
+  const termNum = Number(period);
+  if (!Number.isInteger(termNum) || termNum < 1 || termNum > 3) {
+    return res.status(400).json({ error: 'term must be 1, 2 or 3' });
+  }
   if (req.role === 'teacher') {
     const scope = await teacherScope(req.user);
     if (!scope || !scope.hasClass(Number(b.section_id), Number(b.subject_id))) {
@@ -118,13 +123,27 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
   const scale = await getScaleForSubject(b.subject_id);
   const passing = Number(scale.passing_grade);
   let n = 0;
+  const rejected = [];
   await tx(async (conn) => {
     for (const r of b.rows) {
       if (!r.student_id) continue;
-      const w = r.written_work != null && r.written_work !== '' ? Number(r.written_work) : null;
-      const p = r.performance_task != null && r.performance_task !== '' ? Number(r.performance_task) : null;
-      const qe = r.quarterly_exam != null && r.quarterly_exam !== '' ? Number(r.quarterly_exam) : null;
-      if ([w, p, qe].some((v) => v != null && (v < 0 || v > 100))) continue;
+      // Number('abc') is NaN, and NaN fails every comparison — the old
+      // `v < 0 || v > 100` guard let NaN through and persisted it into a
+      // numeric column, permanently corrupting the record. Validate the raw
+      // input with Number.isFinite instead, and surface which rows were
+      // dropped rather than reporting only how many saved.
+      const parse = (v) => {
+        if (v == null || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : NaN;
+      };
+      const w = parse(r.written_work);
+      const p = parse(r.performance_task);
+      const qe = parse(r.quarterly_exam);
+      if (![w, p, qe].every((v) => v === null || (Number.isFinite(v) && v >= 0 && v <= 100))) {
+        rejected.push(r.student_id);
+        continue;
+      }
       const grade = compute(w, p, qe, scale.weights);
       const remarks = grade != null ? (grade >= passing ? 'PASSED' : 'FAILED') : null;
       const existing = await conn.get(
@@ -140,7 +159,7 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
       n++;
     }
   });
-  await audit(req, 'GRADES_SAVE', 'grades', null, { section_id: b.section_id, subject_id: b.subject_id, term: period, rows: n, scale: scale.code });
+  await audit(req, 'GRADES_SAVE', 'grades', null, { section_id: b.section_id, subject_id: b.subject_id, term: period, rows: n, rejected: rejected.length, scale: scale.code });
   notifyEvent('grade_posted', {
     section_id: b.section_id,
     school_year: b.school_year,
@@ -150,7 +169,15 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
       section: (await q('SELECT name FROM sections WHERE id = ?', [b.section_id]))?.name || '',
     },
   }).catch((err) => logger.error({ err: err.message }, '[GRADES] notifyEvent(grades_saved) failed'));
-  res.json({ ok: true, saved: n, scale: scaleMeta(scale) });
+  res.json({
+    ok: true,
+    saved: n,
+    // Tell the teacher exactly which rows were skipped instead of silently
+    // dropping them — a partial save used to look fully successful.
+    rejected_student_ids: rejected,
+    rejected_reason: 'grade values must be numbers between 0 and 100',
+    scale: scaleMeta(scale),
+  });
 }));
 
 // GET /export — class record for a section/subject/term as a downloadable

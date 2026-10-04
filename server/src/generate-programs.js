@@ -292,6 +292,9 @@ function placeAssignment(a, aiMeetings, dayTimes, roomPool, scheduler) {
 }
 
 async function generateGroup(group, scheduler, dayTimes, roomPool, log) {
+  // Local failure list for this teacher. When the AI returns unusable output we
+  // mark every one of the teacher's assignments failed and bail out.
+  const failures = [];
   const placed = scheduler.rows.filter((r) => r.assignment_id !== undefined).map((r) => ({
     day: r.day,
     start_time: r.start_time,

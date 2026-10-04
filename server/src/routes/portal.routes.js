@@ -7,6 +7,7 @@ const { linkedStudentIds } = require('../scope');
 const { getCurrentSchoolYear } = require('../schoolYear');
 const { finalsForStudents, round2 } = require('../grading/analytics');
 const { getDefaultScale, getScaleForSubject, convertGrade } = require('../grading/scales');
+const { todayStr } = require('../dates');
 
 const router = express.Router();
 router.use(authenticate);
@@ -259,7 +260,9 @@ router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, r
   const studentId = await resolvePortalStudent(ids, req, res);
   if (!studentId) return res.json({ data: [] });
   const { school_year } = req.query;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // School-local date: assignments due this morning must not disappear from the
+  // portal because Render's UTC clock was still on the previous day.
+  const todayLocal = todayStr();
   const rows = await qa(
     `SELECT a.id, a.title, a.due_date, a.description, sub.code AS subject_code, sub.title AS subject_title,
             asub.status AS submission_status
@@ -273,7 +276,7 @@ router.get('/upcoming-assignments', requireRole(...PORTAL), asyncH(async (req, r
        AND asub.id IS NULL
      ORDER BY a.due_date IS NULL, a.due_date ASC
      LIMIT 10`,
-    school_year ? [studentId, studentId, school_year, todayStr] : [studentId, studentId, todayStr]);
+    school_year ? [studentId, studentId, school_year, todayLocal] : [studentId, studentId, todayLocal]);
   res.json({ data: rows });
 }));
 

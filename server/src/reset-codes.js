@@ -4,7 +4,12 @@ const crypto = require('crypto');
 
 const RESET_CODE_TTL_MS = 15 * 60 * 1000;
 const RESET_MAX_ATTEMPTS = 5;
-const RESET_CODE_LENGTH = 6;
+// 8 digits, not 6. The per-account attempt counter cannot protect a wrong guess
+// (a wrong code matches no row by code_hash, so nothing is incremented), which
+// left the per-IP rate limiter as the only real barrier. Raising the space from
+// 10^6 to 10^8 makes guessing infeasible within the 15-minute TTL even when an
+// attacker rotates source IPs.
+const RESET_CODE_LENGTH = 8;
 
 function genResetCode() {
   return String(crypto.randomInt(0, 10 ** RESET_CODE_LENGTH)).padStart(RESET_CODE_LENGTH, '0');

@@ -12,7 +12,7 @@
 // ============================================================
 
 const nodemailer = require('nodemailer');
-const { q, qa, qi, qr, nowSql } = require('./db');
+const { q, qa, qi, qr, nowSql, dialect } = require('./db');
 const { broadcast } = require('./realtime');
 const logger = require('./logger');
 const {
@@ -501,7 +501,34 @@ async function sendSms(row) {
   }
 }
 
-async function attemptSend(row) {
+// Claim a queued/failed row for delivery by flipping it to the in-flight
+// 'sending' status. The UPDATE ... WHERE status IN (...) is the mutual
+// exclusion: a second caller (a concurrent sweep, or an explicit resend racing
+// the sweep) updates 0 rows and gets `false`, so it never sends. Without this,
+// SELECT-then-send allowed the same notification to be delivered twice.
+async function claim(id, opts = {}) {
+  // `attempts < ?` keeps a permanently failing notification out of the sweep
+  // once it has exhausted MAX_ATTEMPTS.
+  let sql = `UPDATE notifications SET status = 'sending', claimed_at = ${nowSql()}, updated_at = ${nowSql()}
+             WHERE id = ? AND status IN ('queued', 'failed'`;
+  if (opts.allowRetry) sql += `, 'sending'`;
+  sql += ')';
+  const params = [];
+  if (opts.maxAttempts != null) {
+    sql += ' AND attempts < ?';
+    params.push(opts.maxAttempts);
+  }
+  params.push(id);
+  const result = await qr(sql, params);
+  return (result.changes || 0) > 0;
+}
+
+async function attemptSend(row, opts = {}) {
+  // `claimed: false` means the caller already holds the claim.
+  if (!opts.claimed) {
+    const got = await claim(row.id, opts);
+    if (!got) return { ok: false, id: row.id, skipped: true, error: 'already claimed' };
+  }
   try {
     const result = row.channel === 'email' ? await sendEmail(row) : await sendSms(row);
     await qr(
@@ -590,7 +617,26 @@ async function resolveUserRecipients(userId) {
   return { emails, phones };
 }
 
+// Notifications are a best-effort side effect of work that has ALREADY been
+// committed (an enrollment row, a password-reset token, a submitted report).
+// Letting this throw turned a durable success into a 500 and told the caller to
+// retry, which then hit the duplicate/unique guards — so a transient SMTP or DB
+// error produced both a scary error page and a duplicate submission. Failures
+// are logged and reported in the return value instead.
+//
+// This also preserves the enumeration-safe password-reset contract: that route
+// deliberately answers 202 regardless of whether the account exists, and a
+// notify error used to be the one case that leaked a distinguishable 500.
 async function notifyEvent(event, ctx = {}) {
+  try {
+    return await dispatchEvent(event, ctx);
+  } catch (err) {
+    logger.error({ err: err.message, event }, '[NOTIFY] dispatch failed');
+    return { created: 0, sent: 0, failed: 0, error: err.message };
+  }
+}
+
+async function dispatchEvent(event, ctx) {
   const cfg = await getConfig();
   const channels = [];
   if (cfg.email_enabled) channels.push('email');
@@ -616,7 +662,10 @@ async function notifyEvent(event, ctx = {}) {
          VALUES (?, ?, ?, ?, ?, ?)`,
         [event, channel, rcpt.user_id || null, rcpt.address, subject, body]);
       created++;
+      // The insert lands as 'queued', then attemptSend claims it. Passing
+      // maxAttempts keeps a queued row with a full attempt budget out.
       const result = await attemptSend({ id, channel, recipient_address: rcpt.address, subject, body });
+      if (result.skipped) { created--; continue; }
       if (result.ok) sent++;
       else failed++;
     }
@@ -636,7 +685,18 @@ async function sweep() {
        ORDER BY created_at
        LIMIT ?`,
       [MAX_ATTEMPTS, SWEEP_LIMIT]);
-    for (const row of rows) await attemptSend(row);
+    // attemptSend claims each row atomically, so a concurrent sweep or resend
+    // loses the UPDATE and skips the send instead of duplicating it.
+    for (const row of rows) {
+      await attemptSend(row, { maxAttempts: MAX_ATTEMPTS });
+    }
+    // Recover rows stuck in-flight. A process crash mid-send left them at
+    // 'sending' forever; after the stale window they are eligible again.
+    await qr(
+      `UPDATE notifications SET status = 'failed', error = COALESCE(error, 'interrupted; retrying')
+       WHERE status = 'sending' AND claimed_at IS NOT NULL
+         AND claimed_at < ${dialect === 'pg' ? "now() - interval '10 minutes'" : "datetime('now', '-10 minutes')"}`
+    );
   } catch (err) {
     logger.error({ err: err.message }, 'NOTIFY_SWEEP failed:');
   } finally {
@@ -690,7 +750,10 @@ async function setSetting(key, value) {
 async function resend(id) {
   const row = await q('SELECT * FROM notifications WHERE id = ?', [id]);
   if (!row) return { error: 'Notification not found' };
-  if (row.status === 'sent') return { error: 'Notification was already sent' };
+  if (row.status === 'sent' || row.status === 'simulated') return { error: 'Notification was already sent' };
+  // Reset the attempt budget so an explicit resend always gets a real attempt,
+  // but keep the atomic claim so it can't race the background sweep.
+  await qr('UPDATE notifications SET attempts = 0 WHERE id = ? AND status = ?', [id, row.status]);
   return attemptSend(row);
 }
 

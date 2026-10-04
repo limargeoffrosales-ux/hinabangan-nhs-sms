@@ -1,5 +1,5 @@
 const express = require('express');
-const { q, qa, qi, qr, bool, tx } = require('../db');
+const { q, qa, qi, qr, bool, tx, usePg } = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit } = require('../utils');
 const { ensureTeacherSeesSection, ensureTeacherSeesStudent, linkedStudentIds } = require('../scope');
@@ -42,6 +42,10 @@ function normStatus(s) {
 function isUniqueViolation(e) {
   return e && (e.code === '23505' || /unique constraint/i.test(e.message || ''));
 }
+
+// Thrown from inside a transaction when the section has no seats left. Carried
+// out of the tx so the handler can turn it into a 409 instead of a 500.
+const ERR_FULL = 'SECTION_FULL';
 
 // Map the school's official strand picker labels to their catalog category
 // so the enrollment form can pre-tick the right sector subjects. Academic and
@@ -172,14 +176,6 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     }
   }
   const capacity = Number(section.capacity) || 40;
-  if (capacity > 0) {
-    const tally = await q(
-      'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?',
-      [section.id, b.school_year, 'enrolled']);
-    if (Number(tally.n) >= capacity) {
-      return res.status(409).json({ error: `Section is at full capacity (${capacity} learners)` });
-    }
-  }
   const existing = await q(
     `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${term ? 'term = ?' : 'term IS NULL'}`,
     term ? [b.student_id, b.school_year, term] : [b.student_id, b.school_year]);
@@ -191,6 +187,22 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   let subjects;
   try {
     subjects = await tx(async (conn) => {
+      // Capacity is enforced INSIDE the write transaction. Checking it in a
+      // separate statement first was a write-skew: two simultaneous admissions
+      // both read count = capacity-1 and both inserted, overshooting the cap.
+      // Taking a row lock on the section serializes them on PG; SQLite's
+      // BEGIN IMMEDIATE already holds a write lock for the whole tx.
+      if (usePg) await conn.get('SELECT id FROM sections WHERE id = ? FOR UPDATE', [section.id]);
+      if (capacity > 0) {
+        const tally = await conn.get(
+          'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ?',
+          [section.id, b.school_year, 'enrolled']);
+        if (Number(tally.n) >= capacity) {
+          const err = new Error(`Section is at full capacity (${capacity} learners)`);
+          err.code = ERR_FULL;
+          throw err;
+        }
+      }
       id = await conn.runId(
         'INSERT INTO enrollments (student_id, section_id, school_year, grade_level, strand, term, is_aral, status, enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [b.student_id, section.id, b.school_year, gradeLevel, strand, term, isAral, status, b.enrolled_at || null]);
@@ -198,6 +210,7 @@ router.post('/', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
       return await saveSubjects(conn, id, subChk.ids);
     });
   } catch (e) {
+    if (e.code === ERR_FULL) return res.status(409).json({ error: e.message });
     if (isUniqueViolation(e)) {
       return res.status(409).json({ error: `Student already enrolled for ${b.school_year}${term ? ` (${term} term)` : ''}` });
     }
@@ -402,15 +415,6 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     if (newSection.grade_level && newSection.grade_level !== row.grade_level) {
       return res.status(400).json({ error: `Moving between grade levels is not supported here (section is ${newSection.grade_level}, enrollment is ${row.grade_level})` });
     }
-    const capacity = Number(newSection.capacity) || 40;
-    if (capacity > 0) {
-      const tally = await q(
-        'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ? AND id != ?',
-        [newSection.id, row.school_year, 'enrolled', row.id]);
-      if (Number(tally.n) >= capacity) {
-        return res.status(409).json({ error: `Target section is at full capacity (${capacity} learners)` });
-      }
-    }
   }
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
   let term = row.term;
@@ -441,11 +445,29 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
   const isAral = bool(b.is_aral !== undefined ? b.is_aral : row.is_aral);
   try {
     await tx(async (conn) => {
+      // Same write-skew fix as the create path: the target section's occupancy
+      // is counted under a row lock, inside the transaction that performs the
+      // move, so two concurrent transfers cannot both claim the last seat.
+      if (newSection) {
+        if (usePg) await conn.get('SELECT id FROM sections WHERE id = ? FOR UPDATE', [newSection.id]);
+        const capacity = Number(newSection.capacity) || 40;
+        if (capacity > 0) {
+          const tally = await conn.get(
+            'SELECT COUNT(*) AS n FROM enrollments WHERE section_id = ? AND school_year = ? AND status = ? AND id != ?',
+            [newSection.id, row.school_year, 'enrolled', row.id]);
+          if (Number(tally.n) >= capacity) {
+            const err = new Error(`Target section is at full capacity (${capacity} learners)`);
+            err.code = ERR_FULL;
+            throw err;
+          }
+        }
+      }
       await conn.run('UPDATE enrollments SET section_id = ?, status = ?, strand = ?, term = ?, is_aral = ?, enrolled_at = ? WHERE id = ?',
         [f('section_id', row.section_id), newStatus, f('strand', row.strand), term, isAral, f('enrolled_at', row.enrolled_at), row.id]);
       if (b.subject_ids !== undefined) await saveSubjects(conn, row.id, checkedSubjectIds);
     });
   } catch (e) {
+    if (e.code === ERR_FULL) return res.status(409).json({ error: e.message });
     if (isUniqueViolation(e)) {
       return res.status(409).json({ error: 'Another enrollment already exists for this student, school year and term' });
     }
@@ -504,12 +526,66 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
   const rows = Array.isArray(b.rows) ? b.rows : null;
   if (!rows || !rows.length) return res.status(400).json({ error: 'rows array is required' });
 
-  const fallbackSy = b.school_year || '2026-2027';
+  const fallbackSy = b.school_year || (await getCurrentSchoolYear());
   const fallbackTerm = b.term || null;
   let imported = 0;
   let enrolled = 0;
   let skipped = 0;
   const errors = [];
+
+  // Batch the repeated per-row lookups up front. Previously each row issued its
+  // own SELECT for student-by-LRN and section-by-name, so a 500-row import ran
+  // 1000+ round trips and took minutes. These three queries collapse that to a
+  // constant, then the loop below only writes.
+  const rowLrns = [...new Set(rows
+    .map((r) => String((r && r.lrn) || '').trim())
+    .filter((v) => /^\d{12}$/.test(v)))];
+  const existingByLrn = new Map();
+  for (let i = 0; i < rowLrns.length; i += 500) {
+    const chunk = rowLrns.slice(i, i + 500);
+    if (!chunk.length) continue;
+    const marks = chunk.map(() => '?').join(',');
+    for (const s of await qa(`SELECT * FROM students WHERE lrn IN (${marks})`, chunk)) {
+      existingByLrn.set(String(s.lrn), s);
+    }
+  }
+
+// Section lookup is keyed by name only and resolved per school-year in JS.
+  // Batching the (name, school_year) pair into SQL needs a variable number of
+  // bindings, and `qa()` takes exactly (sql, params) — a spread of pairs left the
+  // placeholder count mismatched, which SQLite binds silently to zero rows. That
+  // made every imported row create a fresh section instead of reusing the one.
+  const rowSectionNames = [...new Set(rows
+    .map((r) => String((r && r.section) || '').trim())
+    .filter(Boolean))];
+  const sectionsByName = new Map();
+  for (let i = 0; i < rowSectionNames.length; i += 500) {
+    const chunk = rowSectionNames.slice(i, i + 500);
+    if (!chunk.length) continue;
+    const marks = chunk.map(() => '?').join(',');
+    for (const s of await qa(`SELECT * FROM sections WHERE name IN (${marks})`, chunk)) {
+      const list = sectionsByName.get(s.name) || [];
+      list.push(s);
+      sectionsByName.set(s.name, list);
+    }
+  }
+
+  // Sections created earlier in THIS import must also be visible to later rows,
+  // otherwise the same section would be recreated once per learner.
+  const madeSections = new Map();
+  const findSection = (name, sy) => {
+    const k = `${name} ${sy}`;
+    if (madeSections.has(k)) return madeSections.get(k);
+    const list = sectionsByName.get(name) || [];
+    // Mirrors `name = ? AND (school_year = ? OR school_year IS NULL)`: an exact
+    // school-year match wins, otherwise fall back to a year-agnostic section.
+    const hit = list.find((s) => s.school_year === sy)
+      || list.find((s) => s.school_year == null || s.school_year === '');
+    if (hit) { madeSections.set(k, hit); return hit; }
+    return null;
+  };
+
+  const seenEnrollments = new Set();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -540,23 +616,35 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
       const term = normTerm(String(row.term || '').trim() || fallbackTerm);
 
       // --- Find or create student ---
-      let student = lrn ? await q('SELECT * FROM students WHERE lrn = ?', [lrn]) : null;
+      let student = lrn ? (existingByLrn.get(lrn) || null) : null;
       if (student) {
         // Update existing student
         const updates = [];
         const params = [];
-        if (middleName != null) { updates.push('middle_name = ?'); params.push(middleName); }
-        if (suffix != null) { updates.push('suffix = ?'); params.push(suffix); }
-        if (sex) { updates.push('sex = ?'); params.push(sex); }
-        if (birthDate) { updates.push('birth_date = ?'); params.push(birthDate); }
-        if (address) { updates.push('address = ?'); params.push(address); }
-        if (guardianName) { updates.push('guardian_name = ?'); params.push(guardianName); }
-        if (guardianContact) { updates.push('guardian_contact = ?'); params.push(guardianContact); }
-        if (trackStrand) { updates.push('track_strand = ?'); params.push(trackStrand); }
-        if (gradeLevel) { updates.push('grade_level = ?'); params.push(gradeLevel); }
+        // field -> value, kept alongside so the cache can be refreshed below
+        // without re-indexing the parameter array.
+        const changed = {};
+        const set = (field, value) => {
+          if (value == null) return;
+          updates.push(`${field} = ?`);
+          params.push(value);
+          changed[field] = value;
+        };
+        set('middle_name', middleName);
+        set('suffix', suffix);
+        set('sex', sex);
+        set('birth_date', birthDate);
+        set('address', address);
+        set('guardian_name', guardianName);
+        set('guardian_contact', guardianContact);
+        set('track_strand', trackStrand);
+        set('grade_level', gradeLevel);
         if (updates.length) {
           params.push(student.id);
           await qr(`UPDATE students SET ${updates.join(', ')} WHERE id = ?`, params);
+          // Keep the cache coherent so a repeated LRN later in the same import
+          // sees the values this row just wrote.
+          Object.assign(student, changed);
         }
       } else {
         // Create new student
@@ -566,27 +654,36 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
           [finalLrn, firstName, middleName, lastName, suffix, sex, birthDate, address, guardianName, guardianContact, gradeLevel, trackStrand, 'enrolled']
         );
         student = { id: newId };
+        // A supplied LRN now exists, so a later row repeating it must update
+        // this student rather than insert a duplicate.
+        if (lrn) existingByLrn.set(lrn, student);
       }
       imported++;
 
       // --- Find or create section ---
       if (sectionName && gradeLevel) {
-        let section = await q('SELECT * FROM sections WHERE name = ? AND (school_year = ? OR school_year IS NULL)', [sectionName, sy]);
+        // Cache-backed: resolves sections prefetched above or created by an
+        // earlier row in this same import, so N rows in one section cost one
+        // SELECT instead of N.
+        let section = findSection(sectionName, sy);
         if (!section) {
           const secId = await qi(
             'INSERT INTO sections (name, grade_level, school_year, strand, capacity) VALUES (?, ?, ?, ?, ?)',
             [sectionName, gradeLevel, sy, trackStrand, 40]
           );
           section = { id: secId, grade_level: gradeLevel, strand: trackStrand, school_year: sy, capacity: 40 };
+          madeSections.set(`${sectionName} ${sy}`, section);
         }
 
         // --- Create enrollment ---
         const termCol = isShs(gradeLevel) ? (term || 'first') : null;
+        const enrKey = `${student.id}|${sy}|${termCol || ''}`;
+        if (seenEnrollments.has(enrKey)) { skipped++; continue; }
         const existing = await q(
           `SELECT id FROM enrollments WHERE student_id = ? AND school_year = ? AND ${termCol ? 'term = ?' : 'term IS NULL'}`,
           termCol ? [student.id, sy, termCol] : [student.id, sy]
         );
-        if (existing) { skipped++; continue; }
+        if (existing) { seenEnrollments.add(enrKey); skipped++; continue; }
 
         // Check capacity
         const capacity = Number(section.capacity) || 40;
@@ -614,6 +711,7 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
             await saveSubjects(null, enrId, defaults);
           }
         }
+        seenEnrollments.add(enrKey);
         enrolled++;
       }
     } catch (e) {

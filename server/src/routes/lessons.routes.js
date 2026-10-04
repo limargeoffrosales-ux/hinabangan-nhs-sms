@@ -4,6 +4,7 @@ const { q, qa, qi, qr, nowSql } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, safeJsonParse } = require('../utils');
 const { teacherScope } = require('../scope');
+const { getCurrentSchoolYear } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
@@ -103,7 +104,7 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
       objectives, content_outline, teaching_strategy, materials, assessment_plan,
       competency_ids, duration_minutes, scheduled_date, status, notes)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [teacherId, b.subject_id, b.section_id || null, b.school_year || '2026-2027',
+    [teacherId, b.subject_id, b.section_id || null, b.school_year || (await getCurrentSchoolYear()),
       b.quarter || null, b.title, b.objectives || null, b.content_outline || null,
       b.teaching_strategy || null, b.materials || null, b.assessment_plan || null,
       compIds, b.duration_minutes || 60, b.scheduled_date || null, b.status || 'draft', b.notes || null]

@@ -840,7 +840,7 @@ router.get('/sf11', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {
      ORDER BY sec.grade_level`,
     [student_id]
   );
-  res.json({ learner: { student: withAge(student), enrollments, grades: allGrades, attendance: allAttendance } });
+  res.json({ learner: { student: withAge(maskedStudent), enrollments, grades: allGrades, attendance: allAttendance } });
 }));
 
 router.get('/summary-of-grades', requireRole(...ADMIN_ONLY), asyncH(async (req, res) => {

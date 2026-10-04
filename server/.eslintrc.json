@@ -3,6 +3,7 @@
   "env": { "node": true, "es2022": true },
   "parserOptions": { "ecmaVersion": "latest" },
   "rules": {
+    "no-undef": "error",
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     "no-console": "off",
     "no-empty": ["error", { "allowEmptyCatch": true }],

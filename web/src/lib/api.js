@@ -25,7 +25,7 @@ export function friendlyAbortMessage(err) {
  * @returns {string}
  */
 export function getApiBase() {
-  const stored = localStorage.getItem(BASE_KEY);
+  const stored = ls().getItem(BASE_KEY);
   if (stored && stored.trim()) return stored.trim().replace(/\/+$/, '');
   return '/api/v1';
 }
@@ -34,8 +34,8 @@ export function getApiBase() {
  * @param {string} base
  */
 export function setApiBase(base) {
-  if (base && base.trim()) localStorage.setItem(BASE_KEY, base.trim().replace(/\/+$/, ''));
-  else localStorage.removeItem(BASE_KEY);
+  if (base && base.trim()) ls().setItem(BASE_KEY, base.trim().replace(/\/+$/, ''));
+  else ls().removeItem(BASE_KEY);
 }
 
 export function getStoredApiBase() {
@@ -60,19 +60,78 @@ export function fileUrl(url) {
   return url;
 }
 
+/**
+ * Web Storage access throws SecurityError when storage is disabled (Safari
+ * private browsing, hardened browser profiles, blocked third-party storage).
+ * A single unguarded localStorage.getItem in getApiBase() therefore broke
+ * *every* API call in those browsers, and an unguarded setItem in setSession()
+ * threw a 500-equivalent error inside the refresh handler and silently forced a
+ * logout. These wrappers degrade to an in-memory map so the session still works
+ * for the life of the tab.
+ */
+/**
+ * @typedef {object} SafeStore
+ * @property {(key: string) => string | null} getItem
+ * @property {(key: string, value: string) => void} setItem
+ * @property {(key: string) => void} removeItem
+ */
+
+/**
+ * @param {'localStorage' | 'sessionStorage'} kind
+ * @returns {SafeStore}
+ */
+function safeStore(kind) {
+  /** @type {Map<string, string>} */
+  const fallback = new Map();
+  const store = () => /** @type {Storage} */ (window[kind]);
+  return {
+    getItem(key) {
+      // The fallback wins when present. It is only populated when a write
+      // failed, so it always holds the newest value — notably in the
+      // quota-exceeded case, where writes throw but reads still succeed and
+      // would otherwise hand back a stale token and strand the user in a 401
+      // loop despite a perfectly good session.
+      if (fallback.has(key)) return /** @type {string} */ (fallback.get(key));
+      try { return store().getItem(key); }
+      catch { return null; }
+    },
+    setItem(key, value) {
+      try {
+        store().setItem(key, value);
+        // Persisted successfully: drop any leftover in-memory copy so a later
+        // read cannot resurrect an older value.
+        fallback.delete(key);
+      } catch {
+        fallback.set(key, String(value));
+      }
+    },
+    removeItem(key) {
+      fallback.delete(key);
+      try { store().removeItem(key); } catch { /* noop */ }
+    },
+  };
+}
+
+/** @type {SafeStore | null} */
+let _ls = null;
+/** @type {SafeStore | null} */
+let _ss = null;
+function ls() { if (!_ls) _ls = safeStore('localStorage'); return _ls; }
+function ss() { if (!_ss) _ss = safeStore('sessionStorage'); return _ss; }
+
 /** @type {Promise<boolean> | null} */
 let refreshPromise = null;
 
 export function getToken() {
-  return sessionStorage.getItem(TOKEN_KEY);
+  return ss().getItem(TOKEN_KEY);
 }
 
 export function getRefreshToken() {
-  return sessionStorage.getItem(REFRESH_KEY);
+  return ss().getItem(REFRESH_KEY);
 }
 
 export function getCsrfToken() {
-  return sessionStorage.getItem(CSRF_KEY);
+  return ss().getItem(CSRF_KEY);
 }
 
 /**
@@ -82,34 +141,34 @@ export function getCsrfToken() {
  * @param {string} csrfToken
  */
 export function setSession(token, refreshToken, user, csrfToken) {
-  sessionStorage.setItem(TOKEN_KEY, token);
-  if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
-  if (user) sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-  if (csrfToken) sessionStorage.setItem(CSRF_KEY, csrfToken);
+  ss().setItem(TOKEN_KEY, token);
+  if (refreshToken) ss().setItem(REFRESH_KEY, refreshToken);
+  if (user) ss().setItem(USER_KEY, JSON.stringify(user));
+  if (csrfToken) ss().setItem(CSRF_KEY, csrfToken);
 }
 
 export function getStoredUser() {
   try {
-    const raw = sessionStorage.getItem(USER_KEY);
+    const raw = ss().getItem(USER_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || !parsed.id || !parsed.role || !parsed.username) {
-      sessionStorage.removeItem(USER_KEY);
+      ss().removeItem(USER_KEY);
       return null;
     }
     return parsed;
   } catch {
-    sessionStorage.removeItem(USER_KEY);
+    ss().removeItem(USER_KEY);
     return null;
   }
 }
 
 export function clearSession() {
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(REFRESH_KEY);
-  sessionStorage.removeItem(USER_KEY);
-  sessionStorage.removeItem(CSRF_KEY);
-  localStorage.removeItem('meridianed_ai_chat');
+  ss().removeItem(TOKEN_KEY);
+  ss().removeItem(REFRESH_KEY);
+  ss().removeItem(USER_KEY);
+  ss().removeItem(CSRF_KEY);
+  ls().removeItem('meridianed_ai_chat');
 }
 
 /** @type {Promise<string | null> | null} */
@@ -156,7 +215,7 @@ async function requestCsrfToken() {
     if (!res.ok) return false;
     const data = await res.json();
     if (data.csrfToken) {
-      sessionStorage.setItem(CSRF_KEY, data.csrfToken);
+      ss().setItem(CSRF_KEY, data.csrfToken);
       return true;
     }
     return false;
@@ -185,6 +244,13 @@ let warmLast = 0;
 // within a minute — so they deserve the longest, boot-aware backoff rather than
 // an instant "Request failed" error.
 const BOOT_STATUSES = new Set([408, 502, 503, 504, 520]);
+
+// Our own client-side timeout is reported as 0 (network-class), NOT 408. 408 is
+// a real HTTP status that Render's edge returns while the instance boots, so
+// reusing it made every slow request look like a cold start: the client burned
+// its boot backoff (15/30/45s) and then reported "the server is starting up"
+// for an endpoint that had simply exceeded the timeout.
+const CLIENT_TIMEOUT_STATUS = 0;
 
 /** @param {HttpError} err @returns {boolean} */
 function isRetryableNetworkFail(err) {
@@ -223,6 +289,7 @@ export async function warmServer(options = {}) {
  * @property {number} [timeoutMs]
  * @property {boolean} [retryNetwork]
  * @property {boolean} [__csrfRetry]
+ * @property {boolean} [__refreshRetry]
  */
 
 /**
@@ -283,15 +350,24 @@ async function apiInternal(path, opts) {
       // surface as an opaque AbortError ("signal is aborted without reason") —
       // turn them into errors people can act on.
       if (timedOut) {
-        throw httpError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`, 408);
+        throw httpError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`, CLIENT_TIMEOUT_STATUS);
       }
       const abortMsg = friendlyAbortMessage(err);
       if (abortMsg) throw httpError(abortMsg, 0);
       throw /** @type {unknown} */ (err);
     }
     if (res.status === 401 && auth) {
+      // Only ever refresh-and-replay once. Without this guard a persistently
+      // 401 (revoked role, stale token the server refuses to refresh) made
+      // apiInternal call itself forever, hammering the refresh endpoint in an
+      // unbounded loop until the tab was closed.
+      if (opts.__refreshRetry) {
+        clearSession();
+        notifyUnauthorized();
+        throw httpError('Session expired — please sign in again', 401);
+      }
       const ok = await tryRefresh();
-      if (ok) return apiInternal(path, opts);
+      if (ok) return apiInternal(path, { ...opts, __refreshRetry: true });
       clearSession();
       notifyUnauthorized();
       throw httpError('Session expired — please sign in again', 401);
@@ -349,6 +425,12 @@ export async function api(path, opts = {}) {
     const delay = boot ? BOOT_DELAYS_MS[attempt] : RETRY_DELAYS_MS[attempt];
     if (delay === undefined || !isRetryableNetworkFail(lastErr)) break;
     if (!boot && !allowRetry) break;
+    // Never auto-retry a mutating request. A gateway 502/503/504 or a client
+    // timeout says nothing about whether the server committed the write, so a
+    // blanket retry duplicated POSTs (double attendance rows, double grades,
+    // double enrollments). Callers that genuinely need idempotent retries opt
+    // in with `retryNetwork: true` after their own duplicate check.
+    if (isMutating && !allowRetry) break;
     await sleep(delay);
   }
   // Last-resort guard: no remaining abort (browser-cancelled request) may

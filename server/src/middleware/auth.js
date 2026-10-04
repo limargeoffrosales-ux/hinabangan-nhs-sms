@@ -146,6 +146,14 @@ const ROLES = ['super_admin', 'region_admin', 'division_admin', 'school_admin',
 
 const ADMIN_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
+// Roles that sit above a plain school_admin in the hierarchy, including the
+// regional/divisional tiers. ADMIN_ROLES deliberately stays narrow (it gates
+// "may see school-wide admin data" in many unrelated routes), so anything that
+// must block modification of a *privileged target account* uses this set
+// instead. Missing region_admin/division_admin previously let a school_admin
+// reset those accounts' passwords and take them over.
+const PRIVILEGED_ROLES = ['super_admin', 'region_admin', 'division_admin', ...ADMIN_ROLES];
+
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!roles.includes(req.role)) {
@@ -167,6 +175,26 @@ function clearUserCache(id) {
   userCache.delete(String(id));
 }
 
+/**
+ * Resolve a token subject to a currently-ACTIVE user record, bypassing the
+ * request cache. Used by long-lived transports (SSE) that must re-check
+ * account status periodically: a revoked or suspended user would otherwise keep
+ * receiving broadcasts for the life of the open stream, because the JWT itself
+ * stays valid until it expires.
+ * @param {string|number} userId
+ * @returns {Promise<object | null>}
+ */
+async function loadActiveUser(userId) {
+  const user = await q('SELECT id, username, name, role, status FROM users WHERE id = ?', [userId]);
+  if (!user || user.status !== 'active') return null;
+  const userObj = { id: user.id, username: user.username, name: user.name, role: user.role };
+  if (user.role === 'teacher') {
+    const t = await q('SELECT id FROM teachers WHERE user_id = ? LIMIT 1', [user.id]);
+    userObj.teacher_id = t ? Number(t.id) : null;
+  }
+  return userObj;
+}
+
 async function requireCsrf(req, res, next) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
   if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication required for CSRF validation' });
@@ -183,4 +211,4 @@ async function requireCsrf(req, res, next) {
   next();
 }
 
-module.exports = { signAccess, verifyToken, authenticate, requireRole, requireCsrf, ROLES, ADMIN_ROLES, isAdminRole, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, getCsrfToken, validateCsrfToken, clearCsrfToken };
+module.exports = { signAccess, verifyToken, authenticate, requireRole, requireCsrf, ROLES, ADMIN_ROLES, PRIVILEGED_ROLES, isAdminRole, hashToken, clearUserCache, loadActiveUser, generateCsrfToken, storeCsrfToken, getCsrfToken, validateCsrfToken, clearCsrfToken };

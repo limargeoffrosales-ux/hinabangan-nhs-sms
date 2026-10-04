@@ -87,9 +87,13 @@ router.get('/at-risk', requireRole(...WRITE), asyncH(async (req, res) => {
        LEFT JOIN sections sec ON sec.id = g.section_id
        WHERE g.school_year = ? GROUP BY g.student_id, s.first_name, s.last_name, s.grade_level, s.sex, sec.name`, [sy]),
     qa(
+      // EXISTS, not JOIN: a JOIN to enrollments fans out one attendance row per
+      // enrollment of the same SY. An SHS student enrolled in 3 sections had
+      // every absence counted 3x, which inflated both the absence totals and
+      // the ">= 3 absences" at-risk trigger.
       `SELECT a.student_id, SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absents, COUNT(*) AS days
        FROM attendance a
-       JOIN enrollments e ON e.student_id = a.student_id AND e.school_year = ?
+       WHERE EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = a.student_id AND e.school_year = ?)
        GROUP BY a.student_id`, [sy]),
     qa(
       `SELECT la.student_id, la.level FROM learner_assessments la

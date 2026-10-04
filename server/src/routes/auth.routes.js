@@ -286,7 +286,11 @@ router.post('/forgot-password',
   }));
 
 router.post('/reset-password',
-  userRateLimit({ windowMs: 15 * 60 * 1000, limit: 20, message: { error: 'Too many reset attempts. Try again later.' } }),
+  // 5 attempts per IP per 15 minutes. This is the effective barrier: a wrong
+  // code matches no password_resets row (lookup is by code_hash), so the
+  // per-row attempts counter below only ever guards code replay. Entropy of
+  // RESET_CODE_LENGTH plus this limit makes guessing infeasible in-window.
+  userRateLimit({ windowMs: 15 * 60 * 1000, limit: 5, message: { error: 'Too many reset attempts. Try again later.' } }),
   asyncH(async (req, res) => {
     await maybeSweepResetCodes();
     const { code, newPassword } = req.body || {};

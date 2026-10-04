@@ -205,12 +205,23 @@ const parentRoutes = require('./routes/parent.routes');
     next();
   });
 
+  // SSE clients cannot set an Authorization header, so the access token arrives
+  // as ?token=. Logging req.originalUrl verbatim wrote a valid 15-minute bearer
+  // token into the log stream on every connect. Strip sensitive query params
+  // before anything is logged.
+  const redactUrl = (url) => {
+    const s = String(url || '');
+    if (!s.includes('?')) return s;
+    return s.replace(/([?&])(token|access_token|code|password|resetToken)=[^&#]*/gi, '$1$2=[redacted]');
+  };
+
   app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
       const ms = Date.now() - start;
       const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-      logger[level]({ method: req.method, url: req.originalUrl, status: res.statusCode, ms, requestId: req.requestId, userId: req.user?.id }, `${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
+      const url = redactUrl(req.originalUrl);
+      logger[level]({ method: req.method, url, status: res.statusCode, ms, requestId: req.requestId, userId: req.user?.id }, `${req.method} ${url} ${res.statusCode} ${ms}ms`);
     });
     next();
   });
@@ -353,7 +364,7 @@ const parentRoutes = require('./routes/parent.routes');
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
   app.use((err, req, res, _next) => {
-    logger.error({ err, requestId: req.requestId, url: req.originalUrl }, 'Unhandled error');
+    logger.error({ err, requestId: req.requestId, url: redactUrl(req.originalUrl) }, 'Unhandled error');
     if (process.env.SENTRY_DSN) Sentry.captureException(err);
     if (res.headersSent) {
       // Response already streaming/sent (e.g. a spreadsheet export failed mid-write);

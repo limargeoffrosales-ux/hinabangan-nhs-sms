@@ -11,6 +11,13 @@ router.use(authenticate);
 
 const ADMIN_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 
+// The audit trail is the forensic record of who did what. Letting any admin
+// role shorten its retention window — or purge it outright — makes the logging
+// tamper-evident but not tamper-resistant, so those two entities are gated to
+// super_admin while the operational tables (notifications, ai_chat_logs) stay
+// available to all admins.
+const FORENSIC_ENTITIES = new Set(['audit_logs', 'data_access_logs']);
+
 // ── Data Retention ─────────────────────────────────────────────
 
 router.get('/retention', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
@@ -21,6 +28,10 @@ router.get('/retention', requireRole(...ADMIN_ROLES), asyncH(async (req, res) =>
 router.patch('/retention/:id', requireRole(...ADMIN_ROLES), asyncH(async (req, res) => {
   const existing = await q('SELECT * FROM data_retention_policies WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Policy not found' });
+  const touchesForensics = FORENSIC_ENTITIES.has(existing.entity);
+  if (touchesForensics && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only super_admin can change audit-log retention' });
+  }
   const b = req.body || {};
   const retentionDays = b.retention_days !== undefined ? Number(b.retention_days) : existing.retention_days;
   const enabled = b.enabled !== undefined ? !!b.enabled : existing.enabled;
@@ -43,6 +54,11 @@ const TABLE_MAP = {
 async function runPurge(policy, req) {
   const table = TABLE_MAP[policy.entity];
   if (!table) return { error: `Unknown entity: ${policy.entity}` };
+  // Defense in depth: even if a caller reaches the purge path, the forensic
+  // tables cannot be destroyed by a non-super_admin.
+  if (FORENSIC_ENTITIES.has(policy.entity) && req.user.role !== 'super_admin') {
+    return { error: 'Only super_admin can purge audit logs' };
+  }
 
   const days = Number(policy.retention_days) || 365;
   const daysInt = Math.max(1, Math.floor(days));
@@ -61,6 +77,9 @@ async function runPurge(policy, req) {
 router.post('/retention/:id/purge', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const policy = await q('SELECT * FROM data_retention_policies WHERE id = ? AND enabled = TRUE', [req.params.id]);
   if (!policy) return res.status(404).json({ error: 'No active retention policy for this id' });
+  if (FORENSIC_ENTITIES.has(policy.entity) && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only super_admin can purge audit logs' });
+  }
   const result = await runPurge(policy, req);
   if (result.error) return res.status(400).json({ error: result.error });
   res.json({ purged: result.purged, entity: policy.entity });
@@ -69,6 +88,9 @@ router.post('/retention/:id/purge', requireRole('super_admin', 'school_admin'), 
 router.post('/purge/:entity', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
   const policy = await q('SELECT * FROM data_retention_policies WHERE entity = ? AND enabled = TRUE', [req.params.entity]);
   if (!policy) return res.status(404).json({ error: 'No active retention policy for this entity' });
+  if (FORENSIC_ENTITIES.has(policy.entity) && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only super_admin can purge audit logs' });
+  }
   const result = await runPurge(policy, req);
   if (result.error) return res.status(400).json({ error: result.error });
   res.json({ entity: policy.entity, deleted: result.purged });
@@ -95,16 +117,14 @@ router.get('/access-logs', requireRole(...ADMIN_ROLES), asyncH(async (req, res) 
   if (req.query.from) {
     const fromDate = new Date(req.query.from);
     if (!isNaN(fromDate)) {
-      const pgFrom = db.dialect === 'pg' ? `$${params.length + 1}` : '';
-      conditions.push(db.dialect === 'pg' ? 'dal.created_at >= ?' : 'dal.created_at >= ?');
+      conditions.push('dal.created_at >= ?');
       params.push(fromDate);
     }
   }
   if (req.query.to) {
     const toDate = new Date(req.query.to);
     if (!isNaN(toDate)) {
-      const pgTo = db.dialect === 'pg' ? `$${params.length + 1}` : '';
-      conditions.push(db.dialect === 'pg' ? 'dal.created_at <= ?' : 'dal.created_at <= ?');
+      conditions.push('dal.created_at <= ?');
       params.push(toDate);
     }
   }

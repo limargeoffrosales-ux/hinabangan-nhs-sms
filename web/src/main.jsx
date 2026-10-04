@@ -4,23 +4,33 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/Toast';
-import i18n from './i18n';
+import i18n, { initI18n } from './i18n';
 import { initSentry, Sentry } from './sentry';
 import ThemeProvider from './design-system/theme/ThemeProvider';
 import './styles.css';
 import './design-system/design-system.css';
 
 const LEGACY_MAP = { dark: 'midnight', light: 'light' };
-const stored = localStorage.getItem('meridianed_theme') || 'midnight';
+// Unguarded localStorage access throws SecurityError in Safari private mode
+// and hardened profiles, which would take down the whole bundle before React
+// ever mounted.
+let stored = 'midnight';
+try { stored = localStorage.getItem('meridianed_theme') || 'midnight'; } catch { /* storage unavailable */ }
 let theme = LEGACY_MAP[stored] || stored;
 if (theme === 'auto') {
   theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'midnight';
 }
 document.documentElement.dataset.theme = theme;
 
-i18n.isInitialized
-  ? renderApp()
-  : i18n.init().then(renderApp);
+// Await the module's own init promise. Calling i18n.init() here started a SECOND
+// init with no resources and no LanguageDetector: it flipped isInitialized true
+// early (so the app rendered before the bundles loaded, flashing raw keys like
+// "nav.dashboard") and then raced/overwrote the detector's language choice.
+// initI18n() resolves only once the real config is applied.
+initI18n().then(renderApp, (err) => {
+  console.error('i18n init failed', err);
+  renderApp();
+});
 
 function renderApp() {
   createRoot(document.getElementById('root')).render(

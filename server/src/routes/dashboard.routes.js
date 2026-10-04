@@ -4,6 +4,8 @@ const { q, qa, qi, qr, tx } = db;
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, page, audit } = require('../utils');
 const { teacherScope } = require('../scope');
+const { todayStr } = require('../dates');
+const { getCurrentSchoolYear } = require('../schoolYear');
 
 const router = express.Router();
 router.use(authenticate);
@@ -11,8 +13,10 @@ router.use(authenticate);
 const summaryCache = new Map();
 const SUMMARY_TTL_MS = 30_000;
 
+// School-local calendar date. NOT new Date().toISOString() — Render runs UTC, so
+// that returned yesterday for the first 8 hours of every Manila school day.
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayStr();
 }
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
@@ -90,7 +94,7 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const immersionMap = {};
   for (const r of immersion) immersionMap[r.status] = Number(r.n);
   const immersionTotal = Object.values(immersionMap).reduce((a, b) => a + b, 0);
-  res.json({
+  const data = {
     students: totalStudents,
     enrolled,
     waitlisted: Math.max(0, totalStudents - enrolled),
@@ -136,9 +140,9 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
       jdvp: { total: Number(jdvpCount[0]?.n || 0) },
       audit: { last7: Number(audit[0]?.last7 || 0) },
     },
-    date: t,
-   });
-   summaryCache.set(cacheKey, { data, ts: Date.now() });
+date: t,
+  };
+  summaryCache.set(cacheKey, { data, ts: Date.now() });
   res.json(data);
 }));
 
@@ -550,7 +554,7 @@ router.post('/aral-sessions', requireRole(...WRITE, 'teacher', 'guidance'), asyn
   const area = ['reading', 'numeracy'].includes(b.subject_area) ? b.subject_area : 'reading';
   const section = await q('SELECT id FROM sections WHERE id = ?', [b.section_id]);
   if (!section) return res.status(404).json({ error: 'Section not found' });
-  const sy = b.school_year || '2026-2027';
+  const sy = b.school_year || (await getCurrentSchoolYear());
   let sesId;
   let recorded = 0;
   const valid = ['present', 'absent', 'excused'];
@@ -602,7 +606,7 @@ router.post('/aral-enroll', requireRole(...WRITE, 'teacher', 'guidance'), asyncH
   if (!b.student_id) return res.status(400).json({ error: 'student_id is required' });
   const student = await q('SELECT id, first_name, last_name FROM students WHERE id = ?', [b.student_id]);
   if (!student) return res.status(404).json({ error: 'Student not found' });
-  const sy = b.school_year || '2026-2027';
+  const sy = b.school_year || (await getCurrentSchoolYear());
   const term = String(b.term || '').toLowerCase();
   const norm = term === '1' || term === 'first' ? 'first' : term === '2' || term === 'second' ? 'second'
     : term === '3' || term === 'third' ? 'third' : null;

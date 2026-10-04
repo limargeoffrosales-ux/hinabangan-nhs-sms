@@ -1,4 +1,4 @@
-import { HTMLAttributes, ReactNode, useEffect, useState } from 'react';
+import { HTMLAttributes, ReactNode, useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 
 export interface GroupedNavItem {
@@ -53,6 +53,19 @@ export function GroupedNav({
     collapsible ? initialOpenGroups(groups, openGroupCount) : groups.map((g) => g.id)
   );
 
+  // Groups the user explicitly collapsed/expanded. The auto-sync effect below
+  // must not fight user intent: with openGroupCount = 0 every group satisfies
+  // `items.length >= openGroupCount`, so the "open groups by default" branch
+  // re-added every manually collapsed group on each re-render, and the groups
+  // array is a fresh literal on every Layout render, so that was constantly.
+  const userToggled = useRef<Set<string>>(new Set());
+
+  // Signature of the group shape, so this only re-runs when the groups actually
+  // change rather than on every new array identity.
+  const signature = collapsible
+    ? `${openGroupCount}|${groups.map((g) => `${g.id}:${g.items.length}`).join(',')}`
+    : `all|${groups.map((g) => g.id).join(',')}`;
+
   // Re-spread when the group set changes while a group is collapsed:
   // keep open ids that still exist, otherwise default.
   useEffect(() => {
@@ -63,17 +76,22 @@ export function GroupedNav({
     setOpenGroups((current) => {
       const live = new Set(current);
       for (const g of groups) {
+        if (userToggled.current.has(g.id)) continue;
         if (g.items.length < openGroupCount) live.delete(g.id);
         else if (!live.has(g.id)) live.add(g.id);
       }
       for (const id of current) {
         if (!groups.some((g) => g.id === id)) live.delete(id);
       }
-      return Array.from(live);
+      return live.size === current.length && current.every((id, i) => id === Array.from(live)[i])
+        ? current
+        : Array.from(live);
     });
-  }, [groups, collapsible, openGroupCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, collapsible]);
 
   function toggleGroup(id: string) {
+    userToggled.current.add(id);
     setOpenGroups((open) =>
       open.includes(id) ? open.filter((g) => g !== id) : [...open, id]
     );

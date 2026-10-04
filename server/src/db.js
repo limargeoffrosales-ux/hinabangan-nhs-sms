@@ -400,4 +400,16 @@ function bool(v) {
   return Number(v) > 0;
 }
 
-module.exports = { init, q, qa, qr, qi, close, nowSql, bool, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
+// PG reports unique violations as SQLSTATE 23505; node:sqlite throws
+// ERR_SQLITE_ERROR with a "UNIQUE constraint failed" message and no code. Call
+// sites that do read-then-insert use this to fall back to an UPDATE instead of
+// letting the whole transaction roll back.
+function isUniqueViolation(err) {
+  if (!err) return false;
+  const code = err.code;
+  if (code === '23505' || code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY') return true;
+  if (typeof code === 'string' && code.startsWith('SQLITE_CONSTRAINT')) return true;
+  return typeof err.message === 'string' && /UNIQUE constraint failed|duplicate key value/i.test(err.message);
+}
+
+module.exports = { init, q, qa, qr, qi, close, nowSql, bool, isUniqueViolation, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
