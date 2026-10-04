@@ -16,11 +16,17 @@ router.get('/summary/stats', requireRole(...WRITE), asyncH(async (req, res) => {
   if (!teacherId) return res.json({ total: 0, by_status: [], by_quarter: [] });
   const where = teacherId ? ' WHERE l.teacher_id = ?' : '';
   const params = teacherId ? [teacherId] : [];
-  const total = await q(`SELECT COUNT(*) AS count FROM lessons l${where}`, params);
+  const totalRow = await q(`SELECT COUNT(*) AS count FROM lessons l${where}`, params);
+  const totalCount = Number(totalRow?.count ?? totalRow?.total ?? 0);
   const byStatus = await qa(`SELECT status, COUNT(*) AS count FROM lessons l${where} GROUP BY status`, params);
   const byQuarter = await qa(`SELECT quarter, COUNT(*) AS count FROM lessons l${where ? where + ' AND' : ' WHERE'} quarter IS NOT NULL GROUP BY quarter`, params);
   const bySubmission = await qa(`SELECT submission_status, COUNT(*) AS count FROM lessons l${where} GROUP BY submission_status`, params);
-  res.json({ total: total.count, by_status: byStatus, by_quarter: byQuarter, by_submission: bySubmission });
+  res.json({
+    total: totalCount,
+    by_status: byStatus.map((x) => ({ status: x.status, count: Number(x.count) || 0 })),
+    by_quarter: byQuarter.map((x) => ({ quarter: x.quarter, count: Number(x.count) || 0 })),
+    by_submission: bySubmission.map((x) => ({ submission_status: x.submission_status, count: Number(x.count) || 0 })),
+  });
 }));
 
 /* ── List lessons ────────────────────────────────────── */

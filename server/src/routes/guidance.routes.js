@@ -37,11 +37,13 @@ router.get('/cases', requireRole(...WRITE), asyncH(async (req, res) => {
 /* ── Case summary ──────────────────────────────────── */
 router.get('/cases/summary', requireRole(...WRITE), asyncH(async (req, res) => {
   const sy = req.query.school_year || await getCurrentSchoolYear();
-  const total = await q('SELECT COUNT(*) AS count FROM guidance_cases WHERE school_year = ?', [sy]);
+const total = await q('SELECT COUNT(*) AS count FROM guidance_cases WHERE school_year = ?',
+    [sy]);
+  const totalCount = Number(total?.count ?? total?.total ?? 0);
   const byStatus = await qa('SELECT status, COUNT(*) AS count FROM guidance_cases WHERE school_year = ? GROUP BY status', [sy]);
   const byType = await qa('SELECT case_type, COUNT(*) AS count FROM guidance_cases WHERE school_year = ? GROUP BY case_type', [sy]);
   const byPriority = await qa('SELECT priority, COUNT(*) AS count FROM guidance_cases WHERE school_year = ? GROUP BY priority', [sy]);
-  res.json({ total: total.count, by_status: byStatus, by_type: byType, by_priority: byPriority });
+  res.json({ total: totalCount, by_status: byStatus, by_type: byType, by_priority: byPriority });
 }));
 
 /* ── Get single case with sessions ─────────────────── */

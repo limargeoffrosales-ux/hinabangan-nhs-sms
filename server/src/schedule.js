@@ -57,11 +57,18 @@ function findConflicts(rows) {
         const list = (groups[type][k] = groups[type][k] || []);
         for (const other of list) {
           if (overlaps(st, en, other.start, other.end)) {
+            // The de-dup key must include the time window. Without it, two
+            // genuinely different clashes between the same section/subject pair
+            // on the same day (e.g. 07:00-08:00 and 09:00-10:00) produced an
+            // identical key, so the second was swallowed as a "duplicate" and
+            // the admin only ever saw one of them. Minutes (not the raw string)
+            // are used so '7:00' and '07:00' still collapse.
             const pair = [
               type,
               r.day,
               [r.section_id, other.sectionIds[0]].sort((x, y) => Number(x) - Number(y)).join(','),
               [r.subject_id, other.subject_id].sort((x, y) => Number(x) - Number(y)).join(','),
+              `${st}-${en}`,
             ].join('|');
             if (seen.has(pair)) continue;
             seen.add(pair);

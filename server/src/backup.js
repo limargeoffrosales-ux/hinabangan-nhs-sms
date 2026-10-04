@@ -264,6 +264,24 @@ async function resetPgSequences(client, schema) {
   }
 }
 
+// A PostgreSQL dump carries JSONB columns as PARSED objects/arrays, because the
+// pg driver auto-parses JSONB and pgDump only casts date/numeric to text. The
+// pg restore path re-serializes them happily, but node:sqlite can only bind
+// string/number/bigint/Buffer/null - passing an object throws. So restoring a PG
+// backup into SQLite (the disaster-recovery case) crashed or silently mangled
+// every JSONB column. Coerce anything non-primitive back to its JSON text.
+// SQLite-origin dumps only ever contain primitives, so this is a no-op there.
+function sqliteBindable(v) {
+  if (v === null || v === undefined) return null;
+  const t = typeof v;
+  if (t === 'string' || t === 'number' || t === 'bigint') return v;
+  if (v instanceof Date) return v.toISOString();
+  if (v instanceof Uint8Array || Buffer.isBuffer(v)) return v;
+  // BOOLEAN (pg) -> SQLite INTEGER
+  if (t === 'boolean') return v ? 1 : 0;
+  return JSON.stringify(v);
+}
+
 function applySqlite(db, dump, { replace = false } = {}) {
   const tableSet = new Set(dump.tables.map((t) => t.table.toLowerCase()));
   const deps = sqliteFkDeps(db).filter(([t]) => tableSet.has(t.toLowerCase()));
@@ -279,7 +297,7 @@ function applySqlite(db, dump, { replace = false } = {}) {
       const colList = tbl.columns.map(ident).join(', ');
       const placeholders = tbl.columns.map(() => '?').join(', ');
       const st = db.prepare(`INSERT INTO ${ident(name)} (${colList}) VALUES (${placeholders})`);
-      for (const row of tbl.rows) st.run(...row);
+      for (const row of tbl.rows) st.run(...row.map(sqliteBindable));
     }
     db.exec('COMMIT');
   } catch (err) {
@@ -544,6 +562,7 @@ async function runDrill(file) {
 module.exports = {
   DUMP_FORMAT,
   ident,
+  sqliteBindable,
   backupDir,
   createBackup,
   listBackups,

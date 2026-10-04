@@ -324,7 +324,13 @@ async function seed() {
   const grade12Sex = ['Female', 'Male', 'Female', 'Male', 'Female', 'Male', 'Female', 'Male', 'Female', 'Male'];
   for (let i = 0; i < 10; i++) {
     const k = 20 + i;
-    const lrn = '1362' + String(8000000000 + k * 137 + 421).padStart(8, '0');
+    // LRN must be exactly 12 digits. Self-registration validates /^\d{12}$/, so a
+// longer value locks the learner out of the portal permanently. This expression
+// used '1362' + a TEN-digit number (8000000000 is already 10 digits, and
+// padStart never truncates), producing 14-digit LRNs for every Grade 12 student.
+// A 4-digit prefix therefore needs an 8-digit suffix.
+const lrn = '1362' + String(80000000 + k * 137 + 421).padStart(8, '0');
+if (!/^\d{12}$/.test(lrn)) throw new Error(`Seed LRN must be 12 digits, got ${lrn} (${lrn.length})`);
     const id = await qi(
       `INSERT INTO students (lrn, first_name, middle_name, last_name, suffix, sex, birth_date, religion, address, contact, guardian_name, guardian_contact, guardian_relation, grade_level, track_strand, status)
        VALUES (?, ?, ?, ?, NULL, ?, ?, 'Roman Catholic', 'Brgy. San Isidro, Testville', ?, ?, ?, 'Parent', 'Grade 12', ?, 'enrolled')`,

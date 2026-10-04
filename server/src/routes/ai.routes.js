@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const db = require('../db');
 const { q, qa, qi, qr } = db;
 const { authenticate, requireRole } = require('../auth');
@@ -49,6 +49,22 @@ function egressAudit(req, endpoint, studentId, studentName, fields) {
   audit(req, 'AI_STUDENT_DATA_EGRESS', 'ai', null, { endpoint, student_id: studentId, student_name: studentName, pii_fields: fields }).catch(() => {});
 }
 
+// Persist one side of a chat turn. This MUST be awaited rather than fired and
+// forgotten: the SQLite driver serializes every statement onto one queue, so a
+// write that is still in flight when the handler returns can be picked up inside
+// a DIFFERENT request's open transaction and then destroyed by that request's
+// ROLLBACK. It can also be lost outright if the process is recycled after the
+// response is flushed. Logging is not worth failing the user's request over, so
+// the error is swallowed - but only after the write has actually settled.
+async function logChatTurn(req, role, message) {
+  try {
+    await qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)',
+      [req.user.id, role, message]);
+  } catch (err) {
+    logger.error({ err: err.message, role }, '[AI_CHAT] failed to persist chat log');
+  }
+}
+
 router.get('/status', asyncH(async (_req, res) => {
   res.json(ai.getProviderInfo());
 }));
@@ -71,23 +87,19 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, 
   }
   let ctx = context || '';
   // PII guardrail (docs/29): never hand the user's real name to the hosted AI
-  // provider — send only their role, so the assistant knows how to answer.
+  // provider � send only their role, so the assistant knows how to answer.
   if (req.user) ctx += '\nLogged in as: user (role: ' + req.user.role + ')';
 
   const lastUserMsg = messages[messages.length - 1];
   const userText = lastUserMsg?.content || '';
-  qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'user', userText]).catch((err) => {
-    logger.error({ err: err.message }, '[AI_CHAT] failed to persist user log');
-  });
+  await logChatTurn(req, 'user', userText);
 
   try {
     const reply = await ai.chatMessage(
       messages.map(m => ({ role: m.role || 'user', content: m.content })),
       ctx
     );
-    qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)', [req.user.id, 'assistant', reply]).catch((err) => {
-      logger.error({ err: err.message }, '[AI_CHAT] failed to persist assistant log');
-    });
+    await logChatTurn(req, 'assistant', reply);
     await audit(req, 'AI_CHAT', 'ai', null, { message_count: messages.length });
     res.json({ reply });
   } catch (e) {

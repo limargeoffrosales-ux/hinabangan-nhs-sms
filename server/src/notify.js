@@ -397,12 +397,29 @@ async function resolveAnnouncementRecipients(audience) {
   else if (audience === 'students') { sql += ' AND role IN (?, ?)'; params.push('student', 'parent'); }
   else if (audience === 'parents') { sql += ' AND role = ?'; params.push('parent'); }
   const rows = await qa(sql, params);
+  // SMS-only recipients must not be dropped. The WHERE clause above already
+  // admits a user who has EITHER an email or a phone, but the old body then did
+  // `if (!isEmail(r.email)) continue`, which discarded everyone reachable only by
+  // phone and silently sent them no announcement at all - the staff audience
+  // included every non-student role, so a phone-only teacher or cashier was
+  // unreachable. Delivery now mirrors resolveRoleRecipients: email when valid,
+  // phone when present, each de-duplicated separately.
+  const seenPhone = new Set();
   for (const r of rows) {
-    if (!isEmail(r.email)) continue;
-    const a = r.email.trim().toLowerCase();
-    if (seen.has(a)) continue;
-    seen.add(a);
-    out.emails.push({ address: r.email.trim(), user_id: r.id, label: r.name || r.role });
+    if (r.email && isEmail(r.email)) {
+      const a = r.email.trim().toLowerCase();
+      if (!seen.has(a)) {
+        seen.add(a);
+        out.emails.push({ address: r.email.trim(), user_id: r.id, label: r.name || r.role });
+      }
+    }
+    if (r.phone && !isEmail(r.phone)) {
+      const p = r.phone.trim();
+      if (!seenPhone.has(p)) {
+        seenPhone.add(p);
+        out.phones.push({ address: p, user_id: r.id, label: r.name || r.role });
+      }
+    }
   }
   return out;
 }

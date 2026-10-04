@@ -35,14 +35,21 @@ router.get('/', requireRole(...WRITE), asyncH(async (req, res) => {
 
 /* ── Summary stats ────────────────────────────────── */
 router.get('/summary', requireRole(...WRITE), asyncH(async (req, res) => {
-  const total = await q('SELECT COUNT(*) AS count FROM certifications');
+  const totalRow = await q('SELECT COUNT(*) AS count FROM certifications');
+  const totalCount = Number(totalRow?.count ?? totalRow?.total ?? 0);
   const byType = await qa('SELECT certification_type, COUNT(*) AS count FROM certifications GROUP BY certification_type');
   const byStatus = await qa('SELECT status, COUNT(*) AS count FROM certifications GROUP BY status');
   const expiringSql = db.dialect === 'pg'
     ? `SELECT COUNT(*) AS count FROM certifications WHERE expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE + INTERVAL '30 days' AND status = 'active'`
     : `SELECT COUNT(*) AS count FROM certifications WHERE expiry_date IS NOT NULL AND expiry_date <= date('now', '+30 days') AND status = 'active'`;
   const expiring = await q(expiringSql);
-  res.json({ total: total.count, by_type: byType, by_status: byStatus, expiring_soon: expiring.count });
+  const exp = await q(expiringSql);
+  res.json({
+    total: totalCount,
+    by_type: byType.map((x) => ({ certification_type: x.certification_type, count: Number(x.count) || 0 })),
+    by_status: byStatus.map((x) => ({ status: x.status, count: Number(x.count) || 0 })),
+    expiring_soon: Number(exp?.count ?? exp?.total ?? 0),
+  });
 }));
 
 /* ── Get single certification ─────────────────────── */

@@ -353,6 +353,217 @@ test('the lockout response stays indistinguishable from a bad password', () => {
   assert.doesNotMatch(login, /status\(423\)/);
 });
 
+// ── AI chat logging must be durable ─────────────────────────────────────────
+
+test('chat log inserts are awaited, not fired and forgotten', () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'ai.routes.js'), 'utf8'));
+  // The SQLite driver serializes statements onto one queue, so an in-flight
+  // insert can be executed inside another request's open transaction and then
+  // destroyed by that request's ROLLBACK.
+  assert.doesNotMatch(src, /qi\('INSERT INTO ai_chat_logs[^\n]*\.catch\(/,
+    'a fire-and-forget chat insert can be rolled back by an unrelated request');
+  assert.match(src, /async function logChatTurn\(req, role, message\)/);
+  assert.match(src, /await logChatTurn\(req, 'user', userText\)/);
+  assert.match(src, /await logChatTurn\(req, 'assistant', reply\)/);
+  // But a logging failure must not fail the user's request.
+  assert.match(src, /await qi\('INSERT INTO ai_chat_logs[\s\S]*?catch \(err\)/);
+});
+
+test('a failed chat log insert does not reject the handler', async () => {
+  // Replay the guard shape: a failing insert is caught, not propagated.
+  const logChatTurn = async (fail) => {
+    try { if (fail) throw new Error('db down'); return 'ok'; } catch { return 'logged-error'; }
+  };
+  assert.equal(await logChatTurn(false), 'ok');
+  assert.equal(await logChatTurn(true), 'logged-error');
+});
+
+// ── Announcement targeting ──────────────────────────────────────────────────
+
+test('announcement recipients include phone-only users', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'notify.js'), 'utf8');
+  const fn = src.slice(src.indexOf('async function resolveAnnouncementRecipients'),
+    src.indexOf('// --- Delivery'));
+  // The audience filter admits users with EITHER contact, so skipping anyone
+  // without a valid email discarded every SMS-only recipient.
+  assert.doesNotMatch(fn, /if \(!isEmail\(r\.email\)\) continue;/,
+    'phone-only recipients are silently dropped');
+  assert.match(fn, /out\.phones\.push\(/, 'announcements must reach SMS-only users');
+  assert.match(fn, /seenPhone/);
+});
+
+test('announcement audience routing covers each documented audience', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'notify.js'), 'utf8');
+  const fn = src.slice(src.indexOf('async function resolveAnnouncementRecipients'),
+    src.indexOf('// --- Delivery'));
+  assert.match(fn, /audience === 'staff'[\s\S]*?role NOT IN \(\?, \?\)[\s\S]*?'student', 'parent'/,
+    'staff must exclude students and parents');
+  assert.match(fn, /audience === 'parents'[\s\S]*?role = \?/);
+  // And every recipient must still be filtered to active accounts.
+  assert.match(fn, /status = 'active'/);
+});
+
+test('announcement recipients are de-duplicated per channel', async () => {
+  const { isEmail } = require('../src/notify');
+  const rows = [
+    { id: 1, email: 'A@School.PH', phone: '09170000001', name: 'One', role: 'teacher' },
+    { id: 2, email: 'a@school.ph', phone: '09170000001', name: 'Two', role: 'teacher' },
+    { id: 3, email: null, phone: '09170000002', name: 'Three', role: 'cashier' },
+    { id: 4, email: 'not-an-email', phone: null, name: 'Four', role: 'cashier' },
+  ];
+  const seen = new Set();
+  const seenPhone = new Set();
+  const out = { emails: [], phones: [] };
+  for (const r of rows) {
+    if (r.email && isEmail(r.email)) {
+      const a = r.email.trim().toLowerCase();
+      // The de-dupe key is lowercased but the ORIGINAL address is what ships.
+      if (!seen.has(a)) { seen.add(a); out.emails.push(r.email.trim()); }
+    }
+    if (r.phone && !isEmail(r.phone)) {
+      const p = r.phone.trim();
+      if (!seenPhone.has(p)) { seenPhone.add(p); out.phones.push(p); }
+    }
+  }
+  assert.deepEqual(out.emails, ['A@School.PH'], 'duplicate email collapses case-insensitively');
+  assert.deepEqual(out.phones, ['09170000001', '09170000002'],
+    'phone-only recipients are reached and duplicates collapse');
+});
+
+// ── Backup restore portability (PG dump -> SQLite) ──────────────────────────
+
+test('sqliteBindable coerces pg-parsed JSONB back to bindable text', () => {
+  const { sqliteBindable } = require('../src/backup');
+  // node:sqlite rejects plain objects; a PG dump hands them over parsed.
+  assert.equal(sqliteBindable({ a: 1 }), '{"a":1}');
+  assert.equal(sqliteBindable([1, 'x']), '[1,"x"]');
+  assert.equal(sqliteBindable('{"a":1}'), '{"a":1}', 'already-JSON text is passed through');
+  assert.equal(sqliteBindable(5), 5);
+  assert.equal(sqliteBindable(null), null);
+  assert.equal(sqliteBindable(undefined), null);
+  assert.equal(sqliteBindable(true), 1, 'pg BOOLEAN becomes a SQLite integer');
+  assert.equal(sqliteBindable(false), 0);
+  const d = new Date('2026-01-02T03:04:05.000Z');
+  assert.equal(sqliteBindable(d), '2026-01-02T03:04:05.000Z');
+  const buf = Buffer.from('x');
+  assert.equal(sqliteBindable(buf), buf, 'blobs are left alone');
+});
+
+test('a PG-shaped dump restores into SQLite without losing JSONB', async () => {
+  const { sqliteBindable } = require('../src/backup');
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE achievement_media (
+    id INTEGER PRIMARY KEY, student_id INTEGER, media TEXT, meta TEXT, liked INTEGER)`);
+  // Values exactly as a PG dump would carry them: JSONB already parsed into
+  // JS objects, BOOLEAN as true/false.
+  const pgRow = [1, 7, { url: 'https://x/a.png', caption: 'a' },
+    [{ tag: 'gold' }], true];
+  const st = db.prepare('INSERT INTO achievement_media (id, student_id, media, meta, liked) VALUES (?,?,?,?,?)');
+  st.run(...pgRow.map(sqliteBindable));
+  const got = db.prepare('SELECT * FROM achievement_media WHERE id = 1').get();
+  assert.equal(got.media, '{"url":"https://x/a.png","caption":"a"}');
+  assert.deepEqual(JSON.parse(got.meta), [{ tag: 'gold' }]);
+  assert.equal(got.liked, 1);
+  db.close();
+});
+
+test('backup restore no longer binds raw dump rows into SQLite', () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'backup.js'), 'utf8'));
+  assert.doesNotMatch(src, /st\.run\(\.\.\.row\)/,
+    'raw dump rows can contain pg-parsed JSONB objects that node:sqlite cannot bind');
+  assert.match(src, /st\.run\(\.\.\.row\.map\(sqliteBindable\)\)/);
+});
+
+// ── Seed LRNs must be self-registerable ─────────────────────────────────────
+
+test('every seeded LRN is exactly 12 digits', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'seed.js'), 'utf8');
+  const exprs = [...src.matchAll(/const lrn = (.+);/g)].map((m) => m[1]);
+  assert.ok(exprs.length >= 2, 'expected the Grade 11 and Grade 12 seed loops');
+  for (const expr of exprs) {
+    // Re-evaluate each expression over the loop's real index range. The old
+    // Grade 12 expression was '1362' + a TEN-digit number, yielding 14 digits.
+    const body = expr
+      .replace(/^'[^']*'\s*\+/, '')
+      .replace(/\.padStart\([^)]*\)/g, '')
+      .replace(/^String\((.*)\)$/, '$1');
+    let checked = 0;
+    for (let i = 0; i < 40; i++) {
+      let digits;
+      const p = body.replace(/\bk\b/g, String(20 + i)).replace(/\bi\b/g, String(i));
+      try { digits = String(Function(`"use strict";return (${p})`)()); } catch { continue; }
+      if (!/^\d+$/.test(digits)) continue;
+      checked++;
+      const prefix = (expr.match(/^'([^']*)'/) || [, ''])[1];
+      const total = prefix.length + digits.length;
+      assert.equal(total, 12,
+        `seed LRN ${prefix}${digits} is ${total} digits; self-registration requires 12`);
+    }
+    assert.ok(checked > 0, `could not evaluate seed LRN expression: ${expr}`);
+  }
+});
+
+test('seed guards its LRN format so a future change fails loudly', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'seed.js'), 'utf8');
+  assert.match(src, /if \(!\/\^\\d\{12\}\$\/\.test\(lrn\)\)/,
+    'seed should throw rather than silently create unusable learners');
+});
+
+// ── Schedule conflicts must not be over-deduplicated ────────────────────────
+
+test('schedule reports distinct clashes at different times', () => {
+  const { findConflicts } = require('../src/schedule');
+  // Two sections sharing teacher 5 (no room, so only the teacher rule fires).
+  const base = (o) => ({
+    day: 1, start_time: '07:00', end_time: '08:00', teacher_id: 5, room: null,
+    section_name: 'A', subject_code: 'ENG', teacher_name: 'T',
+    combined_section_id: null, combined_section_name: null, ...o,
+  });
+  // The SAME section pair (1,2) and subject pair clashes in two separate
+  // windows. Without the time window in the de-dup key the second clash is
+  // swallowed and the admin only ever sees one of them.
+  const conflicts = findConflicts([
+    base({ section_id: 1, subject_id: 10 }),
+    base({ section_id: 2, subject_id: 10, section_name: 'B' }),
+    base({ section_id: 1, subject_id: 10, start_time: '09:00', end_time: '10:00' }),
+    base({ section_id: 2, subject_id: 10, section_name: 'B', start_time: '09:00', end_time: '10:00' }),
+  ]);
+  assert.equal(conflicts.length, 2,
+    'clashes at 07:00 and 09:00 are distinct and must both be reported');
+  assert.ok(conflicts.every((c) => c.type === 'teacher'));
+  assert.deepEqual(conflicts.map((c) => c.time).sort(), ['07:00\u201308:00', '09:00\u201310:00']);
+});
+
+test('schedule still collapses a genuine duplicate clash', () => {
+  const { findConflicts } = require('../src/schedule');
+  const base = (o) => ({
+    day: 1, start_time: '07:00', end_time: '08:00', teacher_id: 5, room: null,
+    section_name: 'A', subject_code: 'ENG', teacher_name: 'T',
+    combined_section_id: null, combined_section_name: null, ...o,
+  });
+  // 1-2, 1-3 and 2-3 all clash in the one window: three distinct section pairs.
+  // The symmetric reverse direction must not double-count any of them.
+  const conflicts = findConflicts([
+    base({ section_id: 1, subject_id: 10 }),
+    base({ section_id: 2, subject_id: 10, section_name: 'B' }),
+    base({ section_id: 3, subject_id: 10, section_name: 'C' }),
+  ]);
+  assert.equal(conflicts.length, 3, 'three distinct section pairs, no double counting');
+  const pairs = conflicts.map((c) => [...c.ids].sort((x, y) => x - y).join('+')).sort();
+  assert.deepEqual(pairs, ['1+2', '1+3', '2+3']);
+});
+
+test('schedule de-dup key is time-window aware', () => {
+  const src = stripComments(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'schedule.js'), 'utf8'));
+  const block = src.slice(src.indexOf('const pair = ['), src.indexOf('seen.has(pair)'));
+  assert.match(block, /\$\{st\}-\$\{en\}/,
+    'the conflict de-dup key must include the overlap window');
+});
+
 // ── Achievements: dialect portability ───────────────────────────────────────
 
 test('boolLiteral emits the type each dialect actually accepts', () => {
