@@ -332,6 +332,7 @@ async function migrate() {
       for (let attempt = 1; attempt <= 2; attempt++) {
         const client = await poolRef.connect();
         try {
+          await client.query('SET search_path = public');
           await client.query('BEGIN');
           await client.query(sql);
           await client.query('INSERT INTO schema_migrations (file, applied_at) VALUES ($1, now()) ON CONFLICT (file) DO NOTHING', [file]);
