@@ -85,30 +85,30 @@ async function increment(key, windowMs = WINDOW_MS) {
   if (usePg) {
     // PostgreSQL: UPSERT with ON CONFLICT
     const result = await q(
-      `INSERT INTO ${TABLE_NAME} (key, total, window_start, expires_at)
+      `INSERT INTO ${TABLE_NAME} (key, count, window_start, expires_at)
        VALUES ($1, 1, ${windowStart}, ${expiresAt})
        ON CONFLICT (key, window_start) DO UPDATE
-       SET total = ${TABLE_NAME}.total + 1, expires_at = ${expiresAt}
-       RETURNING total, ${windowStart} AS window_start`,
+       SET count = ${TABLE_NAME}.count + 1, expires_at = ${expiresAt}
+       RETURNING count, ${windowStart} AS window_start`,
       [key]
     );
     return {
-      totalHits: Number(result.total),
+      totalHits: Number(result.count),
       resetTimeMs: Date.now() + windowMs,
       windowStart: result.window_start,
     };
   } else {
     // SQLite: UPSERT with ON CONFLICT
     const result = await q(
-      `INSERT INTO ${TABLE_NAME} (key, total, window_start, expires_at)
+      `INSERT INTO ${TABLE_NAME} (key, count, window_start, expires_at)
        VALUES (?, 1, ${windowStart}, ${expiresAt})
        ON CONFLICT (key, window_start) DO UPDATE
-       SET total = ${TABLE_NAME}.total + 1, expires_at = ${expiresAt}
-       RETURNING total, ${windowStart} AS window_start`,
+       SET count = ${TABLE_NAME}.count + 1, expires_at = ${expiresAt}
+       RETURNING count, ${windowStart} AS window_start`,
       [key]
     );
     return {
-      totalHits: Number(result.total),
+      totalHits: Number(result.count),
       resetTimeMs: Date.now() + windowMs,
       windowStart: result.window_start,
     };
@@ -118,9 +118,9 @@ async function increment(key, windowMs = WINDOW_MS) {
 /** Decrement counter (used when request completes successfully) */
 async function decrement(key) {
   if (usePg) {
-    await qr(`UPDATE ${TABLE_NAME} SET total = GREATEST(total - 1, 0) WHERE key = $1 AND window_start = date_trunc('minute', now())`, [key]);
+    await qr(`UPDATE ${TABLE_NAME} SET count = GREATEST(count - 1, 0) WHERE key = $1 AND window_start = date_trunc('minute', now())`, [key]);
   } else {
-    await qr(`UPDATE ${TABLE_NAME} SET total = MAX(total - 1, 0) WHERE key = ? AND window_start = datetime('now', 'start of minute')`, [key]);
+    await qr(`UPDATE ${TABLE_NAME} SET count = MAX(count - 1, 0) WHERE key = ? AND window_start = datetime('now', 'start of minute')`, [key]);
   }
 }
 
@@ -137,16 +137,16 @@ async function resetKey(key) {
 async function get(key) {
   if (usePg) {
     const row = await q(
-      `SELECT total, window_start FROM ${TABLE_NAME} WHERE key = $1 AND window_start = date_trunc('minute', now())`,
+      `SELECT count, window_start FROM ${TABLE_NAME} WHERE key = $1 AND window_start = date_trunc('minute', now())`,
       [key]
     );
-    return row ? { totalHits: Number(row.total), windowStart: row.window_start } : null;
+    return row ? { totalHits: Number(row.count), windowStart: row.window_start } : null;
   } else {
     const row = await q(
-      `SELECT total, window_start FROM ${TABLE_NAME} WHERE key = ? AND window_start = datetime('now', 'start of minute')`,
+      `SELECT count, window_start FROM ${TABLE_NAME} WHERE key = ? AND window_start = datetime('now', 'start of minute')`,
       [key]
     );
-    return row ? { totalHits: Number(row.total), windowStart: row.window_start } : null;
+    return row ? { totalHits: Number(row.count), windowStart: row.window_start } : null;
   }
 }
 
