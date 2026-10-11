@@ -17,28 +17,22 @@ async function initRateLimitTable() {
   if (usePg) {
     await qr(`
       CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
-        id BIGSERIAL PRIMARY KEY,
         key TEXT NOT NULL,
-        total INTEGER NOT NULL DEFAULT 0,
-        window_start TIMESTAMPTZ NOT NULL DEFAULT now(),
-        expires_at TIMESTAMPTZ NOT NULL,
-        UNIQUE (key, window_start)
+        window_start TIMESTAMPTZ NOT NULL,
+        count INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (key, window_start)
       );
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (expires_at);
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_key ON ${TABLE_NAME} (key);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (window_start);
     `);
   } else {
     await qr(`
       CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         key TEXT NOT NULL,
-        total INTEGER NOT NULL DEFAULT 0,
-        window_start TEXT NOT NULL DEFAULT (datetime('now')),
-        expires_at TEXT NOT NULL,
-        UNIQUE (key, window_start)
+        window_start TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (key, window_start)
       );
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (expires_at);
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_key ON ${TABLE_NAME} (key);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (window_start);
     `);
   }
 }
@@ -49,9 +43,9 @@ function startCleanup() {
   cleanupTimer = setInterval(async () => {
     try {
       if (usePg) {
-        await qr(`DELETE FROM ${TABLE_NAME} WHERE expires_at < now()`);
+        await qr(`DELETE FROM ${TABLE_NAME} WHERE window_start < now() - INTERVAL '1 hour'`);
       } else {
-        await qr(`DELETE FROM ${TABLE_NAME} WHERE expires_at < datetime('now')`);
+        await qr(`DELETE FROM ${TABLE_NAME} WHERE window_start < datetime('now', '-1 hour')`);
       }
     } catch (e) {
       console.error('[RATE-LIMIT] cleanup failed:', e.message);
@@ -75,9 +69,6 @@ function stopCleanup() {
 async function increment(key, windowMs = WINDOW_MS) {
   const windowSec = Math.ceil(windowMs / 1000);
   const _now = usePg ? 'now()' : "datetime('now')";
-  const expiresAt = usePg
-    ? `now() + INTERVAL '${windowSec} seconds'`
-    : `datetime('now', '+${windowSec} seconds')`;
   const windowStart = usePg
     ? `date_trunc('minute', ${_now})` // Align to minute boundaries
     : `datetime('now', 'start of minute')`;
@@ -85,10 +76,10 @@ async function increment(key, windowMs = WINDOW_MS) {
   if (usePg) {
     // PostgreSQL: UPSERT with ON CONFLICT
     const result = await q(
-      `INSERT INTO ${TABLE_NAME} (key, count, window_start, expires_at)
-       VALUES ($1, 1, ${windowStart}, ${expiresAt})
+      `INSERT INTO ${TABLE_NAME} (key, count, window_start)
+       VALUES ($1, 1, ${windowStart})
        ON CONFLICT (key, window_start) DO UPDATE
-       SET count = ${TABLE_NAME}.count + 1, expires_at = ${expiresAt}
+       SET count = ${TABLE_NAME}.count + 1
        RETURNING count, ${windowStart} AS window_start`,
       [key]
     );
@@ -100,10 +91,10 @@ async function increment(key, windowMs = WINDOW_MS) {
   } else {
     // SQLite: UPSERT with ON CONFLICT
     const result = await q(
-      `INSERT INTO ${TABLE_NAME} (key, count, window_start, expires_at)
-       VALUES (?, 1, ${windowStart}, ${expiresAt})
+      `INSERT INTO ${TABLE_NAME} (key, count, window_start)
+       VALUES (?, 1, ${windowStart})
        ON CONFLICT (key, window_start) DO UPDATE
-       SET count = ${TABLE_NAME}.count + 1, expires_at = ${expiresAt}
+       SET count = ${TABLE_NAME}.count + 1
        RETURNING count, ${windowStart} AS window_start`,
       [key]
     );
