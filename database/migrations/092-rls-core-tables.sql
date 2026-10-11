@@ -261,10 +261,20 @@ CREATE POLICY grades_parent ON grades
 -- Teachers see grades for their assigned subjects/sections
 CREATE POLICY grades_teacher ON grades
   FOR SELECT USING (
-    app.is_teacher() AND section_id IN (
-      SELECT section_id FROM class_assignments WHERE teacher_id = (SELECT id FROM teachers WHERE user_id = app.current_user_id())
-      UNION
-      SELECT id FROM sections WHERE adviser_teacher_id = (SELECT id FROM teachers WHERE user_id = app.current_user_id())
+    app.is_teacher() AND student_id IN (
+      SELECT e.student_id
+      FROM enrollments e
+      JOIN sections s ON s.id = e.section_id
+      WHERE e.status = 'enrolled'
+        AND s.id IN (
+          SELECT section_id FROM class_assignments WHERE teacher_id = (
+            SELECT id FROM teachers WHERE user_id = app.current_user_id()
+          )
+          UNION
+          SELECT id FROM sections WHERE adviser_teacher_id = (
+            SELECT id FROM teachers WHERE user_id = app.current_user_id()
+          )
+        )
     )
   );
 
