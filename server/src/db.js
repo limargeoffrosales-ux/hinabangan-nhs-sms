@@ -428,4 +428,47 @@ function isUniqueViolation(err) {
   return typeof err.message === 'string' && /UNIQUE constraint failed|duplicate key value/i.test(err.message);
 }
 
-module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
+// Execute a function with RLS session variables set (PostgreSQL only).
+// For SQLite, just executes the function (no RLS support).
+// Usage: await db.withUser(userId, role, async ({ q, qa, qr, qi, tx }) => { ... })
+async function withUser(userId, role, fn) {
+  if (!usePg) return fn(driver);
+  const client = await poolRef.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL app.current_user_id = $1', [String(userId || 0)]);
+    await client.query('SET LOCAL app.current_user_role = $1', [role || '']);
+    const stmts = {
+      run: (sql, p) => client.query(pgParams(sql), normParams(p) || []).then((r) => ({ changes: r.rowCount })),
+      runId: async (sql, p) => (await client.query(pgParams(sql + ' RETURNING *'), normParams(p) || [])).rows[0]?.id,
+      get: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows[0] || null,
+      all: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows,
+    };
+    const result = await fn({
+      ...stmts,
+      q: stmts.get,
+      qa: stmts.all,
+      qr: stmts.run,
+      qi: stmts.runId,
+      tx: async (inner) => {
+        // Nested transaction not supported with SET LOCAL; run inner in same tx
+        return inner({
+          ...stmts,
+          q: stmts.get,
+          qa: stmts.all,
+          qr: stmts.run,
+          qi: stmts.runId,
+        });
+      },
+    });
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, withUser, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
