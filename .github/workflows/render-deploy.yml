@@ -3,7 +3,12 @@ name: Render Deploy
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
 
 jobs:
   check:
@@ -11,25 +16,86 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for gitleaks to scan history
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Dependency audit (npm audit)
+        run: npm audit --audit-level=high
       - name: Full check (lint, typecheck, build, i18n, server tests)
         run: npm run check
-  deploy:
-    name: Deploy to Render
+
+  deploy-staging:
+    name: Deploy to Staging (Render)
     needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    environment: staging
     steps:
-      - name: Trigger Render deploy hook
+      - name: Trigger Render staging deploy hook
         env:
-          HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          HOOK_URL: ${{ secrets.RENDER_STAGING_DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$HOOK_URL" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL secret not set - skipping deploy"
+            echo "RENDER_STAGING_DEPLOY_HOOK_URL secret not set - skipping staging deploy"
             exit 0
           fi
+          echo "Triggering staging deployment..."
           curl -fsS -X POST "$HOOK_URL"
+          echo "Staging deploy triggered. Check Render dashboard for status."
+
+  approval:
+    name: Manual approval for production
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Wait for manual approval
+        run: echo "Waiting for approval to deploy to production..."
+
+  deploy-prod:
+    name: Deploy to Production (Render)
+    needs: approval
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger Render production deploy hook
+        env:
+          HOOK_URL: ${{ secrets.RENDER_PROD_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "RENDER_PROD_DEPLOY_HOOK_URL secret not set - skipping production deploy"
+            exit 0
+          fi
+          echo "Triggering production deployment..."
+          curl -fsS -X POST "$HOOK_URL"
+          echo "Production deploy triggered. Check Render dashboard for status."
+
+  notify-failure:
+    name: Notify on failure
+    needs: [check, deploy-staging, deploy-prod]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send failure notification
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          curl -fsS -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"❌ *CI/CD Pipeline Failed*\n*Repo:* $GITHUB_REPOSITORY\n*Run:* https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n*Commit:* $GITHUB_SHA\n*Ref:* $GITHUB_REF\"}" \
+            "$SLACK_WEBHOOK_URL" || echo "Slack notification failed (webhook not configured or network error)"
