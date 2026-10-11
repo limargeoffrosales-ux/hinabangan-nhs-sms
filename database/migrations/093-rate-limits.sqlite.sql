@@ -1,12 +1,10 @@
 -- Shared rate-limit counters (SQLite)
--- Database-backed store for express-rate-limit, compatible with rate-limit-store.js
+-- Database-backed store for express-rate-limit
 CREATE TABLE IF NOT EXISTS rate_limits (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
   key          TEXT NOT NULL,
+  window_start TEXT NOT NULL,
   count        INTEGER NOT NULL DEFAULT 1,
-  window_start TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (key, window_start)
+  PRIMARY KEY (key, window_start)
 );
 
 CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits (window_start);
-CREATE INDEX IF NOT EXISTS idx_rate_limits_key ON rate_limits (key);

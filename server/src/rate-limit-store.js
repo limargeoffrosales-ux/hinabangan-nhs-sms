@@ -17,22 +17,28 @@ async function initRateLimitTable() {
   if (usePg) {
     await qr(`
       CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
+        id BIGSERIAL PRIMARY KEY,
         key TEXT NOT NULL,
-        window_start TIMESTAMPTZ NOT NULL,
-        count INTEGER NOT NULL DEFAULT 1,
-        PRIMARY KEY (key, window_start)
+        total INTEGER NOT NULL DEFAULT 0,
+        window_start TIMESTAMPTZ NOT NULL DEFAULT now(),
+        expires_at TIMESTAMPTZ NOT NULL,
+        UNIQUE (key, window_start)
       );
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (window_start);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (expires_at);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_key ON ${TABLE_NAME} (key);
     `);
   } else {
     await qr(`
       CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         key TEXT NOT NULL,
-        window_start TEXT NOT NULL,
-        count INTEGER NOT NULL DEFAULT 1,
-        PRIMARY KEY (key, window_start)
+        total INTEGER NOT NULL DEFAULT 0,
+        window_start TEXT NOT NULL DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL,
+        UNIQUE (key, window_start)
       );
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (window_start);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (expires_at);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_key ON ${TABLE_NAME} (key);
     `);
   }
 }
@@ -43,9 +49,9 @@ function startCleanup() {
   cleanupTimer = setInterval(async () => {
     try {
       if (usePg) {
-        await qr(`DELETE FROM ${TABLE_NAME} WHERE window_start < now() - INTERVAL '1 hour'`);
+        await qr(`DELETE FROM ${TABLE_NAME} WHERE expires_at < now()`);
       } else {
-        await qr(`DELETE FROM ${TABLE_NAME} WHERE window_start < datetime('now', '-1 hour')`);
+        await qr(`DELETE FROM ${TABLE_NAME} WHERE expires_at < datetime('now')`);
       }
     } catch (e) {
       console.error('[RATE-LIMIT] cleanup failed:', e.message);
@@ -74,37 +80,38 @@ function calcWindowStart(windowMs) {
 async function increment(key, windowMs = WINDOW_MS) {
   const ws = calcWindowStart(windowMs);
   const wsIso = ws.toISOString();
+  const expiresAt = new Date(ws.getTime() + windowMs).toISOString();
 
   if (usePg) {
     // PostgreSQL: UPSERT with ON CONFLICT
     const result = await q(
-      `INSERT INTO ${TABLE_NAME} (key, count, window_start)
-       VALUES ($1, 1, $2)
+      `INSERT INTO ${TABLE_NAME} (key, total, window_start, expires_at)
+       VALUES ($1, 1, $2, $3)
        ON CONFLICT (key, window_start) DO UPDATE
-       SET count = ${TABLE_NAME}.count + 1
-       RETURNING count, $2 AS window_start`,
-      [key, wsIso]
+       SET total = ${TABLE_NAME}.total + 1, expires_at = $3
+       RETURNING total, $2 AS window_start`,
+      [key, wsIso, expiresAt]
     );
     return {
-      totalHits: Number(result.count),
+      totalHits: Number(result.total),
       resetTimeMs: Date.now() + windowMs,
       windowStart: result.window_start,
     };
   } else {
-    // SQLite: UPSERT without RETURNING (avoid parameter binding issues)
+    // SQLite: UPSERT without RETURNING
     await qr(
-      `INSERT INTO ${TABLE_NAME} (key, count, window_start)
-       VALUES (?, 1, ?)
+      `INSERT INTO ${TABLE_NAME} (key, total, window_start, expires_at)
+       VALUES (?, 1, ?, ?)
        ON CONFLICT (key, window_start) DO UPDATE
-       SET count = ${TABLE_NAME}.count + 1`,
-      [key, wsIso]
+       SET total = ${TABLE_NAME}.total + 1, expires_at = ?`,
+      [key, wsIso, expiresAt, expiresAt]
     );
     const row = await q(
-      `SELECT count, ? AS window_start FROM ${TABLE_NAME} WHERE key = ?`,
+      `SELECT total, ? AS window_start FROM ${TABLE_NAME} WHERE key = ?`,
       [wsIso, key]
     );
     return {
-      totalHits: Number(row?.count || 0),
+      totalHits: Number(row?.total || 0),
       resetTimeMs: Date.now() + windowMs,
       windowStart: row?.window_start,
     };
@@ -114,9 +121,9 @@ async function increment(key, windowMs = WINDOW_MS) {
 /** Decrement counter (used when request completes successfully) */
 async function decrement(key) {
   if (usePg) {
-    await qr(`UPDATE ${TABLE_NAME} SET count = GREATEST(count - 1, 0) WHERE key = $1 AND window_start = date_trunc('minute', now())`, [key]);
+    await qr(`UPDATE ${TABLE_NAME} SET total = GREATEST(total - 1, 0) WHERE key = $1 AND window_start = date_trunc('minute', now())`, [key]);
   } else {
-    await qr(`UPDATE ${TABLE_NAME} SET count = MAX(count - 1, 0) WHERE key = ? AND window_start = datetime('now', 'start of minute')`, [key]);
+    await qr(`UPDATE ${TABLE_NAME} SET total = MAX(total - 1, 0) WHERE key = ? AND window_start = datetime('now', 'start of minute')`, [key]);
   }
 }
 
@@ -133,16 +140,16 @@ async function resetKey(key) {
 async function get(key) {
   if (usePg) {
     const row = await q(
-      `SELECT count, window_start FROM ${TABLE_NAME} WHERE key = $1 AND window_start = date_trunc('minute', now())`,
+      `SELECT total, window_start FROM ${TABLE_NAME} WHERE key = $1 AND window_start = date_trunc('minute', now())`,
       [key]
     );
-    return row ? { totalHits: Number(row.count), windowStart: row.window_start } : null;
+    return row ? { totalHits: Number(row.total), windowStart: row.window_start } : null;
   } else {
     const row = await q(
-      `SELECT count, window_start FROM ${TABLE_NAME} WHERE key = ? AND window_start = datetime('now', 'start of minute')`,
+      `SELECT total, window_start FROM ${TABLE_NAME} WHERE key = ? AND window_start = datetime('now', 'start of minute')`,
       [key]
     );
-    return row ? { totalHits: Number(row.count), windowStart: row.window_start } : null;
+    return row ? { totalHits: Number(row.total), windowStart: row.window_start } : null;
   }
 }
 
