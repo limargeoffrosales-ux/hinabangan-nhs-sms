@@ -62,11 +62,17 @@ function safeJsonParse(str, fallback = null) {
 function esc(str) {
   if (str == null) return '';
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, "'");
 }
 
-module.exports = { audit, asyncH, page, maskPII, logAccess, safeJsonParse, esc };
+// Dashboard summary cache invalidation (no-op for single-process; extend with Redis for multi-process)
+function invalidateDashboardCache() {
+  // In single-process deployments, the cache in dashboard.routes.js is per-process.
+  // For multi-process (scaled Render), replace with Redis-based cache and pub/sub invalidation.
+}
+
+module.exports = { audit, asyncH, page, maskPII, logAccess, safeJsonParse, esc, invalidateDashboardCache };

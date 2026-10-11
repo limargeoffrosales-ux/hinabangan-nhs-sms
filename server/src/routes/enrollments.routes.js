@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa, qi, qr, bool, tx, usePg } = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, invalidateDashboardCache } = require('../utils');
 const { ensureTeacherSeesSection, ensureTeacherSeesStudent, linkedStudentIds } = require('../scope');
 const { getCurrentSchoolYear } = require('../schoolYear');
 const { notifyEvent } = require('../notify');
@@ -313,6 +313,7 @@ router.post('/self-apply', requireRole('student', 'parent'), asyncH(async (req, 
     throw e;
   }
   await audit(req, 'ENROLL_SELF_APPLY', 'enrollments', id, { student_id: studentId, section_id: section.id, school_year: b.school_year, term });
+  invalidateDashboardCache();
   await notifyEvent('enrollment_applied', {
     data: {
       student: `${student.last_name}, ${student.first_name}`,
@@ -384,6 +385,7 @@ router.post('/:id/documents', requireRole(...WRITE), asyncH(async (req, res) => 
     'INSERT INTO enrollment_documents (enrollment_id, doc_type, file_key, file_url, file_name, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
     [id, docType, b.key ? String(b.key) : null, url, b.name ? String(b.name).slice(0, 255) : null, req.user.id]);
   await audit(req, 'ENROLL_DOC_ADD', 'enrollments', id, { doc_type: docType });
+  invalidateDashboardCache();
   res.status(201).json({ id: docId });
 }));
 
@@ -392,6 +394,7 @@ router.delete('/documents/:docId', requireRole(...WRITE), asyncH(async (req, res
   if (!doc) return res.status(404).json({ error: 'Document not found' });
   await qr('DELETE FROM enrollment_documents WHERE id = ?', [doc.id]);
   await audit(req, 'ENROLL_DOC_DELETE', 'enrollments', doc.enrollment_id, { doc_id: doc.id });
+  invalidateDashboardCache();
   res.json({ ok: true });
 }));
 
@@ -474,6 +477,7 @@ router.patch('/:id', requireRole(...ENROLL_WRITE), asyncH(async (req, res) => {
     throw e;
   }
   await audit(req, 'UPDATE_ENROLLMENT', 'enrollments', row.id, { status: b.status, term, is_aral: isAral });
+  invalidateDashboardCache();
   if (row.status !== 'enrolled' && newStatus === 'enrolled') {
     // Confirmation email/SMS to the learner's portal account holder.
     const stu = await q('SELECT user_id FROM students WHERE id = ?', [row.student_id]);
@@ -504,6 +508,7 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
     [row.student_id]);
   if (prev) await qr('UPDATE students SET grade_level = ?, status = ? WHERE id = ?', [prev.grade_level, prev.status || 'enrolled', row.student_id]);
   await audit(req, 'DELETE_ENROLLMENT', 'enrollments', row.id);
+  invalidateDashboardCache();
   res.json({ ok: true });
 }));
 
@@ -721,6 +726,7 @@ router.post('/import', requireRole(...WRITE), asyncH(async (req, res) => {
   }
 
   await audit(req, 'ENROLL_IMPORT', 'enrollments', null, { imported, enrolled, skipped, errors: errors.length });
+  invalidateDashboardCache();
   res.json({ ok: true, imported, enrolled, skipped, errors: errors.slice(0, 30) });
 }));
 
