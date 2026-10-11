@@ -62,26 +62,28 @@ function stopCleanup() {
   }
 }
 
-/**
- * Increment counter for a key within its time window
+/** Calculate window start aligned to minute boundary */
+function calcWindowStart(windowMs) {
+  const now = Date.now();
+  return new Date(Math.floor(now / windowMs) * windowMs);
+}
+
+/** Increment counter for a key within its time window
  * Returns { totalHits, resetTimeMs, windowStart }
  */
 async function increment(key, windowMs = WINDOW_MS) {
-  const windowSec = Math.ceil(windowMs / 1000);
-  const _now = usePg ? 'now()' : "datetime('now')";
-  const windowStart = usePg
-    ? `date_trunc('minute', ${_now})` // Align to minute boundaries
-    : `datetime('now', 'start of minute')`;
+  const ws = calcWindowStart(windowMs);
+  const wsIso = ws.toISOString();
 
   if (usePg) {
     // PostgreSQL: UPSERT with ON CONFLICT
     const result = await q(
       `INSERT INTO ${TABLE_NAME} (key, count, window_start)
-       VALUES ($1, 1, ${windowStart})
+       VALUES ($1, 1, $2)
        ON CONFLICT (key, window_start) DO UPDATE
        SET count = ${TABLE_NAME}.count + 1
-       RETURNING count, ${windowStart} AS window_start`,
-      [key]
+       RETURNING count, $2 AS window_start`,
+      [key, wsIso]
     );
     return {
       totalHits: Number(result.count),
@@ -89,19 +91,22 @@ async function increment(key, windowMs = WINDOW_MS) {
       windowStart: result.window_start,
     };
   } else {
-    // SQLite: UPSERT with ON CONFLICT
-    const result = await q(
+    // SQLite: UPSERT without RETURNING (avoid parameter binding issues)
+    await qr(
       `INSERT INTO ${TABLE_NAME} (key, count, window_start)
-       VALUES (?, 1, ${windowStart})
+       VALUES (?, 1, ?)
        ON CONFLICT (key, window_start) DO UPDATE
-       SET count = ${TABLE_NAME}.count + 1
-       RETURNING count, ${windowStart} AS window_start`,
-      [key]
+       SET count = ${TABLE_NAME}.count + 1`,
+      [key, wsIso]
+    );
+    const row = await q(
+      `SELECT count, ? AS window_start FROM ${TABLE_NAME} WHERE key = ?`,
+      [wsIso, key]
     );
     return {
-      totalHits: Number(result.count),
+      totalHits: Number(row?.count || 0),
       resetTimeMs: Date.now() + windowMs,
-      windowStart: result.window_start,
+      windowStart: row?.window_start,
     };
   }
 }
