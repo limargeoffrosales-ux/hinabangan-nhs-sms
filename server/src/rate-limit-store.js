@@ -12,32 +12,34 @@ const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 let cleanupTimer = null;
 
+/** Calculate window start aligned to minute boundary */
+function calcWindowStart(windowMs) {
+  const now = Date.now();
+  return new Date(Math.floor(now / windowMs) * windowMs);
+}
+
 /** Initialize the rate_limits table (run once on startup) */
 async function initRateLimitTable() {
   if (usePg) {
     await qr(`
       CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
-        id BIGSERIAL PRIMARY KEY,
-        key TEXT NOT NULL,
-        total INTEGER NOT NULL DEFAULT 0,
+        key          TEXT NOT NULL,
         window_start TIMESTAMPTZ NOT NULL DEFAULT now(),
-        expires_at TIMESTAMPTZ NOT NULL,
-        UNIQUE (key, window_start)
+        count        INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (key, window_start)
       );
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (expires_at);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_window ON ${TABLE_NAME} (window_start);
       CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_key ON ${TABLE_NAME} (key);
     `);
   } else {
     await qr(`
       CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key TEXT NOT NULL,
-        total INTEGER NOT NULL DEFAULT 0,
-        window_start TEXT NOT NULL DEFAULT (datetime('now')),
-        expires_at TEXT NOT NULL,
-        UNIQUE (key, window_start)
+        key          TEXT NOT NULL,
+        window_start TEXT NOT NULL,
+        count        INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (key, window_start)
       );
-      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_expires ON ${TABLE_NAME} (expires_at);
+      CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_window ON ${TABLE_NAME} (window_start);
       CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_key ON ${TABLE_NAME} (key);
     `);
   }
@@ -49,9 +51,9 @@ function startCleanup() {
   cleanupTimer = setInterval(async () => {
     try {
       if (usePg) {
-        await qr(`DELETE FROM ${TABLE_NAME} WHERE expires_at < now()`);
+        await qr(`DELETE FROM ${TABLE_NAME} WHERE window_start < now() - INTERVAL '1 hour'`);
       } else {
-        await qr(`DELETE FROM ${TABLE_NAME} WHERE expires_at < datetime('now')`);
+        await qr(`DELETE FROM ${TABLE_NAME} WHERE window_start < datetime('now', '-1 hour')`);
       }
     } catch (e) {
       console.error('[RATE-LIMIT] cleanup failed:', e.message);
@@ -68,7 +70,7 @@ function stopCleanup() {
   }
 }
 
-/** Calculate window start aligned to minute boundary */
+/** Calculate window start aligned to window boundary */
 function calcWindowStart(windowMs) {
   const now = Date.now();
   return new Date(Math.floor(now / windowMs) * windowMs);
@@ -80,38 +82,37 @@ function calcWindowStart(windowMs) {
 async function increment(key, windowMs = WINDOW_MS) {
   const ws = calcWindowStart(windowMs);
   const wsIso = ws.toISOString();
-  const expiresAt = new Date(ws.getTime() + windowMs).toISOString();
 
   if (usePg) {
     // PostgreSQL: UPSERT with ON CONFLICT
     const result = await q(
-      `INSERT INTO ${TABLE_NAME} (key, total, window_start, expires_at)
-       VALUES ($1, 1, $2, $3)
+      `INSERT INTO ${TABLE_NAME} (key, count, window_start)
+       VALUES ($1, 1, $2)
        ON CONFLICT (key, window_start) DO UPDATE
-       SET total = ${TABLE_NAME}.total + 1, expires_at = $3
-       RETURNING total, $2 AS window_start`,
-      [key, wsIso, expiresAt]
+       SET count = ${TABLE_NAME}.count + 1
+       RETURNING count, $2 AS window_start`,
+      [key, wsIso]
     );
     return {
-      totalHits: Number(result.total),
+      totalHits: Number(result.count),
       resetTimeMs: Date.now() + windowMs,
       windowStart: result.window_start,
     };
   } else {
-    // SQLite: UPSERT without RETURNING
+    // SQLite: UPSERT without RETURNING (avoid parameter binding issues)
     await qr(
-      `INSERT INTO ${TABLE_NAME} (key, total, window_start, expires_at)
-       VALUES (?, 1, ?, ?)
+      `INSERT INTO ${TABLE_NAME} (key, count, window_start)
+       VALUES (?, 1, ?)
        ON CONFLICT (key, window_start) DO UPDATE
-       SET total = ${TABLE_NAME}.total + 1, expires_at = ?`,
-      [key, wsIso, expiresAt, expiresAt]
+       SET count = ${TABLE_NAME}.count + 1`,
+      [key, wsIso]
     );
     const row = await q(
-      `SELECT total, ? AS window_start FROM ${TABLE_NAME} WHERE key = ?`,
+      `SELECT count, ? AS window_start FROM ${TABLE_NAME} WHERE key = ?`,
       [wsIso, key]
     );
     return {
-      totalHits: Number(row?.total || 0),
+      totalHits: Number(row?.count || 0),
       resetTimeMs: Date.now() + windowMs,
       windowStart: row?.window_start,
     };
@@ -119,11 +120,13 @@ async function increment(key, windowMs = WINDOW_MS) {
 }
 
 /** Decrement counter (used when request completes successfully) */
-async function decrement(key) {
+async function decrement(key, windowMs = WINDOW_MS) {
+  const ws = calcWindowStart(windowMs);
+  const wsIso = ws.toISOString();
   if (usePg) {
-    await qr(`UPDATE ${TABLE_NAME} SET total = GREATEST(total - 1, 0) WHERE key = $1 AND window_start = date_trunc('minute', now())`, [key]);
+    await qr(`UPDATE ${TABLE_NAME} SET count = GREATEST(count - 1, 0) WHERE key = $1 AND window_start = $2`, [key, wsIso]);
   } else {
-    await qr(`UPDATE ${TABLE_NAME} SET total = MAX(total - 1, 0) WHERE key = ? AND window_start = datetime('now', 'start of minute')`, [key]);
+    await qr(`UPDATE ${TABLE_NAME} SET count = MAX(count - 1, 0) WHERE key = ? AND window_start = ?`, [key, wsIso]);
   }
 }
 
@@ -137,19 +140,21 @@ async function resetKey(key) {
 }
 
 /** Get current count for a key without incrementing */
-async function get(key) {
+async function get(key, windowMs = WINDOW_MS) {
+  const ws = calcWindowStart(windowMs);
+  const wsIso = ws.toISOString();
   if (usePg) {
     const row = await q(
-      `SELECT total, window_start FROM ${TABLE_NAME} WHERE key = $1 AND window_start = date_trunc('minute', now())`,
-      [key]
+      `SELECT count, window_start FROM ${TABLE_NAME} WHERE key = $1 AND window_start = $2`,
+      [key, wsIso]
     );
-    return row ? { totalHits: Number(row.total), windowStart: row.window_start } : null;
+    return row ? { totalHits: Number(row.count), windowStart: row.window_start } : null;
   } else {
     const row = await q(
-      `SELECT total, window_start FROM ${TABLE_NAME} WHERE key = ? AND window_start = datetime('now', 'start of minute')`,
-      [key]
+      `SELECT count, window_start FROM ${TABLE_NAME} WHERE key = ? AND window_start = ?`,
+      [key, wsIso]
     );
-    return row ? { totalHits: Number(row.total), windowStart: row.window_start } : null;
+    return row ? { totalHits: Number(row.count), windowStart: row.window_start } : null;
   }
 }
 
@@ -182,7 +187,7 @@ class DatabaseRateLimitStore {
   /** Decrement counter */
   async decrement(key) {
     const prefixedKey = this.prefix + key;
-    await decrement(prefixedKey);
+    await decrement(prefixedKey, this.windowMs);
   }
 
   /** Reset/remove key */

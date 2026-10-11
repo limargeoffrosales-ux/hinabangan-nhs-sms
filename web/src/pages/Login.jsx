@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
-import { getStoredApiBase, setApiBase, api, warmServer } from '../lib/api';
+import { getStoredApiBase, setApiBase, api, warmServer, sanitizeError } from '../lib/api';
 
 const FEATURES = [
   { icon: QrCode, key: 'featAttendance' },
@@ -81,7 +81,7 @@ export default function Login() {
       if (result.requiresMfa) setPendingMfa({ tempToken: result.tempToken });
       else finish(result);
     } catch (err) {
-      setError(err.message);
+      setError(sanitizeError(err));
     } finally {
       setBusy(false);
     }
@@ -102,7 +102,7 @@ export default function Login() {
       await api('/auth/forgot-password', { method: 'POST', auth: false, retryNetwork: true, body: { identifier } });
       setForgotSent(true);
     } catch (err) {
-      setForgotError(err.message);
+      setForgotError(sanitizeError(err));
     } finally {
       setForgotBusy(false);
     }

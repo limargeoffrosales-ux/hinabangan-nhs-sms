@@ -22,6 +22,29 @@ export function friendlyAbortMessage(err) {
 }
 
 /**
+ * Sanitize error messages for safe UI display.
+ * Never expose raw server internals, stack traces, or technical details.
+ * @param {unknown} err
+ * @returns {string}
+ */
+export function sanitizeError(err) {
+  const friendly = friendlyAbortMessage(err);
+  if (friendly) return friendly;
+  const msg = String(err?.message || err || 'An unexpected error occurred');
+  // Strip common internal patterns
+  return msg
+    .replace(/^HttpError:\s*/i, '')
+    .replace(/^Error:\s*/i, '')
+    .replace(/ECONNREFUSED|ENOTFOUND|ETIMEDOUT/gi, 'Network error')
+    .replace(/53100|500|502|503|504/gi, 'Server temporarily unavailable')
+    .replace(/database|postgres|connection|pool/gi, 'Database error')
+    .replace(/jwt|token|signature|secret/gi, 'Authentication error')
+    .replace(/permission|forbidden|unauthorized/gi, 'Access denied')
+    .replace(/[^\x20-\x7E\n]/g, '') // remove control chars
+    .slice(0, 200);
+}
+
+/**
  * @returns {string}
  */
 export function getApiBase() {
