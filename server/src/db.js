@@ -212,6 +212,12 @@ if (usePg) {
         { sizeMb: Math.round(sizeAfter) },
         'db still at/over storage cap after prune — writes may fail (53100) until Neon reclaims physical space'
       );
+      await emergencyPruneAtCap();
+      const sizeAfterEmergency = await dbSizeMb();
+      logger.info(
+        { beforeMb: Math.round(sizeAfter), afterMb: Math.round(sizeAfterEmergency), freedMb: Math.round(Math.max(0, sizeAfter - sizeAfterEmergency)) },
+        'db size after emergency prune'
+      );
     }
   }
   await migrate();
@@ -267,6 +273,31 @@ async function pruneHighChurn() {
       await driver.exec(stmt);
     } catch (err) {
       console.warn('[PRUNE] skipped statement: ' + err.message);
+    }
+  }
+}
+
+async function emergencyPruneAtCap() {
+  if (!usePg) return;
+  console.warn('[EMERGENCY PRUNE] Database at/over cap — aggressive cleanup');
+  const emergencyStatements = [
+    "DELETE FROM data_access_logs WHERE created_at < now() - interval '7 days'",
+    "DELETE FROM audit_logs WHERE created_at < now() - interval '30 days'",
+    "DELETE FROM notifications WHERE created_at < now() - interval '14 days'",
+    "DELETE FROM ai_chat_logs WHERE created_at < now() - interval '14 days'",
+    "DELETE FROM submission_workflows WHERE created_at < now() - interval '30 days'",
+    "DELETE FROM report_submissions WHERE created_at < now() - interval '30 days'",
+    "DELETE FROM schedule_entries WHERE created_at < now() - interval '60 days'",
+    "DELETE FROM security_incidents WHERE created_at < now() - interval '90 days'",
+    "DELETE FROM password_audit WHERE created_at < now() - interval '90 days'",
+    "DELETE FROM enrollment_subjects WHERE enrollment_id IN (SELECT id FROM enrollments WHERE status = 'withdrawn' AND created_at < now() - interval '1 year')",
+    "VACUUM (ANALYZE)",
+  ];
+  for (const stmt of emergencyStatements) {
+    try {
+      await driver.exec(stmt);
+    } catch (err) {
+      console.warn('[EMERGENCY PRUNE] skipped: ' + err.message);
     }
   }
 }
@@ -444,4 +475,47 @@ function isUniqueViolation(err) {
   return typeof err.message === 'string' && /UNIQUE constraint failed|duplicate key value/i.test(err.message);
 }
 
-module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
+// Execute a function with RLS session variables set (PostgreSQL only).
+// For SQLite, just executes the function (no RLS support).
+// Usage: await db.withUser(userId, role, async ({ q, qa, qr, qi, tx }) => { ... })
+async function withUser(userId, role, fn) {
+  if (!usePg) return fn(driver);
+  const client = await poolRef.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL app.current_user_id = $1', [String(userId || 0)]);
+    await client.query('SET LOCAL app.current_user_role = $1', [role || '']);
+    const stmts = {
+      run: (sql, p) => client.query(pgParams(sql), normParams(p) || []).then((r) => ({ changes: r.rowCount })),
+      runId: async (sql, p) => (await client.query(pgParams(sql + ' RETURNING *'), normParams(p) || [])).rows[0]?.id,
+      get: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows[0] || null,
+      all: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows,
+    };
+    const result = await fn({
+      ...stmts,
+      q: stmts.get,
+      qa: stmts.all,
+      qr: stmts.run,
+      qi: stmts.runId,
+      tx: async (inner) => {
+        // Nested transaction not supported with SET LOCAL; run inner in same tx
+        return inner({
+          ...stmts,
+          q: stmts.get,
+          qa: stmts.all,
+          qr: stmts.run,
+          qi: stmts.runId,
+        });
+      },
+    });
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, withUser, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
