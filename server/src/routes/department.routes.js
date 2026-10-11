@@ -23,6 +23,8 @@ router.get('/strand-distribution', requireRole(...READ), asyncH(async (req, res)
 
   const rows = await qa(`
     SELECT COALESCE(sec.strand, 'Unassigned') AS strand,
+           ${fc("sec.grade_level = 11")} AS grade_11,
+           ${fc("sec.grade_level = 12")} AS grade_12,
            COUNT(DISTINCT e.student_id) AS students,
            COUNT(DISTINCT e.section_id) AS sections
     FROM enrollments e
