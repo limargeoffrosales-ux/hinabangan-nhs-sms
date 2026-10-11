@@ -4,6 +4,7 @@ import { Save, FileText, Target, Printer, Copy, Download } from 'lucide-react';
 import { api } from '../lib/api';
 import { printElementHtml, downloadFromApi } from '../lib/export';
 import { useToast } from '../components/Toast';
+import { PageHead, ErrorBanner } from '../components/ui';
 
 const TERMS = [1, 2, 3];
 

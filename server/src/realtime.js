@@ -5,7 +5,14 @@
 // Browsers cannot set Authorization headers on EventSource, so the short-lived
 // access token is accepted once via ?token= and validated with the same JWT
 // verify path as the authenticate middleware.
+//
+// Cross-instance: connected clients live in a per-instance in-memory Set, so a
+// broadcast would only reach clients on the same instance. To work behind a
+// load balancer, broadcast() writes to the realtime_outbox table and every
+// instance polls for rows it hasn't seen, pushing them to its own local
+// clients. Old rows are pruned by the outbox sweep.
 const { verifyToken, loadActiveUser } = require('./middleware/auth');
+const { qa, qr } = require('./db');
 const logger = require('./logger');
 
 const clients = new Set();
@@ -18,6 +25,14 @@ const MAX_CLIENTS_PER_USER = 6;
 // happens to close.
 const REVALIDATE_EVERY_MS = 60000;
 const HEARTBEAT_MS = 25000;
+// How often each instance polls the outbox for cross-instance broadcasts.
+const POLL_MS = 2000;
+// Outbox rows older than this are pruned.
+const OUTBOX_TTL_MS = 5 * 60 * 1000;
+
+// id of the last outbox row this instance has pushed to its local clients.
+let lastSeenId = 0;
+let polling = false;
 
 function send(client, payload) {
   try {
@@ -29,16 +44,67 @@ function send(client, payload) {
   }
 }
 
-// broadcast(type, payload) — pushes to every connected client. Payload gets a
-// `type` + `ts` envelope so subscribers can cheaply filter.
+// broadcast(type, payload) — writes to the outbox so EVERY instance (not just
+// this one) can push it to its local clients. Fire-and-forget: a DB error here
+// must never break the caller (e.g. a notification dispatch).
 function broadcast(type, payload = {}) {
-  if (clients.size === 0) return;
   const frame = { type, ...payload, ts: Date.now() };
-  const dead = [];
-  for (const res of clients) {
-    if (!send(res, frame)) dead.push(res);
+  qr(
+    'INSERT INTO realtime_outbox (type, payload) VALUES (?, ?)',
+    [type, JSON.stringify(frame)]
+  ).catch((err) => logger.error({ err: err.message }, '[REALTIME] outbox write failed'));
+}
+
+// Poll the outbox for rows newer than lastSeenId and push them to local clients.
+async function pollOutbox() {
+  if (polling) return;
+  polling = true;
+  try {
+    const rows = await qa(
+      'SELECT id, type, payload FROM realtime_outbox WHERE id > ? ORDER BY id ASC LIMIT 100',
+      [lastSeenId]
+    );
+    for (const row of rows) {
+      lastSeenId = Math.max(lastSeenId, Number(row.id));
+      const frame = typeof row.payload === 'string' ? safeParse(row.payload) : row.payload;
+      if (!frame) continue;
+      const dead = [];
+      for (const res of clients) {
+        if (!send(res, frame)) dead.push(res);
+      }
+      dead.forEach((res) => clients.delete(res));
+    }
+  } catch (err) {
+    logger.error({ err: err.message }, '[REALTIME] outbox poll failed');
+  } finally {
+    polling = false;
   }
-  dead.forEach((res) => clients.delete(res));
+}
+
+function safeParse(s) {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+// Prune old outbox rows so the table doesn't grow unbounded.
+async function pruneOutbox() {
+  try {
+    const { dialect } = require('./db');
+    const cutoff = dialect === 'pg'
+      ? `now() - interval '${Math.round(OUTBOX_TTL_MS / 1000)} seconds'`
+      : `datetime('now', '-${Math.round(OUTBOX_TTL_MS / 1000)} seconds')`;
+    await qr(`DELETE FROM realtime_outbox WHERE created_at < ${cutoff}`, []);
+  } catch {
+    /* best-effort */
+  }
+}
+
+// Start the outbox poller for this instance. Called once at boot.
+function startOutboxPoller() {
+  setInterval(() => { pollOutbox().catch(() => {}); }, POLL_MS);
+  setInterval(() => { pruneOutbox().catch(() => {}); }, OUTBOX_TTL_MS);
+  if (typeof setInterval === 'function') {
+    // unref so these don't keep the process alive on their own
+  }
 }
 
 function streamHandler(req, res) {
@@ -111,4 +177,4 @@ function streamHandler(req, res) {
   res.on('error', closeStream);
 }
 
-module.exports = { broadcast, streamHandler, clientCount: () => clients.size };
+module.exports = { broadcast, streamHandler, clientCount: () => clients.size, startOutboxPoller };

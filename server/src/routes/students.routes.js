@@ -2,7 +2,7 @@ const express = require('express');
 const { q, qa, qi, qr, bool } = require('../db');
 const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit, page, logAccess, maskPII } = require('../utils');
+const { asyncH, audit, auditWithDiff, page, logAccess, maskPII, softDelete, restoreDeleted } = require('../utils');
 const { teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
 const { getCurrentSchoolYear } = require('../schoolYear');
 const { notifyEvent } = require('../notify');
@@ -286,11 +286,12 @@ router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
 }));
 
 router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
-  const row = await q('SELECT * FROM students WHERE id = ?', [req.params.id]);
+  const row = await q('SELECT * FROM students WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
   const b = req.body || {};
   if (b.lrn !== undefined) await normalizeLrn(b.lrn, row.id);
   const f = (k, d) => b[k] !== undefined ? b[k] : d;
+  const oldRow = { ...row };
   await qr(
     'UPDATE students SET lrn = ?, first_name = ?, middle_name = ?, last_name = ?, suffix = ?, sex = ?, birth_date = ?, birth_place = ?, religion = ?, address = ?, contact = ?, guardian_name = ?, guardian_contact = ?, guardian_relation = ?, father_name = ?, mother_name = ?, mother_tongue = ?, learner_status = ?, learner_type = ?, remarks = ?, grade_level = ?, track_strand = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
     [f('lrn', row.lrn), f('first_name', row.first_name), f('middle_name', row.middle_name), f('last_name', row.last_name),
@@ -302,26 +303,27 @@ router.patch('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
       f('learner_status', row.learner_status), f('learner_type', row.learner_type), f('remarks', row.remarks),
       f('grade_level', row.grade_level),
       f('track_strand', row.track_strand), f('status', row.status), row.id]);
-  await audit(req, 'UPDATE_STUDENT', 'students', row.id, { lrn: row.lrn });
+  const newRow = await q('SELECT * FROM students WHERE id = ?', [row.id]);
+  await auditWithDiff(req, 'UPDATE_STUDENT', 'students', row.id, oldRow, newRow, { lrn: row.lrn });
   res.json({ ok: true });
 }));
 
 router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
-  const row = await q('SELECT id, lrn FROM students WHERE id = ?', [req.params.id]);
+  const row = await q('SELECT id, lrn FROM students WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Student not found' });
-  await db.tx(async (conn) => {
-    await conn.qr('DELETE FROM grades WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM attendance WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM enrollments WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM parent_students WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM student_conduct_ratings WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM certifications WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM guidance_cases WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM intervention_plans WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM work_immersion WHERE student_id = ?', [row.id]);
-    await conn.qr('DELETE FROM students WHERE id = ?', [row.id]);
-  });
+  const ok = await softDelete('students', row.id, req.user.id);
+  if (!ok) return res.status(409).json({ error: 'Already deleted' });
   await audit(req, 'DELETE_STUDENT', 'students', row.id, { lrn: row.lrn });
+  res.json({ ok: true, softDeleted: true });
+}));
+
+// Restore a soft-deleted student (recycle bin)
+router.post('/:id/restore', requireRole(...WRITE), asyncH(async (req, res) => {
+  const row = await q('SELECT id, lrn FROM students WHERE id = ? AND deleted_at IS NOT NULL', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Deleted student not found' });
+  const ok = await restoreDeleted('students', row.id);
+  if (!ok) return res.status(409).json({ error: 'Not deleted or already restored' });
+  await audit(req, 'RESTORE_STUDENT', 'students', row.id, { lrn: row.lrn });
   res.json({ ok: true });
 }));
 

@@ -12,7 +12,8 @@
 // ============================================================
 
 const nodemailer = require('nodemailer');
-const { q, qa, qi, qr, nowSql, dialect } = require('./db');
+const { q, qa, qi, qr, nowSql } = require('./db');
+const db = require('./db');
 const { broadcast } = require('./realtime');
 const logger = require('./logger');
 const {
@@ -106,6 +107,10 @@ const DEFAULT_TEMPLATES = {
   test: {
     email: { subject: 'Test notification from {{school}}', body: 'This is a test message to confirm email delivery.\n\n— {{school}}' },
     sms: { body: 'Test message from {{school}} — SMS delivery works.' },
+  },
+  ops_alert: {
+    email: { subject: 'OPS ALERT: {{subject}}', body: 'Hi {{name}},\n\n{{body}}\n\n— {{school}}' },
+    sms: { body: 'OPS ALERT: {{body}} — {{school}}' },
   },
   password_reset: {
     email: {
@@ -730,18 +735,22 @@ async function sweep() {
     await qr(
       `UPDATE notifications SET status = 'failed', error = COALESCE(error, 'interrupted; retrying')
        WHERE status = 'sending' AND claimed_at IS NOT NULL
-         AND claimed_at < ${dialect === 'pg' ? "now() - interval '10 minutes'" : "datetime('now', '-10 minutes')"}`
+         AND claimed_at < ${db.dialect === 'pg' ? "now() - interval '10 minutes'" : "datetime('now', '-10 minutes')"}`
     );
   } catch (err) {
-    logger.error({ err: err.message }, 'NOTIFY_SWEEP failed:');
+    logger.error({ err: err?.message, stack: err?.stack }, 'NOTIFY_SWEEP failed:');
   } finally {
     sweeping = false;
   }
 }
 
 function startNotifySweep() {
-  sweep();
-  setInterval(sweep, SWEEP_MS);
+  const leader = require('./leader');
+  leader.start('notify-sweep', {
+    run: sweep,
+    intervalMs: SWEEP_MS,
+    onError: (err) => logger.error({ err: err.message }, 'NOTIFY_SWEEP tick failed:'),
+  });
 }
 
 // --- Public helpers used by routes --------------------------------------------
@@ -799,7 +808,22 @@ async function sendTest({ email, phone }) {
   return notifyEvent('test', ctx);
 }
 
+async function opsAlert({ subject, body }) {
+  try {
+    const admin = await q('SELECT id, email, phone, name FROM users WHERE role = ? AND status = ? ORDER BY id LIMIT 1', ['super_admin', 'active']);
+    if (!admin) return { sent: false, reason: 'no admin' };
+    const ctx = { data: { subject, body } };
+    if (admin.email) ctx.emails = [{ address: admin.email, label: admin.name || 'Admin' }];
+    if (admin.phone) ctx.phones = [{ address: admin.phone, user_id: admin.id, label: admin.name || 'Admin' }];
+    const result = await notifyEvent('ops_alert', ctx);
+    return { sent: result.sent > 0, ...result };
+  } catch (err) {
+    logger.error({ err: err?.message, stack: err?.stack }, 'OPS_ALERT failed:');
+    return { sent: false, error: err?.message };
+  }
+}
+
 module.exports = {
   ensureDefaults, ensureSmtp, getConfig, getTemplates, notifyEvent, startNotifySweep, sweep,
-  settings, setSetting, setSmsProvider, resend, sendTest, render, isEmail, MAX_ATTEMPTS,
+  settings, setSetting, setSmsProvider, resend, sendTest, opsAlert, render, isEmail, MAX_ATTEMPTS,
 };

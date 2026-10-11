@@ -73,13 +73,17 @@ async function sweep() {
 }
 
 function startStorageCleanup() {
-  sweep();
-  setInterval(sweep, SWEEP_MS);
+  const leader = require('./leader');
+  leader.start('storage-cleanup', {
+    run: sweep,
+    intervalMs: SWEEP_MS,
+    onError: (err) => logger.error({ err: err.message }, 'STORAGE_CLEANUP tick failed:'),
+  });
   logger.info({
     sweepMs: SWEEP_MS,
     docRetentionDays: process.env.DOC_GENERATION_RETENTION_DAYS || 'off',
     submissionFileRetentionDays: process.env.SUBMISSION_FILE_RETENTION_DAYS || 'off',
-  }, 'STORAGE_CLEANUP initialized');
+  }, 'STORAGE_CLEANUP initialized (leader-elected)');
 }
 
 module.exports = { startStorageCleanup, sweep, purgeDocGenerations, purgeSubmissionFiles, cutoffDate };

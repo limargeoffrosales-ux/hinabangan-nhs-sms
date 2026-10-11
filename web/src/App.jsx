@@ -24,7 +24,7 @@ class ErrorBoundary extends Component {
         <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: 20, textAlign: 'center' }}>
           <div>
             <h2 style={{ fontSize: 18, marginBottom: 8 }}>Something went wrong</h2>
-            <p style={{ color: '#6b7280', marginBottom: 16, fontSize: 14 }}>{this.state.error.message || 'An unexpected error occurred.'}</p>
+            <p style={{ color: '#6b7280', marginBottom: 16, fontSize: 14 }}>An unexpected error occurred. Please reload the page or contact support if the problem persists.</p>
             <button onClick={() => { this.setState({ error: null }); window.location.reload(); }} style={{ padding: '6px 20px', borderRadius: 8, border: 'none', background: '#1e3a5f', color: '#fff', cursor: 'pointer', fontSize: 13 }}>
               Reload Page
             </button>

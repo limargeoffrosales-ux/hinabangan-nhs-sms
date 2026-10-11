@@ -6,12 +6,12 @@ const { asyncH, page, audit } = require('../utils');
 const { teacherScope } = require('../scope');
 const { todayStr } = require('../dates');
 const { getCurrentSchoolYear } = require('../schoolYear');
+const cache = require('../cache');
 
 const router = express.Router();
 router.use(authenticate);
 
-const summaryCache = new Map();
-const SUMMARY_TTL_MS = 30_000;
+const SUMMARY_TTL_SECONDS = 30;
 
 // School-local calendar date. NOT new Date().toISOString() — Render runs UTC, so
 // that returned yesterday for the first 8 hours of every Manila school day.
@@ -24,7 +24,7 @@ const DASH_READ = [...WRITE, 'teacher', 'guidance', 'accounting', 'hr'];
 const SHS_GRADES = ['Grade 11', 'Grade 12'];
 
 // ARAL dashboard endpoints are shared with teachers (DASH_READ). Scope their
-// results to the sections they actually teach/advis �?" other ARAL data is not
+// results to the sections they actually teach/advis — other ARAL data is not
 // visible to a teacher. Returns { sql ('' or a WHERE fragment), params, empty }.
 async function teacherSectionScope(req) {
   if (req.role !== 'teacher') return { sql: '', params: [], empty: false };
@@ -35,15 +35,17 @@ async function teacherSectionScope(req) {
   return { sql: `s.id IN (${holders})`, params: ids, empty: false };
 }
 
+function makeSummaryCacheKey(sy, userId, date) {
+  return `dashboard:summary:${sy || 'none'}:${userId}:${date}`;
+}
+
 router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
   const t = today();
   const sy = String(req.query.school_year || '').trim() ||
     ((await q('SELECT school_year FROM enrollments ORDER BY school_year DESC LIMIT 1'))?.school_year) || null;
-  const cacheKey = `${sy || 'none'}:${req.user}:${t}`;
-  const cached = summaryCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < SUMMARY_TTL_MS) {
-    return res.json(cached.data);
-  }
+  const cacheKey = makeSummaryCacheKey(sy, req.user.id, t);
+  const cached = await cache.get(cacheKey);
+  if (cached) return res.json(cached);
   const last7 = db.dialect === 'pg' ? `CURRENT_DATE - INTERVAL '7 days'` : `date('now', '-7 days')`;
   const [
     students, teachers, sections, subjects, enrollments,
@@ -142,7 +144,7 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
     },
 date: t,
   };
-  summaryCache.set(cacheKey, { data, ts: Date.now() });
+  await cache.set(cacheKey, data, SUMMARY_TTL_SECONDS);
   res.json(data);
 }));
 
@@ -827,4 +829,8 @@ router.put('/preferences', asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
-module.exports = router;
+module.exports = { router, invalidateDashboardCache };
+
+async function invalidateDashboardCache() {
+  await cache.invalidatePrefix('dashboard:summary:');
+}

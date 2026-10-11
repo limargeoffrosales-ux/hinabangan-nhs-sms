@@ -45,11 +45,10 @@ before(async () => {
 test('dashboard summary: payload is bound to a real variable before caching', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'dashboard.routes.js'), 'utf8');
   // The bug: `const data = {` was mangled away, so the summary object was passed
-  // straight into res.json(...) and `summaryCache.set(cacheKey, { data, ... })`
-  // referenced an identifier that did not exist.
+  // straight into res.json(...) and cache.set referenced an identifier that did not exist.
   const decl = src.indexOf('const data = {');
   assert.ok(decl !== -1, 'the summary payload must be bound to `data`');
-  const cached = src.indexOf('summaryCache.set(cacheKey, { data,');
+  const cached = src.indexOf('await cache.set(cacheKey, data,');
   assert.ok(cached > decl, 'cache must be written after data is bound');
   const sent = src.indexOf('res.json(data)', cached);
   assert.ok(sent > cached, 'the cached payload must be what gets sent');

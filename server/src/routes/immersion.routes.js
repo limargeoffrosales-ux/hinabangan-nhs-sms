@@ -1,5 +1,6 @@
 const express = require('express');
-const { q, qa, qi, qr, dialect } = require('../db');
+const { q, qa, qi, qr } = require('../db');
+const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
 const { asyncH, audit, page } = require('../utils');
 const { linkedStudentIds, ensurePortalSeesStudent, teacherScope, studentInScope, ensureTeacherSeesStudent } = require('../scope');
@@ -12,7 +13,7 @@ const { todayStr, normalizeDateStr } = require('../dates');
 // 'YYYY-MM-DD HH:MM:SS' UTC as stored by CURRENT_TIMESTAMP).
 function cutoffIsoAgo(minutes) {
   const d = new Date(Date.now() - minutes * 60000);
-  if (dialect === 'pg') return d.toISOString();
+  if (db.dialect === 'pg') return d.toISOString();
   return d.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
 }
 
@@ -840,7 +841,7 @@ jdvp.post('/attendance', requireRole(...WRITE), asyncH(async (req, res) => {
     const hours = (r.time_in && r.time_out)
       ? ((new Date(`2000-01-01T${r.time_out}`) - new Date(`2000-01-01T${r.time_in}`)) / 3600000).toFixed(1)
       : r.hours || null;
-    if (dialect === 'pg') {
+    if (db.dialect === 'pg') {
       await qr(
         `INSERT INTO jdvp_attendance (jdvp_recipient_id, date, status, time_in, time_out, hours, remarks, recorded_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)

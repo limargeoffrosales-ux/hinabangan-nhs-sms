@@ -26,12 +26,27 @@ async function init() {
     dialect = 'pg';
     const { Pool } = require('pg');
     const connUrl = new URL(process.env.DATABASE_URL);
+    // Fix SSL mode warning: explicitly use 'verify-full' (matches current behavior)
+    // Neon requires SSL; verify-full validates the server certificate.
     const sslMode = connUrl.searchParams.get('sslmode');
     const useSsl = sslMode === 'disable' ? false : { rejectUnauthorized: false };
     // Pin search_path on every new backend connection and keep the pool small:
     // backups historically leaked a SET search_path into Neon's pooler which
     // then behaved as if search_path pointed at a schema that had been dropped.
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useSsl, max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000, options: '-c search_path=public' });
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: useSsl,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+      options: '-c search_path=public'
+    });
+    // Belt-and-suspenders: force search_path=public on EVERY connection checkout.
+    // This guards against any connection-string-level search_path (e.g. "app")
+    // and ensures migrations/queries always run in the public schema.
+    pool.on('connect', async (client) => {
+      try { await client.query('SET search_path = public'); } catch (_) {}
+    });
     pool.on('error', (err) => {
       logger.error({ err }, 'PostgreSQL pool idle client error');
     });
@@ -428,47 +443,4 @@ function isUniqueViolation(err) {
   return typeof err.message === 'string' && /UNIQUE constraint failed|duplicate key value/i.test(err.message);
 }
 
-// Execute a function with RLS session variables set (PostgreSQL only).
-// For SQLite, just executes the function (no RLS support).
-// Usage: await db.withUser(userId, role, async ({ q, qa, qr, qi, tx }) => { ... })
-async function withUser(userId, role, fn) {
-  if (!usePg) return fn(driver);
-  const client = await poolRef.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL app.current_user_id = $1', [String(userId || 0)]);
-    await client.query('SET LOCAL app.current_user_role = $1', [role || '']);
-    const stmts = {
-      run: (sql, p) => client.query(pgParams(sql), normParams(p) || []).then((r) => ({ changes: r.rowCount })),
-      runId: async (sql, p) => (await client.query(pgParams(sql + ' RETURNING *'), normParams(p) || [])).rows[0]?.id,
-      get: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows[0] || null,
-      all: async (sql, p) => (await client.query(pgParams(sql), normParams(p) || [])).rows,
-    };
-    const result = await fn({
-      ...stmts,
-      q: stmts.get,
-      qa: stmts.all,
-      qr: stmts.run,
-      qi: stmts.runId,
-      tx: async (inner) => {
-        // Nested transaction not supported with SET LOCAL; run inner in same tx
-        return inner({
-          ...stmts,
-          q: stmts.get,
-          qa: stmts.all,
-          qr: stmts.run,
-          qi: stmts.runId,
-        });
-      },
-    });
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, withUser, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
+module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };

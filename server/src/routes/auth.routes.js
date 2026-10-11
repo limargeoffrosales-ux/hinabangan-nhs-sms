@@ -217,6 +217,7 @@ router.post('/logout', asyncH(async (req, res) => {
     if (req.user && req.user.id) {
       await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
       await clearCsrfToken(req.user.id);
+      await audit(req, 'LOGOUT', 'auth', req.user.id, { username: req.user.username });
       return res.json({ ok: true });
     }
     return res.status(400).json({ error: 'refreshToken is required' });
@@ -225,6 +226,7 @@ router.post('/logout', asyncH(async (req, res) => {
   if (!row) return res.status(401).json({ error: 'Invalid refresh token' });
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [row.user_id]);
   await clearCsrfToken(row.user_id);
+  await audit(req, 'LOGOUT', 'auth', row.user_id, {});
   res.json({ ok: true });
 }));
 

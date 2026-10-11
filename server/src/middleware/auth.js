@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, JWT_AUDIENCE, JWT_ISSUER, ACCESS_TTL } = require('../config');
-const { q, qa, qr, withUser } = require('../db');
+const { q, qa, qr } = require('../db');
 const crypto = require('crypto');
 
 const userCache = new Map();
@@ -101,7 +101,6 @@ async function authenticate(req, res, next) {
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     req.user = cached.user;
     req.role = cached.user.role;
-    req.db = withUser(cached.user.id, cached.user.role, (db) => db);
     return next();
   }
 
@@ -116,9 +115,6 @@ async function authenticate(req, res, next) {
   evictIfNeeded(userCache);
   req.user = userObj;
   req.role = user.role;
-
-  // Attach user-scoped DB for RLS (PostgreSQL) - falls back to normal driver on SQLite
-  req.db = withUser(userObj.id, userObj.role, (db) => db);
 
   if (user.password_changed_at) {
     try {

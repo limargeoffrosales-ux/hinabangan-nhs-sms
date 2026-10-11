@@ -16,6 +16,18 @@ const { authenticate, requireCsrf } = require('./auth');
 const { streamHandler } = require('./realtime');
 const { gate: operatingHoursGate } = require('./operating-hours');
 
+// Global unhandled error handlers — log to Sentry + logger, then let supervisor restart
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ err: reason?.message, stack: reason?.stack, promise }, 'UNHANDLED REJECTION');
+  if (process.env.SENTRY_DSN) Sentry.captureException(reason);
+});
+process.on('uncaughtException', (err) => {
+  logger.error({ err: err.message, stack: err.stack }, 'UNCAUGHT EXCEPTION');
+  if (process.env.SENTRY_DSN) Sentry.captureException(err);
+  // Exit so process manager (Render, Docker, systemd) can restart cleanly
+  process.exit(1);
+});
+
 // Core routes
 const studentsRoutes = require('./routes/students.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
@@ -35,7 +47,7 @@ const exchangeRoutes = require('./routes/exchange.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const analyticsKpiRoutes = require('./routes/analytics-kpi.routes');
 const portalRoutes = require('./routes/portal.routes');
-const dashboardRoutes = require('./routes/dashboard.routes');
+const { router: dashboardRoutes } = require('./routes/dashboard.routes');
 const auditRoutes = require('./routes/audit.routes');
 const scheduleRoutes = require('./routes/schedule.routes');
 const assignmentsRoutes = require('./routes/assignments.routes');
@@ -100,7 +112,12 @@ const parentRoutes = require('./routes/parent.routes');
   app.set('trust proxy', 1);
 
   if (process.env.SENTRY_DSN) {
-    Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'development', tracesSampleRate: 0.1 });
+    const pkg = require('./package.json');
+    let release = pkg.version;
+    try {
+      release += '-' + require('child_process').execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+    } catch {}
+    Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'development', release, tracesSampleRate: 0.1 });
     app.use(Sentry.Handlers.requestHandler());
   }
 
@@ -226,12 +243,15 @@ const parentRoutes = require('./routes/parent.routes');
     next();
   });
 
+  const { createDbStore } = require('./rate-limit-store');
+
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 20,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Too many sign-in attempts. Try again in a few minutes.' },
+    store: createDbStore(15 * 60 * 1000),
   });
   app.use('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth/refresh', authLimiter);
@@ -242,6 +262,7 @@ const parentRoutes = require('./routes/parent.routes');
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Too many requests. Please slow down.' },
+    store: createDbStore(15 * 60 * 1000),
   });
   app.use('/api/', apiLimiter);
 
@@ -251,6 +272,7 @@ const parentRoutes = require('./routes/parent.routes');
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Too many file uploads. Please try again later.' },
+    store: createDbStore(60 * 60 * 1000),
   });
   app.use('/api/v1/uploads', uploadLimiter);
 
@@ -260,12 +282,20 @@ const parentRoutes = require('./routes/parent.routes');
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'AI request limit reached. Please try again in a minute.' },
+    store: createDbStore(60 * 1000),
   });
   app.use('/api/v1/ai', aiLimiter);
 
   // Operating hours gate — blocks API requests outside school hours (423).
   // Health stays exempt so Render health checks + pinger monitors keep working.
   app.use('/api/', operatingHoursGate());
+
+  // Prevent caching of API responses (private data, authenticated endpoints)
+  app.use('/api/', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, private, must-revalidate');
+    res.setHeader('Vary', 'Authorization');
+    next();
+  });
 
   app.get('/api/v1/school-year', async (req, res) => {
     try {
@@ -342,11 +372,17 @@ const parentRoutes = require('./routes/parent.routes');
     immutable: true,
     index: false,
     setHeaders(res, filePath) {
-      if (path.basename(filePath) === 'index.html') {
+      const base = path.basename(filePath);
+      if (base === 'index.html') {
         res.setHeader('Cache-Control', 'no-store');
       }
-      if (path.basename(filePath) === 'sw.js') {
+      // PWA files: no long-term caching so updates propagate
+      if (base === 'sw.js' || base === 'manifest.webmanifest' || base === 'registerSW.js') {
         res.setHeader('Cache-Control', 'no-cache');
+      }
+      // Workbox runtime files are content-hashed, safe to cache long-term
+      if (base.startsWith('workbox-') && base.endsWith('.js')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       }
     },
   }));
@@ -386,6 +422,12 @@ const parentRoutes = require('./routes/parent.routes');
       .catch((err) => logger.error({ err: err.message }, 'notify sweep startup failed:'));
     startStorageCleanup();
     startBackupSweep();
+    const { startOutboxPoller } = require('./realtime');
+    startOutboxPoller();
+    // Prune shared rate-limit windows so the table stays small.
+    const rateStore = createDbStore(15 * 60 * 1000);
+    const pruneTimer = setInterval(() => { rateStore.prune().catch(() => {}); }, 15 * 60 * 1000);
+    if (typeof pruneTimer.unref === 'function') pruneTimer.unref();
   });
 
   async function shutdown(signal) {
