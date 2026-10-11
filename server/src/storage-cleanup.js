@@ -66,7 +66,7 @@ async function sweep() {
       logger.info(report, 'STORAGE_CLEANUP completed');
     }
   } catch (err) {
-    logger.error({ err: err.message }, 'STORAGE_CLEANUP failed:');
+    logger.error({ err: err?.message, stack: err?.stack }, 'STORAGE_CLEANUP failed:');
   } finally {
     sweeping = false;
   }
@@ -77,7 +77,7 @@ function startStorageCleanup() {
   leader.start('storage-cleanup', {
     run: sweep,
     intervalMs: SWEEP_MS,
-    onError: (err) => logger.error({ err: err.message }, 'STORAGE_CLEANUP tick failed:'),
+    onError: (err) => logger.error({ err: err?.message, stack: err?.stack }, 'STORAGE_CLEANUP tick failed:'),
   });
   logger.info({
     sweepMs: SWEEP_MS,

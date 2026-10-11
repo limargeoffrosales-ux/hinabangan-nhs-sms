@@ -46,7 +46,7 @@ async function checkBackupHealth() {
       // Drill already runs after each backup; if it failed, opsAlert already fired
     }
   } catch (err) {
-    logger.error({ err: err.message }, 'BACKUP health check failed:');
+    logger.error({ err: err?.message, stack: err?.stack }, 'BACKUP health check failed:');
   }
 }
 
@@ -85,7 +85,7 @@ async function runOnce() {
       }
     }
   } catch (err) {
-    logger.error({ err: err.message }, 'BACKUP sweep failed:');
+    logger.error({ err: err?.message, stack: err?.stack }, 'BACKUP sweep failed:');
     await opsAlert({
       subject: 'Automated backup failed',
       body: `Backup sweep error: ${err.message}`
@@ -104,7 +104,7 @@ function startBackupSweep() {
   leader.start('backup', {
     run: runOnce,
     intervalMs,
-    onError: (err) => logger.error({ err: err.message }, 'BACKUP sweep tick failed:'),
+    onError: (err) => logger.error({ err: err?.message, stack: err?.stack }, 'BACKUP sweep tick failed:'),
   });
   setInterval(checkBackupHealth, healthIntervalMs);
   checkBackupHealth(); // run once at startup

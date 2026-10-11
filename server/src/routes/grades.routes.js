@@ -168,7 +168,7 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
       subject: (await q('SELECT title FROM subjects WHERE id = ?', [b.subject_id]))?.title || String(b.subject_id),
       section: (await q('SELECT name FROM sections WHERE id = ?', [b.section_id]))?.name || '',
     },
-  }).catch((err) => logger.error({ err: err.message }, '[GRADES] notifyEvent(grades_saved) failed'));
+  }).catch((err) => logger.error({ err: err?.message, stack: err?.stack }, '[GRADES] notifyEvent(grades_saved) failed'));
   res.json({
     ok: true,
     saved: n,
@@ -297,3 +297,4 @@ router.get('/years/:studentId', requireRole(...WRITE, 'registrar', 'student', 'p
 }));
 
 module.exports = router;
+

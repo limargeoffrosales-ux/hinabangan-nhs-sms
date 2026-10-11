@@ -54,7 +54,7 @@ router.post('/student-photo/:studentId', requireRole('super_admin', 'school_admi
   // Delete old photo if exists
   const oldKey = fileKeyFromUrl(student.photo_url);
   if (oldKey) {
-    deleteFile(oldKey).catch((err) => logger.error({ err: err.message, key: oldKey }, '[UPLOADS] failed to delete old student photo'));
+    deleteFile(oldKey).catch((err) => logger.error({ err: err?.message, stack: err?.stack, key: oldKey  }, '[UPLOADS] failed to delete old student photo'));
   }
 
   const { key, url } = await uploadFile('students', req.file, req.file.originalname);
@@ -177,3 +177,4 @@ router.delete('/file', requireRole('super_admin', 'school_admin'), asyncH(async 
 }));
 
 module.exports = router;
+

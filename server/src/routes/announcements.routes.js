@@ -38,7 +38,7 @@ router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, 
     notifyEvent('announcement_posted', {
       audience: b.audience || 'all',
       data: { title: b.title, body: b.body, priority: b.priority || 'normal' },
-    }).catch((err) => logger.error({ err: err.message }, '[ANNOUNCEMENTS] notifyEvent failed'));
+    }).catch((err) => logger.error({ err: err?.message, stack: err?.stack }, '[ANNOUNCEMENTS] notifyEvent failed'));
     res.status(201).json({ id });
   }));
 
@@ -84,3 +84,4 @@ router.post('/:id/restore', requireRole('super_admin', 'school_admin'), asyncH(a
   }));
 
 module.exports = router;
+

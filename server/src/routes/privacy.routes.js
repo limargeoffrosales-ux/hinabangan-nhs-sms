@@ -329,7 +329,7 @@ router.post('/erasure-requests/:id/approve', requireRole('super_admin', 'school_
   });
   if (photoKey) {
     deleteFile(photoKey).catch((err) => {
-      logger.error({ err: err.message, key: photoKey }, '[ERASURE] failed to delete student photo');
+      logger.error({ err: err?.message, stack: err?.stack, key: photoKey  }, '[ERASURE] failed to delete student photo');
     });
   }
   // Strip the gathered PII before persisting: storing a full snapshot of erased
@@ -385,3 +385,4 @@ function summarizeBundle(bundle) {
 }
 
 module.exports = router;
+

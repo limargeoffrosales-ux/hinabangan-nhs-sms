@@ -39,7 +39,7 @@ function send(client, payload) {
     client.write(`data: ${JSON.stringify(payload)}\n\n`);
     return true;
   } catch (err) {
-    logger.error({ err: err.message }, '[REALTIME] write failed');
+    logger.error({ err: err?.message, stack: err?.stack }, '[REALTIME] write failed');
     return false;
   }
 }
@@ -52,7 +52,7 @@ function broadcast(type, payload = {}) {
   qr(
     'INSERT INTO realtime_outbox (type, payload) VALUES (?, ?)',
     [type, JSON.stringify(frame)]
-  ).catch((err) => logger.error({ err: err.message }, '[REALTIME] outbox write failed'));
+  ).catch((err) => logger.error({ err: err?.message, stack: err?.stack }, '[REALTIME] outbox write failed'));
 }
 
 // Poll the outbox for rows newer than lastSeenId and push them to local clients.
@@ -75,7 +75,7 @@ async function pollOutbox() {
       dead.forEach((res) => clients.delete(res));
     }
   } catch (err) {
-    logger.error({ err: err.message }, '[REALTIME] outbox poll failed');
+    logger.error({ err: err?.message, stack: err?.stack }, '[REALTIME] outbox poll failed');
   } finally {
     polling = false;
   }
@@ -169,7 +169,7 @@ function streamHandler(req, res) {
         return closeStream();
       }
     } catch (err) {
-      logger.error({ err: err.message }, '[REALTIME] revalidation failed');
+      logger.error({ err: err?.message, stack: err?.stack }, '[REALTIME] revalidation failed');
     }
   }, HEARTBEAT_MS);
 

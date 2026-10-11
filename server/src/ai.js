@@ -1,4 +1,4 @@
-﻿const OpenAI = require('openai');
+const OpenAI = require('openai');
 const { q, qa } = require('./db');
 const logger = require('./logger');
 
@@ -14,12 +14,12 @@ const SCHOOL_CONTEXT =
 let client = null;
 let clientProvider = null;
 
-// OpenAI SDK default timeout is 10 minutes — far too long for a chat reply.
+// OpenAI SDK default timeout is 10 minutes � far too long for a chat reply.
 // 30s keeps a hung provider from pinning a request (or its awaited caller).
 const AI_TIMEOUT_MS = 30_000;
 
 // Default model per provider (2026 comparison-informed picks for school Q&A:
-// small context in, concise answers out — cheap, fast, strong reasoning):
+// small context in, concise answers out � cheap, fast, strong reasoning):
 //   groq  -> openai/gpt-oss-120b  flagship open reasoning model, $0.15/$0.60/M, 131k ctx, ~500 tok/s
 //            (openai/gpt-oss-20b is 2x faster and half the cost if latency matters more;
 //             qwen/qwen3.6-27b has the highest intelligence index on Groq but costs more)
@@ -59,7 +59,7 @@ function getClient() {
     client = new OpenAI({
       apiKey,
       baseURL: cfg.baseUrl,
-      // OpenAI SDK default is 10 minutes — far too long for a chat reply. Cap
+      // OpenAI SDK default is 10 minutes � far too long for a chat reply. Cap
       // it so a hung provider can never pin a request (or its awaited caller,
       // e.g. a report render) longer than this. maxRetries:1 keeps one SDK-level
       // retry for transient 429/5xx without tripling latency.
@@ -93,46 +93,46 @@ function getProviderInfo() {
 const SYSTEM_PROMPT = `You are the official AI assistant for Hinabangan National High School. You help students, parents, and teachers with grading questions, school policies, academic procedures, and general school-related inquiries.
 
 VOICE AND TONE
-- Respond the way a patient, experienced teacher or guidance counselor would: warm, clear, and encouraging — never robotic, stiff, or overly formal.
+- Respond the way a patient, experienced teacher or guidance counselor would: warm, clear, and encouraging � never robotic, stiff, or overly formal.
 - Use simple, everyday language. Avoid jargon; if a technical or DepEd term is necessary, explain it in plain terms right after using it.
-- When someone sounds worried or confused (e.g., "did I fail?", "what do I do now?"), acknowledge their concern briefly before explaining — reassure first, then inform.
+- When someone sounds worried or confused (e.g., "did I fail?", "what do I do now?"), acknowledge their concern briefly before explaining � reassure first, then inform.
 - Keep answers concise and well-organized. Use short paragraphs or simple lists. Only use tables when comparing multiple items side by side.
 - Match the language the user writes in: answer in English, Filipino, or Taglish (code-switching) to mirror how the user asked the question.
-- Do NOT use any markdown at all: no asterisks (no "**", "*", "***"), no underscores for emphasis (no "_…_"), no hash headings ("#"), no backticks, no "> " quotes, no tildes. Emphasise with plain wording or by capitalising a word (e.g., "you MUST submit it"). Extra asterisks WILL be removed automatically, so write clean plain text only.
-- When walking through a calculation or a multi-step process, explain it step by step, the way a teacher would on the board — don't just give a final answer with no reasoning.
+- Do NOT use any markdown at all: no asterisks (no "**", "*", "***"), no underscores for emphasis (no "_�_"), no hash headings ("#"), no backticks, no "> " quotes, no tildes. Emphasise with plain wording or by capitalising a word (e.g., "you MUST submit it"). Extra asterisks WILL be removed automatically, so write clean plain text only.
+- When walking through a calculation or a multi-step process, explain it step by step, the way a teacher would on the board � don't just give a final answer with no reasoning.
 - Be encouraging and constructive, especially with students. Frame setbacks (failing grades, missed requirements) in terms of what can be done next, not just the bad news.
 - Never make up facts, scores, weights, or policies. If you don't have specific information (e.g., a subject's assessment weights, a school event's date), say so and ask for it or point them to who can help (adviser, registrar, guidance office).
 
 WHAT YOU HELP WITH
-1. Grading & academic standing — computing quarterly/final grades, GWA, pass/fail status, remedial requirements, promotion rules (see reference below).
-2. School policies & procedures — enrollment, attendance rules, requirements for transferring, requesting documents, etc., based on information provided to you.
-3. General guidance — study tips, how to approach a subject, explaining a lesson concept simply, since students may come to you the way they would a helpful teacher.
-4. Administrative questions — how to get a report card, transcript, or other document; what forms are needed and from where.
+1. Grading & academic standing � computing quarterly/final grades, GWA, pass/fail status, remedial requirements, promotion rules (see reference below).
+2. School policies & procedures � enrollment, attendance rules, requirements for transferring, requesting documents, etc., based on information provided to you.
+3. General guidance � study tips, how to approach a subject, explaining a lesson concept simply, since students may come to you the way they would a helpful teacher.
+4. Administrative questions � how to get a report card, transcript, or other document; what forms are needed and from where.
 
 REFERENCE: HINABANGAN NHS GRADING SYSTEM
 - 3 grading terms (T1, T2, T3). No quarter 4.
 - 100-point numerical scale mapped to letter grades (A=97-100 down to F=below 65), each with a grade point (1.00 highest to 5.00 lowest, used for GWA).
 - Passing grade: 75% (equivalent to C) for Junior and Senior High. Below 75 = Failed, subject to remediation.
 - Remedial passing threshold: 65%. A grade of 60-64 (band D-) becomes the "remedial grade" if the student completes remediation.
-- Term grade = weighted sum of assessment types — Written Work 25%, Performance Task 45%, Term Exam 30%.
-  Formula per assessment: (Score Obtained / Max Score) × Weight
+- Term grade = weighted sum of assessment types � Written Work 25%, Performance Task 45%, Term Exam 30%.
+  Formula per assessment: (Score Obtained / Max Score) � Weight
 - Final (Annual) Grade = average of the three term grades.
-- If Final Grade < 75, student takes remedial; if remedial ≥ 65, final grade = higher of original or remedial.
-- GWA = Σ(Final Grade × Credit Units) / Σ(Credit Units). Core subjects = 3 units, electives = 2 units (typical SHS setup).
-- Promotion requires no failed core subjects and GWA ≥ 2.50 (approximately 75%). Exceptions go through the School Division Office (Special Promotion form).
+- If Final Grade < 75, student takes remedial; if remedial = 65, final grade = higher of original or remedial.
+- GWA = S(Final Grade � Credit Units) / S(Credit Units). Core subjects = 3 units, electives = 2 units (typical SHS setup).
+- Promotion requires no failed core subjects and GWA = 2.50 (approximately 75%). Exceptions go through the School Division Office (Special Promotion form).
 - Report documents: Quarterly Report Card, Annual Report Card, Transcript, Remedial/Recovery Form.
 
 HOW TO HANDLE DIFFERENT QUESTIONS
-- Grade or pass/fail questions → compute step by step using the reference above, state the outcome plainly, and explain the next step (remedial, promotion, etc.).
-- Policy or procedural questions → answer using only what's been provided about the school's rules; if unsure, say so and name the right office/person to check with.
-- Conceptual/study questions → explain like a teacher helping a student understand, with a simple example if useful.
-- Anything outside your knowledge (specific dates, individual student records you don't have, disciplinary matters) → be honest that you don't have that information and direct them to the appropriate school staff.
+- Grade or pass/fail questions ? compute step by step using the reference above, state the outcome plainly, and explain the next step (remedial, promotion, etc.).
+- Policy or procedural questions ? answer using only what's been provided about the school's rules; if unsure, say so and name the right office/person to check with.
+- Conceptual/study questions ? explain like a teacher helping a student understand, with a simple example if useful.
+- Anything outside your knowledge (specific dates, individual student records you don't have, disciplinary matters) ? be honest that you don't have that information and direct them to the appropriate school staff.
 
 DO NOT
 - Do not sound like a corporate chatbot ("Thank you for your inquiry," "I appreciate your question"). Sound like a teacher who knows the student and cares about the outcome.
-- Do not cite policy codes or memo numbers unless explicitly given to you — say "per school policy" instead.
+- Do not cite policy codes or memo numbers unless explicitly given to you � say "per school policy" instead.
 - Do not give a bare answer with no context or next step.
-- Do not guess at information you don't have (dates, individual records, subject-specific weights) — ask or redirect instead.`;
+- Do not guess at information you don't have (dates, individual records, subject-specific weights) � ask or redirect instead.`;
 
 // Compact system prompt for the native local model (0.5B): the full SYSTEM_PROMPT
 // above is too long for a small model and degrades into repetition loops.
@@ -306,15 +306,15 @@ SECTION: ${section_name || 'Not specified'}
 AVAILABLE COMPETENCIES:
 ${compList}
 
-INSTRUCTIONS — Generate the following fields as a JSON object. Be thorough, specific, and pedagogically excellent. Follow DepEd DLL format strictly.
+INSTRUCTIONS � Generate the following fields as a JSON object. Be thorough, specific, and pedagogically excellent. Follow DepEd DLL format strictly.
 
-1. "title" — A concise, descriptive lesson title (max 120 chars)
-2. "objectives" — 3-5 SMART learning objectives (bullet points, each starting with "At the end of the lesson, the learner shall be able to...")
-3. "content_outline" — Detailed content outline with main topics and subtopics (3-5 sections with brief descriptions)
-4. "teaching_strategy" — Primary and complementary teaching strategies with brief rationale (e.g. "Direct Instruction for concept delivery, Cooperative Learning (Think-Pair-Share) for practice, Scaffolded Inquiry for application")
-5. "materials" — Complete list of materials: textbooks, worksheets, AV aids, realia, digital tools (be specific, e.g. "Visual charts on photosynthesis, printed worksheet on leaf structure, PowerPoint slides, actual leaf specimens")
-6. "assessment_plan" — Multi-layered assessment: formative (during lesson checks), summative (end of lesson quiz/performative task), and rubric criteria (be specific with criteria and point values)
-7. "notes" — Teacher reflection prompts, differentiation tips for diverse learners, cross-curricular connections, and suggested homework
+1. "title" � A concise, descriptive lesson title (max 120 chars)
+2. "objectives" � 3-5 SMART learning objectives (bullet points, each starting with "At the end of the lesson, the learner shall be able to...")
+3. "content_outline" � Detailed content outline with main topics and subtopics (3-5 sections with brief descriptions)
+4. "teaching_strategy" � Primary and complementary teaching strategies with brief rationale (e.g. "Direct Instruction for concept delivery, Cooperative Learning (Think-Pair-Share) for practice, Scaffolded Inquiry for application")
+5. "materials" � Complete list of materials: textbooks, worksheets, AV aids, realia, digital tools (be specific, e.g. "Visual charts on photosynthesis, printed worksheet on leaf structure, PowerPoint slides, actual leaf specimens")
+6. "assessment_plan" � Multi-layered assessment: formative (during lesson checks), summative (end of lesson quiz/performative task), and rubric criteria (be specific with criteria and point values)
+7. "notes" � Teacher reflection prompts, differentiation tips for diverse learners, cross-curricular connections, and suggested homework
 
 Return ONLY a valid JSON object with these 7 keys. No markdown, no code fences.`;
 
@@ -431,7 +431,7 @@ async function generateForm137(studentId) {
       `SELECT * FROM student_conduct_ratings WHERE student_id = ? ORDER BY school_year, term`, [studentId]
     );
   } catch (err) {
-    logger.error({ err: err.message, studentId }, '[AI] failed to load conduct ratings');
+    logger.error({ err: err?.message, stack: err?.stack, studentId  }, '[AI] failed to load conduct ratings');
   }
   let incidents = [];
   try {
@@ -440,7 +440,7 @@ async function generateForm137(studentId) {
        FROM student_conduct_records WHERE student_id = ? ORDER BY incident_date`, [studentId]
     );
   } catch (err) {
-    logger.error({ err: err.message, studentId }, '[AI] failed to load conduct incidents');
+    logger.error({ err: err?.message, stack: err?.stack, studentId  }, '[AI] failed to load conduct incidents');
   }
 
   const years = [...new Set(allGrades.map(g => g.school_year))];
@@ -471,7 +471,7 @@ async function generateForm137(studentId) {
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // AI-draft the complete weekly program for ONE teacher (the "Teacher Programs"
-// feature — a full Mon-Fri day/time/room schedule). Every subject assignment
+// feature � a full Mon-Fri day/time/room schedule). Every subject assignment
 // must be placed exactly meetings_per_week times, each of exactly
 // duration_minutes, conflict-free with the already-placed meetings passed in
 // `placed` (sections, rooms, and other teachers). The CLI in
@@ -539,3 +539,4 @@ module.exports = {
   generateExam, analyzeStudentRisk, getEnrollmentSuggestions, chatMessage, generateForm137,
   generateTeacherProgram, getProviderInfo, PROVIDERS, cleanUpMarkdown,
 };
+

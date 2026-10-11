@@ -55,7 +55,7 @@ async function acquire(jobName) {
     const won = await confirmOwner(jobName);
     return won === instanceId;
   } catch (err) {
-    logger.error({ err: err.message, job: jobName }, 'LEADER acquire failed');
+    logger.error({ err: err?.message, stack: err?.stack, job: jobName  }, 'LEADER acquire failed');
     return false;
   }
 }
@@ -77,7 +77,7 @@ async function heartbeat(jobName) {
     );
     return Number(result.changes || 0) > 0;
   } catch (err) {
-    logger.error({ err: err.message, job: jobName }, 'LEADER heartbeat failed');
+    logger.error({ err: err?.message, stack: err?.stack, job: jobName  }, 'LEADER heartbeat failed');
     return false;
   }
 }
@@ -144,3 +144,4 @@ function start(jobName, { run, intervalMs, onError }) {
 }
 
 module.exports = { acquire, heartbeat, release, start, instanceId, TTL_MS, HEARTBEAT_MS };
+

@@ -149,7 +149,7 @@ router.post('/', requireRole(...STAFF), asyncH(async (req, res) => {
       due_date: b.due_date ? new Date(b.due_date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) : 'No due date',
       subject: ca.subject_title || ca.subject_code, section: ca.section_name,
     },
-  }).catch((err) => logger.error({ err: err.message }, '[ASSIGNMENTS] notifyEvent(assignment_created) failed'));
+  }).catch((err) => logger.error({ err: err?.message, stack: err?.stack }, '[ASSIGNMENTS] notifyEvent(assignment_created) failed'));
   res.json({ ok: true, id });
 }));
 
@@ -332,7 +332,7 @@ router.put('/:id/submissions/:studentId', requireRole(...STAFF), asyncH(async (r
       score: score != null ? score : '—',
       total: a.total_points,
     },
-  }).catch((err) => logger.error({ err: err.message, student_id: studentId }, '[ASSIGNMENTS] notifyEvent(assignment_graded) failed'));
+  }).catch((err) => logger.error({ err: err?.message, stack: err?.stack, student_id: studentId  }, '[ASSIGNMENTS] notifyEvent(assignment_graded) failed'));
   res.json({ ok: true });
 }));
 
@@ -353,3 +353,4 @@ router.put('/:id/submissions/:studentId/return', requireRole(...STAFF), asyncH(a
 }));
 
 module.exports = router;
+

@@ -671,7 +671,7 @@ async function notifyEvent(event, ctx = {}) {
   try {
     return await dispatchEvent(event, ctx);
   } catch (err) {
-    logger.error({ err: err.message, event }, '[NOTIFY] dispatch failed');
+    logger.error({ err: err?.message, stack: err?.stack, event  }, '[NOTIFY] dispatch failed');
     return { created: 0, sent: 0, failed: 0, error: err.message };
   }
 }
@@ -749,7 +749,7 @@ function startNotifySweep() {
   leader.start('notify-sweep', {
     run: sweep,
     intervalMs: SWEEP_MS,
-    onError: (err) => logger.error({ err: err.message }, 'NOTIFY_SWEEP tick failed:'),
+    onError: (err) => logger.error({ err: err?.message, stack: err?.stack }, 'NOTIFY_SWEEP tick failed:'),
   });
 }
 
@@ -827,3 +827,4 @@ module.exports = {
   ensureDefaults, ensureSmtp, getConfig, getTemplates, notifyEvent, startNotifySweep, sweep,
   settings, setSetting, setSmsProvider, resend, sendTest, opsAlert, render, isEmail, MAX_ATTEMPTS,
 };
+

@@ -66,7 +66,7 @@ async function logSecurityIncident(type, severity, ip, username, userId, details
       [type, severity, ip, username, userId || null, details ? JSON.stringify(details) : null]
     );
   } catch (err) {
-    logger.error({ err: err.message, type, username }, '[AUTH] failed to record security incident');
+    logger.error({ err: err?.message, stack: err?.stack, type, username  }, '[AUTH] failed to record security incident');
   }
 }
 
@@ -93,7 +93,7 @@ async function maybeSweepResetCodes() {
   try {
     await qr('DELETE FROM password_resets WHERE expires_at < ?', [new Date().toISOString()]);
   } catch (err) {
-    logger.error({ err: err.message }, '[AUTH] password-reset code sweep failed');
+    logger.error({ err: err?.message, stack: err?.stack }, '[AUTH] password-reset code sweep failed');
   }
 }
 
@@ -111,7 +111,7 @@ async function maybeSweepExpired() {
   try {
     await qr(`DELETE FROM refresh_tokens WHERE expires_at < ${nowSql()}`);
   } catch (err) {
-    logger.error({ err: err.message }, '[AUTH] refresh-token sweep failed');
+    logger.error({ err: err?.message, stack: err?.stack }, '[AUTH] refresh-token sweep failed');
   }
 }
 
@@ -451,3 +451,4 @@ await audit(req, 'STUDENT_REGISTER', 'auth', userId, { student_id: studentId, us
   }));
 
 module.exports = router;
+
