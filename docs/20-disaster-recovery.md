@@ -132,7 +132,7 @@ npm run backup:drill
 | Backup stale/small/empty | `checkBackupHealth()` (every 6h) | Email/SMS to super_admin |
 | DB size near cap | Boot + periodic log | Log warning + `opsAlert` |
 | Sentry errors | Sentry (if DSN configured) | Sentry alert rules → email |
-| Uptime | **NOT CONFIGURED** — set up UptimeRobot free | You |
+| Uptime | **NOT CONFIGURED** — see `docs/33-setup-checklist.md` §3 (UptimeRobot free) | You |
 
 ---
 
@@ -140,10 +140,10 @@ npm run backup:drill
 
 | Role | Responsibility | Contact |
 |------|----------------|---------|
-| **Primary Ops** | Monitor, triage, execute runbooks | [NAME] — [PHONE] — [EMAIL] |
-| **Backup Ops** | Cover when primary unavailable | [NAME] — [PHONE] — [EMAIL] |
-| **DB Admin** | Neon management, restores, capacity | [NAME] — [PHONE] — [EMAIL] |
-| **School Admin** | User communication, data validation | [NAME] — [PHONE] — [EMAIL] |
+| **Primary Ops** | Monitor, triage, execute runbooks | The `super_admin` account (all `opsAlert` emails); set its email/phone in-app → Settings → Accounts |
+| **Backup Ops** | Cover when primary unavailable | Second `super_admin`/staff account (create via Accounts) |
+| **DB Admin** | Neon management, restores, capacity | Neon project owner — holds `DATABASE_URL` on Render |
+| **School Admin** | User communication, data validation | Hinabangan NHS school head / principal (in-person) |
 
 **Escalation:**
 1. Primary Ops acknowledges within 15 min (business hours) / 1 hour (off-hours)

@@ -8,12 +8,14 @@
 
 ## 📞 Emergency Contacts
 
-| Role | Name | Phone | Email |
-|------|------|-------|-------|
-| **Primary Ops** | [YOUR NAME] | [PHONE] | [EMAIL] |
-| **Backup Ops** | [BACKUP NAME] | [PHONE] | [EMAIL] |
-| **DB Admin** | [DB ADMIN] | [PHONE] | [EMAIL] |
-| **School Admin** | [SCHOOL ADMIN] | [PHONE] | [EMAIL] |
+| Role | Who It Resolves To |
+|------|--------------------|
+| **Primary Ops** | The `super_admin` account — every `opsAlert` email lands here; set its email & phone in-app under Settings → Accounts |
+| **Backup Ops** | Second `super_admin`/staff account (create one for coverage; alerts only reach accounts that exist) |
+| **DB Admin** | Neon project owner (Neon dashboard → project → settings; also holds `DATABASE_URL`) |
+| **School Admin** | Hinabangan NHS school head / principal (in-person escalation, not in-app) |
+
+> To alert a personal phone too: set the superadmin's phone number in-app **and** configure `SMS_PROVIDER_URL`/`SMS_PROVIDER_TOKEN` (or `textbelt`) on Render.
 
 ---
 
@@ -130,7 +132,7 @@ Render Dashboard → your service → Deploys → "Rollback" on previous success
 | Backup success/fail | In-app + opsAlert | failure, drill FAIL, stale > 48h, size < 1KB | Email/SMS to super_admin |
 | Sentry errors | Sentry (if DSN set) | new error, error rate spike | Sentry alert rules → email |
 | DB size near cap | In-app log | > 384 MB (75%) | Log warning + opsAlert |
-| Uptime | **YOU SET UP** (UptimeRobot free) | 5 min down | Email/Telegram/Slack |
+| Uptime | **YOU SET UP** (UptimeRobot free) — see `docs/33-setup-checklist.md` | 5 min down | Email/Telegram/Slack |
 
 ---
 
@@ -152,7 +154,7 @@ Render Dashboard → your service → Deploys → "Rollback" on previous success
 ## 📋 Post-Incident Checklist
 
 - [ ] Timeline reconstructed from logs (Render + Sentry + audit_logs)
-- [ ] Actual RTO/RTO measured vs targets (RPO 24h, RTO hours)
+- [ ] Actual RTO/RPO measured vs targets (RPO 24h, RTO hours)
 - [ ] Root cause classified: infra / code / security / human
 - [ ] Corrective actions with owners + due dates
 - [ ] Runbook updated if new scenario discovered
@@ -166,6 +168,7 @@ Render Dashboard → your service → Deploys → "Rollback" on previous success
 |-----|---------|
 | `docs/19-backup-strategy.md` | Backup mechanics, RPO/RTO, drill procedure |
 | `docs/20-disaster-recovery.md` | Full DR plan (targets rewritten to match free-tier reality) |
+| `docs/33-setup-checklist.md` | One-time setup: Sentry, R2, UptimeRobot, alert recipients |
 | `server/scripts/backup.js` | CLI: backup, list, restore, drill, verify |
 | `server/src/backup-sweep.js` | Automated sweep + health monitor |
 | `server/src/notify.js` | Ops alerts (opsAlert) + notification engine |
