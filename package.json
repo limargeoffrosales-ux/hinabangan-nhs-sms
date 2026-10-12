@@ -19,6 +19,7 @@
     "i18n:check": "npm run i18n:check --workspace=web",
     "lint:web": "npm run lint --workspace=web",
     "lint:server": "npm run lint --workspace=server",
+    "audit": "node scripts/audit.mjs",
     "test": "npm run test --workspace=server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "typecheck:web": "npm run typecheck --workspace=web",
