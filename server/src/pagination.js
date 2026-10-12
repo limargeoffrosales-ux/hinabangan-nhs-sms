@@ -31,7 +31,7 @@ async function paginate(baseQuery, params, query = {}, opts = {}) {
     const countResult = await q(countQuery, params);
     total = Number(countResult?.total || 0);
   } catch (err) {
-    logger.error({ err: err?.message, stack: err?.stack, countQuery  }, 'PAGINATE count query failed, reporting total=0');
+    logger.error({ err: err?.message, stack: err?.stack, countQuery }, 'PAGINATE count query failed, reporting total=0');
   }
 
   const dataQuery = `${baseQuery} LIMIT ? OFFSET ?`;
@@ -47,4 +47,3 @@ async function paginate(baseQuery, params, query = {}, opts = {}) {
 }
 
 module.exports = { paginate };
-

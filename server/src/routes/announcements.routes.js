@@ -84,4 +84,3 @@ router.post('/:id/restore', requireRole('super_admin', 'school_admin'), asyncH(a
   }));
 
 module.exports = router;
-

@@ -66,7 +66,7 @@ async function logSecurityIncident(type, severity, ip, username, userId, details
       [type, severity, ip, username, userId || null, details ? JSON.stringify(details) : null]
     );
   } catch (err) {
-    logger.error({ err: err?.message, stack: err?.stack, type, username  }, '[AUTH] failed to record security incident');
+    logger.error({ err: err?.message, stack: err?.stack, type, username }, '[AUTH] failed to record security incident');
   }
 }
 
@@ -451,4 +451,3 @@ await audit(req, 'STUDENT_REGISTER', 'auth', userId, { student_id: studentId, us
   }));
 
 module.exports = router;
-

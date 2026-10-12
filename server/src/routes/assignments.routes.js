@@ -332,7 +332,7 @@ router.put('/:id/submissions/:studentId', requireRole(...STAFF), asyncH(async (r
       score: score != null ? score : '—',
       total: a.total_points,
     },
-  }).catch((err) => logger.error({ err: err?.message, stack: err?.stack, student_id: studentId  }, '[ASSIGNMENTS] notifyEvent(assignment_graded) failed'));
+  }).catch((err) => logger.error({ err: err?.message, stack: err?.stack, student_id: studentId }, '[ASSIGNMENTS] notifyEvent(assignment_graded) failed'));
   res.json({ ok: true });
 }));
 
@@ -353,4 +353,3 @@ router.put('/:id/submissions/:studentId/return', requireRole(...STAFF), asyncH(a
 }));
 
 module.exports = router;
-

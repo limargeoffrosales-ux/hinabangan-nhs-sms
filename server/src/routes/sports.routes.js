@@ -87,7 +87,7 @@ router.delete('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (
     }
     for (const m of media || []) {
       const key = fileKeyFromUrl(m.url);
-      if (key) deleteFile(key).catch((err) => logger.error({ err: err?.message, stack: err?.stack, key  }, '[SPORTS] failed to delete media'));
+      if (key) deleteFile(key).catch((err) => logger.error({ err: err?.message, stack: err?.stack, key }, '[SPORTS] failed to delete media'));
     }
     await qr('DELETE FROM sports_posts WHERE id = ?', [row.id]);
     await audit(req, 'DELETE_SPORTS_POST', 'sports_posts', row.id);

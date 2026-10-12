@@ -297,4 +297,3 @@ router.get('/years/:studentId', requireRole(...WRITE, 'registrar', 'student', 'p
 }));
 
 module.exports = router;
-

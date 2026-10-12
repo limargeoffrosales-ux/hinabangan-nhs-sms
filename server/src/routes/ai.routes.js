@@ -61,7 +61,7 @@ async function logChatTurn(req, role, message) {
     await qi('INSERT INTO ai_chat_logs (user_id, role, message) VALUES (?, ?, ?)',
       [req.user.id, role, message]);
   } catch (err) {
-    logger.error({ err: err?.message, stack: err?.stack, role  }, '[AI_CHAT] failed to persist chat log');
+    logger.error({ err: err?.message, stack: err?.stack, role }, '[AI_CHAT] failed to persist chat log');
   }
 }
 
@@ -87,7 +87,7 @@ router.post('/chat', requireRole(...STAFF, 'student', 'parent'), aiUserLimiter, 
   }
   let ctx = context || '';
   // PII guardrail (docs/29): never hand the user's real name to the hosted AI
-  // provider � send only their role, so the assistant knows how to answer.
+  // provider — send only their role, so the assistant knows how to answer.
   if (req.user) ctx += '\nLogged in as: user (role: ' + req.user.role + ')';
 
   const lastUserMsg = messages[messages.length - 1];
@@ -257,4 +257,3 @@ router.get('/chat-logs/stats', requireRole(...ADMIN), asyncH(async (_req, res) =
 }));
 
 module.exports = router;
-

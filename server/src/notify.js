@@ -259,7 +259,7 @@ async function ensureSmtp() {
     logger.info({ host: acct.smtp.host, port: acct.smtp.port, inbox },
       'SMTP auto-provisioned (Ethereal test relay) — set SMTP_USER/SMTP_PASS to send through your own provider');
   } catch (err) {
-    logger.warn({ err: err.message }, 'SMTP auto-provision failed — email stays queued until SMTP is configured');
+    logger.warn({ err: err?.message, stack: err?.stack }, 'SMTP auto-provision failed — email stays queued until SMTP is configured');
   }
 }
 
@@ -671,7 +671,7 @@ async function notifyEvent(event, ctx = {}) {
   try {
     return await dispatchEvent(event, ctx);
   } catch (err) {
-    logger.error({ err: err?.message, stack: err?.stack, event  }, '[NOTIFY] dispatch failed');
+    logger.error({ err: err?.message, stack: err?.stack, event }, '[NOTIFY] dispatch failed');
     return { created: 0, sent: 0, failed: 0, error: err.message };
   }
 }
@@ -827,4 +827,3 @@ module.exports = {
   ensureDefaults, ensureSmtp, getConfig, getTemplates, notifyEvent, startNotifySweep, sweep,
   settings, setSetting, setSmsProvider, resend, sendTest, opsAlert, render, isEmail, MAX_ATTEMPTS,
 };
-

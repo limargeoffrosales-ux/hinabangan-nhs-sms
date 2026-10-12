@@ -22,7 +22,7 @@ process.on('unhandledRejection', (reason, promise) => {
   if (process.env.SENTRY_DSN) Sentry.captureException(reason);
 });
 process.on('uncaughtException', (err) => {
-  logger.error({ err: err?.message, stack: err?.stack, stack: err.stack  }, 'UNCAUGHT EXCEPTION');
+  logger.error({ err: err?.message, stack: err?.stack }, 'UNCAUGHT EXCEPTION');
   if (process.env.SENTRY_DSN) Sentry.captureException(err);
   // Exit so process manager (Render, Docker, systemd) can restart cleanly
   process.exit(1);
@@ -441,7 +441,7 @@ const parentRoutes = require('./routes/parent.routes');
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 })().catch((err) => {
-  logger.error({ err: err?.message, stack: err?.stack, stack: err.stack  }, 'Fatal boot error — shutting down');
+  logger.error({ err: err?.message, stack: err?.stack }, 'Fatal boot error — shutting down');
   try { db.close(); } catch (_) {}
   process.exit(1);
 });

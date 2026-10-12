@@ -556,11 +556,10 @@ router.delete('/:id/attachments/:fileId', requireRole(...ATTACH_ROLES), asyncH(a
   if (!sub) return;
   const row = await q('SELECT * FROM submission_files WHERE id = ? AND submission_id = ?', [req.params.fileId, req.params.id]);
   if (!row) return res.status(404).json({ error: 'File not found' });
-  deleteFile(row.stored_name).catch((err) => logger.error({ err: err?.message, stack: err?.stack, key: row.stored_name  }, '[SUBMISSIONS] deleteFile failed'));
+  deleteFile(row.stored_name).catch((err) => logger.error({ err: err?.message, stack: err?.stack, key: row.stored_name }, '[SUBMISSIONS] deleteFile failed'));
   await qr('DELETE FROM submission_files WHERE id = ?', [row.id]);
   await audit(req, 'DELETE_SUBMISSION_FILE', 'submission_files', row.id, { submission_id: req.params.id, key: row.stored_name });
   res.json({ ok: true });
 }));
 
 module.exports = router;
-

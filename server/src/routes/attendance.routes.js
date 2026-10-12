@@ -24,7 +24,7 @@ function fireAttendanceAlerts(records, date) {
     notifyEvent('attendance_alert', {
       student_id: Number(r.student_id),
       data: { status: r.status, date, remarks: r.remarks || '' },
-    }).catch((err) => logger.error({ err: err?.message, stack: err?.stack, student_id: r.student_id  }, '[ATTENDANCE] notifyEvent failed'));
+    }).catch((err) => logger.error({ err: err?.message, stack: err?.stack, student_id: r.student_id }, '[ATTENDANCE] notifyEvent failed'));
   }
 }
 
@@ -227,4 +227,3 @@ router.get('/student/:studentId', requireRole(...WRITE, 'registrar', 'student', 
 }));
 
 module.exports = router;
-

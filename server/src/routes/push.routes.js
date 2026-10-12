@@ -211,4 +211,3 @@ router.post('/send', authenticate, requireRole('super_admin', 'school_admin', 'p
 });
 
 module.exports = router;
-
