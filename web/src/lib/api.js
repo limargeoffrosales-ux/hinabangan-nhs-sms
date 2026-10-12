@@ -22,26 +22,37 @@ export function friendlyAbortMessage(err) {
 }
 
 /**
- * Sanitize error messages for safe UI display.
- * Never expose raw server internals, stack traces, or technical details.
+ * Make a caught value safe to render as UI text.
+ *
+ * The server already masks its own failures: every 5xx becomes
+ * "Internal server error" (see server/src/index.js), and 4xx bodies carry
+ * intentional business text ("Username already exists"). So a *string* from the
+ * API is trustworthy and must be shown verbatim — rewriting it would replace
+ * real guidance with generic noise.
+ *
+ * What this guards is the other case: an Error object (or something else
+ * non-string) reaching the UI. Rendering a raw object throws
+ * "Objects are not valid as a React child", and its `.message` can carry
+ * driver codes, SQL fragments, or absolute paths that never went through the
+ * API error path. Those collapse to a generic message.
+ *
  * @param {unknown} err
  * @returns {string}
  */
 export function sanitizeError(err) {
   const friendly = friendlyAbortMessage(err);
   if (friendly) return friendly;
-  const msg = String(err?.message || err || 'An unexpected error occurred');
-  // Strip common internal patterns
-  return msg
-    .replace(/^HttpError:\s*/i, '')
-    .replace(/^Error:\s*/i, '')
-    .replace(/ECONNREFUSED|ENOTFOUND|ETIMEDOUT/gi, 'Network error')
-    .replace(/53100|500|502|503|504/gi, 'Server temporarily unavailable')
-    .replace(/database|postgres|connection|pool/gi, 'Database error')
-    .replace(/jwt|token|signature|secret/gi, 'Authentication error')
-    .replace(/permission|forbidden|unauthorized/gi, 'Access denied')
-    .replace(/[^\x20-\x7E\n]/g, '') // remove control chars
-    .slice(0, 200);
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const e = /** @type {{ status?: number }} */ (/** @type {unknown} */ (err));
+    // A non-500 HTTP error still carries a deliberate server message.
+    const status = Number(e.status || 0);
+    if (status > 0 && status < 500 && typeof (/** @type {{ message?: unknown }} */ (err)).message === 'string') {
+      return /** @type {{ message: string }} */ (/** @type {unknown} */ (err)).message;
+    }
+    return 'An unexpected error occurred. Please try again.';
+  }
+  return err == null || err === '' ? 'An unexpected error occurred. Please try again.' : String(err);
 }
 
 /**

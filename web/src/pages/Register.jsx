@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { UserPlus, CheckCircle2, ArrowLeft } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, sanitizeError } from '../lib/api';
 import { ErrorBanner } from '../components/ui';
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
@@ -66,7 +66,7 @@ export default function Register() {
       });
       setDone(true);
     } catch (err) {
-      setError(err.message);
+      setError(sanitizeError(err));
     } finally {
       setBusy(false);
     }

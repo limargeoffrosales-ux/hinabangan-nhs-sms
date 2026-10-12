@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Search } from 'lucide-react';
 import DOMPurify from 'dompurify';
+import { sanitizeError } from '../lib/api';
 
 export function Badge({ status = '', children, ...rest }) {
   const map = {
@@ -97,7 +98,14 @@ export function SkeletonCards({ count = 4 }) {
 
 export function ErrorBanner({ error }) {
   if (!error) return null;
-  return <div className="err-banner" role="alert" aria-live="assertive">{error}</div>;
+  // Sanitize centrally: most call sites pass a raw `err.message`, which can carry
+  // server internals (SQL, stack fragments, driver codes). Everything rendered
+  // here passes through sanitizeError so those never reach the user.
+  const text = typeof error === 'object' && error !== null
+    ? sanitizeError(error)
+    : String(error);
+  if (!text || !text.trim()) return null;
+  return <div className="err-banner" role="alert" aria-live="assertive">{text}</div>;
 }
 
 export function Modal({ title, sub, onClose, children, wide }) {

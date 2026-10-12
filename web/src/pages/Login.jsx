@@ -124,7 +124,7 @@ export default function Login() {
       const result = await verifyMfa(pendingMfa.tempToken, code);
       finish(result);
     } catch (err) {
-      setError(err.message);
+      setError(sanitizeError(err));
     } finally {
       setBusy(false);
     }

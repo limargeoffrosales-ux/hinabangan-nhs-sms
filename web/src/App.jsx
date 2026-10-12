@@ -20,11 +20,13 @@ class ErrorBoundary extends Component {
   }
   render() {
     if (this.state.error) {
+      // Deliberately generic: error.message may carry component internals,
+      // server responses, or stack fragments. Details go to console + Sentry.
       return (
         <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: 20, textAlign: 'center' }}>
           <div>
-            <h2 style={{ fontSize: 18, marginBottom: 8 }}>Something went wrong</h2>
-            <p style={{ color: '#6b7280', marginBottom: 16, fontSize: 14 }}>An unexpected error occurred. Please reload the page or contact support if the problem persists.</p>
+            <h2 style={{ fontSize: 18, marginBottom: 8 }}>An unexpected error occurred</h2>
+            <p style={{ color: '#6b7280', marginBottom: 16, fontSize: 14 }}>Please reload the page. If the problem persists, contact support.</p>
             <button onClick={() => { this.setState({ error: null }); window.location.reload(); }} style={{ padding: '6px 20px', borderRadius: 8, border: 'none', background: '#1e3a5f', color: '#fff', cursor: 'pointer', fontSize: 13 }}>
               Reload Page
             </button>
