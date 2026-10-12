@@ -1,5 +1,5 @@
-# TEMPORARY diagnostic — splits the quality gate into separate jobs so a
-# failure can be attributed to a single step. Safe: no deploys, no secrets.
+# TEMPORARY diagnostic — isolates each step into its own job so failures can be
+# attributed without log access. No deploys, no secrets.
 # Delete once the real workflow is green.
 name: CI Diagnose
 
@@ -9,8 +9,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  install:
-    name: DIAG-install
+  a-checkout:
+    name: A-checkout-only
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+  b-node-nocache:
+    name: B-node-nocache
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+  c-node-cache:
+    name: C-node-withcache
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,42 +39,25 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+
+  d-npmci-nocache:
+    name: D-npmci-nocache
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm ci --ignore-scripts
+
+  e-npmci-scripts:
+    name: E-npmci-withscripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Install
         run: npm ci
-
-  gitleaks:
-    name: DIAG-gitleaks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  audit:
-    name: DIAG-audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - name: Audit gate
-        run: npm run audit
-
-  check:
-    name: DIAG-fullcheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - name: Full check
-        run: npm run check
