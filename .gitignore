@@ -20,3 +20,6 @@ server/data.sqlite
 server/.env
 
 search_recently.py
+
+# Generated npm audit reports — regenerate with `npm audit`, never commit
+audit.json
