@@ -45,6 +45,24 @@ docker compose up -d
 
 Server has a `node --test` suite in `server/test/` (covers migrations/parity, schedule, auth, notify). Every push to `main` runs `npm run check` in CI before triggering the Render deploy hook.
 
+## Windows dev environment (OneDrive)
+
+This repo lives under OneDrive (`...\OneDrive\Documents\...`). OneDrive Files
+On-Demand dehydrates `node_modules`, which makes files vanish mid-build
+(`Could not resolve "./..."` / `Cannot find module ...`), even right after a
+successful `npm install`. Keep the dependency folders pinned so OneDrive always
+retains them locally:
+
+```powershell
+attrib +P -U node_modules;        attrib +P -U "node_modules\*" /s /d
+attrib +P -U server\node_modules; attrib +P -U "server\node_modules\*" /s /d
+attrib +P -U web\node_modules;    attrib +P -U "web\node_modules\*" /s /d
+```
+
+`npm ci` deletes and recreates `node_modules`; re-run the pins afterwards. If
+files still vanish, delete `node_modules` (root + both workspaces), reinstall,
+then pin again.
+
 ## Database
 
 - **Dual-mode**: SQLite locally (`node:sqlite` built-in), PostgreSQL in production (Neon/Render).
