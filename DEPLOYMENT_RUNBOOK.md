@@ -175,6 +175,30 @@ Run after **every** deployment (staging & prod):
 | Assets 404 | Web build not copied | Check `npm run build` output, `web/dist` exists |
 | CORS error | `APP_URL` not set / wrong | Set correct `APP_URL` in Render env |
 | Free tier cold start | Service slept >15 min | Wait 30-60s, refresh; upgrade to paid for always-on |
+| CI fails at "Dependency audit" | New high/cseverity advisory | See §4a below |
+
+### 4a. Dependency audit gate
+
+`npm run audit` (`scripts/audit.mjs`) runs on every push and PR. It **fails the
+build** on any high/critical vulnerability, except ones explicitly justified in
+its `ALLOWLIST`.
+
+Currently allowlisted (1 entry):
+
+| Advisory | Packages | Why it is not fixed |
+|---|---|---|
+| GHSA-vfj7-8cjw-p6xm | `braces` (via `@sentry/vite-plugin` → `unplugin` → `chokidar`) | **No upstream fix exists.** The advisory covers `braces <=3.0.3` and 3.0.3 is the newest published version, so there is nothing to upgrade to. It is **build-time only** (runs in `vite build`, never shipped in the runtime image) and the flaw needs attacker-controlled glob patterns, which this repo does not accept from users. |
+
+**Do not run `npm audit fix --force`.** npm suggests two changes that would break
+working features:
+- downgrade `exceljs` 4.4.0 → 3.4.0 (breaks Excel export)
+- jump `@sentry/vite-plugin` 3 → 5 (untested major, and the plugin is imported
+  unconditionally in `vite.config.js`, so a bad upgrade breaks *every* build)
+
+**Re-evaluate** when `@sentry/vite-plugin` v5+ is adopted. The `uuid` advisory
+(moderate, via `exceljs`) is below the gate threshold and not attacker-reachable
+— `exceljs` uses v4 UUIDs, while the advisory affects v3/v5/v6 with a caller-
+provided `buf`.
 
 ---
 

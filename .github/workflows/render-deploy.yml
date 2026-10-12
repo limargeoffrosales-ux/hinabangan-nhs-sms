@@ -28,8 +28,8 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Dependency audit (npm audit)
-        run: npm audit --audit-level=high
+      - name: Dependency audit (gitleaks allowlist for unfixable advisories)
+        run: npm run audit
       - name: Full check (lint, typecheck, build, i18n, server tests)
         run: npm run check
 
