@@ -1,7 +1,7 @@
 # Setup Checklist — Sentry, R2 Backups, UptimeRobot (do once)
 
 **System:** Hinabangan NHS School Management System (MeridianEd)
-**Last Updated:** 2026-10-12
+**Last Updated:** 2026-10-13
 
 All items here are account/dashboard work that can't be committed to the repo. Each section is independent — do them in any order. Expected total time: ~30 min.
 
@@ -77,3 +77,27 @@ All items here are account/dashboard work that can't be committed to the repo. E
 - Rate limits, emergency DB prune, cold-start handling, soft delete, audit diffs — all in code, verified by `npm run check`.
 - `DATABASE_URL`, `JWT_SECRET`, `SEED_ON_BOOT` — already set on Render.
 - Overview docs: `docs/32-operations-runbook.md` (during incident) and `docs/20-disaster-recovery.md` (DR plan).
+
+---
+
+## 5. How deploys are guarded (no dashboard work needed)
+
+The `/grades` outage was caused by an undefined JSX component that shipped because
+ESLint's default `no-undef` rule does **not** flag names in JSX element position.
+Two repo-side guards now make that class of bug impossible to deploy:
+
+1. **`react/jsx-no-undef: error`** in `web/.eslintrc.json` — flags any JSX element
+   whose identifier has no import/definition (`'Spinner' is not defined`). Runs in
+   every `npm run lint` / `npm run check` / CI run.
+2. **Lint-gated build** — root `npm run build` now runs `npm run lint:web` first
+   (`package.json`). Render's native auto-deploy runs `npm ci && npm run build` and
+   **bypasses GitHub Actions**, so this gate is what actually stops a broken bundle
+   from reaching either service even when CI is skipped.
+
+Verify the gate locally with the OneDrive-protected mirror:
+`.\scripts\onedrive-protect.ps1 -CheckOnly`, or in CI, the `check` job on every push
+to `main` (lint + typecheck + build + i18n + token + server tests).
+
+**Note for future deployments:** never relax or remove these two items — they are
+the last line of defense for a path (Render native auto-deploy) that intentionally
+does not run the full check suite.
