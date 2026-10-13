@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, logAccess } = require('../utils');
 const { GRADE_WEIGHTS } = require('../config');
 const { getDefaultScale, getScale, getScaleForSubject, convertGrade, gpaFrom } = require('../grading/scales');
 const { teacherScope, ensureTeacherSeesStudent, ensurePortalSeesStudent } = require('../scope');
@@ -260,6 +260,7 @@ router.get('/report-card/:studentId', requireRole(...WRITE, 'registrar', 'studen
     const chk = await ensurePortalSeesStudent(req.user, student.id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  logAccess(req, student.id);
   const rows = await qa(
     `SELECT g.subject_id, su.code, su.title, g.written_work, g.performance_task, g.quarterly_exam, g.computed_grade, g.remarks
      FROM grades g JOIN subjects su ON su.id = g.subject_id
@@ -287,6 +288,7 @@ router.get('/years/:studentId', requireRole(...WRITE, 'registrar', 'student', 'p
     const chk = await ensurePortalSeesStudent(req.user, req.params.studentId);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  logAccess(req, req.params.studentId);
   const rows = await qa(
     `SELECT school_year, COUNT(DISTINCT quarter) AS terms, COUNT(DISTINCT subject_id) AS subjects
      FROM grades

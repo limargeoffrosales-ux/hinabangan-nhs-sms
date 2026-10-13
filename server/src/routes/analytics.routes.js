@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa } = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, logAccess } = require('../utils');
 const { getScaleForSubject, convertGrade } = require('../grading/scales');
 const {
   getHonorSettings,
@@ -159,6 +159,7 @@ router.get('/students/:studentId', requireRole(...READ, 'teacher', 'student', 'p
     const chk = await ensurePortalSeesStudent(req.user, student.id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  logAccess(req, student.id);
   const settings = await getHonorSettings();
   const summary = await studentSummary(student.id, school_year);
   const enrollment = await q(

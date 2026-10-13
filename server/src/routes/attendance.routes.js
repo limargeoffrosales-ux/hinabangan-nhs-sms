@@ -1,7 +1,7 @@
 const express = require('express');
 const { q, qa, qr, tx } = require('../db');
 const { authenticate, requireRole } = require('../auth');
-const { asyncH, audit } = require('../utils');
+const { asyncH, audit, logAccess } = require('../utils');
 const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent, teacherScope, sectionInScope } = require('../scope');
 const { notifyEvent } = require('../notify');
 const { sendSpreadsheet } = require('../export');
@@ -208,6 +208,7 @@ router.get('/student/:studentId', requireRole(...WRITE, 'registrar', 'student', 
     const chk = await ensurePortalSeesStudent(req.user, student.id);
     if (!chk.ok) return res.status(403).json({ error: chk.reason });
   }
+  logAccess(req, student.id);
   const { month, year, summary } = req.query;
   let sql = `SELECT a.date, a.status, a.time_in, a.time_out, a.remarks FROM attendance a WHERE a.student_id = ?`;
   const params = [student.id];
