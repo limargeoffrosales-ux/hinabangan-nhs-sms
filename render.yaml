@@ -134,17 +134,18 @@ services:
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
-    # Production is NOT auto-deployed. With autoDeploy:true Render would ship
-    # every push to main straight to prod, bypassing the GitHub Actions
-    # manual-approval gate (check -> deploy-staging -> approval ->
-    # deploy-prod). Production therefore advances only when the deploy hook
-    # fires from the approved pipeline, or when an operator redeploys a
-    # specific commit from the Render dashboard.
+    # Production auto-deploys on push to main. The GitHub Actions
+    # manual-approval gate (check -> deploy-staging -> approval -> deploy-prod)
+    # is not usable right now: Actions cannot start jobs on this account
+    # (billing/spending limit) and the workflow targets a self-hosted runner
+    # that is not registered. Until that is fixed, Render-native auto-deploy is
+    # the only path that keeps prod in step with main. Revert to false and rely
+    # on the deploy hook once CI is healthy again.
     #
     # `npm run build` does run `lint:web` first, so a broken web bundle cannot
     # build. That is defence in depth, not the control - tests, server lint,
     # typecheck, the dependency audit and the gitleaks scan run only in CI.
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       # --- Runtime foundation ---------------------------------------------------
       - key: NODE_VERSION
