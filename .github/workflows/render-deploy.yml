@@ -20,6 +20,16 @@ concurrency:
 jobs:
   check:
     name: Quality gate
+    # No service container here on purpose.
+    #
+    # The PostgreSQL suite and actionlint both need a Linux runner (GitHub
+    # rejects `services:` with "Container operations are only supported on
+    # Linux runners"). Those live in the `pg-quality` job below, which runs on
+    # a GitHub-hosted Linux runner.
+    #
+    # This job is the one that can always run: it needs no containers, so it
+    # works on the local self-hosted runner while the account's Actions billing
+    # is unresolved, and it works on GitHub-hosted runners too.
     runs-on: self-hosted
     # Skip Dependabot PRs: each one otherwise burns a full install + lint +
     # build + test run, and a private repo on GitHub's free tier only gets
@@ -42,7 +52,6 @@ jobs:
     # This job is the one that can always run: it needs no containers, so it
     # works on the local self-hosted runner while the account's Actions billing
     # is unresolved, and it works on GitHub-hosted runners too.
-    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
         with:
