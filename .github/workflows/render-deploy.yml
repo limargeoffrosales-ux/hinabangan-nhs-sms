@@ -33,9 +33,10 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Dependency audit (gitleaks allowlist for unfixable advisories)
-        run: npm run audit
-      - name: Full check (lint, typecheck, build, i18n, server tests)
+      # `npm run check` already runs `npm run audit` as its first step
+      # (see the "check" script in package.json), so a separate audit step here
+      # would execute the same npm audit twice on every push.
+      - name: Full check (dependency audit, lint, typecheck, build, i18n, server tests)
         run: npm run check
 
   deploy-staging:
