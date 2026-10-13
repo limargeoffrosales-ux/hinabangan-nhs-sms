@@ -175,7 +175,46 @@ Run after **every** deployment (staging & prod):
 | Assets 404 | Web build not copied | Check `npm run build` output, `web/dist` exists |
 | CORS error | `APP_URL` not set / wrong | Set correct `APP_URL` in Render env |
 | Free tier cold start | Service slept >15 min | Wait 30-60s, refresh; upgrade to paid for always-on |
-| CI fails at "Dependency audit" | New high/cseverity advisory | See §4a below |
+| CI fails at "Dependency audit" | New high/critical advisory | See §4a below |
+| **CI red, every job fails in ~2s with no log** | Actions quota exhausted — see §4b | Check billing; no code change fixes this |
+
+### 4b. CI red with "0 steps" and no logs (quota exhaustion)
+
+**Symptom.** `Render Deploy` fails on every push. Each job shows **0 steps**
+and the run has no log. Other workflows (Dependabot) still succeed.
+
+**Do not debug the YAML first.** This is not a pipeline bug. Confirm with the
+GitHub API:
+
+```
+GET /repos/{owner}/{repo}/actions/runs/{id}/jobs
+```
+
+- Failing job → `steps: 0`, `runner_name: ""`, `started_at == completed_at`
+- Healthy job → `steps: 5+`, `runner_name: "GitHub Actions …"`
+
+An empty `runner_name` means **GitHub never assigned a runner**, so nothing in
+the workflow executed. Check `Settings → Billing and licensing → Actions` for
+minutes used. A private repo on a personal free account gets 2000 minutes/month
+and resets on the 1st. Dependabot's own workflow can keep running after the
+quota is gone, which makes this look like a repo-specific fault.
+
+**Cost controls already in place:**
+- The quality gate is skipped for Dependabot PRs (`check.if` excludes
+  `dependabot[bot]`). Human PRs from this repo still run.
+- Dependabot PR limits are 5/5/3 — every PR triggers a full CI run, so caps
+  matter on a metered plan.
+
+**History — two bugs found here, both already fixed:**
+- `.gitleaks.toml` defined `[allowlist]` twice; TOML forbids redefining a table,
+  so the file failed to parse and gitleaks broke the gate. Also the allowlist
+  blanket-permitted `*.txt`, which would have masked the seeded `accounts.txt`
+  credential dump it exists to catch.
+- `render-deploy.yml` was briefly committed as **UTF-16LE** (a PowerShell `>`
+  redirect under PS 5.1 writes UTF-16). GitHub cannot parse that, and git stored
+  it as a binary blob, so the commit showed `0 insertions, 0 deletions` instead
+  of a diff. **Never use PowerShell `>` to write a file that gets committed —
+  use the Write tool, `git show ... | Out-File -Encoding utf8`, or Node.**
 
 ### 4a. Dependency audit gate
 
