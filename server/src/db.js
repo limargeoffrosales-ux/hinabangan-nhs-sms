@@ -21,6 +21,15 @@ function normParams(p) {
   return p.map((v) => (v === true ? 1 : v === false ? 0 : v));
 }
 
+// Neon rejects any DDL that would extend a file on a branch already at its
+// size cap, surfacing as SQLSTATE 53100. Distinguishing this from a genuine
+// migration defect decides whether the app is allowed to boot.
+function isStorageCapError(err) {
+  if (!err) return false;
+  if (err.code === '53100') return true;
+  return /53100|disk full|no space left|exceeded the size limit/i.test(String(err.message || ''));
+}
+
 async function init() {
   if (usePg) {
     dialect = 'pg';
@@ -232,7 +241,7 @@ if (usePg) {
     // anyway: reads and non-DDL writes still work, the health endpoint stays
     // green, and the size warning above tells the operator what to do. Any
     // other migration failure is a real defect and still aborts the boot.
-    if (err && (err.code === '53100' || /53100|disk full|no space left|exceeded the size limit/i.test(String(err.message)))) {
+    if (isStorageCapError(err)) {
       logger.error(
         { err: err.message, sizeMb: Math.round(await dbSizeMb()) },
         'migrations blocked by the Neon storage cap (53100) - starting anyway so the app stays reachable. Rebuild the branch from a dump; see DEPLOYMENT_RUNBOOK.md 4c.'
@@ -606,4 +615,4 @@ async function withUser(userId, role, fn) {
   }
 }
 
-module.exports = { init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, withUser, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };
+module.exports = { isStorageCapError, init, q, qa, qr, qi, close, nowSql, bool, boolLiteral, isUniqueViolation, usePg, withUser, get dialect() { return dialect; }, tx: (fn) => driver.tx(fn) };

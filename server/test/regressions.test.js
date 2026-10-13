@@ -1089,3 +1089,74 @@ process.on('exit', () => {
   try { close(); } catch {}
   try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch {}
 });
+// ── Neon storage-cap recovery ────────────────────────────────────────────────
+// Production boot-crashed at the 512MB Neon cap with a 514MB database holding
+// only ~1.5MB of live tables: orphaned relfiles that DELETE, TRUNCATE and
+// VACUUM cannot reach. These pin the safety properties of the fix — never
+// discard an RA 10173 record, and never let a storage cap take the app down.
+
+test('storage cap: regenerable-table list never includes RA 10173 records', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'db.js'), 'utf8');
+  const start = src.indexOf('const REGENERABLE_TABLES = [');
+  assert.ok(start !== -1, 'REGENERABLE_TABLES must be declared');
+  const block = src.slice(start, src.indexOf('];', start));
+  const listed = [...block.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  assert.ok(listed.length > 0, 'the list must not be empty');
+  // These hold student/audit records under RA 10173 and are never disposable.
+  for (const table of ['audit_logs', 'password_audit', 'security_incidents', 'students', 'grades']) {
+    assert.ok(!listed.includes(table), table + ' is an RA 10173 record and must never be truncated');
+  }
+});
+
+test('storage cap: TRUNCATE is attempted before VACUUM FULL, and FULL is caught', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'db.js'), 'utf8');
+  const start = src.indexOf('async function reclaimSpace');
+  assert.ok(start !== -1, 'reclaimSpace must exist');
+  const body = src.slice(start);
+  const truncate = body.indexOf('truncateRegenerableTables()');
+  const full = body.indexOf('VACUUM (FULL');
+  assert.ok(truncate !== -1, 'reclaimSpace must truncate regenerable tables');
+  assert.ok(full !== -1, 'reclaimSpace still escalates to VACUUM FULL');
+  // VACUUM FULL rewrites each table into a new file before dropping the old
+  // one, so at the cap it needs free space that does not exist and fails 53100.
+  // TRUNCATE therefore has to run first.
+  assert.ok(truncate < full, 'TRUNCATE must be attempted before VACUUM FULL');
+  assert.ok(body.includes('catch'), 'a VACUUM FULL failure at the cap must be caught, not fatal');
+});
+
+// Behavioural, not structural: this decides whether a boot-crashing storage
+// error is swallowed or rethrown. A loose `src.includes('53100')` assertion
+// would still pass if the check were short-circuited, so exercise it directly.
+test('storage cap: only the storage-cap error is treated as recoverable', () => {
+  const { isStorageCapError } = require('../src/db');
+  assert.equal(typeof isStorageCapError, 'function', 'isStorageCapError must be exported');
+
+  // Recognised — Neon size cap, by code and by message.
+  assert.equal(isStorageCapError({ code: '53100', message: 'something' }), true);
+  assert.equal(isStorageCapError(new Error('could not extend file (53100)')), true);
+  assert.equal(isStorageCapError(new Error('No space left on device')), true);
+  assert.equal(isStorageCapError(new Error('branch exceeded the size limit')), true);
+
+  // Genuine defects must NOT be swallowed, or the app boots on a stale schema.
+  assert.equal(isStorageCapError({ code: '42P01', message: 'relation does not exist' }), false);
+  assert.equal(isStorageCapError(new SyntaxError('unterminated string in migration 012')), false);
+  assert.equal(isStorageCapError(new Error('permission denied for schema public')), false);
+  assert.equal(isStorageCapError(null), false);
+  assert.equal(isStorageCapError(undefined), false);
+  assert.equal(isStorageCapError({}), false);
+});
+
+test('storage cap: boot tolerates a cap error but still rethrows real ones', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'db.js'), 'utf8');
+  const start = src.indexOf('await migrate();');
+  assert.ok(start !== -1, 'migrate must run during init');
+const guard = src.slice(Math.max(0, src.lastIndexOf('try {', start)), start + 1200);
+assert.ok(guard.includes('throw err'), 'a non-cap migration error must still abort the boot');
+  // Pin the exact guard. Grepping for `throw err` alone is not enough: the text
+  // survives even when the condition is widened to `if (true)`, which would
+  // swallow every migration defect and boot the app onto a stale schema.
+  assert.ok(
+    /if\s*\(\s*isStorageCapError\(err\)\s*\)/.test(guard),
+    'boot must branch exactly on isStorageCapError(err), not an always-true condition',
+  );
+});
