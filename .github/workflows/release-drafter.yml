@@ -25,6 +25,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          config-file: .github/release-drafter.yml
+          # v6 takes `config-name` (a path relative to .github/), not
+          # `config-file`. The file sits at .github/release-drafter.yml,
+          # which is also the action's default - named explicitly so the
+          # link to the config is obvious.
+          config-name: release-drafter.yml
           publish: true
           tag: ${{ github.event.inputs.tag || github.ref_name }}
