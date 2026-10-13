@@ -85,10 +85,56 @@ async function clearCsrfToken(userId) {
   await qr('DELETE FROM csrf_tokens WHERE user_id = ?', [userId]).catch(() => {});
 }
 
+// Auth cookies. The access/refresh tokens are httpOnly so they are never
+// readable by page scripts (XSS cannot exfiltrate them the way sessionStorage
+// allowed). A third, non-secret marker cookie lets the SPA know a session
+// exists without exposing either token. SameSite=Lax plus the existing
+// DB-backed CSRF token gate (requireCsrf) cover CSRF for the cookie transport.
+const ACCESS_COOKIE = 'hinhsms_at';
+const REFRESH_COOKIE = 'hinhsms_rt';
+const SESSION_COOKIE = 'hinhsms_auth';
+const REFRESH_COOKIE_PATH = '/api/v1/auth';
+const COOKIE_SECURE = process.env.NODE_ENV === 'production';
+
+function parseCookies(req) {
+  const header = req.headers?.cookie || '';
+  const out = {};
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    const key = part.slice(0, i).trim();
+    if (!key) continue;
+    const raw = part.slice(i + 1).trim();
+    try { out[key] = decodeURIComponent(raw); } catch { out[key] = raw; }
+  }
+  return out;
+}
+
+function cookieBase() {
+  return { httpOnly: true, secure: COOKIE_SECURE, sameSite: 'lax' };
+}
+
+function setAuthCookies(res, accessToken, refreshToken) {
+  const base = cookieBase();
+  if (accessToken) res.cookie(ACCESS_COOKIE, accessToken, { ...base, path: '/' });
+  if (refreshToken) res.cookie(REFRESH_COOKIE, refreshToken, { ...base, path: REFRESH_COOKIE_PATH });
+  // Readable marker so the client can tell a session exists without touching
+  // the tokens themselves.
+  res.cookie(SESSION_COOKIE, '1', { httpOnly: false, secure: COOKIE_SECURE, sameSite: 'lax', path: '/' });
+}
+
+function clearAuthCookies(res) {
+  const base = cookieBase();
+  res.clearCookie(ACCESS_COOKIE, { ...base, path: '/' });
+  res.clearCookie(REFRESH_COOKIE, { ...base, path: REFRESH_COOKIE_PATH });
+  res.clearCookie(SESSION_COOKIE, { httpOnly: false, secure: COOKIE_SECURE, sameSite: 'lax', path: '/' });
+}
+
 async function authenticate(req, res, next) {
   try {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = parseCookies(req)[ACCESS_COOKIE] || bearer;
   if (!token) return res.status(401).json({ error: 'Missing bearer token' });
   const payload = verifyToken(token);
   if (!payload) return res.status(401).json({ error: 'Invalid or expired token' });
@@ -215,4 +261,28 @@ async function requireCsrf(req, res, next) {
   next();
 }
 
-module.exports = { signAccess, verifyToken, authenticate, requireRole, requireCsrf, ROLES, ADMIN_ROLES, PRIVILEGED_ROLES, isAdminRole, hashToken, clearUserCache, loadActiveUser, generateCsrfToken, storeCsrfToken, getCsrfToken, validateCsrfToken, clearCsrfToken };
+module.exports = {
+  signAccess,
+  verifyToken,
+  authenticate,
+  requireRole,
+  requireCsrf,
+  ROLES,
+  ADMIN_ROLES,
+  PRIVILEGED_ROLES,
+  isAdminRole,
+  hashToken,
+  clearUserCache,
+  loadActiveUser,
+  generateCsrfToken,
+  storeCsrfToken,
+  getCsrfToken,
+  validateCsrfToken,
+  clearCsrfToken,
+  setAuthCookies,
+  clearAuthCookies,
+  parseCookies,
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  SESSION_COOKIE,
+};

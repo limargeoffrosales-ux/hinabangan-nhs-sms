@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { q, qa, qi, qr, nowSql } = require('../db');
-const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, clearCsrfToken } = require('../auth');
+const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, storeCsrfToken, clearCsrfToken, setAuthCookies, clearAuthCookies, REFRESH_COOKIE, parseCookies } = require('../auth');
 const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER, APP_URL } = require('../config');
 const { asyncH, audit } = require('../utils');
 const { userRateLimit } = require('../middleware/rate-limit');
@@ -163,6 +163,7 @@ router.post('/login', userRateLimit({ windowMs: 15 * 60 * 1000, limit: 15, messa
   const csrfToken = generateCsrfToken();
   await storeCsrfToken(user.id, csrfToken);
   await audit(req, 'LOGIN', 'auth', user.id, { username: user.username, role: user.role });
+  setAuthCookies(res, accessToken, refreshToken);
   res.json({
     token: accessToken,
     refreshToken,
@@ -173,7 +174,8 @@ router.post('/login', userRateLimit({ windowMs: 15 * 60 * 1000, limit: 15, messa
 
 router.post('/refresh', asyncH(async (req, res) => {
   await maybeSweepExpired();
-  const { refreshToken } = req.body || {};
+  const cookies = parseCookies(req);
+  const refreshToken = req.body?.refreshToken || cookies[REFRESH_COOKIE];
   if (!refreshToken) return res.status(400).json({ error: 'refreshToken is required' });
   const row = await q('SELECT rt.id AS token_id, rt.user_id, rt.expires_at, rt.revoked, u.id, u.username, u.name, u.role, u.status FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id WHERE rt.token_hash = ?',
     [hashToken(refreshToken)]);
@@ -197,6 +199,7 @@ router.post('/refresh', asyncH(async (req, res) => {
   const newRefresh = await issueRefresh(row.user_id);
   const csrfToken = generateCsrfToken();
   await storeCsrfToken(row.user_id, csrfToken);
+  setAuthCookies(res, accessToken, newRefresh);
   res.json({ token: accessToken, refreshToken: newRefresh, csrfToken });
 }));
 
@@ -213,20 +216,24 @@ router.get('/csrf-token', authenticate, asyncH(async (req, res) => {
 
 router.post('/logout', asyncH(async (req, res) => {
   const { refreshToken } = req.body || {};
-  if (!refreshToken) {
+  const cookies = parseCookies(req);
+  const rt = refreshToken || cookies[REFRESH_COOKIE];
+  if (!rt) {
     if (req.user && req.user.id) {
       await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [req.user.id]);
       await clearCsrfToken(req.user.id);
       await audit(req, 'LOGOUT', 'auth', req.user.id, { username: req.user.username });
+      clearAuthCookies(res);
       return res.json({ ok: true });
     }
     return res.status(400).json({ error: 'refreshToken is required' });
   }
-  const row = await q('SELECT user_id FROM refresh_tokens WHERE token_hash = ?', [hashToken(refreshToken)]);
+  const row = await q('SELECT user_id FROM refresh_tokens WHERE token_hash = ?', [hashToken(rt)]);
   if (!row) return res.status(401).json({ error: 'Invalid refresh token' });
   await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [row.user_id]);
   await clearCsrfToken(row.user_id);
   await audit(req, 'LOGOUT', 'auth', row.user_id, {});
+  clearAuthCookies(res);
   res.json({ ok: true });
 }));
 
