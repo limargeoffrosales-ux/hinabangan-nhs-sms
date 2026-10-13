@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Filter, Users, AlertTriangle, CheckCircle2, Clock, BookOpen, Heart, Briefcase, ShieldAlert, HelpCircle, BarChart3, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, Badge, SkeletonCards, SkeletonTable } from '../components/ui';
+import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, SkeletonCards, SkeletonTable } from '../components/ui';
 import { DonutChart, ModernBarChart } from '../design-system';
 
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'guidance'];

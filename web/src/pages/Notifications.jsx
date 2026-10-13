@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Mail, MessageSquare, RefreshCw, Pencil, Send } from 'lucide-react';
 import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, SkeletonTable } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, SkeletonTable } from '../components/ui';
 
 const EVENTS = {
   assignment_created: 'Assignment posted',

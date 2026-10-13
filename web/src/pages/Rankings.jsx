@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw, Settings2, UserSearch, Table2, LayoutGrid } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, SearchInput, SkeletonTable } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, SearchInput, SkeletonTable } from '../components/ui';
 import { DataTable, RankCard, ViewToggle } from '../design-system';
 import { fmt } from '../lib/utils';
 

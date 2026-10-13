@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Download, RefreshCw, Trash2, Star } from 'lucide-react';
 import { api, getToken, getApiBase, friendlyAbortMessage } from '../lib/api';
 import { downloadBlob } from '../lib/export';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const TYPE_LABELS = { numeric: 'Numeric', letter: 'Letter', gpa: 'GPA', ib: 'IB', cambridge: 'Cambridge', custom: 'Custom' };
 const TYPE_OPTIONS = ['numeric', 'letter', 'gpa', 'ib', 'cambridge', 'custom'];

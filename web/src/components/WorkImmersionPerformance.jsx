@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Save, Edit, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api';
 import { ErrorBanner, Empty, Spinner, Badge } from './ui';
 

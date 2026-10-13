@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { RotateCcw, FileText, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { SHS_TRACKS, ENROLLMENT_STATUSES, ENROLLMENT_DOC_TYPES, CURRENT_SCHOOL_YEAR } from '../lib/constants';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner, Badge, SearchInput, ConfirmModal, SkeletonTable } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, Badge, SearchInput, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useToast } from '../components/Toast';
 import { useTranslation } from 'react-i18next';
 

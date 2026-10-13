@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CalendarCheck, Download, CheckCircle2 } from 'lucide-react';
+import { Download, CheckCircle2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { Spinner, ErrorBanner, Empty } from './ui';

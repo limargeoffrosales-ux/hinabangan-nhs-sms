@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/Toast';
-import i18n, { initI18n } from './i18n';
+import { initI18n } from './i18n';
 import { initSentry, Sentry } from './sentry';
 import ThemeProvider from './design-system/theme/ThemeProvider';
 import './styles.css';

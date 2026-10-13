@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { PageHead, Empty, ErrorBanner, Spinner, SkeletonTable } from '../components/ui';
+import { PageHead, Empty, ErrorBanner, SkeletonTable } from '../components/ui';
 
 export default function AuditLogs() {
   const [rows, setRows] = useState([]);

@@ -9,7 +9,7 @@ import {
 import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
 import { SEX_COLORS } from '../lib/constants';
-import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, StatChip, FunnelBar, FeedItem, QuickActions, EmptyState, Skeleton, SkeletonCards } from '../components/ui';
+import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, FunnelBar, FeedItem, QuickActions } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
 

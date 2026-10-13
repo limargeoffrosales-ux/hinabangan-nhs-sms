@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Filter } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Spinner, Empty, Modal, ErrorBanner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
+import { PageHead, Empty, Modal, ErrorBanner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
 
 const ADMIN = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
 const TYPES = ['NCII', 'TESDA', 'OTHER'];

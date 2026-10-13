@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
+import { PageHead, Modal, Empty, ErrorBanner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const TERM_LABELS = { first: 'First Term', second: 'Second Term', third: 'Third Term', all: 'All Terms' };
 const TERM_OPTIONS = [

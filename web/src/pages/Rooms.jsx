@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
 
 const ROOM_TYPES = [
   { value: 'classroom', label: 'Classroom', badgeColor: 'blue' },

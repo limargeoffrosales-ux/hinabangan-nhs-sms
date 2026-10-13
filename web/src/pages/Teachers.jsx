@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SUFFIXES, TEACHER_POSITIONS, TEACHER_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, ConfirmModal, SearchInput, SkeletonTable } from '../components/ui';
 
 const EMPTY_FORM = {
   employee_no: '', first_name: '', middle_name: '', last_name: '', suffix: '', sex: '',

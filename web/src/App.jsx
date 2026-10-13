@@ -122,7 +122,7 @@ const PortalProfile = lazyWithRetry(() => import('./pages/PortalProfile'));
 const DepedForms = lazyWithRetry(() => import('./pages/DepedForms'));
 const AIPage = lazyWithRetry(() => import('./pages/AIPage'));
 const Achievements = lazyWithRetry(() => import('./pages/Achievements'));
-const ParentPortal = lazyWithRetry(() => import('./pages/ParentPortal'));;
+const ParentPortal = lazyWithRetry(() => import('./pages/ParentPortal'));
 const DesignSystem = lazyWithRetry(() => import('./pages/DesignSystem'));
 
 function Protected({ children }) {

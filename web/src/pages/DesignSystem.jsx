@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Palette, Layout, Type, Box, Bell, Circle, Hash, Sun, Moon, BarChart3 } from 'lucide-react';
-import { PageHead, SectionCard } from '../components/ui';
+import { PageHead } from '../components/ui';
 import {
   Button, IconButton, Badge, StatusBadge, Card, CardHeader, CardBody, CardFooter,
   CardTitle, Alert, Skeleton, EmptyState, Divider, Progress, StatCard, SectionTitle,
   Container, Stack, Grid, PageHeader, Tabs, Breadcrumbs, Spacer,
-  Input, Textarea, Select, Label, FormField,
+  Input, Textarea, Select, FormField,
   Sparkline, ProgressRing, DonutChart, ModernBarChart, ModernLineChart,
   ModernPieChart, ModernComposedChart,
   useTheme, useIsDark,

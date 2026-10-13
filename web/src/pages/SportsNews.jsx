@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, Trophy, X, Film, Search } from 'lucide-react';
 import { api, fileUrl } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, ConfirmModal, SkeletonTable } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import FileUpload from '../components/FileUpload';
 

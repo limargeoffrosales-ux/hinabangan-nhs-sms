@@ -4,7 +4,7 @@ import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, can } from '../lib/auth';
 import { SHS_TRACKS, SECTION_STATUSES } from '../lib/constants';
-import { PageHead, Badge, Modal, Empty, ErrorBanner, Spinner, ConfirmModal, SkeletonTable } from '../components/ui';
+import { PageHead, Badge, Modal, Empty, ErrorBanner, ConfirmModal, SkeletonTable } from '../components/ui';
 
 const EMPTY_FORM = { name: '', grade_level: 'Grade 11', strand: '', adviser_teacher_id: '', room: '', capacity: 40, school_year: '2026-2027', status: 'active' };
 
