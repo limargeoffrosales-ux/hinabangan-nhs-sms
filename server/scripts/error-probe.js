@@ -10,7 +10,7 @@ const PROBE_PASS = 'ProbePass!23';
 
 function startServer() {
   const { spawn } = require('child_process');
-  const child = spawn(process.execPath, ['--env-file-if-exists=.env', 'src/index.js'], {
+  const child = spawn(process.execPath, ['-r', path.join(__dirname, '..', 'src', 'loadEnv.js'), 'src/index.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(PORT) },
     stdio: ['ignore', 'pipe', 'pipe'],

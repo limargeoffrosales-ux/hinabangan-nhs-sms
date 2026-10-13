@@ -24,6 +24,6 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "typecheck:web": "npm run typecheck --workspace=web",
     "start": "cd server && npm start",
-    "programs:generate": "cd server && node --env-file-if-exists=.env src/generate-programs.js"
+    "programs:generate": "cd server && node -r ./src/loadEnv.js src/generate-programs.js"
   }
 }

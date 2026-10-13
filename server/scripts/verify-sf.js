@@ -7,7 +7,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const U = 'probe_admin';
 const P = 'ProbePass!23';
 
-const child = spawn(process.execPath, ['--env-file-if-exists=.env', 'src/index.js'], {
+const child = spawn(process.execPath, ['-r', path.join(__dirname, '..', 'src', 'loadEnv.js'), 'src/index.js'], {
   cwd: path.join(__dirname, '..'),
   env: { ...process.env, PORT: String(PORT) },
   stdio: ['ignore', 'pipe', 'pipe'],

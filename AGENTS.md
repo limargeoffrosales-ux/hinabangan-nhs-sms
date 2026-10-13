@@ -83,6 +83,19 @@ revert newer commits. It copies with `robocopy /E`, never `/MIR` — mirror mode
 propagates deletions and has silently deleted tracked files (e.g.
 `docs/33-setup-checklist.md`) before.
 
+**Keep secrets off OneDrive too.** `server/.env` would be cloud-synced as
+plaintext, so the server loads its env file through `server/src/loadEnv.js`
+(required via `node -r ./src/loadEnv.js ...`), which reads the `ENV_FILE`
+environment variable first and falls back to `server/.env`. Point it outside
+OneDrive, e.g.:
+
+```powershell
+setx ENV_FILE "$env:USERPROFILE\.config\hinhsms\server.env"
+```
+
+Existing environment variables always win, so Render/CI dashboard values are
+never shadowed; in production no env file is present and the loader is a no-op.
+
 ## Database
 
 - **Dual-mode**: SQLite locally (`node:sqlite` built-in), PostgreSQL in production (Neon/Render).

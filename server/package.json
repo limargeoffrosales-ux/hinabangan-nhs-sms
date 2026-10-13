@@ -5,14 +5,14 @@
   "type": "commonjs",
   "main": "src/index.js",
   "scripts": {
-    "start": "node --env-file-if-exists=.env src/index.js",
-    "dev": "node --watch --env-file-if-exists=.env src/index.js",
-    "seed": "node --env-file-if-exists=.env src/seed.js",
+    "start": "node -r ./src/loadEnv.js src/index.js",
+    "dev": "node --watch -r ./src/loadEnv.js src/index.js",
+    "seed": "node -r ./src/loadEnv.js src/seed.js",
     "backup": "node scripts/backup.js",
     "backup:list": "node scripts/backup.js --list",
     "backup:cleanup": "node scripts/backup.js --cleanup",
     "backup:drill": "node scripts/backup.js --drill",
-    "programs:generate": "node --env-file-if-exists=.env src/generate-programs.js",
+    "programs:generate": "node -r ./src/loadEnv.js src/generate-programs.js",
     "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit"
