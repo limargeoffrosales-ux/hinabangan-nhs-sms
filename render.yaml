@@ -14,9 +14,10 @@ services:
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
-    # Rebuild + redeploy on every push to main. Safe now that root `npm run
-    # build` is lint-gated (package.json), so a broken bundle cannot ship to
-    # either service even when the GitHub Actions gate is skipped or exhausted.
+    # Staging tracks main automatically so failures surface early on a
+    # throwaway environment. It holds a Neon branch database and demo data,
+    # so shipping to it without a human is acceptable. Production does NOT
+    # auto-deploy - see the production service below.
     autoDeploy: true
     envVars:
       # --- Runtime foundation ---------------------------------------------------
@@ -133,10 +134,17 @@ services:
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
-    # Rebuild + redeploy on every push to main. Safe now that root `npm run
-    # build` is lint-gated (package.json), so a broken bundle cannot ship to
-    # either service even when the GitHub Actions gate is skipped or exhausted.
-    autoDeploy: true
+    # Production is NOT auto-deployed. With autoDeploy:true Render would ship
+    # every push to main straight to prod, bypassing the GitHub Actions
+    # manual-approval gate (check -> deploy-staging -> approval ->
+    # deploy-prod). Production therefore advances only when the deploy hook
+    # fires from the approved pipeline, or when an operator redeploys a
+    # specific commit from the Render dashboard.
+    #
+    # `npm run build` does run `lint:web` first, so a broken web bundle cannot
+    # build. That is defence in depth, not the control - tests, server lint,
+    # typecheck, the dependency audit and the gitleaks scan run only in CI.
+    autoDeploy: false
     envVars:
       # --- Runtime foundation ---------------------------------------------------
       - key: NODE_VERSION
