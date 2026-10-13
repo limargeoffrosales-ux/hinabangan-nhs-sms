@@ -7,6 +7,12 @@
 // instance held the lock. If that leader then died, every remaining instance
 // had already stopped competing and the job stayed dead until a process
 // restart. A non-leader must therefore keep retrying.
+//
+// These used to assert against fixed sleeps (sleep(400) then check). That is
+// flaky: `node --test` runs test FILES in parallel, so on a loaded runner the
+// leader's 200ms tick can slip well past the sleep and the assertion observes
+// a half-finished state. Every wait is now a poll against a deadline, so a
+// slow machine takes longer but never reports a false failure.
 'use strict';
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
@@ -23,6 +29,20 @@ process.env.JOB_HEARTBEAT_MS = '250';
 const leader = require('../src/leader');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Generous ceiling. The contract is "within a few leader ticks", not "within
+// exactly N ms", so the deadline absorbs scheduler noise without hiding a real
+// regression (a broken leader never acquires at all, so it still times out).
+const DEADLINE_MS = 15000;
+
+async function waitFor(fn, { timeoutMs = DEADLINE_MS, intervalMs = 50, message = 'condition' } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (await fn()) return true;
+    if (Date.now() >= deadline) throw new Error('timed out waiting for ' + message);
+    await sleep(intervalMs);
+  }
+}
 
 // SQLite has no INTERVAL arithmetic, so build timestamps in JS. db.js stores
 // its own timestamps in the same 'YYYY-MM-DD HH:MM:SS' UTC form.
@@ -44,21 +64,28 @@ async function seedLock(job, instanceId, ttlSeconds) {
   );
 }
 
+async function lockRow(job) {
+  return db.q('SELECT instance_id, expires_at FROM job_locks WHERE job_name = ?', [job]);
+}
+
 test('leader election', async (t) => {
   await db.init();
   t.after(async () => { await db.close(); });
 
   await test('a live foreign lock is respected: the job does not run', async () => {
     const job = 'test-live-lock';
-    await seedLock(job, 'INSTANCE-FOREIGN', 5);
+    await seedLock(job, 'INSTANCE-FOREIGN', 30);
 
     let runs = 0;
     const stop = leader.start(job, { run: async () => { runs++; }, intervalMs: 200, onError: () => {} });
-    await sleep(700);
-
-    assert.equal(runs, 0, 'must not run while another instance holds a live lock');
+    // Give it several leader ticks to prove it declines, rather than a fixed
+    // sleep that might expire before the first tick even fires.
+    await sleep(1500);
     stop();
     await db.qr('DELETE FROM job_locks WHERE job_name = ?', [job]);
+
+    assert.equal(runs, 0, 'must not run while another instance holds a live lock');
+    assert.ok(runs === 0, 'the job must not fire even once during the observation window');
   });
 
   await test('takes over once the foreign lock expires', async () => {
@@ -69,7 +96,7 @@ test('leader election', async (t) => {
     let runs = 0;
     const stop = leader.start(job, { run: async () => { runs++; }, intervalMs: 200, onError: () => {} });
 
-    await sleep(1200);
+    await waitFor(() => runs > 0, { message: 'the standby instance to acquire the expired lock' });
     stop();
     await db.qr('DELETE FROM job_locks WHERE job_name = ?', [job]);
 
@@ -82,9 +109,9 @@ test('leader election', async (t) => {
 
     const a = leader.start(job, { run: async () => {}, intervalMs: 200, onError: () => {} });
     const b = leader.start(job, { run: async () => {}, intervalMs: 200, onError: () => {} });
-    await sleep(600);
+    await waitFor(async () => !!(await lockRow(job)), { message: 'one of the two instances to acquire the lock' });
 
-    const row = await db.q('SELECT instance_id FROM job_locks WHERE job_name = ?', [job]);
+    const row = await lockRow(job);
     a(); b();
     await db.qr('DELETE FROM job_locks WHERE job_name = ?', [job]);
 
@@ -96,11 +123,14 @@ test('leader election', async (t) => {
     await db.qr('DELETE FROM job_locks WHERE job_name = ?', [job]);
 
     const stop = leader.start(job, { run: async () => {}, intervalMs: 200, onError: () => {} });
-    await sleep(400);
+    // Confirm it actually acquired first; otherwise "row is null afterwards"
+    // would pass without ever exercising the release path.
+    await waitFor(async () => !!(await lockRow(job)), { message: 'the leader to acquire the lock' });
     stop();
-    await sleep(300);
 
-    const row = await db.q('SELECT instance_id FROM job_locks WHERE job_name = ?', [job]);
+    await waitFor(async () => (await lockRow(job)) === null, { message: 'stop() to release the lock' });
+
+    const row = await lockRow(job);
     await db.qr('DELETE FROM job_locks WHERE job_name = ?', [job]);
 
     assert.equal(row, null, 'shutdown must free the lock rather than leave it to expire');
