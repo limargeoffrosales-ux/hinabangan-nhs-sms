@@ -20,7 +20,7 @@ concurrency:
 jobs:
   check:
     name: Quality gate
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # Skip Dependabot PRs: each one otherwise burns a full install + lint +
     # build + test run, and a private repo on GitHub's free tier only gets
     # 2000 Actions minutes/month. Dependabot PRs are still reviewed by a
@@ -78,7 +78,7 @@ jobs:
     name: Deploy to Staging (Render)
     needs: check
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: staging
     steps:
       - name: Trigger Render staging deploy hook
@@ -97,7 +97,7 @@ jobs:
     name: Deploy to Production (Render)
     needs: deploy-staging
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # Required reviewers configured on the `production` environment ARE the
     # manual approval gate. This is the only job that references the
     # environment, so reviewers are prompted exactly once. A separate
@@ -122,7 +122,7 @@ jobs:
     name: Notify on failure
     needs: [check, deploy-staging, deploy-prod]
     if: failure()
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # The webhook must live at job scope: a step's `if:` is evaluated before
     # that step's own `env` exists, and `secrets` cannot be read from an `if:`
     # at all. At step scope this guard was always false, so the alert never
