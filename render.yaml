@@ -14,6 +14,10 @@ services:
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
+    # Rebuild + redeploy on every push to main. Safe now that root `npm run
+    # build` is lint-gated (package.json), so a broken bundle cannot ship to
+    # either service even when the GitHub Actions gate is skipped or exhausted.
+    autoDeploy: true
     envVars:
       # --- Runtime foundation ---------------------------------------------------
       - key: NODE_VERSION
@@ -129,6 +133,10 @@ services:
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
+    # Rebuild + redeploy on every push to main. Safe now that root `npm run
+    # build` is lint-gated (package.json), so a broken bundle cannot ship to
+    # either service even when the GitHub Actions gate is skipped or exhausted.
+    autoDeploy: true
     envVars:
       # --- Runtime foundation ---------------------------------------------------
       - key: NODE_VERSION
