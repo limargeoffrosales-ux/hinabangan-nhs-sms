@@ -67,7 +67,7 @@ jobs:
   # job never starts, and that must not block the main gate or the deploys.
   # Once billing works this job enforces real PostgreSQL coverage again.
   pg-quality:
-    name: PostgreSQL + workflow lint
+    name: 'PostgreSQL + workflow lint'
     needs: check
     continue-on-error: true
     runs-on: ubuntu-latest
