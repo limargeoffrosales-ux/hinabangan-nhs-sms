@@ -4,6 +4,12 @@
 -- Applies to all core tables holding user/school data
 -- ============================================================
 
+-- `app` is a dedicated schema for the RLS helper functions. It does NOT exist
+-- on a fresh database, and every statement below qualifies its calls with it,
+-- so it must be created before the first function. Without this the migration
+-- aborts the whole boot with `schema "app" does not exist` (SQLSTATE 3F000).
+CREATE SCHEMA IF NOT EXISTS app;
+
 -- Helper function to get current user context from session variables
 -- The application MUST call: SET LOCAL app.current_user_id = '123'; SET LOCAL app.current_user_role = 'teacher';
 -- before any query in a request transaction.

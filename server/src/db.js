@@ -197,39 +197,19 @@ async function init() {
     };
   }
 if (usePg) {
-    // Neon free tier caps logical size at 512 MB. Prune must run BEFORE
-    // migrations: a DDL migration (CREATE TABLE/INDEX) extends data files,
-    // which fails with 53100 if the branch is still over the cap. Deletes never
-    // extend the file, so they run on every boot; VACUUM FULL (which locks
-    // tables and needs temp space) only runs when near the cap. The size before
-    // and after, plus the biggest tables, are logged so Render logs show where
-    // the space actually went when diagnosing a cap.
-    const sizeBefore = await dbSizeMb();
-    await logTopTables();
+    // Neon free tier caps logical size at 512 MB, and DDL (CREATE TABLE/INDEX)
+    // extends data files, so prune high-churn rows BEFORE migrations. Deletes are
+    // cheap and bounded (measured at ~1s on the live branch), so they stay on the
+    // boot path.
+    //
+    // The expensive reclaim work (whole-database VACUUM, TRUNCATE, VACUUM FULL,
+    // and the all-schema size scan) is deliberately NOT awaited here. On the live
+    // branch it ran for ~10 minutes, which blew past Render's port-scan window
+    // and failed the deploy before the process could bind a port. It also cannot
+    // recover the orphaned relfiles that actually account for the bloat (see
+    // logTopTables() and DEPLOYMENT_RUNBOOK.md 4c). It now runs in the background
+    // via scheduleStorageMaintenance(), after the app is up and listening.
     await pruneHighChurn();
-    if (sizeBefore >= RECLAIM_THRESHOLD_MB) {
-      logger.info({ sizeMb: Math.round(sizeBefore) }, 'db near storage cap — pruning + reclaiming space before migrations');
-      await reclaimSpace();
-    }
-    const sizeAfter = await dbSizeMb();
-    if (sizeAfter > 0) {
-      logger.info(
-        { beforeMb: Math.round(sizeBefore), afterMb: Math.round(sizeAfter), freedMb: Math.round(Math.max(0, sizeBefore - sizeAfter)) },
-        'db size after boot prune'
-      );
-    }
-    if (sizeAfter >= RECLAIM_THRESHOLD_MB) {
-      logger.warn(
-        { sizeMb: Math.round(sizeAfter) },
-        'db still at/over storage cap after prune — writes may fail (53100) until Neon reclaims physical space'
-      );
-      await emergencyPruneAtCap();
-      const sizeAfterEmergency = await dbSizeMb();
-      logger.info(
-        { beforeMb: Math.round(sizeAfter), afterMb: Math.round(sizeAfterEmergency), freedMb: Math.round(Math.max(0, sizeAfter - sizeAfterEmergency)) },
-        'db size after emergency prune'
-      );
-    }
   }
   try {
     await migrate();
@@ -250,6 +230,9 @@ if (usePg) {
       throw err;
     }
   }
+  // Heavy maintenance runs in the background, never on the boot path - and only
+  // after migrations have finished, so the 5s timer cannot race a pending DDL.
+  scheduleStorageMaintenance();
   if (usePg) {
     // Keep high-churn tables from refilling toward the cap while the instance
     // stays awake (Render free tier can remain up for hours between requests).
@@ -314,7 +297,6 @@ async function emergencyPruneAtCap() {
     "DELETE FROM audit_logs WHERE created_at < now() - interval '30 days'",
     "DELETE FROM notifications WHERE created_at < now() - interval '14 days'",
     "DELETE FROM ai_chat_logs WHERE created_at < now() - interval '14 days'",
-    "DELETE FROM submission_workflows WHERE created_at < now() - interval '30 days'",
     "DELETE FROM report_submissions WHERE created_at < now() - interval '30 days'",
     "DELETE FROM schedule_entries WHERE created_at < now() - interval '60 days'",
     "DELETE FROM security_incidents WHERE created_at < now() - interval '90 days'",
@@ -405,6 +387,44 @@ async function reclaimSpace() {
       }
     }
   }
+}
+
+// Deferred, best-effort storage maintenance. Everything here is observation or
+// reclamation that must NOT block boot: on the live branch it ran for ~10
+// minutes (all-schema size scan ~5.5 min + VACUUM FULL ~2.5 min) and made
+// Render time out before the port was bound. It also cannot reclaim the orphaned
+// relfiles that dominate the size on a broken branch - the genuine fix there is
+// rebuilding from a pg_dump (DEPLOYMENT_RUNBOOK.md 4c). Runs once on a timer,
+// unref'd so it never keeps the process alive.
+let storageMaintenanceScheduled = false;
+function scheduleStorageMaintenance() {
+  if (storageMaintenanceScheduled) return;
+  storageMaintenanceScheduled = true;
+  const timer = setTimeout(async () => {
+    try {
+      const sizeBefore = await dbSizeMb();
+      await logTopTables();
+      if (sizeBefore < RECLAIM_THRESHOLD_MB) {
+        console.log('[MAINT] size ' + Math.round(sizeBefore) + 'MB — below reclaim threshold, nothing to do');
+        return;
+      }
+      await reclaimSpace();
+      const sizeAfter = await dbSizeMb();
+      console.log(
+        '[MAINT] size after reclaim: ' + Math.round(sizeAfter) + 'MB (freed ' + Math.round(Math.max(0, sizeBefore - sizeAfter)) + 'MB)'
+      );
+      if (sizeAfter >= RECLAIM_THRESHOLD_MB) {
+        await emergencyPruneAtCap();
+        const sizeAfterEmergency = await dbSizeMb();
+        console.log(
+          '[MAINT] size after emergency prune: ' + Math.round(sizeAfterEmergency) + 'MB'
+        );
+      }
+    } catch (err) {
+      console.warn('[MAINT] background storage maintenance failed (non-fatal): ' + err.message);
+    }
+  }, 5000);
+  if (typeof timer.unref === 'function') timer.unref();
 }
 
 // Tables whose contents are fully regenerable: session/anti-abuse tokens,
