@@ -14,11 +14,17 @@ jobs:
   check:
     name: Quality gate
     runs-on: ubuntu-latest
-    # Dependabot opens many PRs per week and each one burns a full
-    # install+lint+build+test run. On a private repo under the free tier that
-    # is the difference between making the monthly Actions quota and not.
-    # Dependabot PRs still get reviewed by a human before merge.
-    if: github.actor != 'dependabot'
+    # Skip Dependabot PRs: each one otherwise burns a full install + lint +
+    # build + test run, and a private repo on GitHub's free tier only gets
+    # 2000 Actions minutes/month. Dependabot PRs are still reviewed by a
+    # human before merge.
+    #
+    # `github.actor` is the full bot login "dependabot[bot]", NOT
+    # "dependabot" - matching the short name silently fails to exclude
+    # anything. The head-repo check is the belt-and-braces guard, and must
+    # stay behind an event_name test: on a push, github.event.pull_request
+    # is null, so comparing it directly would skip this job on every push.
+    if: github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - uses: actions/checkout@v4
         with:
