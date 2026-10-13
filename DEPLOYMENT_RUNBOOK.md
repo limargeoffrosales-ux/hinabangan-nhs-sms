@@ -276,13 +276,52 @@ Three cases:
 | `top-15 … 1.5MB of 514MB` | **Orphaned relfiles from dropped tables.** TRUNCATE/VACUUM cannot recover this | **Rebuild the branch** — see below |
 | Size drops after `[TRUNCATE]` | Was regenerable log bloat | Already handled automatically |
 
-**Rebuild an oversized Neon branch (needs Neon console + `pg_dump`):**
-1. `pg_dump "$DATABASE_URL" > backup.sql` from a machine with PostgreSQL
-   installed, or use Neon → **Dump/Download**.
-2. Neon console → create a **new branch** (fresh, empty).
-3. Copy its connection string into Render → Environment → `DATABASE_URL` →
-   Save → Deploy. Migrations rebuild the schema on first boot.
-4. Only after the new branch is healthy, delete the old one.
+**Rebuild an oversized Neon branch (needs Neon console + Render dashboard):**
+
+> Get both full connection strings first and keep them somewhere safe — the
+> old ones are your rollback. Replace `<OLD_PG_URL>` / `<NEW_PG_URL>` below and
+> keep each string's own `sslmode=` parameter.
+
+0. **Baseline.** The current deploy must be booting (health 200) before you
+   start. If it is crash-looping, §4d first.
+1. **Back up.**
+   - Recommended — the app's own backup (restores data semantics on top of the
+     fresh schema; a plain `pg_dump` restores clash with it, see §4d):
+     ```
+     node scripts/backup.js            # in Render Shell (server/ dir)
+     node scripts/backup.js --list
+     ```
+   - Fallback — `pg_dump`. Run it in a container so the file is written as
+     UTF-8, not PowerShell's UTF-16:
+     ```
+     docker run --rm -v "C:\backups:/out" postgres:16-alpine pg_dump "<OLD_PG_URL>" -f /out/backup.sql
+     ```
+     (or use Neon → **Dump/Download**).
+2. **New branch + wipe it.** Neon console → **Branches → Create branch**. A
+   branch **copies data**, so wipe it before the new boot — otherwise every
+   migration collides with existing objects (the §4d trap):
+   ```
+   $env:DATABASE_URL="<NEW_PG_URL>"
+   node scripts/reset-db-schema.mjs --dry-run      # eyeball host + DB first
+   node scripts/reset-db-schema.mjs --yes          # DESTRUCTIVE, targets NEW only
+   ```
+3. **Swap + deploy.** Render → **hinabangan-nhs** → **Environment** → set
+   `DATABASE_URL = "<NEW_PG_URL>"` → Save → **Create Deploy**. The boot path
+   rebuilds the schema from `database/migrations` (verified: all migrations
+   apply cleanly to an empty PG 16).
+4. **Verify.** Health 200, no `[SIZE]`/`53100` in the boot log,
+   `[MAINT] ... below reclaim threshold, nothing to do`.
+5. **Restore data** (the app backup from step 1):
+   ```
+   cd server && node scripts/backup.js --restore data/backups/<file> --yes
+   ```
+   No `--bootstrap` — the deploy already applied the migrations.
+6. **Smoke test** (login, a class register, a grade). Only then delete the old
+   branch in Neon.
+
+**Rollback** at any point before step 6: flip `DATABASE_URL` back to
+`<OLD_PG_URL>` in Render and deploy. The old branch is untouched until you
+delete it.
 
 **What the app now does automatically** (`server/src/db.js`):
 - `pruneHighChurn()` on every boot — deletes aged rows from 10 high-churn tables.
