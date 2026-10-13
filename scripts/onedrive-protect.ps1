@@ -78,7 +78,7 @@ if ($SyncBack -and $BuildRoot -ne $RepoRoot) {
   # recorded the last time this script refreshed the mirror.
   if (Test-Path (Join-Path $RepoRoot '.git')) {
     $repoHead = (& git -C $RepoRoot rev-parse --short HEAD 2>$null)
-    $stamp = Join-Path $BuildRoot '.mirror-head'
+    $stamp = Join-Path $env:TEMP 'school-system.mirror-head'
     $lastHead = if (Test-Path $stamp) { (Get-Content $stamp -Raw).Trim() } else { '' }
 
     if ($repoHead -and $lastHead -and ($repoHead -ne $lastHead)) {
