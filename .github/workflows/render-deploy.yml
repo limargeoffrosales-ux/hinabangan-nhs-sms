@@ -153,7 +153,7 @@ jobs:
             exit 0
           fi
           echo "Triggering staging deployment..."
-          curl -fsS -X POST "$HOOK_URL"
+          curl -fsS --max-time 20 --retry 0 -X POST "$HOOK_URL"
           echo "Staging deploy triggered. Check Render dashboard for status."
 
   deploy-prod:
@@ -181,7 +181,7 @@ jobs:
             exit 0
           fi
           echo "Triggering production deployment..."
-          curl -fsS -X POST "$HOOK_URL"
+          curl -fsS --max-time 20 --retry 0 -X POST "$HOOK_URL"
           echo "Production deploy triggered. Check Render dashboard for status."
 
   notify-failure:
@@ -208,6 +208,6 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
         run: |
-          curl -fsS -X POST -H 'Content-type: application/json' \
+          curl -fsS --max-time 20 --retry 0 -X POST -H 'Content-type: application/json' \
             --data "{\"text\":\"❌ *CI/CD Pipeline Failed*\n*Repo:* $GITHUB_REPOSITORY\n*Run:* https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n*Commit:* $GITHUB_SHA\n*Ref:* $GITHUB_REF\"}" \
             "$SLACK_WEBHOOK_URL" || echo "Slack notification failed (webhook not configured or network error)"
