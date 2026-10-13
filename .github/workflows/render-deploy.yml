@@ -10,6 +10,13 @@ on:
 env:
   NODE_VERSION: '22'
 
+# Collapse superseded runs. When several commits land in quick succession only
+# the newest matters, so cancel the older ones instead of queueing a full
+# install + lint + build + test run for each.
+concurrency:
+  group: render-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     name: Quality gate
