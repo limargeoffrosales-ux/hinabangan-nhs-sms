@@ -102,7 +102,7 @@ jobs:
       # gitleaks-action ships no Windows binary, so the secret scan lives here
       # with the other Linux-only checks.
       - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Validate workflow files (actionlint)
