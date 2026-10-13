@@ -32,6 +32,25 @@ jobs:
     # stay behind an event_name test: on a push, github.event.pull_request
     # is null, so comparing it directly would skip this job on every push.
     if: github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    # A real PostgreSQL so the PG migration suite actually executes. It skips
+    # without PG_TEST_URL, which meant the only check that the PG SQL applies to
+    # a real database never ran - the gap that let a broken Neon branch boot
+    # reach production before any test noticed.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: testpw
+          POSTGRES_DB: schooltest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PG_TEST_URL: postgres://postgres:testpw@127.0.0.1:5432/schooltest
     steps:
       - uses: actions/checkout@v4
         with:
