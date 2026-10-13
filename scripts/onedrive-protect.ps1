@@ -104,9 +104,14 @@ if ($BuildRoot -ne $RepoRoot -and -not (Test-Path (Join-Path $BuildRoot 'package
   Copy-Tree $RepoRoot $BuildRoot
 }
 
-# Push repo sources into the mirror before building, so edits in either place
-# are reflected in the gate.
-if ($BuildRoot -ne $RepoRoot -and -not $CheckOnly) {
+# Always push repo sources into the mirror before building. The gate is only
+# meaningful if it runs the code it is being asked to approve.
+#
+# This used to be skipped under -CheckOnly, which made the pre-push hook check
+# a stale mirror: it validated the tree from whenever the mirror was last
+# refreshed, then blocked the push of correct newer code. A gate that reports
+# on the wrong revision is worse than no gate at all.
+if ($BuildRoot -ne $RepoRoot) {
   Write-Step "Refreshing build mirror from repo"
   Copy-Tree $RepoRoot $BuildRoot
 }
