@@ -34,12 +34,18 @@ jobs:
     # Git Bash, not PowerShell. The runner wraps every `run:` step in a temp
     # .ps1 file, and this machine's PowerShell execution policy is restrictive,
     # so each step would die with "running scripts is disabled on this system".
-    # bash comes with the Git install, keeps the POSIX syntax the deploy steps
-    # need (`[ -z "$HOOK_URL" ]`, `curl`), and touches no machine security
-    # settings.
+    # Git Bash keeps the POSIX syntax the deploy steps need (`[ -z "$HOOK_URL" ]`,
+    # `curl`) and touches no machine security settings.
+    #
+    # The full path is deliberate: plain `shell: bash` resolves `bash` from
+    # PATH, and on this machine `C:\WINDOWS\system32\bash.exe` (the WSL
+    # launcher) shadows Git Bash. WSL has no distro installed here, so every
+    # step died with `execvpe(/bin/bash) failed: No such file or directory`.
+    # The 8.3 short path `PROGRA~1` avoids spaces so the runner can parse the
+    # shell command.
     defaults:
       run:
-        shell: bash
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
     # Skip Dependabot PRs: each one otherwise burns a full install + lint +
     # build + test run, and a private repo on GitHub's free tier only gets
     # 2000 Actions minutes/month. Dependabot PRs are still reviewed by a
@@ -135,7 +141,7 @@ jobs:
     runs-on: self-hosted
     defaults:
       run:
-        shell: bash
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
     environment: staging
     steps:
       - name: Trigger Render staging deploy hook
@@ -157,7 +163,7 @@ jobs:
     runs-on: self-hosted
     defaults:
       run:
-        shell: bash
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
     # Required reviewers configured on the `production` environment ARE the
     # manual approval gate. This is the only job that references the
     # environment, so reviewers are prompted exactly once. A separate
@@ -185,7 +191,7 @@ jobs:
     runs-on: self-hosted
     defaults:
       run:
-        shell: bash
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
     # The webhook must live at job scope: a step's `if:` is evaluated before
     # that step's own `env` exists, and `secrets` cannot be read from an `if:`
     # at all. At step scope this guard was always false, so the alert never
