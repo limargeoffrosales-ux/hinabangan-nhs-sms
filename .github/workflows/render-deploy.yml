@@ -1,4 +1,4 @@
-name: Render Deploy
+﻿name: Render Deploy
 
 on:
   push:
@@ -20,7 +20,18 @@ concurrency:
 jobs:
   check:
     name: Quality gate
-    runs-on: ubuntu-latest
+    # Run on the local self-hosted runner, which does NOT consume
+    # GitHub-hosted Actions minutes. This keeps CI running while the account's
+    # Actions billing / spending limit is unresolved.
+    #
+    # `runs-on` arrays are ANDed, so these three labels must all be present on
+    # the runner - they match the one registered by
+    # scripts\setup-runner.ps1 (labels: self-hosted, windows, x64).
+    #
+    # If that runner is offline the job queues until it comes back; the
+    # pre-push hook (scripts\pre-push.sh) covers the case where the machine is
+    # not available at all.
+    runs-on: [self-hosted, windows, x64]
     # Skip Dependabot PRs: each one otherwise burns a full install + lint +
     # build + test run, and a private repo on GitHub's free tier only gets
     # 2000 Actions minutes/month. Dependabot PRs are still reviewed by a
@@ -78,7 +89,7 @@ jobs:
     name: Deploy to Staging (Render)
     needs: check
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows, x64]
     environment: staging
     steps:
       - name: Trigger Render staging deploy hook
@@ -97,7 +108,7 @@ jobs:
     name: Deploy to Production (Render)
     needs: deploy-staging
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows, x64]
     # Required reviewers configured on the `production` environment ARE the
     # manual approval gate. This is the only job that references the
     # environment, so reviewers are prompted exactly once. A separate
@@ -122,7 +133,7 @@ jobs:
     name: Notify on failure
     needs: [check, deploy-staging, deploy-prod]
     if: failure()
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows, x64]
     # The webhook must live at job scope: a step's `if:` is evaluated before
     # that step's own `env` exists, and `secrets` cannot be read from an `if:`
     # at all. At step scope this guard was always false, so the alert never
@@ -140,5 +151,5 @@ jobs:
           GITHUB_REF: ${{ github.ref }}
         run: |
           curl -fsS -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\"❌ *CI/CD Pipeline Failed*\n*Repo:* $GITHUB_REPOSITORY\n*Run:* https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n*Commit:* $GITHUB_SHA\n*Ref:* $GITHUB_REF\"}" \
+            --data "{\"text\":\"âŒ *CI/CD Pipeline Failed*\n*Repo:* $GITHUB_REPOSITORY\n*Run:* https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n*Commit:* $GITHUB_SHA\n*Ref:* $GITHUB_REF\"}" \
             "$SLACK_WEBHOOK_URL" || echo "Slack notification failed (webhook not configured or network error)"
