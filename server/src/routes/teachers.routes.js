@@ -8,6 +8,18 @@ router.use(authenticate);
 const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'hr'];
 const LINK_ROLES = ['super_admin', 'school_admin'];
 
+// Column-level PII guard: only roles that may write teacher PII may read it.
+// Everyone else (e.g. a plain teacher opening the staff directory) gets the
+// record with direct identifiers removed rather than a 403, so the directory
+// keeps working without exposing colleagues' contact details or PRC number.
+const PII_FIELDS = ['email', 'contact', 'prc_no'];
+function redactTeacherPII(row, role) {
+  if (WRITE.includes(role)) return row;
+  const copy = { ...row };
+  for (const f of PII_FIELDS) delete copy[f];
+  return copy;
+}
+
 async function resolveUserId(b, { ignoreId } = {}) {
   if (b.user_id === undefined || b.user_id === null || b.user_id === '') return null;
   const userId = Number(b.user_id);
@@ -35,7 +47,7 @@ router.get('/', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
       for (const r of rows) r.username = r.user_id ? (um[r.user_id] || null) : null;
     }
   }
-  res.json({ data: rows, limit, offset });
+  res.json({ data: rows.map((r) => redactTeacherPII(r, req.user.role)), limit, offset });
 }));
 
 router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
@@ -45,7 +57,7 @@ router.get('/:id', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => 
     const u = await q('SELECT username FROM users WHERE id = ?', [row.user_id]);
     if (u) row.username = u.username;
   }
-  res.json(row);
+  res.json(redactTeacherPII(row, req.user.role));
 }));
 
 router.post('/', requireRole(...WRITE), asyncH(async (req, res) => {
