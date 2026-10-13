@@ -62,10 +62,6 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Dependency audit (documented allowlist for unfixable advisories)
         run: npm run audit
       - name: Full check (lint, typecheck, build, i18n, server tests)
@@ -101,6 +97,14 @@ jobs:
       PG_TEST_URL: postgres://postgres:testpw@127.0.0.1:5432/schooltest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for gitleaks to scan history
+      # gitleaks-action ships no Windows binary, so the secret scan lives here
+      # with the other Linux-only checks.
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Validate workflow files (actionlint)
         uses: docker://rhysd/actionlint:latest
         with:
