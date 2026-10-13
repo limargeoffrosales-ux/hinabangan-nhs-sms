@@ -216,7 +216,46 @@ quota is gone, which makes this look like a repo-specific fault.
   of a diff. **Never use PowerShell `>` to write a file that gets committed —
   use the Write tool, `git show ... | Out-File -Encoding utf8`, or Node.**
 
-### 4c. Neon 512 MB cap — boot crash (53100)
+### 4d. Boot fails on a Neon branch: FK / "already exists" during migrations
+
+**Symptom.** `Exited with status 1` with an error like:
+
+```
+foreign key constraint "enrollments_student_id_fkey" cannot be implemented
+relation "enrollments_student_id_school_year_term_key" already exists   (42P07)
+Fatal boot error — shutting down
+```
+
+**Cause.** A Neon branch created with **"Branch schema only"** has every table
+but an **empty `schema_migrations`**. The app then replays all 100 migrations on
+top of objects that already exist and dies partway.
+
+**Verified against PostgreSQL 16:** all 100 PG migrations apply cleanly to a
+genuinely **empty** database (96 tables rebuilt). The migrations are fine — the
+branch state is the problem.
+
+**Fix — reset the branch to an empty schema** (destroys that branch's data):
+
+```
+cd /opt/render/project/src   # or your repo root on Render's shell
+node scripts/reset-db-schema.mjs --dry-run     # preview the tables
+node scripts/reset-db-schema.mjs               # interactive, type RESET
+```
+
+Then **Deploy latest commit**. The boot path rebuilds the schema from
+`database/migrations`, and you restore with:
+
+```
+cd server && node scripts/backup.js --restore data/backups/<file> --yes
+```
+
+No `--bootstrap`: the deploy already applied the migrations.
+
+> Prevention: when creating a recovery branch, prefer a genuinely empty branch.
+> "Branch schema only" plus an empty `schema_migrations` is the exact state that
+> strands this.
+
+### 4e. Neon storage-cap recovery
 
 **Symptom.** Render logs end with `Exited with status 1`, a fatal boot error,
 or `schema "app" does not exist (masked 53100 disk full error)`, and the
