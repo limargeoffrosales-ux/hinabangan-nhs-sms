@@ -1,5 +1,8 @@
 version: 2
 updates:
+  # NOTE: limits are deliberately low. Every Dependabot PR triggers the
+  # Render Deploy workflow, and a private repo on the free GitHub tier only
+  # gets 2000 Actions minutes/month. Raise these only if quota is comfortable.
   - package-ecosystem: "npm"
     directory: "/server"
     schedule:
@@ -8,7 +11,7 @@ updates:
       server-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
   - package-ecosystem: "npm"
     directory: "/web"
     schedule:
@@ -17,8 +20,9 @@ updates:
       web-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3

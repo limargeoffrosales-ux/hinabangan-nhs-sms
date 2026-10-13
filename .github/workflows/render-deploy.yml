@@ -14,6 +14,11 @@ jobs:
   check:
     name: Quality gate
     runs-on: ubuntu-latest
+    # Dependabot opens many PRs per week and each one burns a full
+    # install+lint+build+test run. On a private repo under the free tier that
+    # is the difference between making the monthly Actions quota and not.
+    # Dependabot PRs still get reviewed by a human before merge.
+    if: github.actor != 'dependabot'
     steps:
       - uses: actions/checkout@v4
         with:
