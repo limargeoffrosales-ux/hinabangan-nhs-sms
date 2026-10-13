@@ -11,7 +11,7 @@ async function audit(req, action, entity, entityId, details, diff = null) {
         diff ? JSON.stringify(diff) : null, req.ip]
     );
   } catch (err) {
-    logger.error({ err, action, entity }, 'Audit log write failed');
+    logger.error({ err: err?.message, stack: err?.stack, action, entity }, 'Audit log write failed');
   }
 }
 
@@ -52,7 +52,7 @@ async function logAccess(req, studentId, action = 'STUDENT_VIEW') {
       [req.user.id, req.user.username, studentId, action, ip]
     );
   } catch (err) {
-    logger.error({ err, studentId, action }, 'Access log write failed');
+    logger.error({ err: err?.message, stack: err?.stack, studentId, action }, 'Access log write failed');
   }
 }
 

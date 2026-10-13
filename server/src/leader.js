@@ -98,45 +98,75 @@ async function release(jobName) {
 // a DB blip could), we stop running the job.
 function start(jobName, { run, intervalMs, onError }) {
   let stopped = false;
-  let timers = [];
+  let owns = false;
+  // Timer handles for the work itself (heartbeat + job ticks). Kept separate
+  // from the single acquire/retry poller so leadership can be dropped without
+  // killing the ability to re-acquire it later.
+  let jobTimers = [];
+  const acquireTimer = setInterval(() => { compete().catch(() => {}); }, HEARTBEAT_MS);
+  acquireTimer.unref?.();
 
-  (async () => {
-    const isLeader = await acquire(jobName);
+  function clearJobTimers() {
+    jobTimers.forEach((t) => clearInterval(t));
+    jobTimers = [];
+  }
+
+  const tick = async () => {
+    try {
+      await run();
+    } catch (err) {
+      if (onError) onError(err);
+    }
+  };
+
+  const beat = async () => {
+    const still = await heartbeat(jobName);
+    if (!still && !stopped && owns) {
+      logger.warn({ job: jobName }, 'LEADER: lost leadership — will try to re-acquire');
+      owns = false;
+      clearJobTimers();
+    }
+  };
+
+  // Acquire, and keep retrying while another instance holds the lock.
+  //
+  // Retrying matters: this instance is not necessarily the *first* one that
+  // will serve the job. If it gave up on the first refusal, the leader could
+  // die moments later and every other instance would already have stopped
+  // competing - leaving the job dead (no backups) until a process restart.
+  const compete = async () => {
     if (stopped) return;
-    if (!isLeader) {
-      logger.info({ job: jobName, instance: instanceId }, 'LEADER: not leader — job runs on another instance');
+    if (owns) {
+      const still = await heartbeat(jobName);
+      if (!still) {
+        owns = false;
+        logger.warn({ job: jobName }, 'LEADER: lost leadership — will try to re-acquire');
+        clearJobTimers();
+      }
       return;
     }
+
+    const won = await acquire(jobName);
+    if (stopped) return;
+    if (!won) return; // someone else leads; the next tick tries again
+
+    owns = true;
     logger.info({ job: jobName, instance: instanceId, intervalMs, ttlMs: TTL_MS }, 'LEADER: acquired job');
-
-    const beat = async () => {
-      const still = await heartbeat(jobName);
-      if (!still && !stopped) {
-        logger.warn({ job: jobName }, 'LEADER: lost leadership — stopping job on this instance');
-        stop();
-      }
-    };
-
-    const tick = async () => {
-      try {
-        await run();
-      } catch (err) {
-        if (onError) onError(err);
-      }
-    };
-
-    timers.push(setInterval(beat, HEARTBEAT_MS));
+    jobTimers.push(setInterval(beat, HEARTBEAT_MS));
     if (typeof intervalMs === 'number' && intervalMs > 0) {
-      timers.push(setInterval(tick, intervalMs));
+      jobTimers.push(setInterval(tick, intervalMs));
     }
-    // Run once now.
-    tick().catch(() => {});
-  })();
+    await tick();
+  };
+
+  compete().catch(() => {});
 
   function stop() {
     if (stopped) return;
     stopped = true;
-    timers.forEach((t) => clearInterval(t));
+    owns = false;
+    clearInterval(acquireTimer);
+    clearJobTimers();
     release(jobName).catch(() => {});
   }
 

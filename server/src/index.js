@@ -400,7 +400,7 @@ const parentRoutes = require('./routes/parent.routes');
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
   app.use((err, req, res, _next) => {
-    logger.error({ err, requestId: req.requestId, url: redactUrl(req.originalUrl) }, 'Unhandled error');
+    logger.error({ err: err?.message, stack: err?.stack, requestId: req.requestId, url: redactUrl(req.originalUrl) }, 'Unhandled error');
     if (process.env.SENTRY_DSN) Sentry.captureException(err);
     if (res.headersSent) {
       // Response already streaming/sent (e.g. a spreadsheet export failed mid-write);
