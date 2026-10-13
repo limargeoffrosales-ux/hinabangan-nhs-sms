@@ -488,7 +488,7 @@ CREATE POLICY notif_self ON notifications
   FOR SELECT USING (
     (channel = 'email' AND recipient_address IN (SELECT email FROM users WHERE id = app.current_user_id()))
     OR (channel = 'sms' AND recipient_address IN (SELECT phone FROM users WHERE id = app.current_user_id()))
-    OR user_id = app.current_user_id()
+    OR recipient_user_id = app.current_user_id()
   );
 
 CREATE POLICY notif_admin ON notifications

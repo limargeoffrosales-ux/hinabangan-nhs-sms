@@ -292,6 +292,11 @@ Three cases:
   than `VACUUM FULL` because FULL rewrites each table into a new file first and
   therefore needs free space that does not exist at the cap — it fails with
   53100 and reclaims nothing.
+- Boot is no longer blocked by this maintenance: on a bloated branch it ran for
+  ~10 minutes and made Render time out before the port was bound. It is
+  deferred to a background `scheduleStorageMaintenance()` task after the app is
+  listening (non-fatal, logs `[MAINT]` lines); a healthy install logs
+  `below reclaim threshold, nothing to do`.
 - A `53100` during migrations no longer aborts the boot. The server starts so
   reads and the health endpoint keep working, and logs the size. **A storage
   cap is an operational problem; crashing turns it into a full outage.**
