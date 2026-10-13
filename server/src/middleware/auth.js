@@ -134,10 +134,21 @@ async function authenticate(req, res, next) {
   try {
   const header = req.headers.authorization || '';
   const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-  const token = parseCookies(req)[ACCESS_COOKIE] || bearer;
+  const cookie = parseCookies(req)[ACCESS_COOKIE];
+  // An explicit Authorization header is a deliberate choice by the caller (the
+  // SPA holds one in sessionStorage, native clients send it directly), so it
+  // wins over a cookie that may have gone stale behind the client's back.
+  const token = bearer || cookie;
   if (!token) return res.status(401).json({ error: 'Missing bearer token' });
   const payload = verifyToken(token);
-  if (!payload) return res.status(401).json({ error: 'Invalid or expired token' });
+  if (!payload) {
+    // A cookie that no longer verifies is otherwise resent with every request,
+    // locking the browser out permanently. Drop just the access cookie so the
+    // session can recover by itself; the refresh cookie is deliberately left
+    // alone so POST /auth/refresh can still mint a new one.
+    if (cookie) res.clearCookie(ACCESS_COOKIE, { ...cookieBase(), path: '/' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
   if (payload.tokenUse === 'mfa' || payload.mfa_pending) {
     return res.status(401).json({ error: 'MFA verification required' });
   }
