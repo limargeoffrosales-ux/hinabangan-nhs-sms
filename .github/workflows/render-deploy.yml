@@ -50,7 +50,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Dependency audit (gitleaks allowlist for unfixable advisories)
+      - name: Dependency audit (documented allowlist for unfixable advisories)
         run: npm run audit
       - name: Full check (lint, typecheck, build, i18n, server tests)
         run: npm run check
@@ -74,21 +74,17 @@ jobs:
           curl -fsS -X POST "$HOOK_URL"
           echo "Staging deploy triggered. Check Render dashboard for status."
 
-  approval:
-    name: Manual approval for production
+  deploy-prod:
+    name: Deploy to Production (Render)
     needs: deploy-staging
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Wait for manual approval
-        run: echo "Waiting for approval to deploy to production..."
-
-  deploy-prod:
-    name: Deploy to Production (Render)
-    needs: approval
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    # Required reviewers configured on the `production` environment ARE the
+    # manual approval gate. This is the only job that references the
+    # environment, so reviewers are prompted exactly once. A separate
+    # `approval` job also declaring `environment: production` would pause a
+    # second time (GitHub gates every job that targets a protected
+    # environment), and without required reviewers it would pause not at all.
     environment: production
     steps:
       - name: Trigger Render production deploy hook
@@ -108,11 +104,17 @@ jobs:
     needs: [check, deploy-staging, deploy-prod]
     if: failure()
     runs-on: ubuntu-latest
+    # The webhook must live at job scope: a step's `if:` is evaluated before
+    # that step's own `env` exists, and `secrets` cannot be read from an `if:`
+    # at all. At step scope this guard was always false, so the alert never
+    # fired. Job-scope `env` is visible to `env.SLACK_WEBHOOK_URL` in the `if:`
+    # below and is still exported to the `run:` shell.
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - name: Send failure notification
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_SHA: ${{ github.sha }}
