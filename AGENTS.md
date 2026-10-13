@@ -48,20 +48,40 @@ Server has a `node --test` suite in `server/test/` (covers migrations/parity, sc
 ## Windows dev environment (OneDrive)
 
 This repo lives under OneDrive (`...\OneDrive\Documents\...`). OneDrive Files
-On-Demand dehydrates `node_modules`, which makes files vanish mid-build
-(`Could not resolve "./..."` / `Cannot find module ...`), even right after a
-successful `npm install`. Keep the dependency folders pinned so OneDrive always
-retains them locally:
+On-Demand evicts files it considers cold, so `node_modules` loses content and
+builds fail with confusing errors:
+
+- `npm ci` reports "added 821 packages", then `node_modules` is gutted minutes
+  later (588 dirs → 35)
+- `Test-Path` reports a file missing while `Get-ChildItem` still lists it
+- `vite build` → `Could not resolve "./..."`; server → `Cannot find module 'pino'`
+- `npm ci` → `ENOTEMPTY` / `rmdir` errors (errno -4051)
+
+**Two fixes that do NOT work here — do not spend time on them again:**
+
+- `attrib +P -U` (pinning): eviction still happens on this account.
+- NTFS junctions: `npm` replaces the junction and writes into the repo anyway.
+
+**What works: keep `node_modules` physically outside OneDrive.** Use the helper
+script, which builds and checks in a mirror directory off OneDrive:
 
 ```powershell
-attrib +P -U node_modules;        attrib +P -U "node_modules\*" /s /d
-attrib +P -U server\node_modules; attrib +P -U "server\node_modules\*" /s /d
-attrib +P -U web\node_modules;    attrib +P -U "web\node_modules\*" /s /d
+# from the repo
+.\scripts\onedrive-protect.ps1              # sync sources out, then build + check
+.\scripts\onedrive-protect.ps1 -CheckOnly   # just re-run the quality gate
+.\scripts\onedrive-protect.ps1 -Repair      # reinstall deps in the mirror first
+.\scripts\onedrive-protect.ps1 -SyncBack    # copy edits back (copy-only, never deletes)
 ```
 
-`npm ci` deletes and recreates `node_modules`; re-run the pins afterwards. If
-files still vanish, delete `node_modules` (root + both workspaces), reinstall,
-then pin again.
+**Never run `npm install` / `npm ci` / `npm run check` directly inside the OneDrive
+copy** — it will corrupt itself. Either run the script, or work in the mirror at
+`C:\Users\lgros\school-system`.
+
+The script refuses `-SyncBack` when the mirror is stale (it compares the repo
+`HEAD` against `.mirror-head` recorded at sync time), so a stale mirror cannot
+revert newer commits. It copies with `robocopy /E`, never `/MIR` — mirror mode
+propagates deletions and has silently deleted tracked files (e.g.
+`docs/33-setup-checklist.md`) before.
 
 ## Database
 
