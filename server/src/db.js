@@ -335,17 +335,24 @@ async function logTopTables() {
       total += mb;
       console.log('[SIZE]', r.table, mb.toFixed(1) + 'MB');
     }
+    // Sum every relation in EVERY schema, not just public: a table left in a
+    // non-public schema is invisible above but still counted by
+    // pg_database_size(), which is exactly the shape of the 514MB-vs-1.5MB
+    // case seen in production.
+    const all = await driver.get(
+      "SELECT COALESCE(sum(pg_total_relation_size(c.oid)), 0) AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r','m','i','t','S')"
+    );
+    const allMb = Number(all?.bytes || 0) / 1024 / 1024;
     // pg_database_size() counts every relfile in the directory, including
-    // indexes, TOAST and files orphaned by dropped tables - none of which
-    // appear above. When the two numbers disagree by a lot, the space is not
-    // in live public tables and TRUNCATE/VACUUM will not recover it; that
-    // branch needs a fresh Neon branch built from a dump.
+    // indexes, TOAST and files orphaned by dropped tables.
     const dbMb = await dbSizeMb();
     console.log('[SIZE] top-15 public tables: ' + total.toFixed(1) + 'MB of ' + Math.round(dbMb) + 'MB database size');
-    if (dbMb > 0 && dbMb - total > 64) {
+    console.log('[SIZE] all relations, all schemas: ' + allMb.toFixed(1) + 'MB');
+    const unaccounted = dbMb - allMb;
+    if (dbMb > 0 && unaccounted > 64) {
       logger.warn(
-        { dbMb: Math.round(dbMb), accountedMb: Math.round(total), unaccountedMb: Math.round(dbMb - total) },
-        'most of the database size is NOT in live public tables (orphaned relfiles / other schemas) - rebuild the Neon branch from a dump; TRUNCATE and VACUUM cannot recover it'
+        { dbMb: Math.round(dbMb), accountedMb: Math.round(allMb), orphanedMb: Math.round(unaccounted) },
+        'most of the database size is NOT in any live relation (orphaned relfiles from dropped tables) - TRUNCATE and VACUUM cannot recover it; rebuild the Neon branch from a pg_dump. See DEPLOYMENT_RUNBOOK.md 4c.'
       );
     }
   } catch (err) {
