@@ -216,6 +216,50 @@ quota is gone, which makes this look like a repo-specific fault.
   of a diff. **Never use PowerShell `>` to write a file that gets committed —
   use the Write tool, `git show ... | Out-File -Encoding utf8`, or Node.**
 
+### 4c. Neon 512 MB cap — boot crash (53100)
+
+**Symptom.** Render logs end with `Exited with status 1`, a fatal boot error,
+or `schema "app" does not exist (masked 53100 disk full error)`, and the
+service restart-loops.
+
+**Diagnose from the boot log.** Look for the `[SIZE]` lines:
+
+```
+[SIZE] <table> <n>MB                       per-table sizes
+[SIZE] top-15 public tables: 1.5MB of 514MB database size
+```
+
+Three cases:
+
+| Log evidence | Meaning | Action |
+|---|---|---|
+| One table is genuinely huge | Real data growth | Prune/retention, or upgrade Neon plan |
+| `top-15 … 1.5MB of 514MB` | **Orphaned relfiles from dropped tables.** TRUNCATE/VACUUM cannot recover this | **Rebuild the branch** — see below |
+| Size drops after `[TRUNCATE]` | Was regenerable log bloat | Already handled automatically |
+
+**Rebuild an oversized Neon branch (needs Neon console + `pg_dump`):**
+1. `pg_dump "$DATABASE_URL" > backup.sql` from a machine with PostgreSQL
+   installed, or use Neon → **Dump/Download**.
+2. Neon console → create a **new branch** (fresh, empty).
+3. Copy its connection string into Render → Environment → `DATABASE_URL` →
+   Save → Deploy. Migrations rebuild the schema on first boot.
+4. Only after the new branch is healthy, delete the old one.
+
+**What the app now does automatically** (`server/src/db.js`):
+- `pruneHighChurn()` on every boot — deletes aged rows from 10 high-churn tables.
+- `reclaimSpace()` when near the cap — `VACUUM ANALYZE`, then **TRUNCATE** of
+  regenerable tables (csrf/password-reset/refresh/device tokens, access logs,
+  chat logs, notifications, job locks, rate limits). TRUNCATE is used rather
+  than `VACUUM FULL` because FULL rewrites each table into a new file first and
+  therefore needs free space that does not exist at the cap — it fails with
+  53100 and reclaims nothing.
+- A `53100` during migrations no longer aborts the boot. The server starts so
+  reads and the health endpoint keep working, and logs the size. **A storage
+  cap is an operational problem; crashing turns it into a full outage.**
+
+Deliberately never truncated: `audit_logs`, `password_audit`,
+`security_incidents`, `students`, `grades` — these are RA 10173 records.
+
 ### 4a. Dependency audit gate
 
 `npm run audit` (`scripts/audit.mjs`) runs on every push and PR. It **fails the

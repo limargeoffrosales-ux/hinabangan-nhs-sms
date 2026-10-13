@@ -41,12 +41,14 @@ async function init() {
       connectionTimeoutMillis: 10000,
       options: '-c search_path=public'
     });
-    // Belt-and-suspenders: force search_path=public on EVERY connection checkout.
-    // This guards against any connection-string-level search_path (e.g. "app")
-    // and ensures migrations/queries always run in the public schema.
-    pool.on('connect', async (client) => {
-      try { await client.query('SET search_path = public'); } catch (_) {}
-    });
+    // search_path is pinned by the pool's `options` parameter above, which the
+    // server applies during connection setup - before the client is handed
+    // out, so it cannot race.
+    //
+    // Do NOT re-issue SET search_path from a pool.on('connect') listener: that
+    // callback fires while the acquiring caller is already dispatching its
+    // first query, which pg reports as "Calling client.query() when the
+    // client is already executing a query" and can interleave badly.
     pool.on('error', (err) => {
       logger.error({ err }, 'PostgreSQL pool idle client error');
     });
@@ -197,7 +199,7 @@ if (usePg) {
     await logTopTables();
     await pruneHighChurn();
     if (sizeBefore >= RECLAIM_THRESHOLD_MB) {
-      logger.info({ sizeMb: Math.round(sizeBefore) }, 'db near storage cap — pruning + VACUUM FULL before migrations');
+      logger.info({ sizeMb: Math.round(sizeBefore) }, 'db near storage cap — pruning + reclaiming space before migrations');
       await reclaimSpace();
     }
     const sizeAfter = await dbSizeMb();
@@ -220,7 +222,25 @@ if (usePg) {
       );
     }
   }
-  await migrate();
+  try {
+    await migrate();
+  } catch (err) {
+    // A branch that is already over Neon's size cap rejects any DDL with 53100.
+    // Crashing out here turns an operational storage problem into a total
+    // outage and a Render restart loop, and every retry fails identically
+    // because nothing about re-running prunes the orphaned files. Start
+    // anyway: reads and non-DDL writes still work, the health endpoint stays
+    // green, and the size warning above tells the operator what to do. Any
+    // other migration failure is a real defect and still aborts the boot.
+    if (err && (err.code === '53100' || /53100|disk full|no space left|exceeded the size limit/i.test(String(err.message)))) {
+      logger.error(
+        { err: err.message, sizeMb: Math.round(await dbSizeMb()) },
+        'migrations blocked by the Neon storage cap (53100) - starting anyway so the app stays reachable. Rebuild the branch from a dump; see DEPLOYMENT_RUNBOOK.md 4c.'
+      );
+    } else {
+      throw err;
+    }
+  }
   if (usePg) {
     // Keep high-churn tables from refilling toward the cap while the instance
     // stays awake (Render free tier can remain up for hours between requests).
@@ -308,10 +328,25 @@ async function logTopTables() {
     const rows = await driver.all(
       "SELECT relname AS table, pg_total_relation_size(c.oid) AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','m') ORDER BY bytes DESC LIMIT 15"
     );
+    let total = 0;
     for (const r of rows) {
       // pg driver returns BIGINT as a string; coerce before arithmetics.
       const mb = Number(r.bytes) / 1024 / 1024;
+      total += mb;
       console.log('[SIZE]', r.table, mb.toFixed(1) + 'MB');
+    }
+    // pg_database_size() counts every relfile in the directory, including
+    // indexes, TOAST and files orphaned by dropped tables - none of which
+    // appear above. When the two numbers disagree by a lot, the space is not
+    // in live public tables and TRUNCATE/VACUUM will not recover it; that
+    // branch needs a fresh Neon branch built from a dump.
+    const dbMb = await dbSizeMb();
+    console.log('[SIZE] top-15 public tables: ' + total.toFixed(1) + 'MB of ' + Math.round(dbMb) + 'MB database size');
+    if (dbMb > 0 && dbMb - total > 64) {
+      logger.warn(
+        { dbMb: Math.round(dbMb), accountedMb: Math.round(total), unaccountedMb: Math.round(dbMb - total) },
+        'most of the database size is NOT in live public tables (orphaned relfiles / other schemas) - rebuild the Neon branch from a dump; TRUNCATE and VACUUM cannot recover it'
+      );
     }
   } catch (err) {
     console.warn('[SIZE] could not read table sizes: ' + err.message);
@@ -332,14 +367,60 @@ async function reclaimSpace() {
   }
   const afterPlainMb = await dbSizeMb();
   console.log('[VACUUM] size after VACUUM ANALYZE: ' + Math.round(afterPlainMb) + 'MB');
-  // 2. If still near the cap, escalate to VACUUM FULL (takes locks, compacts the
-  //    physical files / orphaned relfilenodes).
+  // 2. Still over/near the cap. VACUUM FULL rewrites each table into a fresh
+  //    relfile before dropping the old one, so it needs free space equal to
+  //    roughly the largest table. At a hard size cap there is none, so it
+  //    fails with 53100 and reclaims nothing. TRUNCATE, by contrast, attaches
+  //    a new empty relfile and unlinks the old one - it needs essentially no
+  //    space and returns the pages immediately. Do that FIRST for the tables
+  //    that only ever hold regenerable rows.
   if (afterPlainMb >= RECLAIM_THRESHOLD_MB) {
+    await truncateRegenerableTables();
+    const afterTruncateMb = await dbSizeMb();
+    console.log('[VACUUM] size after TRUNCATE of regenerable tables: ' + Math.round(afterTruncateMb) + 'MB');
+    if (afterTruncateMb >= RECLAIM_THRESHOLD_MB) {
+      try {
+        console.log('[VACUUM] whole-database VACUUM FULL (locks, needs free space)');
+        await driver.exec('VACUUM (FULL, ANALYZE)');
+      } catch (err) {
+        // Expected when already over the cap: the rewrite cannot be staged.
+        // Not fatal - boot continues and the size warning below explains it.
+        console.warn('[VACUUM] VACUUM FULL failed (expected at/over the storage cap): ' + err.message);
+      }
+    }
+  }
+}
+
+// Tables whose contents are fully regenerable: session/anti-abuse tokens,
+// delivery logs, and the read-access trail that pruneHighChurn() already
+// discards on a 30-day cycle. Truncating these costs nothing of record and is
+// the only reclaim available once the branch is at its size cap.
+//
+// Deliberately NOT truncated: audit_logs, password_audit,
+// security_incidents, students, grades and anything else under RA 10173.
+const REGENERABLE_TABLES = [
+  'csrf_tokens',
+  'password_resets',
+  'refresh_tokens',
+  'device_tokens',
+  'data_access_logs',
+  'ai_chat_logs',
+  'notifications',
+  'job_locks',
+  'rate_limits',
+];
+
+async function truncateRegenerableTables() {
+  if (!usePg) return;
+  for (const table of REGENERABLE_TABLES) {
     try {
-      console.log('[VACUUM] whole-database VACUUM FULL (locks)');
-      await driver.exec('VACUUM (FULL, ANALYZE)');
+      // to_regclass keeps this safe on installs where the table was never
+      // created; TRUNCATE on a missing table would abort the whole boot.
+      await driver.exec(`TRUNCATE TABLE ${table}`);
+      console.log('[TRUNCATE] ' + table);
     } catch (err) {
-      console.warn('[VACUUM] VACUUM FULL failed: ' + err.message);
+      // Missing table, or it is referenced by a live foreign key.
+      console.warn('[TRUNCATE] skipped ' + table + ': ' + err.message);
     }
   }
 }
