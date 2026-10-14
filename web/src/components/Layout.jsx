@@ -41,6 +41,7 @@ const NAV_GROUPS = [
       { to: '/sections', labelKey: 'nav.sections', icon: Layers },
       { to: '/enroll', labelKey: 'nav.enrollment', icon: ClipboardList },
       { to: '/lessons', labelKey: 'nav.lessons', icon: BookOpen },
+      { to: '/learning', labelKey: 'nav.learning', icon: BookOpen, teacherOnly: true },
       { to: '/competency-tracker', labelKey: 'nav.competencyTracker', icon: Target },
       { to: '/grades', labelKey: 'nav.classRecords', icon: BarChart3 },
       { to: '/assignments', labelKey: 'nav.assignments', icon: ClipboardPenLine },
@@ -148,6 +149,7 @@ export default function Layout({ children }) {
         .filter((n) => {
           if (!isAdmin && STAFF_HIDDEN.includes(n.to)) return false;
           if (n.adminOnly && !(n.aiStaff ? isAIStaff : isSuperAdmin)) return false;
+          if (n.teacherOnly && user?.role !== 'teacher') return false;
           if (n.parentOnly && !isParent) return false;
           if (isParent && !n.parentOnly) return false;
           return true;

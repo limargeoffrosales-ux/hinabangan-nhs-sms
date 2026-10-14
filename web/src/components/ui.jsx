@@ -344,6 +344,7 @@ const PALETTE_GROUPS = [
     { labelKey: 'nav.sections', to: '/sections' },
     { labelKey: 'nav.enrollment', to: '/enroll' },
     { labelKey: 'nav.lessons', to: '/lessons' },
+    { labelKey: 'nav.learning', to: '/learning' },
     { labelKey: 'nav.classRecords', to: '/grades' },
     { labelKey: 'nav.assignments', to: '/assignments' },
     { labelKey: 'nav.gradingScales', to: '/grading-scales' },

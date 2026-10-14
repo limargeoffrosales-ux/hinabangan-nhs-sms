@@ -28,6 +28,7 @@ const PORTAL_NAV_GROUPS = [
       { id: '/portal/analytics', label: 'portal.analytics', icon: <BarChart3 size={16} /> },
       { id: '/portal/schedule', label: 'portal.schedule', icon: <CalendarRange size={16} /> },
       { id: '/portal/assignments', label: 'portal.assignments', icon: <NotebookPen size={16} /> },
+      { id: '/portal/learning', label: 'portal.materials', icon: <BookOpen size={16} />, studentOnly: true },
       { id: '/portal/attendance', label: 'portal.attendance', icon: <CalendarCheck size={16} /> },
     ],
   },
@@ -65,6 +66,7 @@ export default function PortalLayout({ children }) {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const isParent = can(user?.role, 'parent', 'guardian');
+  const isStudent = can(user?.role, 'student');
   const [pwOpen, setPwOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -130,12 +132,14 @@ export default function PortalLayout({ children }) {
           groups={PORTAL_NAV_GROUPS.map((g) => ({
             id: g.id,
             label: t(g.label),
-            items: g.items.map((i) => ({
-              id: i.id,
-              label: t(i.label),
-              icon: i.icon,
-            })),
-          }))}
+            items: g.items
+              .filter((i) => !(i.studentOnly && !isStudent))
+              .map((i) => ({
+                id: i.id,
+                label: t(i.label),
+                icon: i.icon,
+              })),
+          })).filter((g) => g.items.length)}
           activeId={activeId}
           onNavigate={go}
           className="portal-sidebar-nav"

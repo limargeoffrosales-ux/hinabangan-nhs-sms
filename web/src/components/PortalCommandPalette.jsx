@@ -12,6 +12,7 @@ const PORTAL_PALETTE_GROUPS = [
     { labelKey: 'portal.analytics', to: '/portal/analytics' },
     { labelKey: 'portal.schedule', to: '/portal/schedule' },
     { labelKey: 'portal.assignments', to: '/portal/assignments' },
+    { labelKey: 'portal.materials', to: '/portal/learning' },
     { labelKey: 'portal.attendance', to: '/portal/attendance' },
   ]},
   { groupKey: 'portal.group.career', items: [

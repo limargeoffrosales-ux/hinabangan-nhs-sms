@@ -124,6 +124,8 @@ const AIPage = lazyWithRetry(() => import('./pages/AIPage'));
 const Achievements = lazyWithRetry(() => import('./pages/Achievements'));
 const ParentPortal = lazyWithRetry(() => import('./pages/ParentPortal'));
 const DesignSystem = lazyWithRetry(() => import('./pages/DesignSystem'));
+const LearningHub = lazyWithRetry(() => import('./pages/LearningHub'));
+const PortalLearning = lazyWithRetry(() => import('./pages/PortalLearning'));
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -154,6 +156,11 @@ const WRITE_ROLES = ['super_admin', 'school_admin', 'principal', 'assistant_prin
 function AdminOnly({ children }) {
   const { user } = useAuth();
   if (!can(user?.role, 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar')) return <Navigate to="/" replace />;
+  return children;
+}
+function TeacherOnly({ children }) {
+  const { user } = useAuth();
+  if (user?.role !== 'teacher') return <Navigate to="/" replace />;
   return children;
 }
 function StaffAndTeacher({ children }) {
@@ -263,6 +270,8 @@ export default function App() {
       <Route path="/curriculum" element={<Protected><AdminOnly><Page><Curriculum /></Page></AdminOnly></Protected>} />
       <Route path="/rooms" element={<Protected><AdminOnly><Page><Rooms /></Page></AdminOnly></Protected>} />
       <Route path="/lessons" element={<Protected><Page><Lessons /></Page></Protected>} />
+      <Route path="/learning" element={<Protected><TeacherOnly><Page><LearningHub /></Page></TeacherOnly></Protected>} />
+      <Route path="/portal/learning" element={<PortalProtected><Page><PortalLearning /></Page></PortalProtected>} />
       <Route path="/competency-tracker" element={<Protected><Page><CompetencyTracker /></Page></Protected>} />
       <Route path="/certifications" element={<Protected><Page><Certifications /></Page></Protected>} />
       <Route path="/guidance" element={<Protected><Page><Guidance /></Page></Protected>} />
