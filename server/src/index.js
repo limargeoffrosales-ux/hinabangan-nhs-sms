@@ -68,6 +68,7 @@ const pushRoutes = require('./routes/push.routes');
 const certificationsRoutes = require('./routes/certifications.routes');
 const guidanceRoutes = require('./routes/guidance.routes');
 const uploadsRoutes = require('./routes/uploads.routes');
+const lmsRoutes = require('./routes/lms.routes');
 const aiRoutes = require('./routes/ai.routes');
 const achievementsRoutes = require('./routes/achievements.routes');
 const consentsRoutes = require('./routes/consents.routes');
@@ -364,6 +365,7 @@ const parentRoutes = require('./routes/parent.routes');
   app.use('/api/v1/achievements', achievementsRoutes);
   app.use('/api/v1/consents', consentsRoutes);
   app.use('/api/v1/parent', parentRoutes);
+  app.use('/api/v1/lms', lmsRoutes);
 
   app.get('/api/v1/realtime/stream', streamHandler);
 
