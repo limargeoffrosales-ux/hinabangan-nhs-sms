@@ -32,76 +32,91 @@ regexes = [
 ]
 
 [[rules]]
+    id = "rule"
 description = "AWS Access Key ID"
 regex = '''(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'''
 tags = ["key", "aws"]
 
 [[rules]]
+    id = "rule"
 description = "GitHub Token"
 regex = '''(gh[pousr]_[A-Za-z0-9_]{36,251})'''
 tags = ["key", "github"]
 
 [[rules]]
+    id = "rule"
 description = "GitLab PAT"
 regex = '''glpat-[A-Za-z0-9_-]{20,}'''
 tags = ["key", "gitlab"]
 
 [[rules]]
+    id = "rule"
 description = "Slack Token / Webhook"
 regex = '''(xox[baprs]-[A-Za-z0-9-]{10,}|(?:https://hooks\.slack\.com/services/)[A-Za-z0-9/]{20,})'''
 tags = ["key", "slack"]
 
 [[rules]]
+    id = "rule"
 description = "Stripe Secret Key"
 regex = '''(sk_live_[A-Za-z0-9]{24,})'''
 tags = ["key", "stripe"]
 
 [[rules]]
+    id = "rule"
 description = "OpenAI API Key"
 regex = '''(sk-[A-Za-z0-9]{48,})'''
 tags = ["key", "openai"]
 
 [[rules]]
+    id = "rule"
 description = "Groq API Key"
 regex = '''(gsk_[A-Za-z0-9]{32,})'''
 tags = ["key", "groq"]
 
 [[rules]]
+    id = "rule"
 description = "Google/Gemini API Key"
 regex = '''AIza[0-9A-Za-z_-]{35}'''
 tags = ["key", "google"]
 
 [[rules]]
+    id = "rule"
 description = "Render Deploy Hook"
 regex = '''api\.render\.com/deploy/srv-[a-z0-9]+\?key=[A-Za-z0-9_-]{10,}'''
 tags = ["key", "render"]
 
 [[rules]]
+    id = "rule"
 description = "Database URL with inline credentials"
 regex = '''(?i)\b(postgres(?:ql)?|mysql|mongodb(?:\+srv)?)://[^:/\s]+:[^@/\s]+@'''
 tags = ["database", "connection-string"]
 
 [[rules]]
+    id = "rule"
 description = "JWT Secret assignment"
 regex = '''(?i)JWT_SECRET\s*[=:]\s*["']?[A-Za-z0-9_\-]{24,}'''
 tags = ["secret", "jwt"]
 
 [[rules]]
+    id = "rule"
 description = "Private Key block"
 regex = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----'''
 tags = ["key", "private-key"]
 
 [[rules]]
+    id = "rule"
 description = "Cloudflare R2 Secret Key"
 regex = '''(?i)r2_secret_key\s*[=:]\s*["']?[A-Za-z0-9]{32,}'''
 tags = ["key", "cloudflare"]
 
 [[rules]]
+    id = "rule"
 description = "Firebase service account JSON"
 regex = '''"type"\s*:\s*"service_account"'''
 tags = ["key", "firebase"]
 
 [[rules]]
+    id = "rule"
 description = "Generic high-entropy secret assignment"
 regex = '''(?i)\b(api[_-]?key|secret|token|password|passwd)\b\s*[=:]\s*["']?[A-Za-z0-9/+_\-]{32,}'''
 secretGroup = 1
