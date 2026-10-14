@@ -1160,3 +1160,58 @@ assert.ok(guard.includes('throw err'), 'a non-cap migration error must still abo
     'boot must branch exactly on isStorageCapError(err), not an always-true condition',
   );
 });
+
+// -- Sign-in rate limiting ------------------------------------------------
+// A school sits behind one NAT, so the old IP-only bucket on /auth/login was
+// shared by every staff account: one person fumbling a password locked out the
+// whole campus. Keying on username+IP gives each caller their own budget, and
+// the success-path reset stops routine sign-in/out from exhausting it.
+
+test('auth rate limit: key includes the username so NAT users get separate budgets', () => {
+  const { keyFor } = require('../src/middleware/auth-rate-limit');
+  const mk = (username, ip) => ({ body: { username }, ip, socket: {}, headers: {} });
+
+  const a = keyFor(mk('asantos', '10.0.0.5'));
+  const b = keyFor(mk('tlopez', '10.0.0.5'));
+  assert.notEqual(a, b, 'two users behind one IP must not share a bucket');
+
+  // Case and surrounding whitespace must not mint a fresh budget per attempt.
+  assert.equal(keyFor(mk('  Asantos ', '10.0.0.5')), a, 'key must be normalised');
+
+  // The IP still participates, so an attacker cannot reset a known account's
+  // budget just by retrying from a different address.
+  assert.notEqual(keyFor(mk('asantos', '10.0.0.6')), a, 'IP must remain part of the key');
+});
+
+test('auth rate limit: an over-long username cannot mint a fresh bucket per attempt', () => {
+  const { keyFor } = require('../src/middleware/auth-rate-limit');
+  const mk = (username) => ({ body: { username }, ip: '10.0.0.5', socket: {}, headers: {} });
+  assert.equal(
+    keyFor(mk('x'.repeat(500))),
+    keyFor(mk('y'.repeat(500))),
+    'oversized usernames must collapse to one key, not an attacker-controlled one',
+  );
+  assert.equal(keyFor(mk(undefined)), keyFor(mk(null)), 'a missing username must not evade the limiter');
+});
+
+test('auth rate limit: successful sign-in refunds the caller budget', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'auth.routes.js'), 'utf8');
+  const loginAt = src.indexOf("router.post('/login'");
+  assert.ok(loginAt !== -1, 'login route must exist');
+
+  const rejection = src.indexOf('Invalid username or password', loginAt);
+  assert.ok(rejection !== -1, 'login handler must still reject bad credentials');
+
+  const reset = src.indexOf('await resetAuthLimit(req)', rejection);
+  assert.ok(reset !== -1, 'a verified login must reset the sign-in rate-limit bucket');
+  assert.ok(reset > rejection, 'the reset must come after the credential check, never before it');
+});
+
+// ipKeyGenerator takes an address string. Handing it `req` stringifies to
+// "[object Object]", collapsing every unauthenticated caller in the school onto
+// a single shared bucket on every userRateLimit() route.
+test('userRateLimit: unauthenticated key uses req.ip, not the request object', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'middleware', 'rate-limit.js'), 'utf8');
+  assert.ok(!/ipKeyGenerator\(\s*req\s*[,)]/.test(src), 'must not pass the request object to ipKeyGenerator');
+  assert.ok(/ipKeyGenerator\(\s*req\.ip\s*\)/.test(src), 'must pass req.ip');
+});

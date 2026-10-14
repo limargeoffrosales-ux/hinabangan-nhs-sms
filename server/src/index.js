@@ -245,15 +245,8 @@ const parentRoutes = require('./routes/parent.routes');
   });
 
   const { createDbStore } = require('./rate-limit-store');
+  const { authLimiter } = require('./middleware/auth-rate-limit');
 
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 20,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: { error: 'Too many sign-in attempts. Try again in a few minutes.' },
-    store: createDbStore(15 * 60 * 1000),
-  });
   app.use('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth/refresh', authLimiter);
 

@@ -16,9 +16,13 @@ function userRateLimit(opts = {}) {
     limit,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    keyGenerator(req, res) {
+    keyGenerator(req) {
       if (req.user?.id) return `user:${req.user.id}`;
-      return ipKeyGenerator(req, res);
+      // ipKeyGenerator takes the IP STRING. Passing `req` stringifies to
+      // "[object Object]", so every unauthenticated caller on every route guarded
+      // by userRateLimit() shared a single bucket - one client hitting a limit
+      // locked out the whole school.
+      return ipKeyGenerator(req.ip);
     },
     message,
   });

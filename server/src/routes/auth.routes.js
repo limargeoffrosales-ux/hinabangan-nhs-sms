@@ -7,6 +7,7 @@ const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, 
 const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER, APP_URL } = require('../config');
 const { asyncH, audit } = require('../utils');
 const { userRateLimit } = require('../middleware/rate-limit');
+const { resetAuthLimit } = require('../middleware/auth-rate-limit');
 const { notifyEvent } = require('../notify');
 const { POLICY_KEYS, checkPasswordPolicy } = require('../password-policy');
 const { RESET_CODE_TTL_MS, RESET_MAX_ATTEMPTS, genResetCode } = require('../reset-codes');
@@ -146,6 +147,10 @@ router.post('/login', userRateLimit({ windowMs: 15 * 60 * 1000, limit: 15, messa
     return res.status(401).json({ error: 'Invalid username or password' });
   }
   await clearFailedLogins(user.id);
+  // Credentials verified: refund this caller their sign-in budget. Without this
+  // the 20-attempt window counted successful logins too, so a teacher signing in
+  // and out repeatedly over a shift got locked out despite never failing once.
+  await resetAuthLimit(req);
 
   // Check if MFA is enabled
   if (user.mfa_enabled && user.mfa_secret) {
