@@ -1,0 +1,255 @@
+# Render Blueprint — deploy the whole system (API + web portal) in one click.
+# Database: Neon free tier (no expiry) — paste the Neon connection string
+# into Render → hinabangan-nhs → Environment → DATABASE_URL → Save & redeploy.
+# For staging: create a Neon branch database and set DATABASE_URL on hinabangan-nhs-staging.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Env var reference: https://github.com/shared docs → docs/31-cloud-deployment.md (§5)
+services:
+  # --- Staging environment (deployed on push to main, manual promotion to prod) ---
+  - type: web
+    name: hinabangan-nhs-staging
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    # Staging tracks main automatically so failures surface early on a
+    # throwaway environment. It holds a Neon branch database and demo data,
+    # so shipping to it without a human is acceptable. Production does NOT
+    # auto-deploy - see the production service below.
+    autoDeploy: true
+    envVars:
+      # --- Runtime foundation ---------------------------------------------------
+      - key: NODE_VERSION
+        value: 22
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Managed PostgreSQL (Neon branch database). `sync: false` = set it yourself
+      # in the dashboard; never commit a live connection string to the repo.
+      - key: DATABASE_URL
+        sync: false
+
+      # Public base URL of the staging app (e.g. https://hinabangan-nhs-staging.onrender.com).
+      # Used to build password-reset links in emails.
+      - key: APP_URL
+        sync: false
+
+      # --- Seeding ---------------------------------------------------------------
+      # Idempotent foundation on every boot: report taxonomy, superadmin + staff accounts.
+      - key: SEED_ON_BOOT
+        value: '1'
+
+      # --- Operating hours (school availability window) --------------------------
+      # Block API requests outside 06:00-24:00 (school time, Asia/Manila UTC+8).
+      # Set OPEN >= CLOSE (e.g. both 0) to disable the gate. Health stays exempt.
+      - key: SYSTEM_OPEN_HOUR
+        value: '6'
+      - key: SYSTEM_CLOSE_HOUR
+        value: '24'
+      # Optional demo sandbox (students/grades/attendance) on a FRESH database only.
+      - key: DEMO_SEED
+        value: '0'
+      # Sets the superadmin password on the FIRST boot only (8+ chars). Once the
+      # admin password has been customized, this env var is ignored. Set before
+      # the first successful deploy, or read the random seed password from the
+      # boot log / accounts.txt instead.
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+
+      # --- Email/SMS notifications (needed for password reset, Item 5) -----------
+      # SMTP creds for outbound mail. Nothing physically sends until these are set.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: NOTIFY_EMAIL_ENABLED
+        value: '1'
+      # Optional generic SMS relay accepting POST {to, from, message} + bearer token.
+      - key: SMS_PROVIDER_URL
+        sync: false
+      - key: SMS_PROVIDER_TOKEN
+        sync: false
+      - key: SMS_SENDER
+        sync: false
+      - key: NOTIFY_SMS_ENABLED
+        value: '0'
+
+      # --- AI assistant (Item 4: open to staff / students / parents) --------------
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: groq
+      - key: AI_MODEL
+        value: openai/gpt-oss-120b
+
+      # --- Error tracking (optional) --------------------------------------------
+      # Server-side Sentry DSN (https://sentry.io). Set both for full coverage;
+      # the web one is consumed at build time by Vite.
+      - key: SENTRY_DSN
+        sync: false
+      - key: VITE_SENTRY_DSN
+        sync: false
+
+      # --- Push notifications (optional) ----------------------------------------
+      # Firebase service account JSON (single line) enabling Android push.
+      - key: FCM_SERVICE_ACCOUNT
+        sync: false
+
+      # --- Automated backups (Item 1) ------------------------------------------
+      # Schedules VACUUM-into dumps inside the API process (no cron). Local copies
+      # only unless R2_* are set; on Render's free tier the disk resets on redeploy,
+      # so set the four R2 vars to keep backups off-server.
+      - key: BACKUP_ENABLED
+        value: '1'
+      - key: BACKUP_INTERVAL_HOURS
+        value: '24'
+      - key: BACKUP_RETAIN
+        value: '5'
+      - key: BACKUP_DRILL_ENABLED
+        value: '1'
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY
+        sync: false
+      - key: R2_SECRET_KEY
+        sync: false
+
+  # --- Production environment (deployed after manual approval) ---
+  - type: web
+    name: hinabangan-nhs
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    # Production auto-deploys on push to main. The GitHub Actions
+    # manual-approval gate (check -> deploy-staging -> approval -> deploy-prod)
+    # is not usable right now: Actions cannot start jobs on this account
+    # (billing/spending limit) and the workflow targets a self-hosted runner
+    # that is not registered. Until that is fixed, Render-native auto-deploy is
+    # the only path that keeps prod in step with main. Revert to false and rely
+    # on the deploy hook once CI is healthy again.
+    #
+    # `npm run build` does run `lint:web` first, so a broken web bundle cannot
+    # build. That is defence in depth, not the control - tests, server lint,
+    # typecheck, the dependency audit and the gitleaks scan run only in CI.
+    autoDeploy: true
+    envVars:
+      # --- Runtime foundation ---------------------------------------------------
+      - key: NODE_VERSION
+        value: 22
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Managed PostgreSQL (Neon, see header). `sync: false` = set it yourself
+      # in the dashboard; never commit a live connection string to the repo.
+      - key: DATABASE_URL
+        sync: false
+
+      # Public base URL of the app (e.g. https://hinabangan-nhs.onrender.com).
+      # Used to build password-reset links in emails; when unset the link falls
+      # back to the requesting host. Renames on Render are not auto-detected.
+      - key: APP_URL
+        sync: false
+
+      # --- Seeding ---------------------------------------------------------------
+      # Idempotent foundation on every boot: report taxonomy, superadmin + staff accounts.
+      - key: SEED_ON_BOOT
+        value: '1'
+
+      # --- Operating hours (school availability window) --------------------------
+      # Block API requests outside 06:00-24:00 (school time, Asia/Manila UTC+8).
+      # Set OPEN >= CLOSE (e.g. both 0) to disable the gate. Health stays exempt.
+      - key: SYSTEM_OPEN_HOUR
+        value: '6'
+      - key: SYSTEM_CLOSE_HOUR
+        value: '24'
+      # Optional demo sandbox (students/grades/attendance) on a FRESH database only.
+      - key: DEMO_SEED
+        value: '0'
+      # Sets the superadmin password on the FIRST boot only (8+ chars). Once the
+      # admin password has been customized, this env var is ignored. Set before
+      # the first successful deploy, or read the random seed password from the
+      # boot log / accounts.txt instead.
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+
+      # --- Email/SMS notifications (needed for password reset, Item 5) -----------
+      # SMTP creds for outbound mail. Nothing physically sends until these are set.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: NOTIFY_EMAIL_ENABLED
+        value: '1'
+      # Optional generic SMS relay accepting POST {to, from, message} + bearer token.
+      - key: SMS_PROVIDER_URL
+        sync: false
+      - key: SMS_PROVIDER_TOKEN
+        sync: false
+      - key: SMS_SENDER
+        sync: false
+      - key: NOTIFY_SMS_ENABLED
+        value: '0'
+
+      # --- AI assistant (Item 4: open to staff / students / parents) --------------
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: groq
+      - key: AI_MODEL
+        value: openai/gpt-oss-120b
+
+      # --- Error tracking (optional) --------------------------------------------
+      # Server-side Sentry DSN (https://sentry.io). Set both for full coverage;
+      # the web one is consumed at build time by Vite.
+      - key: SENTRY_DSN
+        sync: false
+      - key: VITE_SENTRY_DSN
+        sync: false
+
+      # --- Push notifications (optional) ----------------------------------------
+      # Firebase service account JSON (single line) enabling Android push.
+      - key: FCM_SERVICE_ACCOUNT
+        sync: false
+
+      # --- Automated backups (Item 1) ------------------------------------------
+      # Schedules VACUUM-into dumps inside the API process (no cron). Local copies
+      # only unless R2_* are set; on Render's free tier the disk resets on redeploy,
+      # so set the four R2 vars to keep backups off-server.
+      - key: BACKUP_ENABLED
+        value: '1'
+      - key: BACKUP_INTERVAL_HOURS
+        value: '24'
+      - key: BACKUP_RETAIN
+        value: '5'
+      - key: BACKUP_DRILL_ENABLED
+        value: '1'
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY
+        sync: false
+      - key: R2_SECRET_KEY
+        sync: false

@@ -1,0 +1,8 @@
+-- ============================================================
+-- 066 (SQLite): Immersion Map Columns
+-- ============================================================
+-- No-op on SQLite: address/lat/lng were already added to
+-- work_immersion by migration 064 (immersion-locations.sqlite.sql),
+-- so re-adding them here would fail with "duplicate column name".
+-- Retained as a numbered placeholder to keep PG/SQLite numbering
+-- aligned with the workstream that introduced the Immersion map.

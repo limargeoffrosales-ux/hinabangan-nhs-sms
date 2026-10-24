@@ -1,0 +1,25 @@
+{
+  "name": "Hinabangan NHS — MeridianEd",
+  "short_name": "MeridianEd",
+  "description": "Hinabangan National High School — School Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#04070F",
+  "theme_color": "#05070D",
+  "orientation": "any",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

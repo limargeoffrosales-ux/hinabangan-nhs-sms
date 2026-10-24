@@ -1,0 +1,13 @@
+-- SECURITY: this migration previously reset the `superadmin` account to a
+-- hard-coded bcrypt hash committed to the repository (a login backdoor for any
+-- database where a `superadmin` row already existed). It is neutralised: the
+-- body is intentionally a no-op.
+--
+-- Fresh installs never needed it — migrations run BEFORE seed()
+-- (server/src/index.js), so no `superadmin` row exists yet and seed.js assigns a
+-- random password. Databases that already applied the old 024 are repaired by
+-- 097-invalidate-superadmin-default.sqlite.sql.
+--
+-- The harmless statement below keeps the migration non-empty (some drivers'
+-- empty-query handling is flaky).
+SELECT 1;

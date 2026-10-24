@@ -1,0 +1,213 @@
+name: Render Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+
+# Collapse superseded runs. When several commits land in quick succession only
+# the newest matters, so cancel the older ones instead of queueing a full
+# install + lint + build + test run for each.
+concurrency:
+  group: render-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Quality gate
+    # No service container here on purpose.
+    #
+    # The PostgreSQL suite and actionlint both need a Linux runner (GitHub
+    # rejects `services:` with "Container operations are only supported on
+    # Linux runners"). Those live in the `pg-quality` job below, which runs on
+    # a GitHub-hosted Linux runner.
+    #
+    # This job is the one that can always run: it needs no containers, so it
+    # works on the local self-hosted runner while the account's Actions billing
+    # is unresolved, and it works on GitHub-hosted runners too.
+    runs-on: self-hosted
+    # Git Bash, not PowerShell. The runner wraps every `run:` step in a temp
+    # .ps1 file, and this machine's PowerShell execution policy is restrictive,
+    # so each step would die with "running scripts is disabled on this system".
+    # Git Bash keeps the POSIX syntax the deploy steps need (`[ -z "$HOOK_URL" ]`,
+    # `curl`) and touches no machine security settings.
+    #
+    # The full path is deliberate: plain `shell: bash` resolves `bash` from
+    # PATH, and on this machine `C:\WINDOWS\system32\bash.exe` (the WSL
+    # launcher) shadows Git Bash. WSL has no distro installed here, so every
+    # step died with `execvpe(/bin/bash) failed: No such file or directory`.
+    # The 8.3 short path `PROGRA~1` avoids spaces so the runner can parse the
+    # shell command.
+    defaults:
+      run:
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+    # Skip Dependabot PRs: each one otherwise burns a full install + lint +
+    # build + test run, and a private repo on GitHub's free tier only gets
+    # 2000 Actions minutes/month. Dependabot PRs are still reviewed by a
+    # human before merge.
+    #
+    # `github.actor` is the full bot login "dependabot[bot]", NOT
+    # "dependabot" - matching the short name silently fails to exclude
+    # anything. The head-repo check is the belt-and-braces guard, and must
+    # stay behind an event_name test: on a push, github.event.pull_request
+    # is null, so comparing it directly would skip this job on every push.
+    if: github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    # No service container here on purpose.
+    #
+    # The PostgreSQL suite and actionlint both need a Linux runner (GitHub
+    # rejects `services:` with "Container operations are only supported on
+    # Linux runners"). Those live in the `pg-quality` job below, which runs on
+    # a GitHub-hosted Linux runner.
+    #
+    # This job is the one that can always run: it needs no containers, so it
+    # works on the local self-hosted runner while the account's Actions billing
+    # is unresolved, and it works on GitHub-hosted runners too.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for gitleaks to scan history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Dependency audit (documented allowlist for unfixable advisories)
+        run: npm run audit
+      - name: Full check (lint, typecheck, build, i18n, server tests)
+        run: npm run check
+
+  # Linux-only checks that cannot run on the self-hosted Windows runner.
+  # `continue-on-error` is deliberate: while Actions billing is unresolved the
+  # job never starts, and that must not block the main gate or the deploys.
+  # Once billing works this job enforces real PostgreSQL coverage again.
+  pg-quality:
+    name: 'PostgreSQL + workflow lint'
+    needs: check
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    # A real PostgreSQL so the PG migration suite actually executes. It skips
+    # without PG_TEST_URL, which meant the only check that the PG SQL applies to
+    # a real database never ran - the gap that let a broken Neon branch boot
+    # reach production before any test noticed.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: testpw
+          POSTGRES_DB: schooltest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PG_TEST_URL: postgres://postgres:testpw@127.0.0.1:5432/schooltest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for gitleaks to scan history
+      # gitleaks-action ships no Windows binary, so the secret scan lives here
+      # with the other Linux-only checks.
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate workflow files (actionlint)
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: ".github/workflows/*.yml"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: PostgreSQL migration suite
+        run: npm run test --workspace=server
+
+
+  deploy-staging:
+    name: Deploy to Staging (Render)
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+    environment: staging
+    steps:
+      - name: Trigger Render staging deploy hook
+        env:
+          HOOK_URL: ${{ secrets.RENDER_STAGING_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "RENDER_STAGING_DEPLOY_HOOK_URL secret not set - skipping staging deploy"
+            exit 0
+          fi
+          echo "Triggering staging deployment..."
+          curl -fsS --max-time 20 --retry 0 -X POST "$HOOK_URL"
+          echo "Staging deploy triggered. Check Render dashboard for status."
+
+  deploy-prod:
+    name: Deploy to Production (Render)
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+    # Required reviewers configured on the `production` environment ARE the
+    # manual approval gate. This is the only job that references the
+    # environment, so reviewers are prompted exactly once. A separate
+    # `approval` job also declaring `environment: production` would pause a
+    # second time (GitHub gates every job that targets a protected
+    # environment), and without required reviewers it would pause not at all.
+    environment: production
+    steps:
+      - name: Trigger Render production deploy hook
+        env:
+          HOOK_URL: ${{ secrets.RENDER_PROD_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "RENDER_PROD_DEPLOY_HOOK_URL secret not set - skipping production deploy"
+            exit 0
+          fi
+          echo "Triggering production deployment..."
+          curl -fsS --max-time 20 --retry 0 -X POST "$HOOK_URL"
+          echo "Production deploy triggered. Check Render dashboard for status."
+
+  notify-failure:
+    name: Notify on failure
+    needs: [check, deploy-staging, deploy-prod]
+    if: failure()
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+    # The webhook must live at job scope: a step's `if:` is evaluated before
+    # that step's own `env` exists, and `secrets` cannot be read from an `if:`
+    # at all. At step scope this guard was always false, so the alert never
+    # fired. Job-scope `env` is visible to `env.SLACK_WEBHOOK_URL` in the `if:`
+    # below and is still exported to the `run:` shell.
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Send failure notification
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          curl -fsS --max-time 20 --retry 0 -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"❌ *CI/CD Pipeline Failed*\n*Repo:* $GITHUB_REPOSITORY\n*Run:* https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n*Commit:* $GITHUB_SHA\n*Ref:* $GITHUB_REF\"}" \
+            "$SLACK_WEBHOOK_URL" || echo "Slack notification failed (webhook not configured or network error)"

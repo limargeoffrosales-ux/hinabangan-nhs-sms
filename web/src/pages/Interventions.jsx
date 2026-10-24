@@ -1,0 +1,288 @@
+import { useEffect, useState, useCallback } from 'react';
+import { Plus, AlertTriangle, Users, FileText, PhoneCall } from 'lucide-react';
+import { api } from '../lib/api';
+import { PageHead, Badge, Empty, Spinner, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
+import { downloadDoc } from '../lib/export';
+import { useToast } from '../components/Toast';
+
+const CATEGORIES = [
+  ['academic_recovery', 'Academic Recovery'],
+  ['remediation', 'Remediation'],
+  ['enrichment', 'Enrichment'],
+  ['attendance', 'Attendance'],
+  ['behavior', 'Behavior'],
+  ['guidance', 'Guidance'],
+  ['health', 'Health'],
+  ['reading', 'Reading'],
+  ['numeracy', 'Numeracy'],
+  ['home_visitation', 'Home Visitation'],
+];
+const RISK_CLASS = { High: 'badge-red', Moderate: 'badge-yellow', Low: 'badge-blue', None: 'badge-gray' };
+
+const blank = { student_id: '', title: '', category: 'academic_recovery', strategy: '', frequency: '', start_date: '', end_date: '', status: 'active', progress_notes: '' };
+
+export default function Interventions() {
+  const { toast } = useToast();
+  const [plans, setPlans] = useState(null);
+  const [atRisk, setAtRisk] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState('');
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [contactPlan, setContactPlan] = useState(null);
+  const [contactForm, setContactForm] = useState({ mode: 'meeting', summary: '', contact_date: '' });
+
+  const load = useCallback(async () => {
+    try {
+      const [p, a, s] = await Promise.all([
+        api('/interventions?limit=500'),
+        api('/interventions/at-risk'),
+        api('/interventions/stats'),
+      ]);
+      setPlans(p.data);
+      setAtRisk(a.data);
+      setStats(s);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (modal && students.length === 0) {
+      api('/students?limit=200').then((r) => setStudents(r.data)).catch(() => {});
+    }
+  }, [modal, students.length]);
+
+  async function save() {
+    if (!form.student_id || !form.title) return toast.error('Select a learner and give the plan a title');
+    setBusy(true);
+    try {
+      if (editing) await api(`/interventions/${editing}`, { method: 'PATCH', body: form });
+      else await api('/interventions', { method: 'POST', body: form });
+      setModal(false);
+      setEditing(null);
+      setForm(blank);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEdit(p) {
+    setEditing(p.id);
+    setForm({
+      student_id: String(p.student_id || ''),
+      title: p.title || '',
+      category: p.category || 'academic_recovery',
+      strategy: p.strategy || '',
+      frequency: p.frequency || '',
+      start_date: p.start_date || '',
+      end_date: p.end_date || '',
+      status: p.status || 'active',
+      progress_notes: p.progress_notes || '',
+    });
+    setModal(true);
+  }
+
+  async function updateStatus(p, status) {
+    await api(`/interventions/${p.id}`, { method: 'PATCH', body: { status } });
+    await load();
+  }
+
+  async function remove(p) {
+    setConfirmAction({ message: 'Delete this intervention plan?', action: async () => { await api(`/interventions/${p.id}`, { method: 'DELETE' }); await load(); } });
+  }
+
+  async function parentNotice(p) {
+    setBusy(true);
+    try {
+      const r = await api('/interventions/ai/parent-notice', { method: 'POST', body: { student_id: p.student_id, reason: p.progress_notes || `the ongoing ${p.category} intervention` } });
+      setNotice({ text: r.body || r.text || '', meta: p });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function logContact(p) {
+    if (!contactForm.contact_date) return toast.error('Select the contact date');
+    setBusy(true);
+    try {
+      await api(`/interventions/${p.id}/contacts`, {
+        method: 'POST',
+        body: { mode: contactForm.mode, summary: contactForm.summary, contact_date: contactForm.contact_date },
+      });
+      setContactPlan(null);
+      setContactForm({ mode: 'meeting', summary: '', contact_date: '' });
+      toast.success('Contact logged');
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const catName = (c) => (CATEGORIES.find((x) => x[0] === c) || [c, c])[1];
+
+  return (
+    <div>
+      <PageHead title="Learner Intervention" sub="Predictive risk detection, intervention plans, parent engagement, and effectiveness analytics.">
+        <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(blank); setModal(true); }}><Plus size={15} /> New intervention plan</button>
+      </PageHead>
+      <ErrorBanner error={error} />
+
+      <div className="grid-4">
+        <div className="card kpi"><div className="kpi-num danger">{atRisk ? atRisk.filter((a) => a.risk === 'High').length : '—'}</div><div className="kpi-lbl">High-risk learners</div></div>
+        <div className="card kpi"><div className="kpi-num warn">{atRisk ? atRisk.filter((a) => a.risk === 'Moderate').length : '—'}</div><div className="kpi-lbl">Moderate risk</div></div>
+        <div className="card kpi"><div className="kpi-num">{stats ? stats.active : '—'}</div><div className="kpi-lbl">Active plans</div></div>
+        <div className="card kpi"><div className="kpi-num accent">{atRisk ? atRisk.filter((a) => a.risk !== 'None' && !a.has_plan).length : '—'}</div><div className="kpi-lbl">Risk without a plan</div></div>
+      </div>
+
+      <div className="card">
+        <h4><AlertTriangle size={15} /> Predictive risk detection <span className="sub">(grades + attendance + reading)</span></h4>
+        {!atRisk ? <Spinner /> : (
+          <table className="table">
+            <thead>
+              <tr><th>Learner</th><th>Section</th><th>Avg grade</th><th>Attendance</th><th>Reading</th><th>Risk</th><th>Indicators</th><th>Plan?</th></tr>
+            </thead>
+            <tbody>
+              {atRisk.filter((a) => a.risk !== 'None').slice(0, 12).map((a) => (
+                <tr key={a.student_id}>
+                  <td>{a.name}</td>
+                  <td>{a.section_name || '—'}</td>
+                  <td>{a.avg_grade}</td>
+                  <td>{a.attendance_rate}%</td>
+                  <td>{a.reading_level || '—'}</td>
+                  <td><span className={`badge ${RISK_CLASS[a.risk]}`}>{a.risk}</span></td>
+                  <td className="sub">{a.indicators.join(', ') || '—'}</td>
+                  <td>{a.has_plan ? <span className="badge badge-green">ON FILE</span> : <button className="btn btn-sm" onClick={() => { setEditing(null); setForm({ ...blank, student_id: a.student_id, title: `Intervention for ${a.name}` }); setModal(true); }}><Plus size={12} /> Plan</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card">
+        <h4>Intervention plans</h4>
+        {!plans ? <Spinner /> : plans.length === 0 ? <Empty text="No intervention plans yet. Flag a learner above and create one." /> : (
+          <div className="grid-2">
+            {plans.map((p) => (
+              <div className="card card-inset" key={p.id}>
+                <div className="card-top">
+                  <Users size={16} className="accent-ic" />
+                  <Badge status={p.status} />
+                </div>
+                <h5>{p.title}</h5>
+                <p className="sub">{p.first_name} {p.last_name} · {catName(p.category)}</p>
+                <p className="sub">{p.strategy}</p>
+                <p className="sub">Frequency: {p.frequency || '—'} · {p.start_date || '—'} to {p.end_date || 'ongoing'}</p>
+                {p.progress_notes && <div className="notice ok">{p.progress_notes}</div>}
+                {(p.contacts || []).length > 0 && <div className="mini-stats"><span><PhoneCall size={12} /> {(p.contacts || []).length} parent contacts logged</span></div>}
+                {(p.contacts || []).length > 0 && <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12.5 }}>
+                  {(p.contacts || []).map((c) => <li key={c.id}><strong>{c.mode}</strong> {c.contact_date} — {c.summary || 'no notes'}</li>)}
+                </ul>}
+                <div className="card-actions">
+                  <button className="btn btn-sm" onClick={() => openEdit(p)}>Edit</button>
+                  <button className="btn btn-sm" onClick={() => parentNotice(p)} disabled={busy}><FileText size={13} /> Parent notice</button>
+                  <button className="btn btn-sm" onClick={() => { setContactPlan(p); setContactForm({ mode: 'meeting', summary: '', contact_date: new Date().toISOString().slice(0, 10) }); }}><PhoneCall size={13} /> Log contact</button>
+                  {p.status === 'active' && <button className="btn btn-sm" onClick={() => updateStatus(p, 'completed')}>Complete</button>}
+                  <button className="btn btn-sm btn-danger" onClick={() => remove(p)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <Modal title={editing ? 'Edit Intervention Plan' : 'New Intervention Plan'} sub="Interventions protect learners — AI detects risk, you prescribe the response." onClose={() => { setModal(null); setEditing(null); }} wide>
+          <div className="form-row">
+            <label>Learner *
+              <select value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })}>
+                <option value="">Select learner...</option>
+                {students.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} — {s.lrn}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="form-row">
+            <label>Plan title *<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
+          </div>
+          <div className="form-row">
+            <label>Category
+              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                {CATEGORIES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+              </select>
+            </label>
+            <label>Status
+              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+          </div>
+          <div className="form-row">
+            <label>Strategy<input value={form.strategy} onChange={(e) => setForm({ ...form, strategy: e.target.value })} placeholder="e.g. Daily 20-min guided reading" /></label>
+            <label>Frequency<input value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })} placeholder="e.g. 3x per week" /></label>
+          </div>
+          <div className="form-row">
+            <label>Start<input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></label>
+            <label>End<input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></label>
+          </div>
+          <div className="form-row">
+            <label>Progress notes<textarea rows={2} value={form.progress_notes} onChange={(e) => setForm({ ...form, progress_notes: e.target.value })} /></label>
+          </div>
+          <div className="modal-footer">
+            <button className="btn" onClick={() => { setModal(null); setEditing(null); }}>Cancel</button>
+            <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving...' : (editing ? 'Save changes' : 'Save plan')}</button>
+          </div>
+        </Modal>
+      )}
+
+      {notice && (
+        <Modal title="AI parent notification draft" sub={`For ${notice.meta.first_name} ${notice.meta.last_name}`} onClose={() => setNotice(null)} wide>
+          <textarea className="doc-editor" rows={16} value={notice.text} readOnly />
+          <div className="doc-export">
+            <button className="btn btn-primary btn-sm" onClick={() => downloadDoc('Parent Notice', notice.text, 'parent-notice.doc')}>Download (.doc)</button>
+            <button className="btn btn-sm" onClick={() => setNotice(null)}>Close</button>
+          </div>
+        </Modal>
+      )}
+
+      {contactPlan && (
+        <Modal title="Log parent/guardian contact" sub={`For ${contactPlan.first_name} ${contactPlan.last_name} — ${contactPlan.title}`} onClose={() => setContactPlan(null)}>
+          <div className="form-row">
+            <label>Mode
+              <select value={contactForm.mode} onChange={(e) => setContactForm({ ...contactForm, mode: e.target.value })}>
+                <option value="meeting">Meeting</option><option value="call">Phone call</option>
+                <option value="message">Message / email</option><option value="visit">Home visit</option>
+              </select>
+            </label>
+            <label>Date *<input type="date" value={contactForm.contact_date} onChange={(e) => setContactForm({ ...contactForm, contact_date: e.target.value })} /></label>
+          </div>
+          <div className="form-row">
+            <label>Summary<textarea rows={3} value={contactForm.summary} onChange={(e) => setContactForm({ ...contactForm, summary: e.target.value })} placeholder="What was discussed / agreed?" /></label>
+          </div>
+          <div className="modal-footer">
+            <button className="btn" onClick={() => setContactPlan(null)}>Cancel</button>
+            <button className="btn btn-primary" onClick={() => logContact(contactPlan)} disabled={busy}>{busy ? 'Saving...' : 'Log contact'}</button>
+          </div>
+        </Modal>
+      )}
+
+      {confirmAction && <ConfirmModal message={confirmAction.message} danger onConfirm={() => { confirmAction.action(); setConfirmAction(null); }} onCancel={() => setConfirmAction(null)} />}
+    </div>
+  );
+}

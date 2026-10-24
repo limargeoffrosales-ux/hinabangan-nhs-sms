@@ -1,0 +1,25 @@
+node_modules/
+dist/
+data/
+*.log
+.env
+.DS_Store
+accounts.txt
+web/android/build/
+web/android/.gradle/
+web/android/app/build/
+web/android/capacitor-cordova-android-plugins/build/
+
+# PII / secrets / stale duplicates — do NOT commit
+hinabangan-backup.json
+*.apk
+apk-output/
+*-Mary_Anthonette.*
+server/data/
+server/data.sqlite
+server/.env
+
+search_recently.py
+
+# Generated npm audit reports — regenerate with `npm audit`, never commit
+audit.json

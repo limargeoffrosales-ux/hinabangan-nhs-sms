@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "checkJs": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/lib/utils.js",
+    "src/lib/capacitor.js",
+    "src/lib/lazy-recharts.js",
+    "src/lib/constants.js",
+    "src/lib/api.js",
+    "src/i18n/index.js"
+  ]
+}

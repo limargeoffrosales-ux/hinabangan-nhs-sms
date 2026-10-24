@@ -1,0 +1,13 @@
+# GitHub parses workflow YAML strictly: a CRLF file or a UTF-8 BOM makes it
+# fail to load, after which the workflow is listed by file path instead of its
+# name and every dispatch returns 422. Git for Windows defaults to
+# core.autocrlf=true, which rewrites these files to CRLF on checkout, so pin
+# them explicitly instead of relying on the working tree.
+.github/workflows/*.yml text eol=lf
+.github/workflows/*.yaml text eol=lf
+
+# Shell scripts run through Git Bash on Windows and also in Linux containers.
+scripts/*.sh text eol=lf
+
+# Keep PowerShell readable with CRLF, which is what Windows expects.
+*.ps1 text eol=crlf

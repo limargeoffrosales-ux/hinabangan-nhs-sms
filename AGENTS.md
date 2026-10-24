@@ -1,0 +1,185 @@
+# AGENTS.md — Hinabangan NHS School Management System
+
+## Project structure
+
+Monorepo with two packages and a root orchestrator:
+
+```
+server/   Express API (CommonJS, Node 22.5+)
+web/      React SPA (Vite, ESM, React 19)
+database/ migrations/  — paired .sql (PG) + .sqlite.sql files, auto-run on boot
+```
+
+Root `package.json` scripts:
+- `npm run build` — `npm run build --workspaces --if-present` (web vite build; prod server deps via `npm ci` on Render)
+- `npm start` — `cd server && npm start`
+- `npm run check` — full gate (web lint + typecheck + build + i18n:check + server tests)
+- `npm run check:web` — web-only gate (lint + typecheck + build + i18n:check)
+- `npm run i18n:check` — verify every static `t('key')` in `web/src` exists in both locale files (see `web/scripts/i18n-check.mjs`)
+
+## Dev commands
+
+```bash
+# Full quality gate before any commit (lint, tsc, build, i18n, server tests)
+npm run check
+
+# API server (uses built-in SQLite if DATABASE_URL not set)
+cd server && npm run dev        # --watch mode, port 4000
+
+# Web portal (Vite, proxies /api -> :4000)
+cd web && npm run dev            # port 5173
+
+# Web-only checks from web/
+npm run lint && npm run typecheck && npm run i18n:check
+
+# Server tests only (node --test)
+cd server && npm test
+
+# Production build + run
+npm run build && npm start
+
+# Local PostgreSQL + Redis
+docker compose up -d
+# Then: $env:DATABASE_URL = "postgresql://meridianed:meridianed-dev@localhost:5432/meridianed"
+```
+
+Server has a `node --test` suite in `server/test/` (covers migrations/parity, schedule, auth, notify). Every push to `main` runs `npm run check` in CI before triggering the Render deploy hook.
+
+## Windows dev environment (OneDrive)
+
+This repo lives under OneDrive (`...\OneDrive\Documents\...`). OneDrive Files
+On-Demand evicts files it considers cold, so `node_modules` loses content and
+builds fail with confusing errors:
+
+- `npm ci` reports "added 821 packages", then `node_modules` is gutted minutes
+  later (588 dirs → 35)
+- `Test-Path` reports a file missing while `Get-ChildItem` still lists it
+- `vite build` → `Could not resolve "./..."`; server → `Cannot find module 'pino'`
+- `npm ci` → `ENOTEMPTY` / `rmdir` errors (errno -4051)
+
+**Two fixes that do NOT work here — do not spend time on them again:**
+
+- `attrib +P -U` (pinning): eviction still happens on this account.
+- NTFS junctions: `npm` replaces the junction and writes into the repo anyway.
+
+**What works: keep `node_modules` physically outside OneDrive.** Use the helper
+script, which builds and checks in a mirror directory off OneDrive:
+
+```powershell
+# from the repo
+.\scripts\onedrive-protect.ps1              # sync sources out, then build + check
+.\scripts\onedrive-protect.ps1 -CheckOnly   # just re-run the quality gate
+.\scripts\onedrive-protect.ps1 -Repair      # reinstall deps in the mirror first
+.\scripts\onedrive-protect.ps1 -SyncBack    # copy edits back (copy-only, never deletes)
+```
+
+**Never run `npm install` / `npm ci` / `npm run check` directly inside the OneDrive
+copy** — it will corrupt itself. Either run the script, or work in the mirror at
+`C:\Users\lgros\school-system`.
+
+The script refuses `-SyncBack` when the mirror is stale (it compares the repo
+`HEAD` against `.mirror-head` recorded at sync time), so a stale mirror cannot
+revert newer commits. It copies with `robocopy /E`, never `/MIR` — mirror mode
+propagates deletions and has silently deleted tracked files (e.g.
+`docs/33-setup-checklist.md`) before.
+
+**Keep secrets off OneDrive too.** `server/.env` would be cloud-synced as
+plaintext, so the server loads its env file through `server/src/loadEnv.js`
+(required via `node -r ./src/loadEnv.js ...`), which reads the `ENV_FILE`
+environment variable first and falls back to `server/.env`. Point it outside
+OneDrive, e.g.:
+
+```powershell
+setx ENV_FILE "$env:USERPROFILE\.config\hinhsms\server.env"
+```
+
+Existing environment variables always win, so Render/CI dashboard values are
+never shadowed; in production no env file is present and the loader is a no-op.
+
+## Database
+
+- **Dual-mode**: SQLite locally (`node:sqlite` built-in), PostgreSQL in production (Neon/Render).
+- `DATABASE_URL` env var controls dialect: set = PG, unset = SQLite.
+- Migrations auto-run on server boot. Files in `database/migrations/` named `NNN-name.sql` (PG) and `NNN-name.sqlite.sql` (SQLite). Both must be created when adding migrations.
+- `schema_migrations` table tracks applied files. PG uses batch check; SQLite opens a separate connection per check.
+
+### Critical PG gotchas
+
+These caused real production crashes:
+
+1. **BOOLEAN = integer**: PG returns BOOLEAN as JS `true`/`false`. Never compare with `1`/`0` — use `TRUE`/`FALSE` in SQL, or the `bool()` utility from `db.js`.
+2. **`RETURNING *` on PK TEXT**: `app_settings` has `key TEXT PRIMARY KEY`. `RETURNING id` fails because there's no `id` column. Use `RETURNING *`.
+3. **Column aliases in GROUP BY/CASE**: PG does NOT resolve SELECT aliases inside `GROUP BY` or `CASE ... WHEN` in ORDER BY. Repeat the full expression:
+   ```sql
+   -- WRONG in PG:
+   SELECT CASE WHEN x >= 90 THEN 'A' END AS band ... GROUP BY band ORDER BY CASE band WHEN ...
+   -- CORRECT:
+   SELECT CASE WHEN x >= 90 THEN 'A' END AS band ... GROUP BY CASE WHEN x >= 90 THEN 'A' END ORDER BY CASE CASE WHEN x >= 90 THEN 'A' END WHEN ...
+   ```
+4. **JSONB comes back as JS objects**: `pg` driver auto-parses JSONB columns. Don't call `JSON.parse()` on them — check `typeof` first. Rendering a raw object in React crashes: "Objects are not valid as a React child."
+5. **E-string parse errors in migrations**: Use `$$` dollar-quoting instead of single-quote E-strings for PG migration SQL.
+
+## Server architecture
+
+Entry: `server/src/index.js` → boots DB, runs migrations, seeds, mounts Express routes.
+
+Key modules:
+- `db.js` — `q()` (single row), `qa()` (all rows), `qr()` (run), `qi()` (runId). Exports `dialect`, `usePg`, `bool()`.
+- `auth.js` — JWT sign/verify, `authenticate` middleware, `requireRole()`.
+- `utils.js` — `asyncH()` (error wrapper), `audit()`, `page()`, `maskPII()`, `logAccess()`, `safeJsonParse()`.
+- `routes/` — one file per domain. Mounted in `index.js` under `/api/v1/`.
+- `notify.js` — email (nodemailer/SMTP) + SMS engine, background sweep.
+- `schedule.js` — `generateSchedule`, `findConflicts` for auto-program generation.
+
+Route pattern: every route file exports a router with `router.use(authenticate)` at top. Write roles enforced per-endpoint with `requireRole(...)`.
+
+## Web architecture
+
+React 19 + React Router 7 + Vite. Lazy-loaded pages via `React.lazy()`. Auth via `useAuth()` hook from `lib/auth.js`. API client in `lib/api.js` with token refresh.
+
+- `App.jsx` — all routes, `Protected`/`AdminOnly`/`PortalProtected` wrappers.
+- `pages/` — one file per page, ~45 pages.
+- `components/ui.jsx` — shared primitives: `Badge`, `Modal`, `Empty`, `Spinner`, `ErrorBanner`, `PageHead`.
+- `i18n/` — i18next with EN/FIL, LanguageDetector.
+- `styles.css` — single CSS file (~1400 lines), CSS custom properties for theming.
+
+### UI gotchas
+
+- `Badge` component accepts `status` prop (not `className`). Passing `className` renders "UNDEFINED".
+- `ErrorBanner` expects a string, not an object. Use `e.message` in catch blocks.
+- All icon buttons need `aria-label` for accessibility.
+
+## Deployment
+
+- **Render**: Auto-deploys on push to `main`. Build: `npm run build`, Start: `npm start`, Health: `/api/v1/health`.
+- GitHub Actions runs `npm run check` (quality gate) on every push to main, then triggers the Render deploy hook on success.
+- Render free tier: ~60s cold start after idle. Service sleeps between requests.
+- Env vars needed: `DATABASE_URL`, `JWT_SECRET` (auto-generated), `SEED_ON_BOOT=1`.
+
+## Common patterns
+
+- **Adding a new route**: Create `server/src/routes/X.routes.js`, mount in `index.js`, add page in `web/src/pages/X.jsx`, add route in `web/src/App.jsx`, add nav in `web/src/components/Layout.jsx`.
+- **Adding a new migration**: Create both `NNN-name.sql` (PG) and `NNN-name.sqlite.sql` (SQLite) in `database/migrations/`. Auto-applied on next boot.
+- **i18n**: Add keys to both `web/src/i18n/en.json` and `fil.json`. Use `t('key')` in components. After adding keys, run `npm run i18n:check` (from root) to verify every static key resolves in both locales.
+- **Server-side filtering**: Use parameterized queries with `?` placeholders — the PG driver converts them to `$1, $2...` automatically via `db.js` params wrapper.
+
+## Removed features (historical — do not re-add)
+
+These features were intentionally removed in commit `5aeb3b8` to reduce bloat:
+
+- **AI Document Generator** (`server/src/ai/`, `AiDocs`, `AiAssistant`, cleanup timer)
+- **7-theme picker** (reduced to light/dark toggle only)
+- **OneRoster v1.2** (`data-exchange/` module, `DataImportExport` page)
+- **Research module** (`research.routes`, `Research`, `PortalResearch`)
+- **Password audit trail** (`password-audit.routes`, Users.jsx history modal)
+- **Security incidents page** (`security-incidents.routes`, `SecurityIncidents`)
+- **Data erasure requests** (erasure endpoints removed from `privacy.routes`)
+- **Capacitor Android/iOS shell** (config, `android/` and `ios/` directories, APK artifacts, `android-build.yml`)
+- **Consent forms** (`consent.routes`, `ConsentForms`, `PortalConsent`)
+- **Reading & Numeracy** (`ReadingNumeracy` page)
+
+Note: `password_audit` and `security_incidents` **tables are retained** — they are still written to by `auth.routes.js` and `users.routes.js`. Only the routes, UI pages, and i18n keys were removed.
+
+## Login
+
+Superadmin: username `superadmin`. The password is generated at first boot and printed once in the boot log (or written to `accounts.txt` for local demo seeds) — but never printed when `NODE_ENV=production`; recover a production superadmin via the forgot-password flow or reset it as a bootstrap seed. If the production password was ever stored in a file or chat, rotate it in production.

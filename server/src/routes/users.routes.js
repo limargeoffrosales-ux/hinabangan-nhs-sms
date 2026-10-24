@@ -1,0 +1,132 @@
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const { q, qa, qi, qr } = require('../db');
+const { authenticate, requireRole, ROLES, PRIVILEGED_ROLES, isAdminRole, clearUserCache, clearCsrfToken } = require('../auth');
+const { asyncH, audit, page } = require('../utils');
+
+const router = express.Router();
+router.use(authenticate);
+
+router.get('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const { limit, offset } = page(req);
+  const searchQ = req.query.q ? `%${req.query.q}%` : '%';
+  const rows = await qa(
+    'SELECT id, username, name, role, email, phone, status, created_at FROM users WHERE (username LIKE ? OR name LIKE ?) ORDER BY id DESC LIMIT ? OFFSET ?',
+    [searchQ, searchQ, limit, offset]);
+  res.json({ data: rows, limit, offset });
+}));
+
+router.post('/', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const { username, password, name, role, email, phone } = req.body || {};
+  if (!username || !password || !name || !role) return res.status(400).json({ error: 'username, password, name, role are required' });
+  if (!ROLES.includes(role)) return res.status(400).json({ error: `role must be one of: ${ROLES.join(', ')}` });
+  if (req.user.role === 'school_admin' && PRIVILEGED_ROLES.includes(role)) {
+    return res.status(403).json({ error: 'school_admin cannot create accounts with admin-level roles' });
+  }
+  if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
+  const exists = await q('SELECT id FROM users WHERE username = ?', [String(username).trim()]);
+  if (exists) return res.status(409).json({ error: 'Username already taken' });
+  const id = await qi(
+    'INSERT INTO users (username, password_hash, name, role, email, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [String(username).trim(), await bcrypt.hash(String(password), 12), name, role, email || null, phone || null, 'active']);
+  await qi(
+    'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+    [id, req.user.id, 'created', req.ip]);
+  await audit(req, 'CREATE_USER', 'users', id, { username, role });
+  res.status(201).json({ id });
+}));
+
+// Escalation guard: a school_admin may never touch a peer admin, the principal,
+// or the regional/divisional tiers. Resetting a privileged account's password
+// would otherwise grant full control of that account on next sign-in, which is
+// the same privilege escalation the role-assignment branch below prevents.
+// Uses PRIVILEGED_ROLES (not ADMIN_ROLES) so region_admin/division_admin are
+// covered too.
+function forbidTargetEscalation(actorRole, targetRole) {
+  if (actorRole === 'super_admin') return null;
+  return PRIVILEGED_ROLES.includes(targetRole)
+    ? { status: 403, error: 'Only super_admin can modify an account with an admin-level role' }
+    : null;
+}
+
+router.patch('/:id', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const { name, role, email, phone, status, password } = req.body || {};
+  const user = await q('SELECT * FROM users WHERE id = ?', [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (Number(req.params.id) === req.user.id && role && role !== user.role && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'You cannot change your own role' });
+  }
+  if (req.user.role === 'school_admin' && role && PRIVILEGED_ROLES.includes(role)) {
+    return res.status(403).json({ error: 'school_admin cannot assign admin-level roles' });
+  }
+  if (user.role === 'super_admin' && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only super_admin can modify another super_admin' });
+  }
+  const escalation = forbidTargetEscalation(req.user.role, user.role);
+  if (escalation) return res.status(escalation.status).json({ error: escalation.error });
+  if (password) {
+    if (String(password).length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
+    await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [await bcrypt.hash(String(password), 12), user.id]);
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
+    await clearCsrfToken(user.id);
+    await qi(
+      'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+      [user.id, req.user.id, 'reset', req.ip]);
+  }
+  await qr('UPDATE users SET name = ?, role = ?, email = ?, phone = ?, status = ? WHERE id = ?',
+    [name ?? user.name, role ?? user.role, email ?? user.email, phone ?? user.phone, status ?? user.status, user.id]);
+  clearUserCache(user.id);
+  await audit(req, 'UPDATE_USER', 'users', user.id, { role, status, password: !!password });
+  res.json({ ok: true });
+}));
+
+router.delete('/:id', requireRole('super_admin'), asyncH(async (req, res) => {
+  if (Number(req.params.id) === req.user.id) return res.status(400).json({ error: 'You cannot delete your own account' });
+  const user = await q('SELECT * FROM users WHERE id = ?', [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  await qr('DELETE FROM users WHERE id = ?', [user.id]);
+  clearUserCache(user.id);
+  await audit(req, 'DELETE_USER', 'users', user.id, { username: user.username });
+  res.json({ ok: true });
+}));
+
+router.get('/roles', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  res.json({ data: ROLES.map((r) => ({ role: r, admin: isAdminRole(r) })) });
+}));
+
+router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const { user_ids, password } = req.body || {};
+  if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+    return res.status(400).json({ error: 'user_ids array is required' });
+  }
+  if (!password || String(password).length < 12) {
+    return res.status(400).json({ error: 'Password must be at least 12 characters' });
+  }
+  let reset = 0;
+  let skipped = 0;
+  // One hash for every recipient: bcrypt at cost 12 is deliberately slow, so
+  // hashing inside the loop cost seconds per bulk operation for no benefit.
+  const hash = await bcrypt.hash(String(password), 12);
+  for (const uid of user_ids) {
+    const user = await q('SELECT id, username, role FROM users WHERE id = ?', [Number(uid)]);
+    if (!user) continue;
+    if (forbidTargetEscalation(req.user.role, user.role)) { skipped++; continue; }
+    await qr('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
+    await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [user.id]);
+    await clearCsrfToken(user.id);
+    clearUserCache(user.id);
+    await qi(
+      'INSERT INTO password_audit (user_id, changed_by, action, ip_address) VALUES (?, ?, ?, ?)',
+      [user.id, req.user.id, 'bulk_reset', req.ip]);
+    reset++;
+  }
+  if (skipped) {
+    await audit(req, 'BULK_PASSWORD_RESET_SKIPPED', 'users', null, { skipped, reason: 'insufficient_role' });
+  }
+  await audit(req, 'BULK_PASSWORD_RESET', 'users', null, { count: reset });
+  res.json({ ok: true, reset, skipped });
+}));
+
+module.exports = router;

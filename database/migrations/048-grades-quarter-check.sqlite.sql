@@ -1,0 +1,4 @@
+-- SQLite doesn't support ALTER TABLE DROP CONSTRAINT
+-- The existing CHECK (quarter BETWEEN 1 AND 4) allows quarter 4
+-- which the app never writes. This is a known limitation.
+-- New inserts will be validated by app code (^[1-3]$ regex).

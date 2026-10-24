@@ -1,0 +1,13 @@
+-- Migration 088: Hot-path query indexes (NEUTRALIZED on PG)
+--
+-- These indexes (class_assignments.teacher_id, attendance.section_id,
+-- enrollments.school_year,status) failed in production: at the Neon 512 MB
+-- project size cap, CREATE INDEX extends the data file and aborts the boot
+-- with 53100 ("could not extend file because project size limit has been
+-- exceeded"). Boot-time pruning did not always free enough space for the
+-- index build on the large attendance/enrollments tables.
+--
+-- The migration is kept as a no-op so the step records cleanly at the cap.
+-- The equivalent indexes remain in 088-index-hotpaths.sqlite.sql for local
+-- SQLite. Re-introduce the PG indexes in a later migration once the project
+-- has headroom (e.g. after a Neon plan upgrade or a storage diet).

@@ -1,0 +1,32 @@
+{
+  "name": "hinabangan-nhs-school-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hinabangan National High School — Cloud School Management System",
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
+  "scripts": {
+    "build": "npm run lint:web && npm run build --workspaces --if-present",
+    "build:web": "npm run build --workspace=web",
+    "check": "npm run audit && npm run lint:web && npm run lint:server && npm run check:web && npm test",
+    "check:web": "npm run typecheck:web && npm run build:web && npm run i18n:check && npm run token:check",
+    "token:check": "npm run token:check --workspace=web",
+    "i18n:check": "npm run i18n:check --workspace=web",
+    "lint:web": "npm run lint --workspace=web",
+    "lint:server": "npm run lint --workspace=server",
+    "audit": "node scripts/audit.mjs",
+    "test": "npm run test --workspace=server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck:web": "npm run typecheck --workspace=web",
+    "start": "cd server && npm start",
+    "programs:generate": "cd server && node -r ./src/loadEnv.js src/generate-programs.js"
+  }
+}

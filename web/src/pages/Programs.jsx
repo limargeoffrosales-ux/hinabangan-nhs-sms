@@ -1,0 +1,1006 @@
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { CalendarRange, Plus, RefreshCw, Trash2, Pencil, TriangleAlert, CheckCircle2, Printer } from 'lucide-react';
+import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { PageHead, Badge, Empty, ErrorBanner, Modal, ConfirmModal } from '../components/ui';
+import { printElementHtml } from '../lib/export';
+import { useTranslation } from 'react-i18next';
+import DOMPurify from 'dompurify';
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const DURATIONS = [60, 90, 120];
+const WRITE = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'];
+
+export default function Programs() {
+  const { user } = useAuth();
+  const { t } = useTranslation();
+  const canWrite = WRITE.includes(user?.role);
+  const isTeacher = user?.role === 'teacher';
+  const canEditMeetings = canWrite || isTeacher;
+  const [schoolYear, setSchoolYear] = useState('2026-2027');
+  const [sections, setSections] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [entries, setEntries] = useState([]);
+  const [conflicts, setConflicts] = useState([]);
+  const [schoolInfo, setSchoolInfo] = useState({});
+  const [genOpts, setGenOpts] = useState({ start: '07:00', end: '17:00', lunch_start: '12:00', lunch_end: '13:00', recess_start: '10:00', recess_end: '10:30' });
+  const [view, setView] = useState('section');
+  const [viewId, setViewId] = useState('');
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [modal, setModal] = useState(null);
+  const [entryModal, setEntryModal] = useState(null);
+  const [lastFailures, setLastFailures] = useState([]);
+  const [confirmEntryDelete, setConfirmEntryDelete] = useState(null);
+  const [confirmAssignmentDelete, setConfirmAssignmentDelete] = useState(null);
+
+  const loadAll = useCallback(async () => {
+    setError(null);
+    try {
+      const [sec, sub, tea, sch] = await Promise.all([
+        api('/sections?school_year=' + encodeURIComponent(schoolYear)).catch(() => ({ data: [] })),
+        api('/subjects?school_year=' + encodeURIComponent(schoolYear)).catch(() => ({ data: [] })),
+        api('/teachers?limit=100').catch(() => ({ data: [] })),
+        api('/deped-forms/school-info').catch(() => ({})),
+      ]);
+      setSections(sec.data || []);
+      setSubjects(sub.data || []);
+      setTeachers(tea.data || []);
+      setSchoolInfo(sch || {});
+      if (!isTeacher) {
+        const [asg, sched, conf] = await Promise.all([
+          api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear)),
+          api('/schedule?school_year=' + encodeURIComponent(schoolYear)),
+          api('/schedule/conflicts?school_year=' + encodeURIComponent(schoolYear)),
+        ]);
+        setAssignments(asg.data || []);
+        setEntries(sched.data || []);
+        setConflicts(conf.data || []);
+      } else {
+        const sched = await api('/schedule?school_year=' + encodeURIComponent(schoolYear));
+        setEntries(sched.data || []);
+        const self = (tea.data || []).find((t) => t.user_id === user?.id);
+        setView('teacher');
+        setViewId(self ? String(self.id) : '');
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [schoolYear, isTeacher, user?.id]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  async function generate() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    setLastFailures([]);
+    try {
+      const res = await api('/schedule/generate', {
+        method: 'POST',
+        body: { school_year: schoolYear, ...genOpts },
+      });
+      setLastFailures(res.failures || []);
+      setNotice({
+        ok: res.failures.length === 0,
+        text: `Generated ${res.generated} class meetings across ${res.days.length} days.` +
+          (res.pinned ? ` ${res.pinned} pinned manually.` : '') +
+          (res.failures.length ? ` ${res.failures.length} offering(s) could not be fully placed.` : ' No failures.') +
+          (res.conflicts.length ? ` ${res.conflicts.length} conflict(s) detected.` : ' No conflicts detected.'),
+      });
+      const [sched, conf] = await Promise.all([
+        api('/schedule?school_year=' + encodeURIComponent(schoolYear)),
+        api('/schedule/conflicts?school_year=' + encodeURIComponent(schoolYear)),
+      ]);
+      setEntries(sched.data || []);
+      setConflicts(conf.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addAssignment(body) {
+    await api('/schedule/assignments', { method: 'POST', body: { school_year: schoolYear, ...body } });
+    const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
+    setAssignments(asg.data || []);
+  }
+
+  async function updateAssignment(id, body) {
+    await api(`/schedule/assignments/${id}`, { method: 'PATCH', body });
+    const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
+    setAssignments(asg.data || []);
+  }
+
+  async function reloadSchedule() {
+    const [sched, conf] = await Promise.all([
+      api('/schedule?school_year=' + encodeURIComponent(schoolYear)),
+      canWrite
+        ? api('/schedule/conflicts?school_year=' + encodeURIComponent(schoolYear)).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+    ]);
+    setEntries(sched.data || []);
+    setConflicts(conf.data || []);
+  }
+
+  async function saveEntry(id, body) {
+    await api(`/schedule/entries/${id}`, { method: 'PATCH', body });
+    await reloadSchedule();
+  }
+
+  async function removeEntry(id) {
+    setConfirmEntryDelete(id);
+  }
+
+  async function deleteAssignment(id) {
+    setConfirmAssignmentDelete(id);
+  }
+
+  function printProgram() {
+    const item = (view === 'section' ? sections : teachers).find((x) => String(x.id) === viewId);
+    if (!item || !viewedEntries.length) return;
+    const html = programSheetHtml({
+      kind: view,
+      item,
+      entries: viewedEntries,
+      schoolInfo,
+      lunchStart: genOpts.lunch_start,
+      lunchEnd: genOpts.lunch_end,
+      recessStart: genOpts.recess_start,
+      recessEnd: genOpts.recess_end,
+    });
+    const header = view === 'section'
+      ? `Class Program — ${item.name} (${item.grade_level})`
+      : `Teacher's Program — ${item.first_name} ${item.last_name}`;
+    printElementHtml(`${header} | ${(schoolInfo.school_name || 'School')}`, html, { orientation: 'landscape', paper: 'legal' });
+  }
+
+  const viewedEntries = useMemo(() => {
+    if (!viewId) return [];
+    return entries
+      .filter((e) => view === 'section'
+        ? (String(e.section_id) === viewId || String(e.combined_section_id) === viewId)
+        : String(e.teacher_id) === viewId)
+      .sort((a, b) => a.day - b.day || a.start_time.localeCompare(b.start_time));
+  }, [entries, view, viewId]);
+
+  const combinedByGrade = useMemo(() => {
+    const pairs = assignments.filter((a) => a.combined_section_id);
+    if (!pairs.length) return [];
+    const byGrade = {};
+    for (const a of pairs) {
+      const g = a.grade_level || '—';
+      byGrade[g] = byGrade[g] || { grade: g, pairs: [], sectionsSet: new Set(), teacherSet: new Set(), meetings: 0, minutes: 0 };
+      byGrade[g].pairs.push({
+        id: a.id,
+        primaryName: a.section_name,
+        primaryGrade: a.grade_level,
+        companionName: a.combined_section_name || 'companion',
+        companionGrade: a.combined_grade_level,
+        subject: a.subject_code,
+        teacher: a.teacher_name || '—',
+        meetings: a.meetings_per_week,
+        duration: a.duration_minutes,
+        fixed: a.fixed_day != null && a.fixed_start_time
+          ? `${a.fixed_day === 0 ? 'Mon–Fri' : DAYS[a.fixed_day - 1]} ${a.fixed_start_time}–${fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}`
+          : null,
+      });
+      byGrade[g].sectionsSet.add(a.section_name);
+      if (a.combined_section_name) byGrade[g].sectionsSet.add(a.combined_section_name);
+      if (a.teacher_id) byGrade[g].teacherSet.add(Number(a.teacher_id));
+      byGrade[g].meetings += a.meetings_per_week;
+      byGrade[g].minutes += a.meetings_per_week * a.duration_minutes;
+    }
+    return Object.values(byGrade)
+      .map((g) => ({
+        grade: g.grade,
+        pairs: g.pairs,
+        sections: [...g.sectionsSet],
+        teachers: g.teacherSet.size,
+        meetings: g.meetings,
+        minutes: g.minutes,
+      }))
+      .sort((x, y) => (parseInt(x.grade, 10) || 0) - (parseInt(y.grade, 10) || 0) || String(x.grade).localeCompare(String(y.grade)));
+  }, [assignments]);
+
+  const conflictSubjects = useMemo(() => {
+    const set = new Set();
+    for (const c of conflicts) {
+      if (c.ids && c.ids.length) {
+        for (const id of c.ids) set.add(`${id}|${c.day}|${c.time}`);
+      } else {
+        set.add(`${c.section}|${c.subject}|${c.day}|${c.time}`);
+      }
+    }
+    return set;
+  }, [conflicts]);
+
+  const gradeSummary = useMemo(() => {
+    const sectionById = new Map();
+    const base = {};
+    sections.forEach((s) => {
+      sectionById.set(Number(s.id), s);
+      const g = s.grade_level || '—';
+      base[g] = base[g] || { grade: g, sectionSet: new Set(), subjectSet: new Set(), assignments: 0, meetings: 0, minutes: 0, teacherSet: new Set(), conflicts: 0 };
+      base[g].sectionSet.add(s.name);
+    });
+    assignments.forEach((a) => {
+      const g = a.grade_level || sectionById.get(Number(a.section_id))?.grade_level || '—';
+      base[g] = base[g] || { grade: g, sectionSet: new Set(), subjectSet: new Set(), assignments: 0, meetings: 0, minutes: 0, teacherSet: new Set(), conflicts: 0 };
+      base[g].assignments++;
+      if (a.subject_code) base[g].subjectSet.add(a.subject_code);
+      if (a.teacher_id) base[g].teacherSet.add(Number(a.teacher_id));
+    });
+    entries.forEach((e) => {
+      const sec = sectionById.get(Number(e.section_id));
+      const g = sec ? sec.grade_level : '—';
+      base[g] = base[g] || { grade: g, sectionSet: new Set(), subjectSet: new Set(), assignments: 0, meetings: 0, minutes: 0, teacherSet: new Set(), conflicts: 0 };
+      base[g].meetings++;
+      base[g].minutes += Math.max(0, toMin(e.end_time) - toMin(e.start_time));
+    });
+    conflicts.forEach((c) => {
+      const g = (c.ids || [])
+        .map((id) => sectionById.get(Number(id))?.grade_level)
+        .find(Boolean);
+      if (g && base[g]) base[g].conflicts++;
+    });
+    return Object.values(base)
+      .map((g) => ({ grade: g.grade, sectionsArr: [...g.sectionSet], subjects: g.subjectSet.size, assignments: g.assignments, meetings: g.meetings, minutes: g.minutes, teachers: g.teacherSet.size, conflicts: g.conflicts }))
+      .sort((a, b) => (parseInt(a.grade, 10) || 0) - (parseInt(b.grade, 10) || 0) || String(a.grade).localeCompare(String(b.grade)));
+  }, [sections, assignments, entries, conflicts]);
+
+  return (
+    <div>
+      <PageHead title={isTeacher ? 'My Class Program' : 'Teacher Programs'} sub={isTeacher
+        ? 'Your weekly teaching program — adjust meetings anytime or print the class program sheet.'
+        : 'Auto-generate weekly teaching loads for Grade 11 and Grade 12 — no class, teacher, or room conflicts.'}>
+        <select
+          className="input"
+          style={{ maxWidth: 180 }}
+          value={schoolYear}
+          onChange={(e) => setSchoolYear(e.target.value)}
+        >
+          {['2026-2027', '2025-2026', '2024-2025'].filter((v, i, a) => a.indexOf(v) === i).map((y) => <option key={y}>{y}</option>)}
+        </select>
+      </PageHead>
+
+      <ErrorBanner error={error} />
+      {notice && (
+        <div className={`notice ${notice.ok ? 'ok' : 'warn'}`}>
+          {notice.ok ? <CheckCircle2 size={15} /> : <TriangleAlert size={15} />} {notice.text}
+        </div>
+      )}
+
+      {canWrite && (
+      <>
+      <div className="card">
+        <h3>
+          <CalendarRange size={16} style={{ verticalAlign: -3 }} /> Automatic Program Generator
+        </h3>
+        <p className="sub">
+          Places every subject assignment into conflict-free slots (Mon–Fri). Supports 1-hour, 1.5-hour and 2-hour classes;
+          rooms follow the priority assignment room → teacher room → section room → free room pool, so vacant rooms are
+          delegated to teachers without rooms. Skips the recess and lunch breaks, keeping the last afternoon class clear.
+        </p>
+        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', maxWidth: 660 }}>
+          <label>First class
+            <input type="time" className="input" value={genOpts.start}
+              onChange={(e) => setGenOpts({ ...genOpts, start: e.target.value })} disabled={!canWrite} />
+          </label>
+          <label>Last class
+            <input type="time" className="input" value={genOpts.end}
+              onChange={(e) => setGenOpts({ ...genOpts, end: e.target.value })} disabled={!canWrite} />
+          </label>
+          <label>Recess break
+            <input type="time" className="input" value={genOpts.recess_start}
+              onChange={(e) => setGenOpts({ ...genOpts, recess_start: e.target.value })} disabled={!canWrite} />
+          </label>
+          <label>Recess ends
+            <input type="time" className="input" value={genOpts.recess_end}
+              onChange={(e) => setGenOpts({ ...genOpts, recess_end: e.target.value })} disabled={!canWrite} />
+          </label>
+          <label>Lunch break
+            <input type="time" className="input" value={genOpts.lunch_start}
+              onChange={(e) => setGenOpts({ ...genOpts, lunch_start: e.target.value })} disabled={!canWrite} />
+          </label>
+          <label>Lunch ends
+            <input type="time" className="input" value={genOpts.lunch_end}
+              onChange={(e) => setGenOpts({ ...genOpts, lunch_end: e.target.value })} disabled={!canWrite} />
+          </label>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <button className="btn btn-primary" onClick={generate} disabled={busy || !canWrite}>
+            <RefreshCw size={15} /> {busy ? 'Generating…' : 'Auto-generate programs'}
+          </button>
+          {!canWrite && <span className="hint" style={{ marginLeft: 10 }}>Only admins can generate programs.</span>}
+        </div>
+        {lastFailures.length > 0 && (
+          <div className="notice warn" style={{ marginTop: 12 }}>
+            <TriangleAlert size={15} />
+            <div style={{ marginLeft: 8 }}>
+              <strong>Not fully placed ({lastFailures.length}):</strong>
+              <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                {lastFailures.map((f, i) => (
+                  <li key={i}>
+                    {f.section} — <strong>{f.subject}</strong> ({f.teacher || 'unassigned'}): placed {f.placed} of {f.meetings_per_week}×/wk
+                    {f.reason ? <span className="muted"> · {failureReason(f.reason)}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h3>Summary by Grade Level <span className="count-pill">{schoolYear}</span></h3>
+        {gradeSummary.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Grade level</th><th>Sections</th><th>Subjects</th><th>Assignments</th><th>Meetings / wk</th><th>Teaching load</th><th>Teachers</th><th>Conflicts</th></tr>
+              </thead>
+              <tbody>
+                {gradeSummary.map((g) => (
+                  <tr key={g.grade}>
+                    <td>
+                      <strong>{g.grade}</strong>
+                      <div className="muted" style={{ maxWidth: 220 }}>{g.sectionsArr.join(', ') || '—'}</div>
+                    </td>
+                    <td>{g.sectionsArr.length}</td>
+                    <td>{g.subjects}</td>
+                    <td>{g.assignments}</td>
+                    <td>{g.meetings}</td>
+                    <td>{fmtHours(g.minutes)}</td>
+                    <td>{g.teachers}</td>
+                    <td>{g.conflicts ? <><Badge status="absent" /> {g.conflicts}</> : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {gradeSummary.length > 1 && (
+                <tfoot>
+                  <tr>
+                    <td><strong>All grades</strong></td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.sectionsArr.length, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.subjects, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.assignments, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.meetings, 0)}</td>
+                    <td>{fmtHours(gradeSummary.reduce((a, g) => a + g.minutes, 0))}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.teachers, 0)}</td>
+                    <td>{gradeSummary.reduce((a, g) => a + g.conflicts, 0) || '—'}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        ) : (
+          <Empty text="No scheduling data for this school year yet — add assignments or run the generator first." />
+        )}
+        <div className="hint" style={{ marginTop: 8 }}>
+          Teaching load is the total scheduled class time per week; Subjects counts unique subject codes assigned in that grade.
+        </div>
+      </div>
+
+      {combinedByGrade.length > 0 && (
+      <div className="card">
+        <h3>Combined Sections by Grade Level <span className="count-pill">{combinedByGrade.reduce((a, g) => a + g.pairs.length, 0)} pairs</span></h3>
+        <p className="sub">
+          Combined classes pair two sections into one shared meeting — one teacher, one subject, one slot per week for both sections.
+        </p>
+        {combinedByGrade.map((g) => (
+          <div key={g.grade} style={{ marginBottom: 18 }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {g.grade}
+              <span className="count-pill">{g.pairs.length} pair(s)</span>
+              <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
+                {g.sections.length} sections · {g.meetings} meetings/wk · {fmtHours(g.minutes)} shared load · {g.teachers} teacher(s)
+              </span>
+            </h4>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Combined sections</th><th>Subject</th><th>Teacher</th><th>Length</th><th>Load</th><th>Pinned time</th></tr>
+                </thead>
+                <tbody>
+                  {g.pairs.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <strong>{p.primaryName}</strong>{p.companionGrade !== p.primaryGrade ? ` (${p.primaryGrade})` : ''} + {p.companionName}
+                        {p.companionGrade !== p.primaryGrade && <span className="muted"> ({p.companionGrade})</span>}
+                      </td>
+                      <td>{p.subject}</td>
+                      <td>{p.teacher}</td>
+                      <td>{p.duration} min</td>
+                      <td>{p.meetings}×/wk</td>
+                      <td>{p.fixed || <span className="muted">auto</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+      )}
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <h3 style={{ margin: 0 }}>Subject Assignments <span className="count-pill">{assignments.length}</span></h3>
+          {canWrite && (
+            <button className="btn" onClick={() => setModal({ mode: 'add' })}>
+              <Plus size={15} /> Add assignment
+            </button>
+          )}
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Section</th><th>Subject</th><th>Teacher</th><th>Room</th><th>Length</th><th>Load</th><th>Fixed time</th>{canWrite && <th></th>}</tr>
+            </thead>
+            <tbody>
+              {assignments.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.section_name}{a.combined_section_id && a.combined_section_name ? ` + ${a.combined_section_name}` : ''} <span className="muted">({a.combined_section_id ? `${a.grade_level} + ${a.combined_grade_level || '—'}` : a.grade_level})</span></td>
+                  <td>{a.subject_code}<br /><span className="muted">{a.subject_title}</span></td>
+                  <td>{a.teacher_name || '—'}</td>
+                  <td>{a.room || a.section_room || '—'}</td>
+                  <td>{a.duration_minutes} min</td>
+                  <td>{a.meetings_per_week}×/wk</td>
+                  <td>{a.fixed_day != null && a.fixed_start_time
+                    ? <>{a.fixed_day === 0 ? 'Mon–Fri' : DAYS[a.fixed_day - 1]} {a.fixed_start_time}–{fmtHM(toMin(a.fixed_start_time) + a.duration_minutes)}</>
+                    : <span className="muted">auto</span>}</td>
+                  {canWrite && (
+                    <td className="row-actions">
+                      <button className="icon-btn" title="Edit" aria-label="Edit" onClick={() => setModal({ mode: 'edit', a })}><Pencil size={14} aria-hidden="true" /></button>
+                      <button className="icon-btn" title="Delete" aria-label="Delete" onClick={() => deleteAssignment(a.id)}><Trash2 size={14} aria-hidden="true" /></button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!assignments.length && <Empty text="No assignments yet — add subjects to sections, then auto-generate." />}
+        </div>
+      </div>
+      </>
+      )}
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <h3 style={{ margin: 0 }}>
+            {view === 'section' ? 'Section Timetable' : 'Teacher Weekly Program'}
+            <span className="count-pill">{viewedEntries.length} meetings</span>
+          </h3>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!isTeacher && (
+              <>
+                <select className="input" style={{ maxWidth: 140 }} value={view}
+                  onChange={(e) => { setView(e.target.value); setViewId(''); }}>
+                  <option value="section">Per section</option>
+                  <option value="teacher">Per teacher</option>
+                </select>
+                <select className="input" style={{ minWidth: 210 }} value={viewId} onChange={(e) => setViewId(e.target.value)}>
+                  <option value="">Choose {view === 'section' ? 'section' : 'teacher'}…</option>
+                  {(view === 'section' ? sections : teachers).map((x) => (
+                    <option key={x.id} value={String(x.id)}>
+                      {view === 'section' ? `${x.name} (${x.grade_level})` : `${x.first_name} ${x.last_name}`}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {viewId && viewedEntries.length > 0 && (
+              <button className="btn" onClick={printProgram} title="Open the DepEd Class Program sheet for printing">
+                <Printer size={15} /> Print {view === 'section' ? 'Class Program' : "Teacher's Program"}
+              </button>
+            )}
+          </div>
+        </div>
+        {viewedEntries.length ? (
+          <>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Day</th><th>Time</th><th>Length</th><th>{view === 'section' ? 'Subject' : 'Subject'}</th>
+                  {view === 'section' && <th>Teacher</th>}<th>Room</th><th>Status</th>{canEditMeetings && <th></th>}</tr>
+              </thead>
+              <tbody>
+                {viewedEntries.map((e) => {
+                  const hit = conflictSubjects.has(`${e.section_id}|${e.day}|${e.start_time}–${e.end_time}`);
+                  return (
+                    <tr key={e.id}>
+                      <td>{DAYS[e.day - 1]}</td>
+                      <td>{e.start_time}–{e.end_time}</td>
+                      <td>{Math.round(toMin(e.end_time) - toMin(e.start_time))} min</td>
+                      <td>{e.subject_code}{e.combined_section_id && <><br /><span className="muted">+ {e.combined_section_name}</span></>}</td>
+                      {view === 'section' && <td>{e.teacher_name || '—'}</td>}
+                      <td>{e.room || '—'}</td>
+                      <td>{hit ? <Badge status="absent" /> : <Badge status="present" />}</td>
+                      {canEditMeetings && (
+                        <td className="row-actions">
+                          <button className="icon-btn" title="Edit meeting" aria-label="Edit meeting" onClick={() => setEntryModal(e)}><Pencil size={14} aria-hidden="true" /></button>
+                          <button className="icon-btn" title="Remove meeting" aria-label="Remove meeting" onClick={() => removeEntry(e.id)}><Trash2 size={14} aria-hidden="true" /></button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {viewId && view === 'section' && (
+            <div className="program-preview" dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(programSheetHtml({
+                kind: 'section',
+                item: sections.find((x) => String(x.id) === viewId),
+                entries: viewedEntries,
+                schoolInfo,
+                lunchStart: genOpts.lunch_start,
+                lunchEnd: genOpts.lunch_end,
+                recessStart: genOpts.recess_start,
+                recessEnd: genOpts.recess_end,
+              }), { USE_PROFILES: { html: true } }),
+            }} />
+          )}
+          {viewId && view === 'teacher' && (
+            <div className="program-preview" dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(programSheetHtml({
+                kind: 'teacher',
+                item: teachers.find((x) => String(x.id) === viewId),
+                entries: viewedEntries,
+                schoolInfo,
+                lunchStart: genOpts.lunch_start,
+                lunchEnd: genOpts.lunch_end,
+                recessStart: genOpts.recess_start,
+                recessEnd: genOpts.recess_end,
+              }), { USE_PROFILES: { html: true } }),
+            }} />
+          )}
+          </>
+        ) : (
+          <Empty text={viewId
+            ? 'No classes scheduled for this selection yet.'
+            : isTeacher
+              ? "Your account is not linked to a teacher record yet — ask a school admin to link you, then this page shows your program."
+              : 'Pick a section or teacher to view their program.'} />
+        )}
+        <div className="hint" style={{ marginTop: 10 }}>
+          <Badge status="absent" /> conflict detected &nbsp;·&nbsp; <Badge status="present" /> no conflict
+        </div>
+        {isTeacher && (
+          <div className="hint" style={{ marginTop: 8 }}>
+            You can adjust any meeting here — changes apply right away. The next program generator run uses your changed program; admins can fully regenerate a brand-new program from the assignments.
+          </div>
+        )}
+      </div>
+
+      {canWrite && (
+      <>
+      <div className="card">
+        <h3>Conflict Report <span className="count-pill">{conflicts.length}</span></h3>
+        {conflicts.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Type</th><th>Day</th><th>Time</th><th>Classes</th><th>Section</th></tr>
+              </thead>
+              <tbody>
+                {conflicts.map((c, i) => (
+                  <tr key={i}>
+                    <td><Badge status={c.type === 'room' ? 'urgent' : 'late'} /> {c.type}</td>
+                    <td>{c.day_name}</td>
+                    <td>{c.time}</td>
+                    <td>{c.subject} &amp; {c.other_subject}</td>
+                    <td>{c.section} &amp; {c.other_section}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty text="No scheduling conflicts. The program is clear." />
+        )}
+      </div>
+      </>
+      )}
+
+      {modal && (
+        <AssignmentModal
+          mode={modal.mode}
+          assignment={modal.a}
+          sections={sections}
+          subjects={subjects}
+          teachers={teachers}
+          onClose={() => setModal(null)}
+          onSubmit={async (body) => {
+            if (modal.mode === 'add') await addAssignment(body);
+            else await updateAssignment(modal.a.id, body);
+            setModal(null);
+          }}
+        />
+      )}
+
+      {entryModal && (
+        <EntryModal
+          entry={entryModal}
+          onClose={() => setEntryModal(null)}
+          onSubmit={async (body) => {
+            await saveEntry(entryModal.id, body);
+            setEntryModal(null);
+          }}
+        />
+      )}
+
+      {confirmEntryDelete && (
+        <ConfirmModal
+          message={t('programs.removeEntryConfirm', 'Remove this meeting from the program?')}
+          danger
+          onCancel={() => setConfirmEntryDelete(null)}
+          onConfirm={async () => {
+            const id = confirmEntryDelete;
+            setConfirmEntryDelete(null);
+            await api(`/schedule/entries/${id}`, { method: 'DELETE' });
+            await reloadSchedule();
+          }}
+        />
+      )}
+
+      {confirmAssignmentDelete && (
+        <ConfirmModal
+          message={t('common.confirmDelete')}
+          danger
+          onCancel={() => setConfirmAssignmentDelete(null)}
+          onConfirm={async () => {
+            const id = confirmAssignmentDelete;
+            setConfirmAssignmentDelete(null);
+            await api(`/schedule/assignments/${id}`, { method: 'DELETE' });
+            const asg = await api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear));
+            setAssignments(asg.data || []);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function toMin(t) {
+  const [h, m] = String(t).split(':').map(Number);
+  return h * 60 + m;
+}
+
+function fmtHours(min) {
+  const m = Math.round(min || 0);
+  if (!m) return '0 min';
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (!h) return `${r} min`;
+  if (!r) return `${h} h`;
+  return `${h} h ${r} min`;
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+const DAY_LABELS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+
+function fmtHM(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function failureReason(reason) {
+  switch (reason) {
+    case 'teacher': return 'the teacher is fully booked at every possible slot';
+    case 'section': return 'the section has no free slot (its weekly load is already full)';
+    case 'room': return 'no free room is available at any slot';
+    case 'time': return 'no slot fits within school hours / outside the breaks';
+    default: return 'no free slot could be found';
+  }
+}
+
+function buildProgramGrid(entries) {
+  if (!entries.length) return null;
+  const times = [];
+  for (const e of entries) { times.push(toMin(e.start_time), toMin(e.end_time)); }
+  const min = Math.floor(Math.min(...times) / 30) * 30;
+  const max = Math.ceil(Math.max(...times) / 30) * 30;
+  const slots = [];
+  for (let t = min; t <= max; t += 30) slots.push(t);
+  const grid = [[], [], [], [], []];
+  for (const e of entries) {
+    const d = Math.max(0, Math.min(4, (e.day || 1) - 1));
+    const s0 = Math.round((toMin(e.start_time) - min) / 30);
+    const s1 = Math.round((toMin(e.end_time) - min) / 30);
+    if (s1 <= s0 || s0 < 0 || s1 > slots.length) continue;
+    grid[d][s0] = e;
+    for (let i = s0 + 1; i < s1; i++) grid[d][i] = '__span__';
+  }
+  return { slots, grid };
+}
+
+function programSheetHtml({ kind = 'section', item = {}, entries = [], schoolInfo = {}, lunchStart, lunchEnd, recessStart, recessEnd }) {
+  const school = schoolInfo || {};
+  const model = buildProgramGrid(entries);
+  const l0 = lunchStart ? toMin(lunchStart) : -1;
+  const l1 = lunchEnd ? toMin(lunchEnd) : -1;
+  const r0 = recessStart ? toMin(recessStart) : -1;
+  const r1 = recessEnd ? toMin(recessEnd) : -1;
+
+  const head = `
+  <div style="text-align:center;">
+    <div style="font-size:10pt;font-weight:bold;">REPUBLIC OF THE PHILIPPINES</div>
+    <div style="font-size:9pt;">Department of Education</div>
+    <div style="font-size:8.5pt;">${esc(school.region || 'Region ____')}</div>
+    <div style="font-size:8.5pt;">${esc(school.division || 'Schools Division of ____')}</div>
+    <div style="font-size:10pt;font-weight:bold;margin-top:4pt;">${esc(school.school_name || 'Hinabangan National High School')}</div>
+    <div style="font-size:8pt;">School ID: ${esc(school.school_id || '______')}</div>
+    <div style="font-size:12pt;font-weight:bold;margin-top:6pt;">${kind === 'section' ? 'CLASS PROGRAM' : "TEACHER'S PROGRAM"}</div>
+  </div>`;
+
+  const info = kind === 'section' ? `
+  <table class="no-border">
+    <tr>
+      <td style="border:none;">School Year: <strong>${esc(item.school_year || school.school_year || '____-____')}</strong></td>
+      <td style="border:none;">Grade &amp; Section: <strong>${esc(item.grade_level || '____')} — ${esc(item.name || '____')}</strong></td>
+      <td style="border:none;">Strand: <strong>${esc(item.strand ? String(item.strand).replace(/_/g, ' ') : '—')}</strong></td>
+    </tr>
+    <tr>
+      <td style="border:none;">Room: <strong>${esc(item.room || '—')}</strong></td>
+      <td style="border:none;">Adviser: <strong>${esc(item.adviser_name || '____________________')}</strong></td>
+      <td style="border:none;">No. of Meetings: <strong>${entries.length} / week</strong></td>
+    </tr>
+  </table>` : `
+  <table class="no-border">
+    <tr>
+      <td style="border:none;">Teacher: <strong>${esc(item.first_name ? `${item.first_name} ${item.last_name}` : '____________________')}</strong></td>
+      <td style="border:none;">Position: <strong>${esc(item.position || 'Teacher')}</strong></td>
+      <td style="border:none;">School Year: <strong>${esc(school.school_year || '____-____')}</strong></td>
+    </tr>
+  </table>`;
+
+  let gridMarkup = '';
+  if (model) {
+    let body = '';
+    for (let i = 0; i < model.slots.length; i++) {
+      const t = model.slots[i];
+      const inLunch = (l0 >= 0 && t >= l0 && t < l1);
+      const inRecess = (r0 >= 0 && t >= r0 && t < r1);
+      body += `<tr><td style="width:64pt;${(inLunch || inRecess) ? 'background:#ececec;' : ''}">${fmtHM(t)}</td>`;
+      for (let d = 0; d < 5; d++) {
+        const cell = model.grid[d][i];
+        if (cell === '__span__') continue;
+        if (!cell) { body += '<td></td>'; continue; }
+        const s0 = Math.round((toMin(cell.start_time) - model.slots[0]) / 30);
+        const s1 = Math.round((toMin(cell.end_time) - model.slots[0]) / 30);
+        const span = Math.max(1, s1 - s0);
+        const subLine = kind === 'section'
+          ? `Room ${esc(cell.room || '—')}${cell.teacher_name ? ` · ${esc(cell.teacher_name)}` : ''}${cell.combined_section_id ? ` · w/ ${esc(cell.combined_section_name || 'companion section')}` : ''}`
+          : `Room ${esc(cell.room || '—')} · ${esc(cell.section_name || '')}${cell.combined_section_id ? ` + ${esc(cell.combined_section_name || '')}` : ''}`;
+        body += `<td rowspan="${span}"><div class="b">${esc(cell.subject_code || '')}</div>` +
+          `<div class="small">${esc(cell.subject_title || '')}<br/>${subLine}</div></td>`;
+      }
+      body += '</tr>';
+    }
+    gridMarkup = `<table>
+      <thead><tr><th>TIME</th>${DAY_LABELS.map((d) => `<th>${d}</th>`).join('')}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+  } else {
+    gridMarkup = '<p class="small">No classes are scheduled for this period.</p>';
+  }
+
+  const breakNote = (l1 > l0 ? `Lunch / recess break: ${fmtHM(l0)} – ${fmtHM(l1)} (shaded). ` : '')
+    + (r1 > r0 ? `Morning recess: ${fmtHM(r0)} – ${fmtHM(r1)} (shaded).` : '');
+  const lunchNote = breakNote.trim() ? `<div class="small" style="margin-top:3pt;">${breakNote.trim()}</div>` : '';
+
+  const legend = model ? (() => {
+    const totals = {};
+    for (const e of entries) {
+      const pair = e.combined_section_id && e.combined_section_name ? ` + ${e.combined_section_name}` : '';
+      const key = kind === 'section'
+        ? `${e.subject_code} — ${e.subject_title || ''}`
+        : `${e.subject_code} (${e.section_name || ''}${pair}) — ${e.subject_title || ''}`;
+      totals[key] = (totals[key] || 0) + (toMin(e.end_time) - toMin(e.start_time));
+    }
+    const items = Object.entries(totals)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, mins]) => `<li>${esc(label)} — ${mins} min/week</li>`)
+      .join('');
+    const total = Object.values(totals).reduce((a, b) => a + b, 0);
+    return `<div class="small" style="margin-top:6pt;">Weekly load per subject:</div>
+      <ul class="small" style="margin:2pt 0 0 0;padding-left:14pt;">${items}</ul>
+      <div class="small b" style="margin-top:2pt;">Total teaching load: ${total} minutes per week</div>`;
+  })() : '';
+
+  const sig = kind === 'section' ? `
+  <div style="display:flex;justify-content:space-between;margin-top:28pt;">
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="b">${esc(item.adviser_name || '____________________')}</div>
+      <div class="small">Adviser / Class Adviser</div>
+    </div>
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="b">${esc(school.school_head_name || '____________________')}</div>
+      <div class="small">School Head</div>
+    </div>
+  </div>` : `
+  <div style="display:flex;justify-content:space-between;margin-top:28pt;">
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="small">Teacher / Faculty</div>
+    </div>
+    <div style="text-align:center;width:48%;">
+      <div>_______________________________</div>
+      <div class="b">${esc(school.school_head_name || '____________________')}</div>
+      <div class="small">School Head</div>
+    </div>
+  </div>`;
+
+  return `${head}<br/>${info}<br/>${gridMarkup}${lunchNote}${legend}${sig}`;
+}
+
+function AssignmentModal({ mode, assignment, sections, subjects, teachers, onClose, onSubmit }) {
+  const [form, setForm] = useState({
+    section_id: assignment?.section_id ? String(assignment.section_id) : '',
+    combined_section_id: assignment?.combined_section_id ? String(assignment.combined_section_id) : '',
+    subject_id: assignment?.subject_id ? String(assignment.subject_id) : '',
+    teacher_id: assignment?.teacher_id ? String(assignment.teacher_id) : '',
+    duration_minutes: String(assignment?.duration_minutes || 60),
+    meetings_per_week: String(assignment?.meetings_per_week || 2),
+    room: assignment?.room || '',
+    fixed_day: assignment?.fixed_day != null ? String(assignment.fixed_day) : '',
+    fixed_start_time: assignment?.fixed_start_time || '',
+  });
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!form.section_id || !form.subject_id) { setErr('Section and subject are required.'); return; }
+    if (!!form.fixed_day !== !!form.fixed_start_time) { setErr('To pin a meeting, set both the day and the time.'); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      await onSubmit({
+        ...form,
+        section_id: Number(form.section_id),
+        combined_section_id: form.combined_section_id ? Number(form.combined_section_id) : null,
+        subject_id: Number(form.subject_id),
+        teacher_id: form.teacher_id ? Number(form.teacher_id) : null,
+        duration_minutes: Number(form.duration_minutes),
+        meetings_per_week: Number(form.meetings_per_week),
+        fixed_day: form.fixed_day ? Number(form.fixed_day) : null,
+        fixed_start_time: form.fixed_start_time || null,
+      });
+    } catch (ex) {
+      setErr(ex.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={mode === 'add' ? 'Add subject assignment' : 'Edit assignment'} sub="50 min classes are rounded to the standard 60/90/120-min periods. Combined classes place ONE meeting that covers both sections." onClose={onClose}>
+      <ErrorBanner error={err} />
+      <form onSubmit={submit}>
+        <label>Section</label>
+        <select className="input" value={form.section_id} onChange={set('section_id')}>
+          <option value="">Select section…</option>
+          {sections.map((s) => (
+            <option key={s.id} value={String(s.id)}>{s.name} ({s.grade_level})</option>
+          ))}
+        </select>
+        <label>Combine with section <span className="muted">(optional — one meeting serves both sections)</span></label>
+        <select className="input" value={form.combined_section_id}
+          onChange={(e) => setForm({ ...form, combined_section_id: e.target.value })}>
+          <option value="">No — assign to this section alone</option>
+          {sections
+            .filter((s) => String(s.id) !== form.section_id)
+            .map((s) => (
+              <option key={s.id} value={String(s.id)}>{s.name} ({s.grade_level})</option>
+            ))}
+        </select>
+        <label>Subject</label>
+        <select className="input" value={form.subject_id} onChange={set('subject_id')}>
+          <option value="">Select subject…</option>
+          {subjects.map((s) => (
+            <option key={s.id} value={String(s.id)}>{s.code} — {s.title}</option>
+          ))}
+        </select>
+        <label>Teacher{form.combined_section_id ? ' (required — combined class)' : ''}</label>
+        <select className="input" value={form.teacher_id} onChange={set('teacher_id')}>
+          <option value="">Unassigned (auto)</option>
+          {teachers.map((t) => (
+            <option key={t.id} value={String(t.id)}>{t.first_name} {t.last_name} — {t.position}</option>
+          ))}
+        </select>
+        <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <label>Period length
+            <select className="input" value={form.duration_minutes} onChange={set('duration_minutes')}>
+              {DURATIONS.map((d) => <option key={d} value={String(d)}>{d} minutes ({d / 60} hr)</option>)}
+            </select>
+          </label>
+          <label>Meetings / week
+            <select className="input" value={form.meetings_per_week} onChange={set('meetings_per_week')}>
+              {[1, 2, 3, 4, 5].map((n) => <option key={n} value={String(n)}>{n}× per week</option>)}
+            </select>
+          </label>
+        </div>
+        <label>Room <span className="muted">(defaults to teacher room, then section room)</span></label>
+        <input className="input" value={form.room} onChange={set('room')} placeholder="e.g. ICT Lab 1" />
+        <label>Pin to day &amp; time <span className="muted">(optional — force meetings for overloaded teachers; Mon–Fri places one meeting each weekday at this time)</span></label>
+        <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <select className="input" value={form.fixed_day} onChange={set('fixed_day')}>
+            <option value="">Auto — generator picks</option>
+            <option value="0">Monday to Friday (at this time, one meeting per weekday)</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+          </select>
+          <input type="time" className="input" value={form.fixed_start_time} onChange={set('fixed_start_time')} />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : mode === 'add' ? 'Add' : 'Save'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EntryModal({ entry, onClose, onSubmit }) {
+  const [form, setForm] = useState({
+    day: String(entry.day),
+    start_time: entry.start_time,
+    end_time: entry.end_time,
+    room: entry.room || '',
+  });
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!form.day || !form.start_time || !form.end_time) { setErr('Day and start/end times are required.'); return; }
+    if (toMin(form.end_time) <= toMin(form.start_time)) { setErr('End time must be after start time.'); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      await onSubmit({ day: Number(form.day), start_time: form.start_time, end_time: form.end_time, room: form.room || null });
+    } catch (ex) {
+      setErr(ex.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Edit meeting" sub="Adjust this class period — changes apply until the next auto-generate replaces the program." onClose={onClose}>
+      <ErrorBanner error={err} />
+      <form onSubmit={submit}>
+        <label>Day</label>
+        <select className="input" value={form.day} onChange={set('day')}>
+          {DAYS.map((d, i) => <option key={i + 1} value={String(i + 1)}>{d}</option>)}
+        </select>
+        <label>Start time</label>
+        <input type="time" className="input" value={form.start_time} onChange={set('start_time')} />
+        <label>End time</label>
+        <input type="time" className="input" value={form.end_time} onChange={set('end_time')} />
+        <label>Room</label>
+        <input className="input" value={form.room} onChange={set('room')} placeholder="e.g. Rm 47" />
+        <div className="modal-actions">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save meeting'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
