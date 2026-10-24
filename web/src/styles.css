@@ -1428,6 +1428,34 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
 
 .grade-input { width: 74px; padding: 7px 8px; text-align: center; font-size: 13.5px; }
 
+/* --- High-End UI/UX System Polish (Inspired by Modern Ticket & Dashboard UIs) --- */
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+h1, h2, h3, h4 {
+  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+}
+input, select, textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(var(--rgb-green), 0.18);
+  outline: none;
+}
+.table-wrap table th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
 .two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 900px) {
   .two-col { grid-template-columns: 1fr; }
