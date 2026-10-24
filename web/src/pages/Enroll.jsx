@@ -707,10 +707,12 @@ export default function Enroll() {
           </div>
 
           <div className="card">
-            {pendingEnrollments.length > 0 && (
-              <div style={{ marginBottom: 20, padding: 14, background: 'rgba(var(--rgb-warn), 0.12)', border: '1px solid rgba(var(--rgb-warn), 0.35)', borderRadius: 12 }}>
-                <h4 style={{ margin: '0 0 8px 0', color: 'var(--warn)' }}>Pending Student Enrollment Applications ({pendingEnrollments.length})</h4>
-                <p className="sub" style={{ margin: '0 0 10px 0', fontSize: 12 }}>Students have applied for enrollment online. Review and confirm their section placement.</p>
+            <div style={{ marginBottom: 20, padding: 14, background: 'rgba(var(--rgb-warn), 0.12)', border: '1px solid rgba(var(--rgb-warn), 0.35)', borderRadius: 12 }}>
+              <h4 style={{ margin: '0 0 8px 0', color: 'var(--warn)' }}>Pending Student Enrollment Applications ({pendingEnrollments.length})</h4>
+              <p className="sub" style={{ margin: '0 0 10px 0', fontSize: 12 }}>Students have applied for enrollment online. Review and confirm their section placement.</p>
+              {pendingEnrollments.length === 0 ? (
+                <div className="sub" style={{ textAlign: 'center', padding: '10px 0' }}>No pending student enrollment applications.</div>
+              ) : (
                 <div className="table-wrap">
                   <table>
                     <thead>
@@ -735,8 +737,8 @@ export default function Enroll() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             <h3 style={{ marginTop: 0 }}>Recently Enrolled</h3>
             <div className="hint" style={{ marginTop: -6, marginBottom: 8 }}>
               Tap a column heading to sort by student, section or grade — find and fix wrongly-recorded enrollments.
