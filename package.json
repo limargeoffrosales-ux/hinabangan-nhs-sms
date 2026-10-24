@@ -14,7 +14,7 @@
     "uuid": "^11.1.1"
   },
   "scripts": {
-    "build": "npm run lint:web && npm run build --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
     "build:web": "npm run build --workspace=web",
     "check": "npm run audit && npm run lint:web && npm run lint:server && npm run check:web && npm test",
     "check:web": "npm run typecheck:web && npm run build:web && npm run i18n:check && npm run token:check",
