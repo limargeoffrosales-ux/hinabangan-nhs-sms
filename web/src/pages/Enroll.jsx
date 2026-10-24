@@ -770,7 +770,8 @@ export default function Enroll() {
               </table>
             )}
           </div>
-        </div>
+          </div>
+        </>
       )}
 
 {showHistory && history && (
