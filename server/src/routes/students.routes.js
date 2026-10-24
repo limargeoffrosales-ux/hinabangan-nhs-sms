@@ -1,4 +1,6 @@
 const express = require('express');
+const multer = require('multer');
+const ExcelJS = require('exceljs');
 const { q, qa, qi, qr, bool } = require('../db');
 const db = require('../db');
 const { authenticate, requireRole } = require('../auth');
@@ -387,6 +389,167 @@ router.delete('/:id/parents/:parentUserId', requireRole(...ACCOUNT_ROLES), async
   await qr('DELETE FROM parent_students WHERE parent_user_id = ? AND student_id = ?', [Number(req.params.parentUserId), row.id]);
   await audit(req, 'STUDENT_PARENT_UNLINK', 'students', row.id, { parent_user_id: Number(req.params.parentUserId) });
   res.json({ ok: true });
+}));
+
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+// POST /upload-sf1 — Direct DepEd LIS SF1 Excel/CSV file upload & student registration
+router.post('/upload-sf1', requireRole(...WRITE, 'teacher'), uploadMemory.single('file'), asyncH(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No Excel or CSV file uploaded' });
+
+  const workbook = new ExcelJS.Workbook();
+  let worksheet;
+
+  try {
+    if (req.file.originalname.toLowerCase().endsWith('.csv')) {
+      const stream = require('stream');
+      const bufferStream = new stream.PassThrough();
+      bufferStream.end(req.file.buffer);
+      worksheet = await workbook.csv.read(bufferStream);
+    } else {
+      await workbook.xlsx.load(req.file.buffer);
+      worksheet = workbook.worksheets[0];
+    }
+  } catch (err) {
+    return res.status(400).json({ error: 'Failed to parse Excel/CSV file: ' + err.message });
+  }
+
+  if (!worksheet) return res.status(400).json({ error: 'Worksheet is empty' });
+
+  let headerRowIdx = -1;
+  let colMap = { lrn: -1, name: -1, sex: -1, birthdate: -1, address: -1, guardian: -1, contact: -1 };
+
+  worksheet.eachRow((row, rowNumber) => {
+    if (headerRowIdx !== -1) return;
+    const values = row.values || [];
+    for (let c = 1; c < values.length; c++) {
+      const val = String(values[c] || '').toUpperCase().trim();
+      if (val.includes('LRN') || val.includes('LEARNER')) {
+        headerRowIdx = rowNumber;
+        break;
+      }
+    }
+  });
+
+  if (headerRowIdx === -1) headerRowIdx = 1;
+
+  const headerValues = worksheet.getRow(headerRowIdx).values || [];
+  for (let c = 1; c < headerValues.length; c++) {
+    const val = String(headerValues[c] || '').toUpperCase().trim();
+    if (val.includes('LRN')) colMap.lrn = c;
+    else if (val.includes('NAME') || val.includes('LEARNER')) colMap.name = c;
+    else if (val.includes('SEX') || val.includes('GENDER')) colMap.sex = c;
+    else if (val.includes('BIRTH') || val.includes('DOB')) colMap.birthdate = c;
+    else if (val.includes('ADDRESS') || val.includes('BARANGAY') || val.includes('STREET')) colMap.address = c;
+    else if (val.includes('GUARDIAN') || val.includes('PARENT')) colMap.guardian = c;
+    else if (val.includes('CONTACT') || val.includes('MOBILE') || val.includes('TEL')) colMap.contact = c;
+  }
+
+  if (colMap.lrn === -1) colMap.lrn = 1;
+  if (colMap.name === -1) colMap.name = 2;
+  if (colMap.sex === -1) colMap.sex = 3;
+  if (colMap.birthdate === -1) colMap.birthdate = 4;
+
+  const sectionId = req.query.section_id || req.body.section_id || null;
+  const activeSy = await getCurrentSchoolYear();
+
+  let createdCount = 0;
+  let updatedCount = 0;
+  let errors = [];
+  const rowPromises = [];
+
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber <= headerRowIdx) return;
+    const vals = row.values || [];
+
+    let rawLrn = vals[colMap.lrn];
+    if (typeof rawLrn === 'object' && rawLrn && rawLrn.result) rawLrn = rawLrn.result;
+    const lrnStr = String(rawLrn || '').replace(/\D/g, '');
+    if (!lrnStr || lrnStr.length < 10) return;
+
+    let rawName = String(vals[colMap.name] || '').trim();
+    if (typeof vals[colMap.name] === 'object' && vals[colMap.name]?.result) {
+      rawName = String(vals[colMap.name].result).trim();
+    }
+    if (!rawName) return;
+
+    let lastName = '';
+    let firstName = '';
+    let middleName = '';
+
+    if (rawName.includes(',')) {
+      const parts = rawName.split(',');
+      lastName = parts[0].trim();
+      const given = (parts[1] || '').trim().split(' ');
+      firstName = given[0] || 'Learner';
+      middleName = given.slice(1).join(' ') || '';
+    } else {
+      const parts = rawName.split(' ');
+      firstName = parts[0] || 'Learner';
+      lastName = parts.slice(1).join(' ') || 'Student';
+    }
+
+    let rawSex = String(vals[colMap.sex] || '').toUpperCase().trim();
+    let sex = rawSex.startsWith('M') ? 'Male' : (rawSex.startsWith('F') ? 'Female' : 'Male');
+
+    let rawDob = vals[colMap.birthdate];
+    let birthDate = null;
+    if (rawDob instanceof Date) {
+      birthDate = rawDob.toISOString().split('T')[0];
+    } else if (rawDob) {
+      birthDate = String(rawDob).trim();
+    }
+
+    const address = colMap.address !== -1 ? String(vals[colMap.address] || '').trim() || null : null;
+    const guardianName = colMap.guardian !== -1 ? String(vals[colMap.guardian] || '').trim() || null : null;
+    const guardianContact = colMap.contact !== -1 ? String(vals[colMap.contact] || '').trim() || null : null;
+
+    rowPromises.push((async () => {
+      try {
+        const existing = await q('SELECT id FROM students WHERE lrn = ?', [lrnStr]);
+        let studentId;
+
+        if (existing) {
+          studentId = existing.id;
+          await qr(
+            `UPDATE students SET first_name = ?, middle_name = ?, last_name = ?, sex = ?,
+                    birth_date = COALESCE(?, birth_date), address = COALESCE(?, address),
+                    guardian_name = COALESCE(?, guardian_name), guardian_contact = COALESCE(?, guardian_contact)
+             WHERE id = ?`,
+            [firstName, middleName, lastName, sex, birthDate, address, guardianName, guardianContact, studentId]
+          );
+          updatedCount++;
+        } else {
+          studentId = await qi(
+            `INSERT INTO students (lrn, first_name, middle_name, last_name, sex, birth_date, address, guardian_name, guardian_contact, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+            [lrnStr, firstName, middleName, lastName, sex, birthDate, address, guardianName, guardianContact]
+          );
+          createdCount++;
+        }
+
+        if (sectionId && studentId) {
+          const enExists = await q('SELECT id FROM enrollments WHERE student_id = ? AND school_year = ?', [studentId, activeSy]);
+          if (!enExists) {
+            await qi(
+              `INSERT INTO enrollments (student_id, section_id, school_year, status) VALUES (?, ?, ?, 'enrolled')`,
+              [studentId, Number(sectionId), activeSy]
+            );
+          }
+        }
+      } catch (e) {
+        errors.push(`Row ${rowNumber} (LRN ${lrnStr}): ${e.message}`);
+      }
+    })());
+  });
+
+  await Promise.all(rowPromises);
+
+  await audit(req, 'UPLOAD_SF1_IMPORT', 'students', null, { createdCount, updatedCount, section_id: sectionId });
+  res.json({ success: true, created: createdCount, updated: updatedCount, totalProcessed: createdCount + updatedCount, errors });
 }));
 
 module.exports = router;

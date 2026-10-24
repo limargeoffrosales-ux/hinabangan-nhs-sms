@@ -47,6 +47,32 @@ export default function Students() {
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const importFileRef = useRef(null);
+  const sf1FileRef = useRef(null);
+  const [sf1Uploading, setSf1Uploading] = useState(false);
+
+  async function handleSf1Upload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSf1Uploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api('/students/upload-sf1', {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.success) {
+        alert(`DepEd LIS SF1 Import Complete!\nCreated: ${res.created} new learners\nUpdated: ${res.updated} existing learners`);
+        load();
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to upload DepEd SF1');
+    } finally {
+      setSf1Uploading(false);
+      e.target.value = '';
+    }
+  }
   const [photoUrl, setPhotoUrl] = useState(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState(null);
@@ -427,7 +453,13 @@ export default function Students() {
         )}
         {canWrite && <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> {t('students.newStudent')}</button>}
         {can(user?.role, 'teacher', 'guidance', 'super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar') && (
-          <button className="btn" onClick={exportStudents} title={t('students.export')}><Download size={15} /> {t('students.export')}</button>
+          <>
+            <button className="btn" onClick={() => sf1FileRef.current?.click()} disabled={sf1Uploading} style={{ background: 'var(--accent-2)', color: '#fff' }} title="Upload official DepEd SF1 file downloaded from LIS">
+              <FileSpreadsheet size={15} /> {sf1Uploading ? 'Uploading LIS SF1…' : 'Upload DepEd LIS SF1'}
+            </button>
+            <input type="file" ref={sf1FileRef} style={{ display: 'none' }} accept=".xlsx,.xls,.csv" onChange={handleSf1Upload} />
+            <button className="btn" onClick={exportStudents} title={t('students.export')}><Download size={15} /> {t('students.export')}</button>
+          </>
         )}
       </PageHead>
       <ErrorBanner error={error} />
