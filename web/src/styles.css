@@ -33,8 +33,8 @@
   --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.5);
   --map-tile-bg: #0B1220;
   --grid-line: rgba(255, 255, 255, 0.02);
-  --font-ui: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-display: 'Outfit', 'Space Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-ui: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Outfit', 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
 }
 
@@ -1448,6 +1448,58 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
   box-shadow: 0 26px 60px rgba(0, 0, 0, 0.55);
 }
 
+/* --- High-Legibility Typography & Aesthetic Font Scale --- */
+body {
+  font-family: var(--font-ui);
+  font-size: 14.5px;
+  line-height: 1.6;
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  color: var(--text);
+}
+h1 { font-size: 28px; }
+h2 { font-size: 22px; }
+h3 { font-size: 18px; }
+h4 { font-size: 15px; }
+
+.sub, .hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+input, select, textarea {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card-solid);
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--rgb-accent), 0.18);
+  outline: none;
+}
+
+.btn {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .btn-primary {
   background: var(--grad);
   border: none;
@@ -1462,31 +1514,11 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
   opacity: 0.95;
 }
 
-input, select, textarea {
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--card-solid);
-  padding: 10px 14px;
-  font-size: 13.5px;
-  color: var(--text);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(var(--rgb-accent), 0.18);
-  outline: none;
-}
-
-h1, h2, h3, h4 {
-  letter-spacing: -0.02em;
-  font-family: var(--font-display);
-}
-
 .table-wrap table th {
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.05em;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   color: var(--text-dim);
 }
 
