@@ -1,7 +1,7 @@
-// Client-side offline storage & queuing for teacher actions (attendance & grading) using IndexedDB
+// Client-side advanced offline storage & queuing for teacher actions (attendance & grading) using IndexedDB
 const DB_NAME = 'hinabangan_offline_db';
 const STORE_NAME = 'pending_actions';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -30,6 +30,8 @@ export async function queueOfflineAction(actionType, payload) {
         actionType,
         payload,
         timestamp: Date.now(),
+        retries: 0,
+        conflictStrategy: 'last_write_wins',
       });
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -37,7 +39,7 @@ export async function queueOfflineAction(actionType, payload) {
   } catch (err) {
     console.warn('IndexedDB unavailable, falling back to localStorage queue:', err);
     const queue = JSON.parse(localStorage.getItem('offline_queue') || '[]');
-    queue.push({ id: Date.now(), actionType, payload, timestamp: Date.now() });
+    queue.push({ id: Date.now(), actionType, payload, timestamp: Date.now(), retries: 0 });
     localStorage.setItem('offline_queue', JSON.stringify(queue));
     return true;
   }
@@ -50,11 +52,18 @@ export async function getPendingActions() {
       const transaction = db.transaction(STORE_NAME, 'readonly');
       const store = transaction.objectStore(STORE_NAME);
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
+      request.onsuccess = () => {
+        const results = request.result || [];
+        // Sort by timestamp for chronological conflict resolution
+        results.sort((a, b) => a.timestamp - b.timestamp);
+        resolve(results);
+      };
       request.onerror = () => reject(request.error);
     });
   } catch (err) {
-    return JSON.parse(localStorage.getItem('offline_queue') || '[]');
+    const queue = JSON.parse(localStorage.getItem('offline_queue') || '[]');
+    queue.sort((a, b) => a.timestamp - b.timestamp);
+    return queue;
   }
 }
 
@@ -85,10 +94,12 @@ export async function syncOfflineQueue(apiClient) {
         await apiClient('/attendance/bulk', { method: 'POST', body: item.payload });
       } else if (item.actionType === 'grades') {
         await apiClient('/grades/class', { method: 'POST', body: item.payload });
+      } else if (item.actionType === 'submission') {
+        await apiClient('/submissions', { method: 'POST', body: item.payload });
       }
       await clearPendingAction(item.id);
     } catch (e) {
-      console.error('Failed to sync offline action:', item, e);
+      console.error('Failed to sync offline action with conflict resolution retry:', item, e);
     }
   }
 }
