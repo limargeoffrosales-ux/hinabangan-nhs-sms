@@ -64,56 +64,77 @@ function catOf(s) {
 
 // Defined at module scope (stable identity) so the checklist does not remount
 // on every checkbox click — the scroll position of the list is preserved.
-function CheckGroup({ label, items, selectedSubjects, toggleSubject, toggleGroup }) {
+function CheckGroup({ label, items, selectedSubjects, toggleSubject, toggleGroup, forceOpen = false }) {
+  const [open, setOpen] = useState(() => forceOpen);
+  useEffect(() => { if (forceOpen) setOpen(true); }, [forceOpen]);
+  const selectedInGroup = items.filter((s) => selectedSubjects.includes(s.id)).length;
+
   return (
-    <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
-      <legend style={{ fontWeight: 600, fontSize: 13, padding: '0 6px' }}>{label} ({items.length})</legend>
+    <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', marginBottom: 10, background: 'var(--card)' }}>
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-          gap: 6,
-          maxHeight: 260,
-          overflowY: 'auto',
-          padding: 2,
-        }}
+        onClick={() => setOpen(!open)}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
       >
-        {items.map((s) => (
-          <label
-            key={s.id}
-            className="check-item"
-            title={s.title}
+        <div style={{ fontWeight: 700, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>{label}</span>
+          <span className="badge badge-blue">{items.length}</span>
+          {selectedInGroup > 0 && <span className="badge badge-green">{selectedInGroup} selected</span>}
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>{open ? '▲ Collapse' : '▼ Expand'}</span>
+      </div>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '16px 120px minmax(0, 1fr)',
-              alignItems: 'center',
-              columnGap: 10,
-              minHeight: 46,
-              padding: '8px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              background: 'var(--surface, #fff)',
-              fontSize: 12.5,
-              lineHeight: 1.35,
-              cursor: 'pointer',
-              boxSizing: 'border-box',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: 8,
+              maxHeight: 280,
+              overflowY: 'auto',
+              padding: 2,
             }}
           >
-            <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ width: 16, height: 16, margin: 0 }} />
-            <span
-              title={s.code}
-              style={{ fontWeight: 600, fontSize: 11, opacity: 0.72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
-            >
-              {s.code}
-            </span>
-            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{s.title}</span>
-          </label>
-        ))}
-      </div>
-      <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => toggleGroup(items)}>
-        {items.every((s) => selectedSubjects.includes(s.id)) ? 'Clear all' : 'Select all'}
-      </button>
-    </fieldset>
+            {items.map((s) => (
+              <label
+                key={s.id}
+                className="check-item"
+                title={s.title}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '18px 110px minmax(0, 1fr)',
+                  alignItems: 'center',
+                  columnGap: 10,
+                  minHeight: 44,
+                  padding: '8px 10px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: selectedSubjects.includes(s.id) ? 'rgba(var(--rgb-accent), 0.08)' : 'var(--card-solid)',
+                  fontSize: 12.5,
+                  lineHeight: 1.35,
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ width: 16, height: 16, margin: 0 }} />
+                <span
+                  title={s.code}
+                  style={{ fontWeight: 700, fontSize: 11.5, opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, color: 'var(--accent)' }}
+                >
+                  {s.code}
+                </span>
+                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{s.title}</span>
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+            <button type="button" className="btn btn-sm" onClick={() => toggleGroup(items)}>
+              {items.every((s) => selectedSubjects.includes(s.id)) ? 'Clear category' : 'Select all in category'}
+            </button>
+            <span className="sub" style={{ fontSize: 11.5 }}>{selectedInGroup} of {items.length} selected</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -688,7 +709,7 @@ export default function Enroll() {
                   ) : (
                     <>
                       {group.map((g) => (
-                        <CheckGroup key={g.cat} label={g.label} items={g.items} selectedSubjects={selectedSubjects} toggleSubject={toggleSubject} toggleGroup={toggleGroup} />
+                        <CheckGroup key={g.cat} label={g.label} items={g.items} selectedSubjects={selectedSubjects} toggleSubject={toggleSubject} toggleGroup={toggleGroup} forceOpen={search.trim().length > 0 || g.cat === 'core'} />
                       ))}
                       {selectedCount > 0 && (
                         <button type="button" className="btn btn-sm" onClick={() => setSelectedSubjects([])}>Clear selection ({selectedCount})</button>
