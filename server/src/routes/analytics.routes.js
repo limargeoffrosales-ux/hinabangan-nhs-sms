@@ -12,15 +12,15 @@ const {
   studentSummary,
   DESIGNATIONS,
 } = require('../grading/analytics');
-const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent } = require('../scope');
+const { ensureTeacherSeesStudent, ensureTeacherSeesSection, ensurePortalSeesStudent, teacherScope } = require('../scope');
 
 const router = express.Router();
 router.use(authenticate);
 
-const READ = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance'];
+const READ = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'guidance', 'teacher'];
 const SETTINGS_WRITE = ['super_admin', 'school_admin'];
 
-function enrolledStudents(schoolYear, { gradeLevel, sectionId } = {}) {
+async function enrolledStudents(schoolYear, { gradeLevel, sectionId } = {}, userRole = null, user = null) {
   const where = ["e.school_year = ? AND e.status = 'enrolled'"];
   const params = [schoolYear];
   if (gradeLevel) {
@@ -30,6 +30,16 @@ function enrolledStudents(schoolYear, { gradeLevel, sectionId } = {}) {
   if (sectionId) {
     where.push('e.section_id = ?');
     params.push(Number(sectionId));
+  }
+  if (userRole === 'teacher' && user) {
+    const scope = await teacherScope(user);
+    if (!scope) return [];
+    if (scope.sections.length) {
+      where.push('e.section_id IN (' + scope.sections.map(() => '?').join(',') + ')');
+      params.push(...scope.sections);
+    } else {
+      where.push('0 = 1');
+    }
   }
   return qa(
     `SELECT DISTINCT st.id, st.lrn, st.first_name, st.middle_name, st.last_name, st.suffix, st.grade_level,
@@ -111,7 +121,7 @@ router.get('/honor-roll', requireRole(...READ), asyncH(async (req, res) => {
   const students = await enrolledStudents(school_year, {
     gradeLevel: req.query.grade_level,
     sectionId: req.query.section_id,
-  });
+  }, req.role, req.user);
   const rows = await buildRankings(students, school_year, settings);
   assignRanks(rows, 'gwa');
   const designation = (req.query.designation || '').toString().trim();
