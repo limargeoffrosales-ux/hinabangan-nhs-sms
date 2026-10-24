@@ -423,6 +423,18 @@ export default function Enroll() {
     }
   }
 
+  async function approveEnrollment(enId) {
+    try {
+      await api(`/enrollments/${enId}`, { method: 'PATCH', body: { status: 'enrolled' } });
+      toast.success('Student enrollment approved and confirmed.');
+      load(studentSearch.trim(), true);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  const pendingEnrollments = recent.filter((r) => r.status === 'pending');
+
   async function loadDocs(id) {
     try {
       const res = await retryFetch(() => api(`/enrollments/${id}/documents`), 2);
@@ -675,6 +687,36 @@ export default function Enroll() {
           </div>
 
           <div className="card">
+            {pendingEnrollments.length > 0 && (
+              <div style={{ marginBottom: 20, padding: 14, background: 'rgba(var(--rgb-warn), 0.12)', border: '1px solid rgba(var(--rgb-warn), 0.35)', borderRadius: 12 }}>
+                <h4 style={{ margin: '0 0 8px 0', color: 'var(--warn)' }}>Pending Student Enrollment Applications ({pendingEnrollments.length})</h4>
+                <p className="sub" style={{ margin: '0 0 10px 0', fontSize: 12 }}>Students have applied for enrollment online. Review and confirm their section placement.</p>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Section</th>
+                        <th>Grade / Term</th>
+                        <th style={{ textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingEnrollments.map((p) => (
+                        <tr key={p.id}>
+                          <td><strong>{p.last_name}, {p.first_name}</strong><br /><span className="sub">LRN {p.lrn || '—'}</span></td>
+                          <td>{p.section_name || '—'}</td>
+                          <td>{p.grade_level}{p.term ? ` · ${p.term[0].toUpperCase() + p.term.slice(1)}` : ''}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="btn btn-sm btn-primary" onClick={() => approveEnrollment(p.id)} style={{ background: 'var(--success)' }}>Approve</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             <h3 style={{ marginTop: 0 }}>Recently Enrolled</h3>
             <div className="hint" style={{ marginTop: -6, marginBottom: 8 }}>
               Tap a column heading to sort by student, section or grade — find and fix wrongly-recorded enrollments.
