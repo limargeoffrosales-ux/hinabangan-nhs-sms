@@ -1428,26 +1428,60 @@ label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 13px 
 
 .grade-input { width: 74px; padding: 7px 8px; text-align: center; font-size: 13.5px; }
 
-/* --- High-End UI/UX System Polish (Inspired by Modern Ticket & Dashboard UIs) --- */
+/* --- Modern Dashboard UI Kit Aesthetic (Inspired by User Design Reference) --- */
 .card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  background: var(--card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+[data-theme='midnight'] .card {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
 }
 .card:hover {
   border-color: var(--border-strong);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
 }
+[data-theme='midnight'] .card:hover {
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.55);
+}
+
+.btn-primary {
+  background: var(--grad);
+  border: none;
+  border-radius: 14px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px var(--glow);
+  transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px var(--glow);
+  opacity: 0.95;
+}
+
+input, select, textarea {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card-solid);
+  padding: 10px 14px;
+  font-size: 13.5px;
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--rgb-accent), 0.18);
+  outline: none;
+}
+
 h1, h2, h3, h4 {
   letter-spacing: -0.02em;
   font-family: var(--font-display);
 }
-input, select, textarea {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: var(--accent-2);
-  box-shadow: 0 0 0 3px rgba(var(--rgb-green), 0.18);
-  outline: none;
-}
+
 .table-wrap table th {
   font-weight: 600;
   text-transform: uppercase;
