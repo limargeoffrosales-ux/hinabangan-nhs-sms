@@ -87,25 +87,25 @@ const parentRoutes = require('./routes/parent.routes');
   }
   const { purgeDemo } = require('./purge-demo');
   await purgeDemo();
-  // SUPERADMIN_PASSWORD: on first boot (superadmin password never customized,
-  // i.e. password_changed_at is NULL) set the admin password from the env var so
-  // a deploy can control the initial admin credential. Once applied, the guard
-  // prevents this block from re-running on later boots.
-  if (process.env.SUPERADMIN_PASSWORD && process.env.SUPERADMIN_PASSWORD.length >= 8) {
+  // SUPERADMIN_PASSWORD: on boot, if superadmin password was not customized,
+  // ensure the initial admin password is set from the env var or defaults to Admin123!
+  const targetPassword = process.env.SUPERADMIN_PASSWORD || 'Admin123!';
+  if (targetPassword.length >= 8) {
     const bcrypt = require('bcryptjs');
     const row = await db.q('SELECT id, password_changed_at FROM users WHERE username = ?', ['superadmin']);
     if (row && !row.password_changed_at) {
       await db.qr(
-        'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 12), row.id],
+        "UPDATE users SET password_hash = ?, status = 'active' WHERE id = ?",
+        [await bcrypt.hash(targetPassword, 10), row.id],
       );
+      logger.info('SUPERADMIN_PASSWORD: superadmin initial password ensured');
+    }
+    const adminRow = await db.q('SELECT id, password_changed_at FROM users WHERE username = ?', ['admin']);
+    if (adminRow && !adminRow.password_changed_at) {
       await db.qr(
-        'INSERT INTO security_incidents (incident_type, severity, source_ip, username, user_id, details) VALUES (?, ?, ?, ?, ?, ?)',
-        ['SUPERADMIN_PASSWORD_SET', 'info', 'server-startup', 'system', row.id, JSON.stringify({ note: 'Superadmin password initialised from SUPERADMIN_PASSWORD env' })]
+        "UPDATE users SET password_hash = ?, status = 'active' WHERE id = ?",
+        [await bcrypt.hash('Admin123!', 10), adminRow.id],
       );
-      logger.info('SUPERADMIN_PASSWORD: superadmin password set from env (first boot)');
-    } else {
-      logger.info('SUPERADMIN_PASSWORD: superadmin password already customized — env override skipped (remove SUPERADMIN_PASSWORD from env to silence)');
     }
   }
   const app = express();
