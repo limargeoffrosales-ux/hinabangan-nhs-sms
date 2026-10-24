@@ -268,22 +268,10 @@ export default function Login() {
                   {t('login.forgotPw')}
                 </button>
                 <span className="login-form-divider">·</span>
-                <button type="button" className="login-request-btn" onClick={() => setShowRequest(!showRequest)}>
-                  {t('login.requestAccount')}
+                <button type="button" className="login-request-btn" onClick={() => navigate('/register')} style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                  Sign up (Pending Admin Approval)
                 </button>
               </div>
-
-              {showRequest && (
-                <div className="login-request-box">
-                  <Info size={14} />
-                  <span>
-                    {t('login.requestAccountDesc')}
-                    {' '}<button type="button" className="login-request-btn login-request-link" onClick={() => navigate('/register')}>
-                      {t('login.createAccount')}
-                    </button>
-                  </span>
-                </div>
-              )}
             </form>
             )}
 
