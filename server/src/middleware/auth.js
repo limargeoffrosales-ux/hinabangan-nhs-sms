@@ -74,11 +74,11 @@ async function getCsrfToken(userId) {
 // look up by the SHA-256 hash.
 async function validateCsrfToken(userId, providedToken) {
   if (!providedToken) return false;
-  const res = await qr(
-    'DELETE FROM csrf_tokens WHERE user_id = ? AND token_hash = ? AND expires_at > ?',
+  const row = await q(
+    'SELECT 1 FROM csrf_tokens WHERE user_id = ? AND token_hash = ? AND expires_at > ?',
     [userId, hashCsrfToken(String(providedToken)), new Date().toISOString()]
   );
-  return Number(res?.changes || 0) > 0;
+  return !!row;
 }
 
 async function clearCsrfToken(userId) {
