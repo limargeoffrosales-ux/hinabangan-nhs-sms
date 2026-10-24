@@ -564,7 +564,27 @@ export default function Enroll() {
       <PageHead title="Enrollment" sub="Assign learners to sections with the full SSHS subject checklist (DepEd LRN-based)" />
       <ErrorBanner error={error} />
       {loading ? <SkeletonTable rows={8} cols={5} /> : (
-        <div className="two-col">
+        <>
+          <div className="kpi-strip" style={{ marginBottom: 20, gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            <div className="card kpi" style={{ padding: '14px 16px' }}>
+              <div className="sub">Total Enrolled</div>
+              <div className="value" style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{recent.filter(r => r.status === 'enrolled').length}</div>
+            </div>
+            <div className="card kpi" style={{ padding: '14px 16px' }}>
+              <div className="sub">Pending Applications</div>
+              <div className="value" style={{ fontSize: 24, fontWeight: 700, color: 'var(--warn)' }}>{pendingEnrollments.length}</div>
+            </div>
+            <div className="card kpi" style={{ padding: '14px 16px' }}>
+              <div className="sub">Available Learners</div>
+              <div className="value" style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>{eligible.length}</div>
+            </div>
+            <div className="card kpi" style={{ padding: '14px 16px' }}>
+              <div className="sub">Active Sections</div>
+              <div className="value" style={{ fontSize: 24, fontWeight: 700, color: 'var(--purple)' }}>{sections.length}</div>
+            </div>
+          </div>
+
+          <div className="two-col">
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Enroll a Student</h3>
             <form onSubmit={submit}>
