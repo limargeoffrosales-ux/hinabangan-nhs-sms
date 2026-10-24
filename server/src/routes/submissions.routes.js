@@ -366,12 +366,25 @@ function draftFor(code, ctx) {
   const period = ctx.period || '';
   const footer = 'Prepared by: ' + by + '\nNoted by / Approved by:\n\n______________________\n______________________';
   const is = (...codes) => codes.some((c) => code.includes(c));
-  if (is('dll', 'dlp', 'lesson_exemplar', 'lesson_plan', 'weekly_learning_plan')) {
-    return `${school}\n\nDAILY LESSON LOG / LESSON PLAN DRAFT\nPeriod: ${period}\n\n` +
-      `I. OBJECTIVES\n  - Content and performance standards to be listed here.\n` +
-      `II. SUBJECT MATTER\n  - Topic: ______________________   Subject: ${ctx.subject || '____________'}\n  - References and materials: ______________________\n` +
-      `III. LEARNING PROCEDURE\n  A. Review / Motivation\n  B. Lesson proper (discussion, guided practice)\n  C. Application / Deepen\n  D. Generalization\n  E. Evaluation (formative task)\n  F. Agreement / Assignment\n` +
-      `IV. REMARKS\n\nV. REFLECTION (learners to master / needing remediation)`;
+  if (is('dll', 'dlp', 'lesson_exemplar', 'lesson_plan', 'weekly_learning_plan', 'daily_lesson_plan')) {
+    return `${school}\n\nMASTER TEACHER LESSON PLAN\nSubject: ${ctx.subject || 'Assigned Subject'} | Period: ${period}\n\n` +
+      `I. OBJECTIVES\n` +
+      `  A. Content Standards: Demonstrate deep understanding of key concepts and principles.\n` +
+      `  B. Performance Standards: Skillfully apply acquired concepts to solve real-world problems.\n` +
+      `  C. Learning Competencies: Master core competencies with critical thinking and active engagement.\n\n` +
+      `II. CONTENT\n` +
+      `  - Core Topic: ______________________\n` +
+      `  - Key Concepts: ______________________\n` +
+      `  - References & Instructional Materials: DepEd Curriculum Guide, interactive learning modules, digital multimedia.\n\n` +
+      `III. LEARNING PROCEDURES (PEDAGOGICAL APPROACH)\n` +
+      `  A. Introductory Activity & Motivation (5 mins)\n     - Engaging hook, real-world connection, and activating prior knowledge through inquiry-based questioning.\n\n` +
+      `  B. Lesson Proper & Conceptual Discussion (15 mins)\n     - Interactive presentation of core concepts, guided discovery, and Socratic questioning to promote deep reasoning.\n\n` +
+      `  C. Guided Practice & Collaborative Activity (15 mins)\n     - Small group investigations, peer scaffolding, and hands-on problem solving with teacher guidance.\n\n` +
+      `  D. Independent Application & Deepening (10 mins)\n     - Real-world scenario application where learners synthesize and transfer knowledge independently.\n\n` +
+      `  E. Formative Assessment & Check for Understanding (5 mins)\n     - Quick exit ticket, targeted probing questions, and misconception checks to verify student mastery.\n\n` +
+      `  F. Assignment & Enrichment\n     - Optional exploratory task or extension reading for deeper inquiry.\n\n` +
+      `IV. TEACHER REMARKS\n  - Observations on pacing, learner engagement, and curriculum adjustment needs.\n\n` +
+      `V. REFLECTION (MASTER TEACHER INSIGHTS)\n  - Number of learners achieving mastery: _____\n  - Strategies that proved exceptionally effective: ______________________\n  - Areas requiring targeted remediation: ______________________`;
   }
   if (is('narrative', 'accomplishment') || code === 'year_end_report') {
     return `${school}\n\n${code.includes('accomplishment') ? 'ACCOMPLISHMENT' : 'NARRATIVE'} REPORT (DRAFT)\nPeriod: ${period}\n\n` +
