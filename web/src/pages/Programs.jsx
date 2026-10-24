@@ -337,7 +337,8 @@ export default function Programs() {
       </div>
 
       <div className="card">
-        <h3>Summary by Grade Level <span className="count-pill">{schoolYear}</span></h3>
+        <h3>Summary of Class Programs &amp; Workload <span className="count-pill">{schoolYear}</span></h3>
+        <p className="sub">System-generated workload summary, subject distributions, and meeting totals per grade level based on admin assignments.</p>
         {gradeSummary.length ? (
           <div className="table-wrap">
             <table>
@@ -429,7 +430,10 @@ export default function Programs() {
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <h3 style={{ margin: 0 }}>Subject Assignments <span className="count-pill">{assignments.length}</span></h3>
+          <div>
+            <h3 style={{ margin: 0 }}>Teacher &amp; Subject Assignments <span className="count-pill">{assignments.length}</span></h3>
+            <p className="sub" style={{ margin: '4px 0 0 0' }}>Admin input: assign teachers to subjects, assigned sections, and teaching hours (duration &amp; meetings/week).</p>
+          </div>
           {canWrite && (
             <button className="btn" onClick={() => setModal({ mode: 'add' })}>
               <Plus size={15} /> Add assignment
@@ -471,10 +475,13 @@ export default function Programs() {
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <h3 style={{ margin: 0 }}>
-            {view === 'section' ? 'Section Timetable' : 'Teacher Weekly Program'}
-            <span className="count-pill">{viewedEntries.length} meetings</span>
-          </h3>
+          <div>
+            <h3 style={{ margin: 0 }}>
+              {view === 'section' ? 'Programs per Section (Timetable)' : "Teacher's Weekly Program"}
+              <span className="count-pill">{viewedEntries.length} meetings</span>
+            </h3>
+            <p className="sub" style={{ margin: '4px 0 0 0' }}>System-generated class programs and weekly timetables per section and teacher.</p>
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {!isTeacher && (
               <>
