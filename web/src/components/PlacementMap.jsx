@@ -139,11 +139,32 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const [searchMsg, setSearchMsg] = useState(null);
   const [geoNote, setGeoNote] = useState(null);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const [radiusKm, setRadiusKm] = useState(0);
+  const radiusCircleRef = useRef(null);
   const baseKeyRef = useRef('street');
   baseKeyRef.current = baseKey;
 
   const labelRef = useRef('immersion');
   labelRef.current = isImmersion ? 'immersion' : 'JDVP';
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (radiusCircleRef.current) {
+      map.removeLayer(radiusCircleRef.current);
+      radiusCircleRef.current = null;
+    }
+    if (radiusKm > 0) {
+      radiusCircleRef.current = L.circle([SCHOOL_COORDS.lat, SCHOOL_COORDS.lng], {
+        radius: radiusKm * 1000,
+        color: '#7c3aed',
+        fillColor: '#7c3aed',
+        fillOpacity: 0.05,
+        weight: 2,
+        dashArray: '4 4',
+      }).addTo(map);
+    }
+  }, [radiusKm]);
 
   // --- map bootstrap --------------------------------------------------------
   useEffect(() => {
@@ -619,6 +640,19 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
             onClick={() => { if (baseKey === 'street') setBaseKey('satellite'); setShowLabels((s) => !s); }} title="Place labels">
             Labels
           </button>
+        </div>
+      </div>
+
+      {/* Radius ring control */}
+      <div className="gm-layers-ctl" style={{ bottom: 132 }}>
+        <div className="gm-layers-row">
+          <span style={{ fontSize: 11.5, fontWeight: 600 }}>Radius:</span>
+          {[0, 1, 3, 5, 10].map((km) => (
+            <button key={km} type="button" className={`gm-layer-btn ${radiusKm === km ? 'active' : ''}`}
+              onClick={() => setRadiusKm(km)}>
+              {km === 0 ? 'Off' : `${km}km`}
+            </button>
+          ))}
         </div>
       </div>
 
