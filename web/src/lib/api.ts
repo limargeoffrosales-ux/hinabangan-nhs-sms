@@ -39,4 +39,19 @@ function createApiClient(): ApiClient {
 }
 
 export const apiClient = createApiClient();
+
+export function sanitizeError(err: unknown): string {
+  if (!err) return 'An unexpected error occurred';
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const e = err as { status?: number; message?: unknown };
+    const status = Number(e.status || 0);
+    if (status > 0 && status < 500 && typeof e.message === 'string') {
+      return e.message;
+    }
+    return 'An unexpected error occurred. Please try again.';
+  }
+  return err == null || err === '' ? 'An unexpected error occurred. Please try again.' : String(err);
+}
+
 export default apiClient;
