@@ -146,6 +146,17 @@ router.post('/class', requireRole(...WRITE), asyncH(async (req, res) => {
       }
       const grade = compute(w, p, qe, scale.weights);
       const remarks = grade != null ? (grade >= passing ? 'PASSED' : 'FAILED') : null;
+      if (grade != null && grade < 75) {
+        notifyEvent('grade_alert', {
+          student_id: r.student_id,
+          data: {
+            student: 'Student',
+            subject: 'Subject',
+            grade: String(grade),
+            term: String(period),
+          },
+        }).catch(() => {});
+      }
       const existing = await conn.get(
         'SELECT id FROM grades WHERE student_id = ? AND subject_id = ? AND school_year = ? AND quarter = ?',
         [r.student_id, b.subject_id, b.school_year, period]);

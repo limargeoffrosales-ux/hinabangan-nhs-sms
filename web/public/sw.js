@@ -72,6 +72,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
+  // Bypass service worker entirely in local development (localhost / 127.0.0.1) to prevent fetch/HMR/proxy failures
+  if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
+    return;
+  }
+
   if (url.pathname === '/sw.js') return;
   if (url.origin !== self.location.origin) return;
 
@@ -136,9 +141,5 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML/navigation — NETWORK ONLY. Never serve cached HTML.
-  // Cached HTML references old chunk hashes that no longer exist on the server
-  // after a deploy, causing "Failed to fetch dynamically imported module" loops.
-  // Hashed static assets (JS/CSS) are still cached via the handler above.
   event.respondWith(fetch(request));
 });

@@ -104,6 +104,15 @@ const DEFAULT_TEMPLATES = {
       body: 'Hi {{name}},\n\nTerm {{term}} grades for {{subject}} ({{section}}) have been posted for {{school_year}}. Sign in to the portal to view {{student}}\'s report card.\n— {{school}}',
     },
   },
+  grade_alert: {
+    email: {
+      subject: 'Academic notice: Low grade for {{student}} in {{subject}}',
+      body: 'Hi {{name}},\n\n{{student}} received a grade of {{grade}} in {{subject}} (Term {{term}}), which is below the passing threshold.\n\nPlease check the portal for details and consult with the teacher if needed.\n— {{school}}',
+    },
+    sms: {
+      body: 'Academic notice: {{student}} received {{grade}} in {{subject}} (Term {{term}}). Check school portal. — {{school}}',
+    },
+  },
   test: {
     email: { subject: 'Test notification from {{school}}', body: 'This is a test message to confirm email delivery.\n\n— {{school}}' },
     sms: { body: 'Test message from {{school}} — SMS delivery works.' },

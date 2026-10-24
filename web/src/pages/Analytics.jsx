@@ -20,6 +20,8 @@ export default function Analytics() {
   const [compMastery, setCompMastery] = useState(null);
   const [studentRisk, setStudentRisk] = useState(null);
   const [aiInsights, setAiInsights] = useState(null);
+  const [healthNutrition, setHealthNutrition] = useState(null);
+  const [sfPromotion, setSfPromotion] = useState(null);
   const [riskThreshold, setRiskThreshold] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -66,6 +68,8 @@ export default function Analytics() {
           api(`/analytics/kpi/competency-mastery?school_year=${sy}` + (quarter ? `&quarter=${quarter}` : '')),
           api(`/analytics/kpi/student-risk?school_year=${sy}`),
           api(`/analytics/kpi/ai-insights?school_year=${sy}`),
+          api(`/analytics/kpi/health-nutrition?school_year=${sy}`),
+          api(`/analytics/kpi/sf-promotion?school_year=${sy}`),
         ]);
         const settle = (r, fallback) => r.status === 'fulfilled' ? r.value : fallback;
         setGrades(settle(results[0], null));
@@ -76,6 +80,8 @@ export default function Analytics() {
         setCompMastery(settle(results[5], null));
         setStudentRisk(settle(results[6], null));
         setAiInsights(settle(results[7], null));
+        setHealthNutrition(settle(results[8], { data: [] }));
+        setSfPromotion(settle(results[9], { summary: {} }));
       } catch (e) { setError(e.message); }
       setLoading(false);
     })();
@@ -160,12 +166,53 @@ export default function Analytics() {
               ['retention', t('analytics.tabRetention')],
               ['atRisk', t('analytics.tabAtRisk')],
               ['strand', t('analytics.tabStrand')],
+              ['deped', 'DepEd SF1–SF10 Analytics'],
               ['advanced', t('analytics.tabAdvanced')],
             ].map(([id, label]) => (
               <button key={id} className={`tab ${tab === id ? 'active' : ''}`}
                 onClick={() => setTab(id)} role="tab" aria-selected={tab === id}>{label}</button>
             ))}
           </div>
+
+          {/* ── DepEd Analytics Tab ──────────────────── */}
+          {tab === 'deped' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+              <div className="card">
+                <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>SF8 — Learner Health & Nutrition Distribution</h3>
+                <p className="small" style={{ color: 'var(--muted)', marginBottom: 16 }}>BMI and nutritional status assessment across learners.</p>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {(healthNutrition?.data || []).map((h, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8 }}>
+                      <span style={{ fontWeight: 500 }}>{h.status}</span>
+                      <Badge status="info">{h.count} learners</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card">
+                <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>SF5 & SF10 — Promotion & Retention Summary</h3>
+                <p className="small" style={{ color: 'var(--muted)', marginBottom: 16 }}>School-wide promotion, retention, and dropout metrics.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="kpi-mini">
+                    <div className="kpi-mini-value" style={{ color: 'var(--accent-2)' }}>{sfPromotion?.summary?.promoted ?? 0}</div>
+                    <div className="kpi-mini-label">Promoted / Enrolled</div>
+                  </div>
+                  <div className="kpi-mini">
+                    <div className="kpi-mini-value" style={{ color: 'var(--warn)' }}>{sfPromotion?.summary?.retained ?? 0}</div>
+                    <div className="kpi-mini-label">Retained</div>
+                  </div>
+                  <div className="kpi-mini">
+                    <div className="kpi-mini-value" style={{ color: 'var(--info)' }}>{sfPromotion?.summary?.transferred_out ?? 0}</div>
+                    <div className="kpi-mini-label">Transferred Out</div>
+                  </div>
+                  <div className="kpi-mini">
+                    <div className="kpi-mini-value" style={{ color: 'var(--danger)' }}>{sfPromotion?.summary?.dropout ?? 0}</div>
+                    <div className="kpi-mini-label">Dropout</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Overview ─────────────────────────────── */}
           {tab === 'overview' && (
@@ -206,14 +253,14 @@ export default function Analytics() {
                 <div ref={refGradeBars} style={{ minWidth: 0 }}>
                   {gradeBuckets.length ? (
                     <ModernBarChart
-                      
+
                       data={gradeBuckets}
                       categoryKey="band"
                       perBarColors={CHART_PALETTE}
                       height={280}
                       showLabels={false}
                     >
-                      
+
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -237,7 +284,7 @@ export default function Analytics() {
                 <div ref={refAttTrend} style={{ minWidth: 0 }}>
                   {attMonthly.length ? (
                     <ModernLineChart
-                      
+
                       data={attMonthly}
                       legend
                       categoryKey="month"
@@ -246,8 +293,8 @@ export default function Analytics() {
                       yDomain={[0, 100]}
                       height={300}
                     >
-                      
-                      
+
+
                     </ModernLineChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -260,7 +307,7 @@ export default function Analytics() {
                 <div ref={refAttGrade} style={{ minWidth: 0 }}>
                   {attByGrade.length ? (
                     <ModernBarChart
-                      
+
                       data={attByGrade}
                       categoryKey="grade_level"
                       layout="vertical"
@@ -268,7 +315,7 @@ export default function Analytics() {
                       yDomain={[0, 100]}
                       height={300}
                     >
-                      
+
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -294,7 +341,7 @@ export default function Analytics() {
                 <div ref={refRetByGrade} style={{ minWidth: 0 }}>
                   {retByGrade.length ? (
                     <ModernBarChart
-                      
+
                       data={retByGrade}
                       legend
                       categoryKey="grade_level"
@@ -304,8 +351,8 @@ export default function Analytics() {
                       ]}
                       height={280}
                     >
-                      
-                      
+
+
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -318,14 +365,14 @@ export default function Analytics() {
                 <div ref={refRetYoy} style={{ minWidth: 0 }}>
                   {retYoy.length ? (
                     <ModernBarChart
-                      
+
                       data={retYoy}
                       categoryKey="school_year"
                       series={[{ key: 'retention_rate', name: t('analytics.retention'), color: 'var(--warn)' }]}
                       yDomain={[0, 100]}
                       height={280}
                     >
-                      
+
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -372,7 +419,7 @@ export default function Analytics() {
                 <div ref={refPassByGrade} style={{ minWidth: 0 }}>
                   {passByGrade.length ? (
                     <ModernBarChart
-                      
+
                       data={passByGrade}
                       legend
                       categoryKey="grade_level"
@@ -384,8 +431,8 @@ export default function Analytics() {
                       height={200}
                       showLabels={false}
                     >
-                      
-                      
+
+
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -451,7 +498,7 @@ export default function Analytics() {
                 <div ref={refStrandBars} style={{ minWidth: 0 }}>
                   {strandComp?.data?.length ? (
                     <ModernBarChart
-                      
+
                       data={strandComp.data}
                       legend
                       categoryKey="strand"
@@ -464,8 +511,8 @@ export default function Analytics() {
                       xHeight={60}
                       showLabels={false}
                     >
-                      
-                      
+
+
                     </ModernBarChart>
                   ) : <Empty text={t('analytics.noData')} />}
                 </div>
@@ -582,7 +629,7 @@ export default function Analytics() {
                   <div ref={refSubjectBars} style={{ minWidth: 0 }}>
                     {compMastery?.by_subject?.length ? (
                       <ModernBarChart
-                        
+
                         data={compMastery.by_subject}
                       legend
                         categoryKey="subject_code"
@@ -595,8 +642,8 @@ export default function Analytics() {
                         height={360}
                         showLabels={false}
                       >
-                        
-                        
+
+
                       </ModernBarChart>
                     ) : <Empty text={t('analytics.noCompetencyData')} />}
                   </div>

@@ -3,6 +3,8 @@
 // and ticks with `var(--css-var)` tokens, so we walk the clone and resolve
 // every token against the live computed root before serializing.
 
+import { downloadBlob } from './export';
+
 function resolveVar(name) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name);
   return v && v.trim() ? v.trim() : null;
@@ -73,7 +75,7 @@ export function exportSvgAsPng(svg, { filename, scale = 2 } = {}) {
       URL.revokeObjectURL(url);
       canvas.toBlob((png) => {
         if (!png) return reject(new Error('PNG encoding failed'));
-        downloadBlob(png, filename || `chart-${Date.now()}.png`);
+        downloadBlob(png, filename || `chart-${Date.now()}.png`, 'image/png');
         resolveP(true);
       }, 'image/png');
     };
@@ -83,15 +85,4 @@ export function exportSvgAsPng(svg, { filename, scale = 2 } = {}) {
     };
     img.src = url;
   });
-}
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
