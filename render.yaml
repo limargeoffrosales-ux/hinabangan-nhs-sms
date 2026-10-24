@@ -11,7 +11,7 @@ services:
     name: hinabangan-nhs-staging
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
     # Staging tracks main automatically so failures surface early on a
@@ -131,7 +131,7 @@ services:
     name: hinabangan-nhs
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
     # Production auto-deploys on push to main. The GitHub Actions
