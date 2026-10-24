@@ -51,6 +51,13 @@ async function purgeSubmissionFiles(days) {
   return total;
 }
 
+async function purgeExpiredAuditLogs() {
+  const cutoff = cutoffDate(1825); // 5 years retention rule
+  const run = await qr('DELETE FROM access_logs WHERE timestamp < ?', [cutoff]).catch(() => ({ changes: 0 }));
+  const runInc = await qr('DELETE FROM security_incidents WHERE created_at < ?', [cutoff]).catch(() => ({ changes: 0 }));
+  return Number((run && run.changes) || 0) + Number((runInc && runInc.changes) || 0);
+}
+
 let sweeping = false;
 
 async function sweep() {
@@ -62,8 +69,9 @@ async function sweep() {
     const report = {};
     if (Number.isFinite(docDays) && docDays > 0) report.docGenerations = await purgeDocGenerations(docDays);
     if (Number.isFinite(fileDays) && fileDays > 0) report.submissionFiles = await purgeSubmissionFiles(fileDays);
-    if (report.docGenerations || report.submissionFiles) {
-      logger.info(report, 'STORAGE_CLEANUP completed');
+    report.expiredAuditLogs = await purgeExpiredAuditLogs();
+    if (report.docGenerations || report.submissionFiles || report.expiredAuditLogs) {
+      logger.info(report, 'STORAGE_CLEANUP & 5-YEAR RETENTION sweep completed');
     }
   } catch (err) {
     logger.error({ err: err?.message, stack: err?.stack }, 'STORAGE_CLEANUP failed:');
