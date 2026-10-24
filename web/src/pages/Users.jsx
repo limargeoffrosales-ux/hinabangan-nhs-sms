@@ -183,9 +183,36 @@ export default function Users() {
     }
   }
 
+  async function handleApproveUser(id) {
+    try {
+      await api(`/users/${id}`, { method: 'PATCH', body: { status: 'active' } });
+      toast.success('User account approved and activated');
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleRejectUser(id) {
+    setConfirmAction({
+      message: 'Are you sure you want to reject and remove this pending registration?',
+      action: async () => {
+        try {
+          await api(`/users/${id}`, { method: 'DELETE' });
+          toast.success('Pending registration rejected and removed');
+          load();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
+  }
+
   if (!isAdmin) {
     return <PageHead title={t('users.title')}><Empty text={t('users.noPermission')} /></PageHead>;
   }
+
+  const pendingUsers = rows.filter((u) => u.status === 'pending');
 
   return (
     <>
@@ -203,6 +230,45 @@ export default function Users() {
         </div>
       </PageHead>
       <ErrorBanner error={error} />
+
+      {/* Pending Registrations Approval Queue */}
+      {pendingUsers.length > 0 && (
+        <div className="card table-wrap" style={{ marginBottom: 16, border: '1px solid rgba(var(--rgb-warn), 0.4)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Pending Registrations Approval <span className="count-pill">{pendingUsers.length}</span></h3>
+              <p className="sub" style={{ margin: '2px 0 0 0' }}>Review and approve or reject new user signup requests.</p>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Email / Phone</th>
+                <th>Signed Up</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingUsers.map((u) => (
+                <tr key={u.id}>
+                  <td><code style={{ fontSize: 13, fontWeight: 'bold' }}>{u.username}</code></td>
+                  <td><strong>{u.name}</strong></td>
+                  <td><Badge status="normal">{u.role}</Badge></td>
+                  <td>{u.email || u.phone || '—'}</td>
+                  <td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="btn btn-sm btn-primary" onClick={() => handleApproveUser(u.id)} style={{ marginRight: 6, background: 'var(--success)' }}>Approve</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleRejectUser(u.id)}>Reject</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Superadmin Registration Access Codes Table */}
       {regCodes.length > 0 && (
