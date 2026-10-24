@@ -175,13 +175,12 @@ router.get('/overview', requireRole(...PORTAL), asyncH(async (req, res) => {
 // next (upcoming) school year, plus the caller's past applications.
 router.get('/enrollment-options', requireRole(...PORTAL), asyncH(async (req, res) => {
   const ids = await linkedStudentIds(req.user);
-  const studentId = await resolvePortalStudent(ids, req, res);
-  if (!studentId) return res.json({ current_school_year: null, next_school_year: null, sections: [] });
+  const studentId = ids.length ? await resolvePortalStudent(ids, req, res) : null;
   const currentSy = await getCurrentSchoolYear();
-  const enrollments = await qa(
+  const enrollments = studentId ? await qa(
     `SELECT e.*, s.name AS section_name FROM enrollments e LEFT JOIN sections s ON s.id = e.section_id
      WHERE e.student_id = ? ORDER BY e.school_year DESC`,
-    [studentId]);
+    [studentId]) : [];
   const sections = await qa(
     `SELECT sec.id, sec.name, sec.grade_level, sec.strand, sec.school_year, sec.capacity,
             (SELECT COUNT(*) FROM enrollments e

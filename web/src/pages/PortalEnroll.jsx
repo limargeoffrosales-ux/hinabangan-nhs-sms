@@ -24,7 +24,6 @@ export default function PortalEnroll() {
   const [applied, setApplied] = useState(null);
 
   const load = useCallback(() => {
-    if (!studentId) return;
     setLoading(true);
     setError(null);
     api(`/portal/enrollment-options${studentId ? `?student_id=${studentId}` : ''}`)
@@ -49,7 +48,7 @@ export default function PortalEnroll() {
     try {
       await api('/enrollments/self-apply', {
         method: 'POST',
-        body: { section_id: sectionId, school_year: opts.next_school_year, grade_level: section?.grade_level, term: termValue, student_id: studentId },
+        body: { section_id: sectionId, school_year: opts.next_school_year, grade_level: section?.grade_level, term: termValue, student_id: studentId || undefined },
       });
       setApplied({ messageKey: 'applied' });
       await load();
@@ -62,27 +61,12 @@ export default function PortalEnroll() {
 
   if (meLoading) return <Spinner />;
 
-  const pendingNotice = me?.user?.role === 'student' ? me?.link_request : null;
-
   return (
     <>
       <PageHead title={t('portal.enroll', 'Enrollment')} sub={t('portal.enrollSub', 'Apply for the upcoming school year. Your application is submitted for review — the registrar confirms it in the Enrollment module.')} />
       <ErrorBanner error={meError || error} />
 
-      {pendingNotice && pendingNotice.status === 'pending' && (
-        <div className="notice warn" role="status">{t('portal.linkPending', 'Your portal account is awaiting registrar approval. You will be able to apply for enrollment once it is approved.')}</div>
-      )}
-      {pendingNotice && pendingNotice.status === 'rejected' && (
-        <div className="notice warn" role="status">{t('portal.linkRejected', 'Your portal account request was not approved.{{note}} Contact the school registrar if you believe this is a mistake.', { note: pendingNotice.notes ? ` (${pendingNotice.notes})` : '' })}</div>
-      )}
-
-      {!students.length ? (
-        <div className="empty">
-          {pendingNotice && pendingNotice.status === 'pending'
-            ? t('portal.linkPending', 'Your portal account is awaiting registrar approval. You will be able to view records and apply for enrollment once it is approved.')
-            : t('portal.enrollNoLink', 'No student record is linked to this account yet. Ask the school registrar to link your portal account.')}
-        </div>
-      ) : loading ? <Spinner /> : !opts ? null : (
+      {loading ? <Spinner /> : !opts ? null : (
         <>
           {students.length > 1 && (
             <div className="card" style={{ marginBottom: 16 }}>
