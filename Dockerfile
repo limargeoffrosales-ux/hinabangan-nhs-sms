@@ -18,9 +18,10 @@ RUN npm run build
 
 # --- Stage 3: prepare server production deps ---------------------------------
 FROM deps AS server-builder
-WORKDIR /build/server
+WORKDIR /build
 # Prune dev dependencies for production runtime
 RUN npm prune --omit=dev --workspace=server
+WORKDIR /build/server
 COPY server/ ./
 
 # --- Stage 4: runtime --------------------------------------------------------
