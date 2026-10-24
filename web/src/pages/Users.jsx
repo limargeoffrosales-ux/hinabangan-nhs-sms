@@ -85,6 +85,7 @@ export default function Users() {
       if (editing) await api(`/users/${editing}`, { method: 'PATCH', body });
       else await api('/users', { method: 'POST', body });
       setShowModal(false);
+      toast.success(t('common.saved', 'Changes saved successfully'));
       load();
     } catch (e2) {
       setError(e2.message);
