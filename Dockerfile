@@ -31,6 +31,7 @@ ENV NODE_ENV=production \
     PORT=4000
 COPY database/ ./database/
 COPY --from=server-builder /build/server ./server/
+COPY --from=server-builder /build/node_modules ./server/node_modules/
 COPY --from=web-builder /build/web/dist ./web/dist
 RUN mkdir -p /app/server/data && chown -R node:node /app/server
 USER node
