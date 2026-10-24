@@ -5,14 +5,24 @@ import { api } from '../lib/api';
 import { printElementHtml, downloadFromApi } from '../lib/export';
 import { useToast } from '../components/Toast';
 import { PageHead, ErrorBanner, Badge, Empty, Modal, Spinner } from '../components/ui';
+import { useAuth } from '../lib/auth';
 
 const TERMS = [1, 2, 3];
 
 export default function Grades() {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [allSections, setAllSections] = useState([]);
+  const [allSubjects, setAllSubjects] = useState([]);
+  const [myTeacher, setMyTeacher] = useState(null);
+  const [teacherAssignments, setTeacherAssignments] = useState([]);
+  const [isAdvisoryMode, setIsAdvisoryMode] = useState(false);
+  const [advisorySummary, setAdvisorySummary] = useState(null);
+  const [advisoryLoading, setAdvisoryLoading] = useState(false);
   const [schoolYear, setSchoolYear] = useState('2026-2027');
   const [sectionId, setSectionId] = useState('');
   const [subjectId, setSubjectId] = useState('');
@@ -34,14 +44,52 @@ export default function Grades() {
   useEffect(() => {
     (async () => {
       try {
-        const [s, sub] = await Promise.all([api('/sections?limit=200'), api('/subjects?limit=200')]);
-        setSections(s.data);
-        setSubjects(sub.data);
+        const [secRes, subRes, teaRes, asgRes] = await Promise.all([
+          api('/sections?limit=200'),
+          api('/subjects?limit=200'),
+          isTeacher ? api('/teachers?limit=200').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+          isTeacher ? api('/schedule/assignments?school_year=' + encodeURIComponent(schoolYear)).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        ]);
+        setAllSections(secRes.data || []);
+        setAllSubjects(subRes.data || []);
+
+        if (isTeacher) {
+          const tea = (teaRes.data || []).find((t) => t.user_id === user?.id);
+          setMyTeacher(tea || null);
+          const asg = (asgRes.data || []).filter((a) => a.teacher_id === tea?.id);
+          setTeacherAssignments(asg);
+
+          const assignedSecIds = new Set(asg.map((a) => Number(a.section_id)));
+          const filteredSec = (secRes.data || []).filter(
+            (s) => Number(s.adviser_id) === Number(tea?.id) || Number(s.adviser_teacher_id) === Number(tea?.id) || assignedSecIds.has(Number(s.id))
+          );
+          setSections(filteredSec);
+        } else {
+          setSections(secRes.data || []);
+          setSubjects(subRes.data || []);
+        }
       } catch (e) {
         setError(e.message);
       }
     })();
-  }, []);
+  }, [isTeacher, user?.id, schoolYear]);
+
+  useEffect(() => {
+    if (!sectionId) {
+      if (isTeacher) setSubjects([]);
+      return;
+    }
+    if (isTeacher && myTeacher) {
+      const allowedSubIds = new Set(
+        teacherAssignments
+          .filter((a) => String(a.section_id) === String(sectionId))
+          .map((a) => Number(a.subject_id))
+      );
+      setSubjects(allSubjects.filter((s) => allowedSubIds.has(Number(s.id))));
+    } else {
+      setSubjects(allSubjects);
+    }
+  }, [sectionId, isTeacher, myTeacher, teacherAssignments, allSubjects]);
 
   async function loadClass() {
     if (!sectionId || !subjectId) return;
@@ -250,6 +298,56 @@ export default function Grades() {
     }
   };
 
+  async function loadAdvisorySummary() {
+    if (!sectionId) return;
+    setAdvisoryLoading(true);
+    setError(null);
+    try {
+      const asgRes = await api(`/schedule/assignments?school_year=${encodeURIComponent(schoolYear)}`);
+      const sectionAssignments = (asgRes.data || []).filter((a) => String(a.section_id) === String(sectionId));
+
+      const subjectGrades = await Promise.all(
+        sectionAssignments.map((a) =>
+          api(`/grades/class?section_id=${sectionId}&subject_id=${a.subject_id}&school_year=${encodeURIComponent(schoolYear)}&term=${term}`)
+            .then((r) => ({ subject: a, data: r.data || [] }))
+            .catch(() => ({ subject: a, data: [] }))
+        )
+      );
+
+      const studentMap = new Map();
+      for (const sg of subjectGrades) {
+        for (const st of sg.data) {
+          if (!studentMap.has(st.id)) {
+            studentMap.set(st.id, {
+              id: st.id,
+              lrn: st.lrn,
+              name: `${st.last_name}, ${st.first_name}`,
+              grades: {},
+            });
+          }
+          studentMap.get(st.id).grades[sg.subject.subject_code] = st.computed_grade;
+        }
+      }
+
+      setAdvisorySummary({
+        section: sections.find((s) => String(s.id) === String(sectionId)),
+        subjects: sectionAssignments,
+        students: Array.from(studentMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      });
+      setIsAdvisoryMode(true);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setAdvisoryLoading(false);
+    }
+  }
+
+  const selectedSecObj = sections.find((s) => String(s.id) === String(sectionId));
+  const isSelectedAdvisory = myTeacher && selectedSecObj && (
+    Number(selectedSecObj.adviser_id) === Number(myTeacher.id) ||
+    Number(selectedSecObj.adviser_teacher_id) === Number(myTeacher.id)
+  );
+
   return (
     <>
       <PageHead
@@ -262,14 +360,21 @@ export default function Grades() {
         <div className="form-row" style={{ alignItems: 'end' }}>
           <div>
             <label>{t('grades.section')}</label>
-            <select value={sectionId} onChange={(e) => { setSectionId(e.target.value); setRows(null); }}>
+            <select value={sectionId} onChange={(e) => { setSectionId(e.target.value); setRows(null); setIsAdvisoryMode(false); }}>
               <option value="">{t('common.select')}</option>
-              {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {sections.map((s) => {
+                const isAdv = isTeacher && myTeacher && (Number(s.adviser_id) === Number(myTeacher.id) || Number(s.adviser_teacher_id) === Number(myTeacher.id));
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.name} {isAdv ? '★ (My Advisory Class)' : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
             <label>{t('grades.subject')}</label>
-            <select value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setRows(null); }}>
+            <select value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setRows(null); setIsAdvisoryMode(false); }}>
               <option value="">{t('common.select')}</option>
               {subjects.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.title}</option>)}
             </select>
@@ -286,7 +391,12 @@ export default function Grades() {
               ))}
             </div>
           </div>
-          <button className="btn btn-primary" onClick={loadClass} disabled={!sectionId || !subjectId}>{t('grades.loadClass')}</button>
+          <button className="btn btn-primary" onClick={() => { setIsAdvisoryMode(false); loadClass(); }} disabled={!sectionId || !subjectId}>{t('grades.loadClass')}</button>
+          {isSelectedAdvisory && (
+            <button className="btn" onClick={loadAdvisorySummary} disabled={advisoryLoading} style={{ background: 'var(--accent-2)', color: '#fff' }}>
+              {advisoryLoading ? 'Loading…' : '📊 Advisory Grade Summary'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -411,6 +521,60 @@ export default function Grades() {
               </div>
               <div className="sub" style={{ marginTop: 6 }}>Enter 0-100 scores per competency. Levels are auto-assigned: Beginning (&lt;75), Developing (75-79), Approaching (80-84), Proficient (85-89), Advanced (90+).</div>
             </div>
+          )}
+        </div>
+      )}
+
+      {isAdvisoryMode && advisorySummary && (
+        <div className="card table-wrap" style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Advisory Class Summary of Grades — {advisorySummary.section?.name}</h3>
+              <p className="sub" style={{ margin: '2px 0 0 0' }}>School Year {schoolYear} · Quarter {term}</p>
+            </div>
+            <button className="btn" onClick={() => window.print()}>
+              <Printer size={15} /> Print Summary Sheet
+            </button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>LRN</th>
+                <th>Learner Name</th>
+                {advisorySummary.subjects.map((s) => (
+                  <th key={s.id} style={{ textAlign: 'center' }}>{s.subject_code}</th>
+                ))}
+                <th style={{ textAlign: 'center' }}>General Average</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {advisorySummary.students.map((st) => {
+                const vals = Object.values(st.grades).filter((v) => v != null);
+                const avg = vals.length ? (vals.reduce((a, b) => a + Number(b), 0) / vals.length).toFixed(1) : null;
+                const status = avg ? (Number(avg) >= 75 ? 'Promoted' : 'Needs Improvement') : '—';
+                return (
+                  <tr key={st.id}>
+                    <td>{st.lrn}</td>
+                    <td><strong>{st.name}</strong></td>
+                    {advisorySummary.subjects.map((s) => (
+                      <td key={s.id} style={{ textAlign: 'center' }}>
+                        {st.grades[s.subject_code] != null ? (
+                          <strong>{st.grades[s.subject_code]}</strong>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    ))}
+                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{avg || '—'}</td>
+                    <td>{avg ? <Badge status={Number(avg) >= 75 ? 'present' : 'absent'}>{status}</Badge> : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!advisorySummary.students.length && (
+            <Empty text="No enrolled learners found for this advisory section." />
           )}
         </div>
       )}
