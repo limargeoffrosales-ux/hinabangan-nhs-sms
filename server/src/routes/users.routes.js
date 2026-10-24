@@ -129,4 +129,40 @@ router.post('/bulk-reset-password', requireRole('super_admin', 'school_admin'), 
   res.json({ ok: true, reset, skipped });
 }));
 
+// --- Superadmin Registration Access Code Generator ---------------------------
+function generateUniqueCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let rand = '';
+  for (let i = 0; i < 8; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `HNHS-${rand.slice(0, 4)}-${rand.slice(4)}`;
+}
+
+router.get('/registration-codes', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const rows = await qa(
+    'SELECT id, code, role, description, used_count, max_uses, status, created_at FROM registration_codes ORDER BY id DESC LIMIT 100'
+  );
+  res.json({ data: rows });
+}));
+
+router.post('/registration-codes', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const { role = 'student', max_uses = 1, description = '' } = req.body || {};
+  const code = generateUniqueCode();
+  const id = await qi(
+    'INSERT INTO registration_codes (code, role, description, created_by, max_uses, status) VALUES (?, ?, ?, ?, ?, ?)',
+    [code, role, description || null, req.user.id, Math.max(1, Number(max_uses) || 1), 'active']
+  );
+  await audit(req, 'CREATE_REGISTRATION_CODE', 'registration_codes', id, { code, role, max_uses });
+  res.status(201).json({ id, code, role, max_uses, status: 'active' });
+}));
+
+router.delete('/registration-codes/:id', requireRole('super_admin', 'school_admin'), asyncH(async (req, res) => {
+  const row = await q('SELECT id FROM registration_codes WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Code not found' });
+  await qr("UPDATE registration_codes SET status = 'revoked' WHERE id = ?", [row.id]);
+  await audit(req, 'REVOKE_REGISTRATION_CODE', 'registration_codes', row.id);
+  res.json({ ok: true });
+}));
+
 module.exports = router;

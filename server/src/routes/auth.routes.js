@@ -393,16 +393,22 @@ router.post('/register',
     const birthDate = String(b.birth_date || '').trim().slice(0, 10);
     const username = String(b.username || '').trim();
     const password = String(b.password || '');
+    const regCode = String(b.registration_code || b.code || '').trim();
     const firstName = String(b.first_name || '').trim();
     const email = String(b.email || '').trim().slice(0, 200);
     const phone = String(b.phone || '').trim().slice(0, 40);
 
-    if (!lrn || !lastName || !birthDate || !username || !password) {
-      return res.status(400).json({ error: 'lrn, last_name, birth_date, username and password are required' });
+    if (!lrn || !lastName || !birthDate || !username || !password || !regCode) {
+      return res.status(400).json({ error: 'lrn, last_name, birth_date, username, password, and registration_code are required' });
     }
     if (!/^\d{12}$/.test(lrn)) return res.status(400).json({ error: 'LRN must be exactly 12 digits' });
     if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'Username must be 3-64 characters using letters, numbers, dots, dashes or underscores' });
     if (String(password).length > 128) return res.status(400).json({ error: 'Password too long' });
+
+    const codeRow = await q("SELECT * FROM registration_codes WHERE code = ? AND status = 'active'", [regCode]);
+    if (!codeRow || codeRow.used_count >= codeRow.max_uses) {
+      return res.status(400).json({ error: 'Invalid, expired, or fully used Registration Access Code. Contact a superadmin for an access code.' });
+    }
 
     if (!(await registrationEnabled())) {
       return res.status(403).json({ error: 'Self-registration is currently closed. Contact the school registrar to create your portal account.' });
@@ -456,6 +462,8 @@ router.post('/register',
     await qi(
       'INSERT INTO student_link_requests (student_id, user_id, status, verified, email, phone) VALUES (?, ?, ?, ?, ?, ?)',
       [studentId, userId, 'pending', JSON.stringify(verified), email || null, phone || null]);
+
+    await qr("UPDATE registration_codes SET used_count = used_count + 1 WHERE id = ?", [codeRow.id]);
 
 await audit(req, 'STUDENT_REGISTER', 'auth', userId, { student_id: studentId, username });
   await notifyEvent('account_registered', { user_id: userId, data: { username, url: APP_URL ? APP_URL.replace(/\/+$/, '') : '' } });
