@@ -265,8 +265,9 @@ export default function Dashboard() {
 
       <div style={{ height: 18 }} />
 
-      <div className="grid grid-3">
-        <SectionCard title={t('nav.announcements')} icon={Megaphone}>
+      {isTeacher ? (
+        <div className="card" style={{ marginTop: 18 }}>
+          <h3 style={{ marginTop: 0 }}><Megaphone size={16} style={{ verticalAlign: -2 }} /> {t('nav.announcements')}</h3>
           {announcements.length === 0 ? <Empty text={t('dashboard.noAnnouncements')} /> : (
             announcements.map((a) => (
               <div key={a.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
@@ -279,49 +280,66 @@ export default function Dashboard() {
               </div>
             ))
           )}
-        </SectionCard>
+        </div>
+      ) : (
+        <div className="grid grid-3">
+          <SectionCard title={t('nav.announcements')} icon={Megaphone}>
+            {announcements.length === 0 ? <Empty text={t('dashboard.noAnnouncements')} /> : (
+              announcements.map((a) => (
+                <div key={a.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong>{a.title}</strong>
+                    <Badge status={a.priority} />
+                    <span style={{ marginLeft: 'auto', color: 'var(--text-dim)', fontSize: 12 }}>{a.created_at?.slice(0, 10)}</span>
+                  </div>
+                  <p style={{ margin: '6px 0 0', color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6 }}>{a.body}</p>
+                </div>
+              ))
+            )}
+          </SectionCard>
 
-        <SectionCard title={t('dashboard.recentActivity')} icon={History}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-            <LiveStatusPill
-              label=""
-              lastUpdated={lastLive}
-              staleAfterMs={90000}
-              ageFormatter={(ms) => fmtWhen(new Date(Date.now() - ms))}
-              aria-label={t('dashboard.recentActivity')}
+          <SectionCard title={t('dashboard.recentActivity')} icon={History}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <LiveStatusPill
+                label=""
+                lastUpdated={lastLive}
+                staleAfterMs={90000}
+                ageFormatter={(ms) => fmtWhen(new Date(Date.now() - ms))}
+                aria-label={t('dashboard.recentActivity')}
+              />
+            </div>
+            <LiveActivityFeed
+              items={activity ?? []}
+              loading={activity === null}
+              itemKey={(a) => String(a.id)}
+              renderItem={(a) => {
+                const detail = (() => {
+                  try {
+                    const raw = a.details;
+                    const d = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
+                    return d?.name || d?.title || d?.username || d?.lrn || '';
+                  } catch { return ''; }
+                })();
+                return (
+                  <FeedItem icon={Activity}>
+                    <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
+                    <div className="sub" style={{ fontSize: 12, marginTop: 2 }}>{fmtWhen(a.created_at)}</div>
+                  </FeedItem>
+                );
+              }}
+              emptyState={<Empty text={t('dashboard.noActivity')} />}
             />
-          </div>
-          <LiveActivityFeed
-            items={activity ?? []}
-            loading={activity === null}
-            itemKey={(a) => String(a.id)}
-            renderItem={(a) => {
-              const detail = (() => {
-                try {
-                  const raw = a.details;
-                  const d = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
-                  return d?.name || d?.title || d?.username || d?.lrn || '';
-                } catch { return ''; }
-              })();
-              return (
-                <FeedItem icon={Activity}>
-                  <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
-                  <div className="sub" style={{ fontSize: 12, marginTop: 2 }}>{fmtWhen(a.created_at)}</div>
-                </FeedItem>
-              );
-            }}
-            emptyState={<Empty text={t('dashboard.noActivity')} />}
-          />
-          <Link to="/audit" className="btn btn-sm" style={{ marginTop: 14 }}>{t('dashboard.auditLogs')}</Link>
-        </SectionCard>
+            <Link to="/audit" className="btn btn-sm" style={{ marginTop: 14 }}>{t('dashboard.auditLogs')}</Link>
+          </SectionCard>
 
-        <SectionCard title={t('dashboard.quickActions')} icon={Activity}>
-          <QuickActions items={quick} />
-          <div className="sub" style={{ marginTop: 16 }}>
-            {t('dashboard.auditLast7', { n: r.audit?.last7 ?? 0 })}
-          </div>
-        </SectionCard>
-      </div>
+          <SectionCard title={t('dashboard.quickActions')} icon={Activity}>
+            <QuickActions items={quick} />
+            <div className="sub" style={{ marginTop: 16 }}>
+              {t('dashboard.auditLast7', { n: r.audit?.last7 ?? 0 })}
+            </div>
+          </SectionCard>
+        </div>
+      )}
     </>
   );
 }
