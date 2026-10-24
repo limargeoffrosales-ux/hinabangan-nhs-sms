@@ -1490,6 +1490,50 @@ h1, h2, h3, h4 {
   color: var(--text-dim);
 }
 
+/* --- High-End Charts, Graphs & Tables Modernization --- */
+.ds-chart, .recharts-responsive-container {
+  border-radius: 16px;
+  background: var(--card);
+}
+.recharts-default-tooltip {
+  background: var(--card-solid) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+  color: var(--text) !important;
+  padding: 10px 14px !important;
+}
+.recharts-cartesian-axis-tick-value {
+  fill: var(--text-dim) !important;
+  font-size: 11px;
+}
+.recharts-cartesian-grid line {
+  stroke: var(--border) !important;
+  stroke-dasharray: 3 3;
+}
+.table-wrap {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+table {
+  border-spacing: 0;
+}
+th {
+  background: color-mix(in srgb, var(--bg-soft) 60%, transparent);
+  color: var(--text-dim);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border-bottom: 2px solid var(--border-strong);
+}
+td {
+  border-bottom: 1px solid var(--border);
+}
+tr:last-child td {
+  border-bottom: none;
+}
+
 .two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 900px) {
   .two-col { grid-template-columns: 1fr; }
