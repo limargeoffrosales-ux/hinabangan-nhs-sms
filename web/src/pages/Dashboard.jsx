@@ -148,6 +148,35 @@ export default function Dashboard() {
         sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
       />
 
+      {user?.role === 'super_admin' && (
+        <div className="card" style={{ background: 'linear-gradient(135deg, #0F172A, #1E293B, #0F172A)', border: '1px solid rgba(var(--rgb-accent), 0.4)', color: '#fff', marginBottom: 20, borderRadius: 'var(--radius)', padding: '24px 28px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+            <div>
+              <span className="badge badge-blue" style={{ marginBottom: 6 }}>Superadmin Executive Command Center</span>
+              <h2 style={{ fontSize: 22, margin: '4px 0 2px 0', color: '#fff' }}>Hinabangan NHS Core Infrastructure</h2>
+              <p style={{ margin: 0, opacity: 0.8, fontSize: 13.5 }}>System status: All services operational · 5-Year Data Retention Active · Secure SSL Encrypted</p>
+            </div>
+            <div className="status-online-badge">
+              <span className="status-online-dot" /> Secure Live
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
+            <Link to="/users" className="btn" style={{ background: 'rgba(77,150,255,0.2)', color: '#fff', border: '1px solid rgba(77,150,255,0.4)' }}>
+              <Users size={15} /> User Accounts &amp; Access Codes
+            </Link>
+            <Link to="/audit" className="btn" style={{ background: 'rgba(47,214,160,0.2)', color: '#fff', border: '1px solid rgba(47,214,160,0.4)' }}>
+              <History size={15} /> Security Audit Logs
+            </Link>
+            <Link to="/compliance" className="btn" style={{ background: 'rgba(167,139,250,0.2)', color: '#fff', border: '1px solid rgba(167,139,250,0.4)' }}>
+              <ShieldAlert size={15} /> Compliance &amp; Privacy (RA 10173)
+            </Link>
+            <Link to="/grading-scales" className="btn" style={{ background: 'rgba(56,189,248,0.2)', color: '#fff', border: '1px solid rgba(56,189,248,0.4)' }}>
+              <GraduationCap size={15} /> Grading Scales
+            </Link>
+          </div>
+        </div>
+      )}
+
       {isTeacher && (
         <div className="card" style={{ background: 'var(--grad)', color: '#fff', marginBottom: 20, borderRadius: 'var(--radius)', padding: '24px 28px' }}>
           <h2 style={{ fontSize: 22, margin: '0 0 6px 0', color: '#fff' }}>Welcome back, {user?.name || 'Teacher'}!</h2>
