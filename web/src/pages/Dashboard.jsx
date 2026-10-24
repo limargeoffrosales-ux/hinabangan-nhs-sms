@@ -144,7 +144,25 @@ export default function Dashboard() {
   return (
     <>
       <PageHead
-        title={t('dashboard.title')}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span>{t('dashboard.title')}</span>
+            {!isTeacher && ((data?.pending_users ?? 0) > 0 || (data?.pending_enrollments ?? 0) > 0) && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {(data.pending_users ?? 0) > 0 && (
+                  <Link to="/users" className="btn btn-sm btn-warn" style={{ gap: 6, textDecoration: 'none' }}>
+                    <ShieldAlert size={14} /> Action Required: Sign-Ups ({data.pending_users})
+                  </Link>
+                )}
+                {(data.pending_enrollments ?? 0) > 0 && (
+                  <Link to="/enroll" className="btn btn-sm btn-primary" style={{ gap: 6, textDecoration: 'none' }}>
+                    <ShieldAlert size={14} /> Action Required: Enrollments ({data.pending_enrollments})
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        }
         sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
       />
 
