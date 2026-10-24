@@ -148,6 +148,36 @@ export default function Dashboard() {
         sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
       />
 
+      {/* Pending Approvals Alert Banner for Admins */}
+      {!isTeacher && ((data.pending_users ?? 0) > 0 || (data.pending_enrollments ?? 0) > 0) && (
+        <div className="card" style={{ marginBottom: 20, border: '1px solid rgba(var(--rgb-warn), 0.5)', background: 'rgba(var(--rgb-warn), 0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <ShieldAlert size={22} style={{ color: 'var(--warn)', flexShrink: 0 }} />
+              <div>
+                <strong style={{ fontSize: 15, color: 'var(--text)' }}>Action Required: Pending Approvals Queue</strong>
+                <p className="sub" style={{ margin: '2px 0 0 0', fontSize: 13 }}>
+                  {(data.pending_users ?? 0) > 0 && `${data.pending_users} new sign-up request(s) awaiting user approval. `}
+                  {(data.pending_enrollments ?? 0) > 0 && `${data.pending_enrollments} student enrollment application(s) awaiting section placement.`}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(data.pending_users ?? 0) > 0 && (
+                <Link to="/users" className="btn btn-sm btn-warn">
+                  Review Sign-Ups ({data.pending_users})
+                </Link>
+              )}
+              {(data.pending_enrollments ?? 0) > 0 && (
+                <Link to="/enroll" className="btn btn-sm btn-primary">
+                  Review Enrollments ({data.pending_enrollments})
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {user?.role === 'super_admin' && (
         <div className="card" style={{ background: 'linear-gradient(135deg, #0F172A, #1E293B, #0F172A)', border: '1px solid rgba(var(--rgb-accent), 0.4)', color: '#fff', marginBottom: 20, borderRadius: 'var(--radius)', padding: '24px 28px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>

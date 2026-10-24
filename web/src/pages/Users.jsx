@@ -232,14 +232,16 @@ export default function Users() {
       <ErrorBanner error={error} />
 
       {/* Pending Registrations Approval Queue */}
-      {pendingUsers.length > 0 && (
-        <div className="card table-wrap" style={{ marginBottom: 16, border: '1px solid rgba(var(--rgb-warn), 0.4)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div>
-              <h3 style={{ margin: 0 }}>Pending Registrations Approval <span className="count-pill">{pendingUsers.length}</span></h3>
-              <p className="sub" style={{ margin: '2px 0 0 0' }}>Review and approve or reject new user signup requests.</p>
-            </div>
+      <div className="card table-wrap" style={{ marginBottom: 16, border: '1px solid rgba(var(--rgb-warn), 0.4)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Pending Registrations Approval <span className="count-pill">{pendingUsers.length}</span></h3>
+            <p className="sub" style={{ margin: '2px 0 0 0' }}>Review and approve or reject new user signup requests.</p>
           </div>
+        </div>
+        {pendingUsers.length === 0 ? (
+          <div className="sub" style={{ padding: '14px 0', textAlign: 'center' }}>No pending sign-up applications awaiting approval.</div>
+        ) : (
           <table>
             <thead>
               <tr>
@@ -267,8 +269,8 @@ export default function Users() {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Superadmin Registration Access Codes Table */}
       {regCodes.length > 0 && (

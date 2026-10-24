@@ -142,7 +142,9 @@ router.get('/summary', requireRole(...DASH_READ), asyncH(async (req, res) => {
       jdvp: { total: Number(jdvpCount[0]?.n || 0) },
       audit: { last7: Number(audit[0]?.last7 || 0) },
     },
-date: t,
+    pending_users: Number((await q("SELECT COUNT(*) AS n FROM users WHERE status = 'pending'"))?.n || 0),
+    pending_enrollments: Number((await q("SELECT COUNT(*) AS n FROM enrollments WHERE status = 'pending'"))?.n || 0),
+    date: t,
   };
   await cache.set(cacheKey, data, SUMMARY_TTL_SECONDS);
   res.json(data);
