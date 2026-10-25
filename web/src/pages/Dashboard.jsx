@@ -13,7 +13,7 @@ import { SEX_COLORS } from '../lib/constants';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, FunnelBar, FeedItem, QuickActions } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import TarikMascot from '../components/TarikMascot';
-import { FEATURE_ICONS, UgopTileIcon } from '../components/UgopFeatureIcons';
+import UgopTeacherCorner from '../components/UgopTeacherCorner';
 import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
 
 const READINESS_STATUS = {
@@ -346,16 +346,7 @@ export default function Dashboard() {
 
       <div style={{ height: 18 }} />
 
-      <SectionCard title="UGOP Quick Feature Hub" icon={Activity}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 14, justifyContent: 'items-center' }}>
-          {FEATURE_ICONS.slice(0, 12).map((item) => (
-            <div key={item.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }} onClick={() => navigate(item.to || '/')}>
-              <UgopTileIcon item={item} size={96} />
-              <strong style={{ fontSize: 11.5, color: 'var(--text)', marginTop: 6, fontFamily: 'var(--font-display)' }}>{item.name}</strong>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
+      <UgopTeacherCorner />
 
       <div style={{ height: 18 }} />
 
