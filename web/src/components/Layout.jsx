@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -6,7 +6,7 @@ import {
   CalendarCheck, BarChart3, Megaphone, ShieldCheck, Search, LogOut, Menu, CalendarRange,
   FileText, Gauge, LifeBuoy, ClipboardPenLine,
   KeyRound, Briefcase, ShieldAlert, GraduationCap, Scale, Trophy, Bell,
-  FileCheck2,
+  FileCheck2, Sparkles, Calendar,
   Shield, TrendingUp, DoorOpen, Target, Sun, Moon, Award,
   Brain,
   Map,
@@ -16,6 +16,7 @@ import { useAuth, can } from '../lib/auth';
 import { initials, Modal, CommandPalette } from './ui';
 import { api } from '../lib/api';
 import { useTheme, GroupedNav, LanguageSwitch } from '../design-system';
+import TarikMascot from './TarikMascot';
 
 const NAV_GROUPS = [
   {
@@ -91,7 +92,6 @@ const NAV_GROUPS = [
 ];
 
 const STAFF_HIDDEN = ['/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/privacy', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
-
 const AI_STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
 
 function FileSpreadsheet(props) {
@@ -166,13 +166,11 @@ export default function Layout({ children }) {
       <a href="#main-content" className="skip-link">{t('layout.skipToContent')}</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
-        <div className="brand">
-          <div className="brand-seal">
-            <img className="brand-logo" src="/logo.jpg" alt="" />
-          </div>
+        <div className="brand" style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <TarikMascot pose="happy" size={36} />
           <div className="brand-text-group">
-            <span className="brand-name">Hinabangan NHS</span>
-            <span className="brand-sub">{t('schoolTagline')}</span>
+            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 24, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5 }}>UGOP</span>
+            <span className="brand-sub" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>Hinabangan NHS · Samar</span>
           </div>
         </div>
         <div className="brand-divider"></div>
@@ -185,24 +183,70 @@ export default function Layout({ children }) {
           aria-label={t('nav.main')}
         />
         <div style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+          {/* AI Credits Meter */}
+          <div style={{ padding: '8px 10px', background: 'var(--primary-tint)', borderRadius: 10, marginBottom: 8, fontSize: 11.5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--primary)' }}>
+              <span>Ask UGOP AI</span>
+              <span>150/150</span>
+            </div>
+            <div style={{ height: 4, background: 'rgba(27,107,74,0.2)', borderRadius: 2, marginTop: 4, overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: '100%', background: 'var(--primary)' }} />
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3 }}>Refills daily</div>
+          </div>
+
+          {/* Search Shortcut */}
           <button className="sidebar-link" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', cursor: 'pointer' }}
             onClick={() => window.dispatchEvent(new Event('command-palette-toggle'))}>
             <span>{t('layout.quickSearch')}</span>
             <kbd style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>⌘K</kbd>
           </button>
+
+          {/* User Card */}
+          <div style={{ marginTop: 10, padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-soft)', borderRadius: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <div className="avatar" style={{ width: 28, height: 28, fontSize: 11, background: 'var(--primary)', color: '#fff' }}>{initials(user?.name)}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{user?.role?.replace('_', ' ')}</div>
+              </div>
+            </div>
+            <button className="icon-btn" onClick={onLogout} title={t('topbar.signOut')} style={{ padding: 4 }}>
+              <LogOut size={15} />
+            </button>
+          </div>
         </div>
       </aside>
+
       <div className="main" id="main-content" role="main">
-        <div className="topbar" role="banner">
+        <div className="topbar" role="banner" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px', background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
             <Menu size={17} aria-hidden="true" />
           </button>
-          <h1>{t('schoolName')}</h1>
-          <div className="status-online-badge" style={{ display: 'flex', alignItems: 'center', marginLeft: 12, padding: '4px 10px' }} title={t('quickNav.systemActive')}>
-            <span className="status-online-dot"></span>
-            <span style={{ fontSize: '11.5px', whiteSpace: 'nowrap' }}>{t('quickNav.systemActive')}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>UGOP</span>
+            <span style={{ color: 'var(--border)' }}>/</span>
+            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Hinabangan NHS</span>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+
+          {/* SY + Term Pill */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--primary-tint)', borderRadius: 99, fontSize: 12, fontWeight: 600, color: 'var(--primary)' }}>
+            <Calendar size={13} />
+            <span>2026-2027 · First Term</span>
+          </div>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Ask UGOP AI Trigger Button */}
+            <Link to="/ai" className="btn btn-sm" style={{ background: 'var(--grad-amber)', color: '#12261C', fontWeight: 700, border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Sparkles size={14} /> Ask UGOP AI
+            </Link>
+
+            {/* Notification Bell */}
+            <Link to="/notifications" className="icon-btn" style={{ position: 'relative' }} title="Notifications">
+              <Bell size={16} />
+              <span style={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, background: 'var(--danger)', borderRadius: '50%' }} />
+            </Link>
+
             <LanguageSwitch
               storageKey="meridianed_lang"
               title={t('topbar.language')}
@@ -214,12 +258,9 @@ export default function Layout({ children }) {
             <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title={t('topbar.changePassword')} aria-label={t('topbar.changePassword')}>
               <KeyRound size={16} aria-hidden="true" />
             </button>
-            <div className="avatar" title={user?.name}>{initials(user?.name)}</div>
-            <button className="icon-btn" onClick={onLogout} title={t('topbar.signOut')} aria-label={t('topbar.signOut')}>
-              <LogOut size={16} aria-hidden="true" />
-            </button>
           </div>
         </div>
+
         {pwOpen && (
           <Modal title={t('pw.change')} sub={`${t('pw.subtitle')}, ${user?.name || ''}`} onClose={() => setPwOpen(false)}>
             <form onSubmit={onChangePassword}>
@@ -243,7 +284,7 @@ export default function Layout({ children }) {
           </Modal>
         )}
         <div className="content">{children}</div>
-        <div className="footer-note">{t('schoolName')} · {t('schoolAddress')} · {t('schoolTagline')}</div>
+        <div className="footer-note">UGOP · Hinabangan National High School · Hinabangan, Samar · DepEd Region VIII</div>
       </div>
     </div>
   );

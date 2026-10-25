@@ -12,6 +12,7 @@ import { subscribeLive } from '../lib/realtime';
 import { SEX_COLORS } from '../lib/constants';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, FunnelBar, FeedItem, QuickActions } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
+import TarikMascot from '../components/TarikMascot';
 import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
 
 const READINESS_STATUS = {
@@ -226,11 +227,16 @@ export default function Dashboard() {
       )}
 
       {isTeacher && (
-        <div className="card" style={{ background: 'var(--grad)', color: '#fff', marginBottom: 20, borderRadius: 'var(--radius)', padding: '24px 28px' }}>
-          <h2 style={{ fontSize: 22, margin: '0 0 6px 0', color: '#fff' }}>Welcome back, {user?.name || 'Teacher'}!</h2>
-          <p style={{ margin: '0 0 16px 0', opacity: 0.9, fontSize: 14 }}>
-            Access your dedicated teacher tools: view your weekly class program, enter quarterly grades, record attendance, and post assignments.
-          </p>
+        <div className="card" style={{ background: 'var(--grad)', color: '#fff', marginBottom: 20, borderRadius: 'var(--radius)', padding: '24px 28px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontSize: 22, margin: '0 0 6px 0', color: '#fff' }}>Maupay nga adlaw, {user?.name || 'Teacher'}!</h2>
+              <p style={{ margin: '0 0 16px 0', opacity: 0.9, fontSize: 14 }}>
+                Access your dedicated UGOP teacher tools: view your weekly class program, enter class grades, record attendance, and post assignments.
+              </p>
+            </div>
+            <TarikMascot pose="happy" size={72} />
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             <Link to="/programs" className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)' }}>
               <CalendarCheck size={16} /> My Class Program

@@ -11,6 +11,7 @@ import {
   ModernPieChart, ModernComposedChart,
   useTheme, useIsDark,
 } from '../design-system';
+import TarikMascotSheet from '../components/TarikMascotSheet';
 
 function isColorLike(v) {
   return /^(#|var\(|linear-gradient|radial-gradient|rgba?\(|hsla?\(|color-mix)/.test(v);
@@ -109,6 +110,7 @@ export default function DesignSystem() {
         active={tab}
         onChange={setTab}
         tabs={[
+          { id: 'mascot', label: 'Tarik Mascot Sheet', icon: <Box size={15} /> },
           { id: 'tokens', label: t('ds.tokens', 'Tokens'), icon: <Palette size={15} /> },
           { id: 'layout', label: t('ds.layout', 'Layout'), icon: <Layout size={15} /> },
           { id: 'typography', label: t('ds.typography', 'Typography'), icon: <Type size={15} /> },
@@ -120,6 +122,10 @@ export default function DesignSystem() {
       />
 
       <Spacer size="lg" />
+
+      {tab === 'mascot' && (
+        <TarikMascotSheet />
+      )}
 
       {tab === 'tokens' && (
         <Stack spacing="lg">
