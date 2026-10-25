@@ -167,7 +167,7 @@ export default function Layout({ children }) {
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
         <div className="brand" style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <TarikMascot pose="happy" size={36} />
+          <TarikMascot pose="happy" size={48} />
           <div className="brand-text-group">
             <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 24, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5 }}>UGOP</span>
             <span className="brand-sub" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>Hinabangan NHS · Samar</span>

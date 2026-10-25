@@ -99,8 +99,8 @@ export default function UgopFeatureIconsGrid() {
       >
         {FEATURE_ICONS.map((item) => (
           <div key={item.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <UgopTileIcon item={item} size={110} />
-            <strong style={{ fontSize: 12.5, color: '#12261C', marginTop: 8, fontFamily: 'var(--font-display)' }}>{item.name}</strong>
+            <UgopTileIcon item={item} size={130} />
+            <strong style={{ fontSize: 13, color: '#12261C', marginTop: 10, fontFamily: 'var(--font-display)' }}>{item.name}</strong>
           </div>
         ))}
       </div>

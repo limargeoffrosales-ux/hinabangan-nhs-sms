@@ -235,7 +235,7 @@ export default function Dashboard() {
                 Access your dedicated UGOP teacher tools: view your weekly class program, enter class grades, record attendance, and post assignments.
               </p>
             </div>
-            <TarikMascot pose="happy" size={72} />
+            <TarikMascot pose="happy" size={96} />
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             <Link to="/programs" className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)' }}>
