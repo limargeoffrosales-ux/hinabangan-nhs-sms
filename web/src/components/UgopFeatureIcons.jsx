@@ -1,39 +1,46 @@
 import React from 'react';
 import TarikMascot from './TarikMascot';
 
-// Set of 24 App Feature Icons featuring Tarik (Samar Tarictic Hornbill)
-// 6x4 Grid on rounded-square pale-green (#E6F2EC) tiles.
+// Master Set of 30 App Feature Icons featuring Tarik (Samar Tarictic Hornbill)
+// Integrated across all UGOP system pages.
 
 export const FEATURE_ICONS = [
-  { id: 'sections', name: 'Sections', pose: 'happy', icon: '📦', color: '#1B6B4A', desc: 'Manage class sections & rosters' },
-  { id: 'students', name: 'Students', pose: 'waving', icon: '🎒', color: '#1E88B5', desc: 'Learner profile & DepEd LRNs' },
-  { id: 'attendance', name: 'Attendance', pose: 'clipboard', icon: '📅', color: '#2E9E5B', desc: 'Daily attendance & SF2 logs' },
-  { id: 'gate_check', name: 'Gate Check', pose: 'surprised', icon: '📲', color: '#1B6B4A', desc: 'QR ID scan gate check-in' },
-  { id: 'advisory', name: 'Advisory Class', pose: 'happy', icon: '🏫', color: '#F5A623', desc: 'Advisory section management' },
-  { id: 'schedule', name: 'Schedule', pose: 'thinking', icon: '⏰', color: '#1E88B5', desc: 'Class timetables & programs' },
-  { id: 'rewards', name: 'Rewards', pose: 'cheering', icon: '🏅', color: '#F5A623', desc: 'Student achievements & badges' },
-  { id: 'exams', name: 'Exams', pose: 'reading', icon: '📝', color: '#D64545', desc: 'Quarterly exam management' },
-  { id: 'test_maker', name: 'Test Maker', pose: 'ai', icon: '🪄', color: '#2E9E5B', desc: 'AI test & quiz generator' },
-  { id: 'competencies', name: 'Competencies', pose: 'happy', icon: '🎯', color: '#1B6B4A', desc: 'DepEd MELCs tracker' },
-  { id: 'results', name: 'Assessment Results', pose: 'cheering', icon: '⭐', color: '#F5A623', desc: 'Learner score reports' },
-  { id: 'item_analysis', name: 'Item Analysis', pose: 'thinking', icon: '🔍', color: '#1E88B5', desc: 'Test question discrimination' },
-  { id: 'reading', name: 'Reading Assessment', pose: 'reading', icon: '📖', color: '#1B6B4A', desc: 'PHIL-IRI & EGRA reading' },
-  { id: 'class_record', name: 'Class Record', pose: 'clipboard', icon: '📊', color: '#2E9E5B', desc: 'Term 1-3 E-Class Records' },
-  { id: 'grade_portal', name: 'Grade Portal', pose: 'happy', icon: '💻', color: '#1E88B5', desc: 'Digital grade reporting' },
-  { id: 'remarks', name: 'Report Card Remarks', pose: 'reading', icon: '✍️', color: '#F5A623', desc: 'SF9 comments & conduct' },
-  { id: 'lesson_planner', name: 'Lesson Planner', pose: 'ai', icon: '📑', color: '#1B6B4A', desc: 'Master teacher lesson plans' },
-  { id: 'rubric_maker', name: 'Rubric Maker', pose: 'thinking', icon: '📐', color: '#1E88B5', desc: 'Performance task rubrics' },
-  { id: 'sf_forms', name: 'SF Forms', pose: 'clipboard', icon: '📁', color: '#1B6B4A', desc: 'DepEd Forms SF1 to SF10' },
-  { id: 'career_map', name: 'Career Map', pose: 'waving', icon: '🗺️', color: '#2E9E5B', desc: 'Work immersion & TVL map' },
-  { id: 'messages', name: 'Messages', pose: 'happy', icon: '💬', color: '#1E88B5', desc: 'Parent & teacher chat' },
-  { id: 'ask_ugop', name: 'Ask UGOP AI', pose: 'ai', icon: '✨', color: '#F5A623', desc: 'AI virtual assistant' },
-  { id: 'audit_logs', name: 'Audit Logs', pose: 'thinking', icon: '🛡️', color: '#1B6B4A', desc: 'Security & system history' },
-  { id: 'privacy_shield', name: 'Privacy Shield', pose: 'happy', icon: '🔒', color: '#2E9E5B', desc: 'RA 10173 data protection' },
+  { id: 'sections', name: 'Sections', pose: 'happy', icon: '📦', color: '#1B6B4A', desc: 'Manage class sections & rosters', to: '/sections' },
+  { id: 'students', name: 'Students', pose: 'waving', icon: '🎒', color: '#1E88B5', desc: 'Learner profile & DepEd LRNs', to: '/students' },
+  { id: 'teachers', name: 'Teachers', pose: 'happy', icon: '👨‍🏫', color: '#1B6B4A', desc: 'Faculty & teacher workloads', to: '/teachers' },
+  { id: 'attendance', name: 'Attendance', pose: 'clipboard', icon: '📅', color: '#2E9E5B', desc: 'Daily attendance & SF2 logs', to: '/attendance' },
+  { id: 'gate_check', name: 'Gate Check', pose: 'surprised', icon: '📲', color: '#1B6B4A', desc: 'QR ID scan gate check-in', to: '/attendance' },
+  { id: 'advisory', name: 'Advisory Class', pose: 'happy', icon: '🏫', color: '#F5A623', desc: 'Advisory section management', to: '/sections' },
+  { id: 'schedule', name: 'Schedule', pose: 'thinking', icon: '⏰', color: '#1E88B5', desc: 'Class timetables & programs', to: '/programs' },
+  { id: 'rewards', name: 'Rewards', pose: 'cheering', icon: '🏅', color: '#F5A623', desc: 'Student achievements & badges', to: '/achievements' },
+  { id: 'exams', name: 'Exams', pose: 'reading', icon: '📝', color: '#D64545', desc: 'Quarterly exam management', to: '/assessment' },
+  { id: 'test_maker', name: 'Test Maker', pose: 'ai', icon: '🪄', color: '#2E9E5B', desc: 'AI test & quiz generator', to: '/ai' },
+  { id: 'competencies', name: 'Competencies', pose: 'happy', icon: '🎯', color: '#1B6B4A', desc: 'DepEd MELCs tracker', to: '/competency-tracker' },
+  { id: 'results', name: 'Assessment Results', pose: 'cheering', icon: '⭐', color: '#F5A623', desc: 'Learner score reports', to: '/rankings' },
+  { id: 'item_analysis', name: 'Item Analysis', pose: 'thinking', icon: '🔍', color: '#1E88B5', desc: 'Test question discrimination', to: '/assessment' },
+  { id: 'reading', name: 'Reading Assessment', pose: 'reading', icon: '📖', color: '#1B6B4A', desc: 'PHIL-IRI & EGRA reading', to: '/aral' },
+  { id: 'class_record', name: 'Class Record', pose: 'clipboard', icon: '📊', color: '#2E9E5B', desc: 'Term 1-3 E-Class Records', to: '/grades' },
+  { id: 'grade_portal', name: 'Grade Portal', pose: 'happy', icon: '💻', color: '#1E88B5', desc: 'Digital grade reporting', to: '/grades' },
+  { id: 'remarks', name: 'Report Card Remarks', pose: 'reading', icon: '✍️', color: '#F5A623', desc: 'SF9 comments & conduct', to: '/discipline' },
+  { id: 'lesson_planner', name: 'Lesson Planner', pose: 'ai', icon: '📑', color: '#1B6B4A', desc: 'Master teacher lesson plans', to: '/lessons' },
+  { id: 'rubric_maker', name: 'Rubric Maker', pose: 'thinking', icon: '📐', color: '#1E88B5', desc: 'Performance task rubrics', to: '/assessment' },
+  { id: 'sf_forms', name: 'SF Forms', pose: 'clipboard', icon: '📁', color: '#1B6B4A', desc: 'DepEd Forms SF1 to SF10', to: '/deped-forms' },
+  { id: 'career_map', name: 'Career Map', pose: 'waving', icon: '🗺️', color: '#2E9E5B', desc: 'Work immersion & TVL map', to: '/career-tvl' },
+  { id: 'announcements', name: 'Announcements', pose: 'surprised', icon: '📢', color: '#D64545', desc: 'School announcements & alerts', to: '/announcements' },
+  { id: 'aral', name: 'ARAL Program', pose: 'reading', icon: '🎓', color: '#1B6B4A', desc: 'Reading & numeracy remediation', to: '/aral' },
+  { id: 'immersion', name: 'Work Immersion', pose: 'happy', icon: '💼', color: '#F5A623', desc: 'SHS TVL Work Immersion & JDVP', to: '/immersion' },
+  { id: 'messages', name: 'Messages', pose: 'happy', icon: '💬', color: '#1E88B5', desc: 'Parent & teacher chat', to: '/notifications' },
+  { id: 'ask_ugop', name: 'Ask UGOP AI', pose: 'ai', icon: '✨', color: '#F5A623', desc: 'AI virtual assistant', to: '/ai' },
+  { id: 'compliance', name: 'Compliance', pose: 'thinking', icon: '📜', color: '#1B6B4A', desc: 'RA 10173 & 5-year retention', to: '/compliance' },
+  { id: 'audit_logs', name: 'Audit Logs', pose: 'thinking', icon: '🛡️', color: '#1B6B4A', desc: 'Security & system history', to: '/audit' },
+  { id: 'privacy_shield', name: 'Privacy Shield', pose: 'happy', icon: '🔒', color: '#2E9E5B', desc: 'RA 10173 data protection', to: '/privacy' },
+  { id: 'deped_forms', name: 'DepEd Forms Hub', pose: 'clipboard', icon: '📋', color: '#1E88B5', desc: 'Official SF1-SF10 documents', to: '/deped-forms' },
 ];
 
-export function UgopTileIcon({ item, size = 110 }) {
+export function UgopTileIcon({ item, size = 110, onClick }) {
   return (
     <div
+      onClick={onClick}
       style={{
         width: size,
         height: size,
@@ -73,12 +80,12 @@ export default function UgopFeatureIconsGrid() {
   return (
     <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '24px', border: '1px solid #DCE7E0', boxShadow: '0 8px 30px rgba(18,38,28,0.06)' }}>
       <div style={{ marginBottom: 24, borderBottom: '1px solid #DCE7E0', paddingBottom: 16 }}>
-        <span className="badge badge-green" style={{ marginBottom: 6 }}>24 Square App-Feature Tiles</span>
+        <span className="badge badge-green" style={{ marginBottom: 6 }}>Master 30 App-Feature Tiles</span>
         <h2 style={{ margin: '4px 0 2px 0', fontSize: 24, fontWeight: 800, color: '#12261C', fontFamily: 'var(--font-display)' }}>
-          UGOP Tarik Feature Icon Set (6x4 Grid)
+          UGOP System-Wide Tarik Feature Icons (6x5 Grid)
         </h2>
         <p style={{ margin: 0, color: '#5B6F63', fontSize: 13.5 }}>
-          Pale-green (#E6F2EC) tiles featuring Tarik mascot in kawaii anime poses interacting with school feature objects.
+          Integrated across all UGOP modules, quick actions, dashboards, and portals.
         </p>
       </div>
 
