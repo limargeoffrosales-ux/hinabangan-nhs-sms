@@ -12,6 +12,7 @@ import {
   useTheme, useIsDark,
 } from '../design-system';
 import TarikMascotSheet from '../components/TarikMascotSheet';
+import UgopFeatureIconsGrid from '../components/UgopFeatureIcons';
 
 function isColorLike(v) {
   return /^(#|var\(|linear-gradient|radial-gradient|rgba?\(|hsla?\(|color-mix)/.test(v);
@@ -124,7 +125,10 @@ export default function DesignSystem() {
       <Spacer size="lg" />
 
       {tab === 'mascot' && (
-        <TarikMascotSheet />
+        <Stack spacing="xl">
+          <TarikMascotSheet />
+          <UgopFeatureIconsGrid />
+        </Stack>
       )}
 
       {tab === 'tokens' && (

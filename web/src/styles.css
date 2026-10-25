@@ -1,63 +1,72 @@
 :root {
-  --bg: #04070F;
-  --bg-soft: #0A1122;
-  --card: rgba(15, 23, 44, 0.72);
-  --card-solid: #0E172E;
-  --card-hover: rgba(28, 44, 82, 0.55);
-  --bg-card: rgba(28, 44, 82, 0.55);
-  --bg-page: #0A1122;
-  --border: rgba(125, 148, 205, 0.16);
-  --border-strong: rgba(125, 148, 205, 0.32);
-  --text: #EAF0FF;
-  --text-dim: #8FA3C8;
-  --accent: #4D96FF;
-  --accent-2: #2FD6A0;
-  --accent-3: #2DD4BF;
-  --success: #34D399;
-  --warn: #FBBF24;
-  --danger: #F87171;
-  --purple: #A78BFA;
-  --info: #38BDF8;
+  /* UGOP Brand Palette (DepEd Philippine Public Schools / Samar Edition) */
+  --primary: #1B6B4A;
+  --primary-hover: #15583C;
+  --primary-pressed: #0F4530;
+  --primary-tint: #E6F2EC;
+
+  --accent: #F5A623;
+  --accent-hover: #DB8F10;
+  --accent-tint: #FFF3DC;
+  --accent-2: #2E9E5B;
+  --accent-3: #1E88B5;
+
+  --secondary: #1E88B5;
+  --secondary-tint: #E3F2FA;
+
+  --success: #2E9E5B;
+  --warn: #E8A317;
+  --danger: #D64545;
+  --info: #1E88B5;
+
+  --text: #12261C;
+  --text-dim: #5B6F63;
+  --border: #DCE7E0;
+  --border-strong: #A8C2B4;
+  --card-solid: #FFFFFF;
+  --card: #FFFFFF;
+  --card-hover: #F0F7F2;
+  --bg-page: #F4F8F5;
+  --bg-soft: #E6F2EC;
+
+  --radius-sm: 8px;
   --radius: 16px;
-  --rgb-accent: 77, 150, 255;
-  --rgb-green: 47, 214, 160;
-  --rgb-teal: 45, 212, 191;
-  --rgb-info: 56, 189, 248;
-  --glow: rgba(var(--rgb-accent), 0.38);
-  --glow-soft: rgba(var(--rgb-accent), 0.14);
-  --grad: linear-gradient(135deg, #4D96FF, #2FD6A0);
-  --grad-3: linear-gradient(135deg, #4D96FF, #2DD4BF 55%, #2FD6A0);
-  --grad-danger: linear-gradient(135deg, #F87171, #DC2626);
-  --shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.5);
-  --map-tile-bg: #0B1220;
-  --grid-line: rgba(255, 255, 255, 0.02);
-  --font-ui: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Plus Jakarta Sans', 'Outfit', 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --rgb-accent: 27, 107, 74;
+  --rgb-green: 46, 158, 91;
+  --rgb-teal: 30, 136, 181;
+  --rgb-info: 30, 136, 181;
+
+  --glow: rgba(27, 107, 74, 0.25);
+  --glow-soft: rgba(27, 107, 74, 0.12);
+  --grad: linear-gradient(135deg, #1B6B4A, #2E9E5B);
+  --grad-3: linear-gradient(135deg, #1B6B4A, #1E88B5 55%, #2E9E5B);
+  --grad-amber: linear-gradient(135deg, #F5A623, #DB8F10);
+
+  --shadow: 0 1px 2px rgba(18, 38, 28, 0.06), 0 4px 12px rgba(18, 38, 28, 0.05);
+  --shadow-sm: 0 2px 8px rgba(18, 38, 28, 0.04);
+  --shadow-lg: 0 20px 48px rgba(18, 38, 28, 0.18);
+
+  --font-logo: 'Baloo 2', 'Plus Jakarta Sans', cursive, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-[data-theme='midnight'] {
-  --bg: #04070F;
-  --bg-soft: #0A1122;
-  --card: rgba(15, 23, 44, 0.72);
-  --card-solid: #0E172E;
-  --card-hover: rgba(28, 44, 82, 0.55);
-  --bg-card: rgba(28, 44, 82, 0.55);
-  --bg-page: #0A1122;
-  --border: rgba(125, 148, 205, 0.16);
-  --border-strong: rgba(125, 148, 205, 0.32);
-  --text: #EAF0FF;
-  --text-dim: #8FA3C8;
-  --accent: #4D96FF;
-  --accent-2: #2FD6A0;
-  --accent-3: #2DD4BF;
-  --success: #34D399;
-  --warn: #FBBF24;
-  --danger: #F87171;
-  --purple: #A78BFA;
-  --info: #38BDF8;
+[data-theme='dark'], [data-theme='midnight'] {
+  --bg-page: #0E1A14;
+  --bg-soft: #15251D;
+  --card: #15251D;
+  --card-solid: #1B2E24;
+  --card-hover: #1F362B;
+  --border: #254034;
+  --border-strong: #365B4A;
+  --text: #E8F2EC;
+  --text-dim: #8BA897;
+  --primary: #3FB784;
+}
   --rgb-accent: 77, 150, 255;
   --rgb-green: 47, 214, 160;
   --rgb-teal: 45, 212, 191;
