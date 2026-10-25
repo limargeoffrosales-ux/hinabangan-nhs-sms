@@ -36,39 +36,40 @@ export default function UgopTeacherCorner() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 14,
-              padding: '14px 16px',
+              gap: 16,
+              padding: '16px 18px',
               background: '#F4F8F5',
               border: '1px solid #DCE7E0',
-              borderRadius: '16px',
+              borderRadius: '18px',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
             }}
             className="ugop-corner-card"
           >
-            {/* Pale-green tile thumbnail with Tarik */}
+            {/* Larger Pale-green tile thumbnail with Tarik */}
             <div
               style={{
-                width: 52,
-                height: 52,
+                width: 72,
+                height: 72,
                 background: '#E6F2EC',
-                borderRadius: '14px',
-                border: '1px solid #DCE7E0',
+                borderRadius: '18px',
+                border: '1.5px solid #DCE7E0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
+                boxShadow: '0 4px 12px rgba(18,38,28,0.06)',
               }}
             >
-              <TarikMascot pose={c.pose} size={40} />
+              <TarikMascot pose={c.pose} size={58} />
             </div>
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <strong style={{ fontSize: 14, color: '#12261C', fontFamily: 'var(--font-display)' }}>{c.name}</strong>
+                <strong style={{ fontSize: 14.5, color: '#12261C', fontFamily: 'var(--font-display)' }}>{c.name}</strong>
                 {c.badge && <span className="badge badge-green" style={{ fontSize: 10, padding: '1px 6px' }}>{c.badge}</span>}
               </div>
-              <div style={{ fontSize: 12, color: '#5B6F63', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.desc}</div>
+              <div style={{ fontSize: 12.5, color: '#5B6F63', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.desc}</div>
             </div>
 
             <ChevronRight size={18} style={{ color: '#5B6F63', flexShrink: 0 }} />
