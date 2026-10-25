@@ -301,7 +301,7 @@ export default function Layout({ children }) {
               <label htmlFor="pw-confirm">{t('pw.confirm')}</label>
               <input id="pw-confirm" className="input" type="password" autoComplete="new-password" value={pw.confirm}
                 onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
-              <div className="sub" style={{ marginTop: 8 }>{t('pw.minimum')}</div>
+              <div className="sub" style={{ marginTop: 8 }}>{t('pw.minimum')}</div>
               {pwErr && <div className="err-banner" role="alert">{pwErr}</div>}
               {pwMsg && <div className="notice" role="status" aria-live="polite" style={{ marginTop: 10 }}>{pwMsg}</div>}
               <div className="modal-actions">
