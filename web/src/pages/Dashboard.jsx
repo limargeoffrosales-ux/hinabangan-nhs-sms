@@ -14,6 +14,7 @@ import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, FunnelBar, FeedI
 import DashboardSections from '../components/DashboardSections';
 import TarikMascot from '../components/TarikMascot';
 import UgopTeacherCorner from '../components/UgopTeacherCorner';
+import { UgopTileIcon, TarikIcon } from '../components/UgopFeatureIcons';
 import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
 
 const READINESS_STATUS = {
@@ -212,17 +213,17 @@ export default function Dashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-            <Link to="/users" className="btn" style={{ background: 'rgba(77,150,255,0.2)', color: '#fff', border: '1px solid rgba(77,150,255,0.4)' }}>
-              <Users size={15} /> User Accounts &amp; Access Codes
+            <Link to="/users" className="btn" style={{ background: 'rgba(77,150,255,0.2)', color: '#fff', border: '1px solid rgba(77,150,255,0.4)', display: 'inline-flex', alignItems: 'center' }}>
+              <TarikIcon pose="happy" emoji="👥" size={16} /> User Accounts &amp; Access Codes
             </Link>
-            <Link to="/audit" className="btn" style={{ background: 'rgba(47,214,160,0.2)', color: '#fff', border: '1px solid rgba(47,214,160,0.4)' }}>
-              <History size={15} /> Security Audit Logs
+            <Link to="/audit" className="btn" style={{ background: 'rgba(47,214,160,0.2)', color: '#fff', border: '1px solid rgba(47,214,160,0.4)', display: 'inline-flex', alignItems: 'center' }}>
+              <TarikIcon pose="thinking" emoji="🛡️" size={16} /> Security Audit Logs
             </Link>
-            <Link to="/compliance" className="btn" style={{ background: 'rgba(167,139,250,0.2)', color: '#fff', border: '1px solid rgba(167,139,250,0.4)' }}>
-              <ShieldAlert size={15} /> Compliance &amp; Privacy (RA 10173)
+            <Link to="/compliance" className="btn" style={{ background: 'rgba(167,139,250,0.2)', color: '#fff', border: '1px solid rgba(167,139,250,0.4)', display: 'inline-flex', alignItems: 'center' }}>
+              <TarikIcon pose="happy" emoji="🔒" size={16} /> Compliance &amp; Privacy (RA 10173)
             </Link>
-            <Link to="/grading-scales" className="btn" style={{ background: 'rgba(56,189,248,0.2)', color: '#fff', border: '1px solid rgba(56,189,248,0.4)' }}>
-              <GraduationCap size={15} /> Grading Scales
+            <Link to="/grading-scales" className="btn" style={{ background: 'rgba(56,189,248,0.2)', color: '#fff', border: '1px solid rgba(56,189,248,0.4)', display: 'inline-flex', alignItems: 'center' }}>
+              <TarikIcon pose="clipboard" emoji="📊" size={16} /> Grading Scales
             </Link>
           </div>
         </div>

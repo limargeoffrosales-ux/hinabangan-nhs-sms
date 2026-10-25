@@ -76,6 +76,30 @@ export function UgopTileIcon({ item, size = 110, onClick }) {
   );
 }
 
+export function TarikIcon({ pose = 'happy', emoji = '✨', size = 20 }) {
+  return (
+    <span
+      style={{
+        width: size + 8,
+        height: size + 8,
+        background: '#E6F2EC',
+        borderRadius: 8,
+        border: '1px solid #DCE7E0',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        verticalAlign: 'middle',
+        flexShrink: 0,
+        marginRight: 8,
+      }}
+    >
+      <TarikMascot pose={pose} size={size * 0.85} />
+      <span style={{ position: 'absolute', bottom: -2, right: -2, fontSize: size * 0.45, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' }}>{emoji}</span>
+    </span>
+  );
+}
+
 export default function UgopFeatureIconsGrid() {
   return (
     <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '24px', border: '1px solid #DCE7E0', boxShadow: '0 8px 30px rgba(18,38,28,0.06)' }}>
