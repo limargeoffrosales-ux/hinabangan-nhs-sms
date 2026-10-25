@@ -62,6 +62,19 @@ export default function DashboardSections() {
   const [aralRoll, setAralRoll] = useState([]);
   const [rollLoading, setRollLoading] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [subjectQuery, setSubjectQuery] = useState('');
+
+  const filteredCore = useMemo(() => {
+    if (!subjectEnr?.core) return [];
+    const q = subjectQuery.trim().toLowerCase();
+    return subjectEnr.core.filter((s) => !q || `${s.code} ${s.title}`.toLowerCase().includes(q));
+  }, [subjectEnr, subjectQuery]);
+
+  const filteredElectives = useMemo(() => {
+    if (!subjectEnr?.electives) return [];
+    const q = subjectQuery.trim().toLowerCase();
+    return subjectEnr.electives.filter((s) => !q || `${s.code} ${s.title}`.toLowerCase().includes(q));
+  }, [subjectEnr, subjectQuery]);
 
   // Restore the last dashboard view (school year / term / date) from the server.
   useEffect(() => {
@@ -378,38 +391,66 @@ export default function DashboardSections() {
 
       {/* 4 — Subject enrollment */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}><BookOpen size={16} /> Students Enrolled per Subject — {sy}</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}><BookOpen size={16} /> Students Enrolled per Subject — {sy}</h3>
+          <input
+            type="text"
+            className="input"
+            placeholder="Search subjects by code or title…"
+            value={subjectQuery}
+            onChange={(e) => setSubjectQuery(e.target.value)}
+            style={{ width: 260, fontSize: 12.5 }}
+          />
+        </div>
         <div className="split-2">
           <div>
-            <h4 style={{ margin: '0 0 8px', color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Core Subjects</h4>
-            <div className="table-wrap">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <h4 style={{ margin: 0, color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Core Subjects</h4>
+              <span className="badge badge-blue">{filteredCore.length}</span>
+            </div>
+            <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
               <table>
                 <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
                 <tbody>
-                  {subjectEnr?.core.length === 0 && <tr><td colSpan={2} className="sub">No core subjects with enrolled students for {sy}.</td></tr>}
-                  {subjectEnr?.core.map((s) => (
-                    <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
+                  {filteredCore.length === 0 && <tr><td colSpan={2} className="sub">No core subjects with enrolled students found for {sy}.</td></tr>}
+                  {filteredCore.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <span className="badge badge-blue" style={{ marginRight: 8 }}>{s.code}</span>
+                        <strong>{s.title}</strong>
+                      </td>
+                      <td style={{ textAlign: 'center' }}><strong style={{ color: 'var(--success)' }}>{s.enrolled}</strong></td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
           <div>
-            <h4 style={{ margin: '0 0 8px', color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Elective Subjects</h4>
-            <div className="table-wrap">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <h4 style={{ margin: 0, color: 'var(--text-dim)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Applied &amp; Elective Subjects</h4>
+              <span className="badge badge-yellow">{filteredElectives.length}</span>
+            </div>
+            <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
               <table>
                 <thead><tr><th>Subject</th><th style={{ textAlign: 'center' }}>Enrolled</th></tr></thead>
                 <tbody>
-                  {subjectEnr?.electives.length === 0 && <tr><td colSpan={2} className="sub">No elective subjects with enrolled students for {sy}.</td></tr>}
-                  {subjectEnr?.electives.map((s) => (
-                    <tr key={s.id}><td>{s.code} — {s.title}</td><td style={{ textAlign: 'center' }}><strong>{s.enrolled}</strong></td></tr>
+                  {filteredElectives.length === 0 && <tr><td colSpan={2} className="sub">No applied or elective subjects with enrolled students found for {sy}.</td></tr>}
+                  {filteredElectives.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <span className="badge badge-yellow" style={{ marginRight: 8 }}>{s.code}</span>
+                        <strong>{s.title}</strong>
+                      </td>
+                      <td style={{ textAlign: 'center' }}><strong style={{ color: 'var(--accent)' }}>{s.enrolled}</strong></td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
-        <div className="sub" style={{ marginTop: 10 }}>
+        <div className="sub" style={{ marginTop: 12 }}>
           Counts reflect learners whose enrollment records include each subject for {sy}. Only school-offered subjects are shown — manage offerings under Subjects.
         </div>
       </div>
@@ -544,7 +585,7 @@ export default function DashboardSections() {
         {!canWrite && <div className="sub" style={{ marginTop: 8 }}>Admins can mark teacher status directly from the dropdown above.</div>}
       </div>
 
-      
+
 
       {/* 8 — Teacher Workload */}
       <div className="card">
@@ -636,9 +677,9 @@ export default function DashboardSections() {
         </div>
       </div>
 
-      
 
-      
+
+
 
       </>
       )}

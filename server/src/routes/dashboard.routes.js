@@ -284,17 +284,17 @@ router.get('/subject-enrollment', requireRole(...DASH_READ), asyncH(async (req, 
   if (sy) { syWhere = ' AND e.school_year = ?'; params.push(sy); }
   params.push(...SHS_GRADES);
   const rows = await qa(
-    `SELECT sub.id, sub.code, sub.title, sub.track, sub.term, sub.units,
+    `SELECT sub.id, sub.code, sub.title, sub.track, sub.category, sub.term, sub.units,
        COUNT(DISTINCT e.student_id) AS enrolled
      FROM subjects sub
      LEFT JOIN enrollment_subjects es ON es.subject_id = sub.id
      LEFT JOIN enrollments e ON e.id = es.enrollment_id AND e.status = 'enrolled' ${syWhere}
      WHERE sub.grade_level IN (?, ?) AND sub.is_offered = TRUE
-     GROUP BY sub.id, sub.code, sub.title, sub.track, sub.term, sub.units
+     GROUP BY sub.id, sub.code, sub.title, sub.track, sub.category, sub.term, sub.units
      HAVING COUNT(DISTINCT e.student_id) > 0
-     ORDER BY sub.term, sub.title`,
+     ORDER BY sub.code, sub.title`,
     params);
-  const isCore = (r) => r.term === 'all' || r.track === 'general' || String(r.code).startsWith('CORE-');
+  const isCore = (r) => (r.category === 'core' || r.track === 'general' || String(r.code).startsWith('CORE-') || String(r.code).startsWith('SSHS-')) && !String(r.code).startsWith('STP-') && !String(r.code).startsWith('AAC-');
   const core = rows.filter(isCore);
   const core_ids = new Set(core.map((r) => r.id));
   const electives = rows.filter((r) => !core_ids.has(r.id));
