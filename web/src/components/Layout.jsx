@@ -17,6 +17,7 @@ import { initials, Modal, CommandPalette } from './ui';
 import { api } from '../lib/api';
 import { useTheme, GroupedNav, LanguageSwitch } from '../design-system';
 import TarikMascot from './TarikMascot';
+import { FEATURE_ICONS } from './UgopFeatureIcons';
 
 const NAV_GROUPS = [
   {
@@ -98,6 +99,28 @@ function FileSpreadsheet(props) {
   return <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
 }
 
+function TarikNavIcon({ pose = 'happy', emoji = '✨', size = 26 }) {
+  return (
+    <span
+      style={{
+        width: size,
+        height: size,
+        background: '#E6F2EC',
+        borderRadius: 8,
+        border: '1px solid #DCE7E0',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        flexShrink: 0,
+      }}
+    >
+      <TarikMascot pose={pose} size={size * 0.75} />
+      <span style={{ position: 'absolute', bottom: -2, right: -2, fontSize: size * 0.4, lineHeight: 1 }}>{emoji}</span>
+    </span>
+  );
+}
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -154,7 +177,14 @@ export default function Layout({ children }) {
           if (isParent && !n.parentOnly) return false;
           return true;
         })
-        .map((n) => ({ id: n.to, label: t(n.labelKey), icon: <n.icon size={17} /> }));
+        .map((n) => {
+          const matchIcon = FEATURE_ICONS.find((f) => f.to === n.to) || { pose: 'happy', icon: '📌' };
+          return {
+            id: n.to,
+            label: t(n.labelKey),
+            icon: <TarikNavIcon pose={matchIcon.pose} emoji={matchIcon.icon} size={26} />,
+          };
+        });
       if (!items.length) return null;
       return { id: group.label, label: t(group.label), items };
     })
@@ -217,7 +247,6 @@ export default function Layout({ children }) {
           </div>
         </div>
       </aside>
-
       <div className="main" id="main-content" role="main">
         <div className="topbar" role="banner" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px', background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
@@ -260,7 +289,6 @@ export default function Layout({ children }) {
             </button>
           </div>
         </div>
-
         {pwOpen && (
           <Modal title={t('pw.change')} sub={`${t('pw.subtitle')}, ${user?.name || ''}`} onClose={() => setPwOpen(false)}>
             <form onSubmit={onChangePassword}>
@@ -273,7 +301,7 @@ export default function Layout({ children }) {
               <label htmlFor="pw-confirm">{t('pw.confirm')}</label>
               <input id="pw-confirm" className="input" type="password" autoComplete="new-password" value={pw.confirm}
                 onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
-              <div className="sub" style={{ marginTop: 8 }}>{t('pw.minimum')}</div>
+              <div className="sub" style={{ marginTop: 8 }>{t('pw.minimum')}</div>
               {pwErr && <div className="err-banner" role="alert">{pwErr}</div>}
               {pwMsg && <div className="notice" role="status" aria-live="polite" style={{ marginTop: 10 }}>{pwMsg}</div>}
               <div className="modal-actions">
@@ -284,7 +312,7 @@ export default function Layout({ children }) {
           </Modal>
         )}
         <div className="content">{children}</div>
-        <div className="footer-note">UGOP · Hinabangan National High School · Hinabangan, Samar · DepEd Region VIII</div>
+        <div className="footer-note">{t('schoolName')} · {t('schoolAddress')} · {t('schoolTagline')}</div>
       </div>
     </div>
   );
