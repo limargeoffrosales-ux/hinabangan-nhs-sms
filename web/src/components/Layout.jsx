@@ -99,24 +99,25 @@ function FileSpreadsheet(props) {
   return <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
 }
 
-function TarikNavIcon({ pose = 'happy', emoji = '✨', size = 26 }) {
+function TarikNavIcon({ pose = 'happy', emoji = '✨', size = 30 }) {
   return (
     <span
       style={{
         width: size,
         height: size,
         background: '#E6F2EC',
-        borderRadius: 8,
-        border: '1px solid #DCE7E0',
+        borderRadius: 10,
+        border: '1.5px solid #DCE7E0',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
         flexShrink: 0,
+        boxShadow: '0 2px 6px rgba(18,38,28,0.06)',
       }}
     >
-      <TarikMascot pose={pose} size={size * 0.75} />
-      <span style={{ position: 'absolute', bottom: -2, right: -2, fontSize: size * 0.4, lineHeight: 1 }}>{emoji}</span>
+      <TarikMascot pose={pose} size={size * 0.78} />
+      <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: size * 0.42, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))' }}>{emoji}</span>
     </span>
   );
 }
@@ -182,7 +183,7 @@ export default function Layout({ children }) {
           return {
             id: n.to,
             label: t(n.labelKey),
-            icon: <TarikNavIcon pose={matchIcon.pose} emoji={matchIcon.icon} size={26} />,
+            icon: <TarikNavIcon pose={matchIcon.pose} emoji={matchIcon.icon} size={30} />,
           };
         });
       if (!items.length) return null;
@@ -196,11 +197,11 @@ export default function Layout({ children }) {
       <a href="#main-content" className="skip-link">{t('layout.skipToContent')}</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
-        <div className="brand" style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <TarikMascot pose="happy" size={64} />
+        <div className="brand" style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <TarikMascot pose="happy" size={80} />
           <div className="brand-text-group">
-            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 26, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5 }}>UGOP</span>
-            <span className="brand-sub" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-dim)' }}>Hinabangan NHS · Samar</span>
+            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 28, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5 }}>UGOP</span>
+            <span className="brand-sub" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)' }}>Hinabangan NHS · Samar</span>
           </div>
         </div>
         <div className="brand-divider"></div>
@@ -214,15 +215,15 @@ export default function Layout({ children }) {
         />
         <div style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
           {/* AI Credits Meter */}
-          <div style={{ padding: '8px 10px', background: 'var(--primary-tint)', borderRadius: 10, marginBottom: 8, fontSize: 11.5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--primary)' }}>
+          <div style={{ padding: '10px 12px', background: 'var(--primary-tint)', borderRadius: 12, marginBottom: 8, fontSize: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: 'var(--primary)' }}>
               <span>Ask UGOP AI</span>
               <span>150/150</span>
             </div>
-            <div style={{ height: 4, background: 'rgba(27,107,74,0.2)', borderRadius: 2, marginTop: 4, overflow: 'hidden' }}>
+            <div style={{ height: 5, background: 'rgba(27,107,74,0.2)', borderRadius: 3, marginTop: 5, overflow: 'hidden' }}>
               <div style={{ width: '100%', height: '100%', background: 'var(--primary)' }} />
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3 }}>Refills daily</div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-dim)', marginTop: 4 }}>Refills daily</div>
           </div>
 
           {/* Search Shortcut */}
@@ -235,14 +236,14 @@ export default function Layout({ children }) {
           {/* User Card */}
           <div style={{ marginTop: 10, padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-soft)', borderRadius: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <div className="avatar" style={{ width: 28, height: 28, fontSize: 11, background: 'var(--primary)', color: '#fff' }}>{initials(user?.name)}</div>
+              <div className="avatar" style={{ width: 30, height: 30, fontSize: 12, background: 'var(--primary)', color: '#fff' }}>{initials(user?.name)}</div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{user?.role?.replace('_', ' ')}</div>
+                <div style={{ fontWeight: 600, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{user?.role?.replace('_', ' ')}</div>
               </div>
             </div>
             <button className="icon-btn" onClick={onLogout} title={t('topbar.signOut')} style={{ padding: 4 }}>
-              <LogOut size={15} />
+              <LogOut size={16} />
             </button>
           </div>
         </div>
@@ -253,27 +254,26 @@ export default function Layout({ children }) {
             <Menu size={17} aria-hidden="true" />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>UGOP</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--primary)' }}>UGOP</span>
             <span style={{ color: 'var(--border)' }}>/</span>
-            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Hinabangan NHS</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Hinabangan NHS</span>
           </div>
 
           {/* SY + Term Pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--primary-tint)', borderRadius: 99, fontSize: 12, fontWeight: 600, color: 'var(--primary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--primary-tint)', borderRadius: 99, fontSize: 12.5, fontWeight: 600, color: 'var(--primary)' }}>
             <Calendar size={13} />
             <span>2026-2027 · First Term</span>
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Ask UGOP AI Trigger Button */}
-            <Link to="/ai" className="btn btn-sm" style={{ background: 'var(--grad-amber)', color: '#12261C', fontWeight: 700, border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Link to="/ai" className="btn btn-sm" style={{ background: 'var(--grad-amber)', color: '#12261C', fontWeight: 700, border: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}>
               <Sparkles size={14} /> Ask UGOP AI
             </Link>
 
             {/* Notification Bell */}
             <Link to="/notifications" className="icon-btn" style={{ position: 'relative' }} title="Notifications">
-              <Bell size={16} />
-              <span style={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, background: 'var(--danger)', borderRadius: '50%' }} />
+              <TarikNavIcon pose="surprised" emoji="🔔" size={32} />
             </Link>
 
             <LanguageSwitch
@@ -281,11 +281,11 @@ export default function Layout({ children }) {
               title={t('topbar.language')}
               triggerLabel={t('topbar.language')}
             />
-            <button className="icon-btn" onClick={toggleTheme} title={t('topbar.changeTheme')} aria-label={t('topbar.changeTheme')}>
-              {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
+            <button className="icon-btn" onClick={toggleTheme} title={t('topbar.changeTheme')} aria-label={t('topbar.changeTheme')} style={{ background: 'none', border: 'none', padding: 0 }}>
+              <TarikNavIcon pose="thinking" emoji={theme === 'light' ? '🌙' : '☀️'} size={32} />
             </button>
-            <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title={t('topbar.changePassword')} aria-label={t('topbar.changePassword')}>
-              <KeyRound size={16} aria-hidden="true" />
+            <button className="icon-btn" onClick={() => { setPwMsg(null); setPwErr(null); setPwOpen(true); }} title={t('topbar.changePassword')} aria-label={t('topbar.changePassword')} style={{ background: 'none', border: 'none', padding: 0 }}>
+              <TarikNavIcon pose="clipboard" emoji="🔑" size={32} />
             </button>
           </div>
         </div>
