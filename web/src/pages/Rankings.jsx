@@ -7,9 +7,9 @@ import { DataTable, RankCard, ViewToggle } from '../design-system';
 import { fmt } from '../lib/utils';
 
 const DESIGNATION_LABELS = {
-  with_highest_honors: 'With Highest Honors',
-  with_high_honors: 'With High Honors',
-  with_honors: 'With Honors',
+  with_highest_honors: 'With Highest Honors ⭐⭐⭐',
+  with_high_honors: 'With High Honors ⭐⭐',
+  with_honors: 'With Honors ⭐',
 };
 
 const DESIGNATION_CLASSES = {

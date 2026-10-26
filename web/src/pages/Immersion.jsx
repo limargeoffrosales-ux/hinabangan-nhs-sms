@@ -168,7 +168,16 @@ export default function Immersion() {
                   {isImmersion && <td>{r.partner_institution || '—'}</td>}
                   {isImmersion && <td className="sub">{[r.start_date, r.end_date].filter(Boolean).join(' → ') || '—'}</td>}
                   <td style={{ textAlign: 'center' }}>
-                    <span className={`badge ${STATUS_CLASS[r.status] || 'badge-gray'}`}>{r.status}</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <svg width="20" height="20" viewBox="0 0 36 36">
+                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="var(--border)" strokeWidth="4" />
+                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
+                          stroke={r.status === 'completed' || r.status === 'served' ? 'var(--success)' : r.status === 'ongoing' ? 'var(--accent)' : 'var(--warn)'}
+                          strokeWidth="4"
+                          strokeDasharray={`${r.status === 'completed' || r.status === 'served' ? 100 : r.status === 'ongoing' ? 60 : 20}, 100`} />
+                      </svg>
+                      <span className={`badge ${STATUS_CLASS[r.status] || 'badge-gray'}`}>{r.status}</span>
+                    </div>
                   </td>
                   {isImmersion && (
                     <td style={{ textAlign: 'center' }}>

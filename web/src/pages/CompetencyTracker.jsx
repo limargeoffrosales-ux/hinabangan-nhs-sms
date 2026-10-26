@@ -115,7 +115,7 @@ export default function CompetencyTracker() {
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}><BarChart3 size={15} /> Competency Average Scores</h3>
                 {chartData.length > 0 ? (
                   <ModernBarChart
-                    
+
                     data={chartData}
                     categoryKey="name"
                     series={[{ key: 'Average', name: 'Average Score', color: 'var(--accent)' }]}
@@ -167,10 +167,17 @@ export default function CompetencyTracker() {
                             <td style={{ position: 'sticky', left: 0, background: 'var(--card-solid)', zIndex: 1, whiteSpace: 'nowrap' }}>{st.name}</td>
                             {overview.competencies.map((c) => {
                               const sc = scoreMap[c.id];
+                              const scoreVal = sc?.score;
+                              const style = scoreVal != null ? (
+                                Number(scoreVal) >= 90 ? { background: 'rgba(46, 158, 91, 0.2)', color: 'var(--success)', padding: '4px 8px', borderRadius: 6, fontWeight: 800 } :
+                                Number(scoreVal) >= 80 ? { background: 'rgba(30, 136, 181, 0.2)', color: 'var(--info)', padding: '4px 8px', borderRadius: 6, fontWeight: 700 } :
+                                Number(scoreVal) >= 75 ? { background: 'rgba(232, 163, 23, 0.2)', color: 'var(--warn)', padding: '4px 8px', borderRadius: 6, fontWeight: 700 } :
+                                { background: 'rgba(214, 69, 69, 0.2)', color: 'var(--danger)', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }
+                              ) : {};
                               return (
                                 <td key={c.id} style={{ textAlign: 'center' }}>
                                   {sc ? (
-                                    <span title={sc.level || ''} style={{ color: LEVEL_COLORS[sc.level] || 'var(--text)', fontWeight: 600 }}>
+                                    <span title={sc.level || ''} style={style}>
                                       {sc.score}
                                     </span>
                                   ) : <span className="sub">—</span>}
@@ -193,7 +200,7 @@ export default function CompetencyTracker() {
                 <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Proficiency Level Distribution</h3>
                 {levelPieData.length > 0 ? (
                   <ModernBarChart
-                    
+
                     data={levelPieData}
                     categoryKey="name"
                     series={[{ key: 'value', name: 'Students', color: 'var(--accent)' }]}

@@ -491,11 +491,20 @@ export default function Grades() {
                   <td style={{ textAlign: 'center' }}>
                     <input className="grade-input" type="number" min="0" max="100" value={r.quarterly_exam ?? ''} data-row={ri} data-col={2} onKeyDown={gradeNav} onChange={(e) => update(r.id, 'quarterly_exam', e.target.value)} />
                   </td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td style={{ textAlign: 'center', minWidth: 120 }}>
                     {r.computed_grade != null ? (
-                      <span style={getGradeBandStyle(r.computed_grade)}>
-                        {r.computed_grade} {r.letter && <span style={{ fontSize: 11, marginLeft: 2 }}>({r.letter})</span>}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <span style={getGradeBandStyle(r.computed_grade)}>
+                          {r.computed_grade} {r.letter && <span style={{ fontSize: 11, marginLeft: 2 }}>({r.letter})</span>}
+                        </span>
+                        <div style={{ width: '80%', height: 4, background: 'var(--bg-soft)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{
+                            width: `${Math.min(100, Math.max(0, Number(r.computed_grade)))}%`,
+                            height: '100%',
+                            background: Number(r.computed_grade) >= 90 ? 'var(--success)' : Number(r.computed_grade) >= 75 ? 'var(--warn)' : 'var(--danger)',
+                          }} />
+                        </div>
+                      </div>
                     ) : '—'}
                   </td>
                   <td>{r.remarks ? <Badge status={r.remarks} /> : '—'}</td>
