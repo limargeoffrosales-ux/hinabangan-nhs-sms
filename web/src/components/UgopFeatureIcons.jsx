@@ -52,6 +52,7 @@ export function UgopTileIcon({ item, size = 110, onClick }) {
         backgroundPosition: `${posX}% ${posY}%`,
         backgroundRepeat: 'no-repeat',
         boxShadow: '0 4px 14px rgba(18, 38, 28, 0.08)',
+        mixBlendMode: 'multiply',
         cursor: 'pointer',
         transition: 'transform 0.18s ease, box-shadow 0.18s ease',
       }}
