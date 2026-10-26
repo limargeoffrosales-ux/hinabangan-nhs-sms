@@ -286,14 +286,21 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   }, [baseKey, showLabels]);
 
   // --- placements + clustering ----------------------------------------------
-  const dist = useMemo(() => rows.map((r) => ({
+  const validRows = useMemo(() => rows.filter((r) => r && r.lat != null && r.lng != null && String(r.lat).trim() !== '' && String(r.lng).trim() !== '' && Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng))), [rows]);
+
+  const dist = useMemo(() => validRows.map((r) => ({
     r,
     km: haversine(SCHOOL_COORDS.lat, SCHOOL_COORDS.lng, Number(r.lat), Number(r.lng)),
-  })).sort((a, b) => a.km - b.km), [rows]);
+  })).sort((a, b) => a.km - b.km), [validRows]);
 
   const addPin = useCallback((m) => {
+    if (!m || m.lat == null || m.lng == null || String(m.lat).trim() === '' || String(m.lng).trim() === '') return null;
+    const latNum = Number(m.lat);
+    const lngNum = Number(m.lng);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+
     const color = PIN_COLOR[m.status] || '#94a3b8';
-    const km = haversine(SCHOOL_COORDS.lat, SCHOOL_COORDS.lng, Number(m.lat), Number(m.lng));
+    const km = haversine(SCHOOL_COORDS.lat, SCHOOL_COORDS.lng, latNum, lngNum);
     const popup = DOMPurify.sanitize(
       `<div style="min-width:230px">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
@@ -306,12 +313,12 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         ${m.start_date ? `<div class="sub">${esc(m.start_date)}${m.end_date ? ' \u2192 ' + esc(m.end_date) : ''}</div>` : ''}
         <div class="sub" style="margin-top:6px">\u{1F3EB} ${fmtKm(km)} from school</div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gmapsLink(Number(m.lat).toFixed(6), Number(m.lng).toFixed(6))}">Open in Google Maps</a>
-          <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gdirsLink(Number(m.lat).toFixed(6), Number(m.lng).toFixed(6))}">Directions from school</a>
+          <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gmapsLink(latNum.toFixed(6), lngNum.toFixed(6))}">Open in Google Maps</a>
+          <a class="popup-link" target="_blank" rel="noopener noreferrer" href="${gdirsLink(latNum.toFixed(6), lngNum.toFixed(6))}">Directions from school</a>
         </div>
       </div>`,
     );
-    const marker = L.marker([Number(m.lat), Number(m.lng)], { icon: pinIcon(color) })
+    const marker = L.marker([latNum, lngNum], { icon: pinIcon(color) })
       .bindPopup(popup)
       .bindTooltip(`<b>${esc(m.student_name)}</b><br/><span style="font-size:11px">${esc(m.partner_institution || m.program || '')}</span>`, {
         direction: 'top', offset: [0, -28], opacity: 0.95, className: 'imm-tooltip',
@@ -324,12 +331,12 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
   const rowsKey = useCallback((list) => list.map((x) => x.id).join(','), []);
 
   const effectiveRows = useMemo(() => {
-    if (radiusKm <= 0) return rows;
-    return rows.filter((r) => {
+    if (radiusKm <= 0) return validRows;
+    return validRows.filter((r) => {
       const km = haversine(SCHOOL_COORDS.lat, SCHOOL_COORDS.lng, Number(r.lat), Number(r.lng));
       return km <= radiusKm;
     });
-  }, [rows, radiusKm]);
+  }, [validRows, radiusKm]);
 
   useEffect(() => {
     const map = mapRef.current, layer = layerRef.current;
