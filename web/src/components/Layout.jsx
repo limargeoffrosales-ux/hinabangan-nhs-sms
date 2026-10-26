@@ -148,27 +148,23 @@ function TarikNavIcon({ pose = 'happy', emoji = '✨', size = 32 }) {
       style={{
         width: size,
         height: size,
-        background: 'var(--primary-tint)',
-        borderRadius: 10,
-        border: '1.5px solid var(--border-strong)',
+        background: 'transparent',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
         flexShrink: 0,
-        boxShadow: '0 2px 6px rgba(18,38,28,0.08)',
-        transition: 'transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease',
+        mixBlendMode: 'darken',
+        transition: 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'scale(1.08)';
-        e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 90, 54, 0.22)';
+        e.currentTarget.style.transform = 'scale(1.1)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'scale(1)';
-        e.currentTarget.style.boxShadow = '0 2px 6px rgba(18,38,28,0.08)';
       }}
     >
-      <TarikMascot pose={pose} size={size * 0.78} />
+      <TarikMascot pose={pose} size={size * 0.95} />
       <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: size * 0.42, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))' }}>{emoji}</span>
     </span>
   );

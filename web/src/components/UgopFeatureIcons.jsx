@@ -46,17 +46,15 @@ export function UgopTileIcon({ item, size = 110, onClick }) {
       style={{
         width: size,
         height: size,
-        borderRadius: '20px',
-        border: '1.5px solid #DCE7E0',
+        background: 'transparent',
         backgroundImage: 'url(/tarik-grid-tiles.jpg)',
         backgroundSize: '800% 400%',
         backgroundPosition: `${posX}% ${posY}%`,
         backgroundRepeat: 'no-repeat',
-        boxShadow: '0 4px 14px rgba(18, 38, 28, 0.08)',
         filter: 'contrast(160%) brightness(99%) saturate(120%)',
         mixBlendMode: 'darken',
         cursor: 'pointer',
-        transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+        transition: 'transform 0.18s ease',
       }}
       className="ugop-tile-icon"
       title={item.name}
