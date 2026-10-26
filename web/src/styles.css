@@ -1,19 +1,20 @@
 :root {
-  /* UGOP Brand Palette (DepEd Philippine Public Schools / Samar Edition) */
-  --primary: #1B6B4A;
-  --primary-hover: #15583C;
-  --primary-pressed: #0F4530;
-  --primary-tint: #E6F2EC;
+  /* TARIK Brand Palette (DepEd Philippine Public Schools / Samar Edition) */
+  --primary: #0F5A36;
+  --primary-hover: #0A4128;
+  --primary-pressed: #062E1C;
+  --primary-tint: #E3F1E8;
 
-  --accent: #F5A623;
-  --accent-hover: #DB8F10;
-  --accent-tint: #FFF3DC;
+  --accent: #D9A834;
+  --accent-hover: #B8861F;
+  --accent-tint: #FBF1D3;
   --accent-2: #2E9E5B;
   --accent-3: #1E88B5;
 
   --secondary: #1E88B5;
   --secondary-tint: #E3F2FA;
 
+  --bill-orange: #E2651F;
   --success: #2E9E5B;
   --warn: #E8A317;
   --danger: #D64545;
@@ -26,23 +27,23 @@
   --card-solid: #FFFFFF;
   --card: #FFFFFF;
   --card-hover: #F0F7F2;
-  --bg-page: #F4F8F5;
-  --bg-soft: #E6F2EC;
+  --bg-page: #F5F8F4;
+  --bg-soft: #E3F1E8;
 
   --radius-sm: 8px;
   --radius: 16px;
   --radius-lg: 20px;
   --radius-pill: 999px;
 
-  --rgb-accent: 27, 107, 74;
+  --rgb-accent: 15, 90, 54;
   --rgb-green: 46, 158, 91;
   --rgb-teal: 30, 136, 181;
   --rgb-info: 30, 136, 181;
 
-  --glow: rgba(27, 107, 74, 0.25);
-  --glow-soft: rgba(27, 107, 74, 0.12);
-  --grad: linear-gradient(135deg, #1B6B4A, #2E9E5B);
-  --grad-3: linear-gradient(135deg, #1B6B4A, #1E88B5 55%, #2E9E5B);
+  --glow: rgba(15, 90, 54, 0.25);
+  --glow-soft: rgba(15, 90, 54, 0.12);
+  --grad: linear-gradient(135deg, #0F5A36, #2E9E5B);
+  --grad-3: linear-gradient(135deg, #0F5A36, #1E88B5 55%, #2E9E5B);
   --grad-amber: linear-gradient(135deg, #F5A623, #DB8F10);
 
   --shadow: 0 1px 2px rgba(18, 38, 28, 0.06), 0 4px 12px rgba(18, 38, 28, 0.05);
