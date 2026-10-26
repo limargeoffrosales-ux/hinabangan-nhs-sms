@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Official TARIK Mascot Character Sheet Image Component using /tarik-poses.jpg
+// Official TARIK Mascot Character Sheet Image Component using /tarik-poses.png
 // Poses Grid (4 cols x 2 rows):
 // Row 1: waving, reading, cheering, thinking
 // Row 2: clipboard, surprised, sleepy, happy
@@ -25,7 +25,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
       style={{
         width: size,
         height: size,
-        backgroundImage: 'url(/tarik-poses.jpg)',
+        backgroundImage: 'url(/tarik-poses.png)',
         backgroundSize: '400% 200%',
         backgroundPosition: bgPos,
         backgroundRepeat: 'no-repeat',

@@ -31,7 +31,7 @@ export default function TarikCrestLogo({ size = 80, className = '', style = {} }
       }}
     >
       <img
-        src="/logo.jpg"
+        src="/logo.png"
         alt="TARIK Crest Emblem"
         style={{
           width: '100%',

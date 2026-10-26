@@ -1,7 +1,7 @@
 import React from 'react';
 import TarikMascot from './TarikMascot';
 
-// Master Set of 30 App Feature Icons featuring the exact uploaded Tarik artwork (/tarik-grid-tiles.jpg)
+// Master Set of 30 App Feature Icons featuring the exact uploaded Tarik artwork (/tarik-grid-tiles.png)
 export const FEATURE_ICONS = [
   { id: 'sections', name: 'Sections', col: 0, row: 0, pose: 'happy', icon: '📦', to: '/sections' },
   { id: 'students', name: 'Students', col: 1, row: 0, pose: 'waving', icon: '🎒', to: '/students' },
@@ -47,7 +47,7 @@ export function UgopTileIcon({ item, size = 110, onClick }) {
         width: size,
         height: size,
         background: 'transparent',
-        backgroundImage: 'url(/tarik-grid-tiles.jpg)',
+        backgroundImage: 'url(/tarik-grid-tiles.png)',
         backgroundSize: '800% 400%',
         backgroundPosition: `${posX}% ${posY}%`,
         backgroundRepeat: 'no-repeat',
