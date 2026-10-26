@@ -498,7 +498,6 @@ export default function Grades() {
                       </span>
                     ) : '—'}
                   </td>
-                  </td>
                   <td>{r.remarks ? <Badge status={r.remarks} /> : '—'}</td>
                   <td>
                     <button className="btn btn-sm" title={t('grades.reportCard')} onClick={() => viewReportCard(r.id)}><FileText size={13} /></button>
