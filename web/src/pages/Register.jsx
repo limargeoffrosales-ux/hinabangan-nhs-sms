@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { UserPlus, CheckCircle2, ArrowLeft, Shield } from 'lucide-react';
+import i18n from '../i18n';
+import { UserPlus, CheckCircle2, ArrowLeft, Shield, Globe } from 'lucide-react';
 import { api, sanitizeError } from '../lib/api';
 import { ErrorBanner } from '../components/ui';
 import TarikCrestLogo from '../components/TarikCrestLogo';
+import TarikMascot from '../components/TarikMascot';
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
 
@@ -42,6 +44,11 @@ export default function Register() {
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const strength = getPasswordStrength(form.password);
+
+  const currentLang = i18n.language?.startsWith('fil') ? 'fil' : 'en';
+  function toggleLang() {
+    i18n.changeLanguage(currentLang === 'en' ? 'fil' : 'en');
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -105,9 +112,23 @@ export default function Register() {
       <div className="login-bg-orb login-bg-orb--2" />
       <div className="login-bg-orb login-bg-orb--3" />
 
-      <header className="login-branding">
-        <TarikCrestLogo size={96} />
-        <h1 className="login-branding-name">{t('schoolName')}</h1>
+      <div className="login-topbar">
+        <button className="login-lang-btn" onClick={toggleLang} aria-label="Toggle language">
+          <Globe size={14} />
+          {currentLang === 'en' ? 'Filipino' : 'English'}
+        </button>
+      </div>
+
+      <header className="login-branding" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <TarikCrestLogo size={84} />
+          <TarikMascot pose="waving" size={88} />
+        </div>
+        <div>
+          <span className="badge badge-amber" style={{ marginBottom: 6, background: '#D9A834', color: '#12261C', fontWeight: 800 }}>Region VIII · Schools Division of Samar</span>
+          <h1 className="login-branding-name" style={{ margin: '4px 0 2px 0', fontSize: 26, fontWeight: 800, fontFamily: 'var(--font-display)' }}>{t('schoolName')}</h1>
+          <p style={{ margin: 0, opacity: 0.85, fontSize: 13.5 }}>Hinabangan, Samar · School ID: 303606</p>
+        </div>
       </header>
 
       <div className="login-main">
