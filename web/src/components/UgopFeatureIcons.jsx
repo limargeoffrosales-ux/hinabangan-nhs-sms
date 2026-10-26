@@ -5,6 +5,7 @@ import TarikMascot from './TarikMascot';
 export const FEATURE_ICONS = [
   { id: 'sections', name: 'Sections', col: 0, row: 0, pose: 'happy', icon: '📦', to: '/sections' },
   { id: 'students', name: 'Students', col: 1, row: 0, pose: 'waving', icon: '🎒', to: '/students' },
+  { id: 'teachers', name: 'Teachers', col: 2, row: 0, pose: 'happy', icon: '👨‍🏫', to: '/teachers' },
   { id: 'attendance', name: 'Attendance', col: 2, row: 0, pose: 'clipboard', icon: '📅', to: '/attendance' },
   { id: 'gate_check', name: 'Gate Check', col: 3, row: 0, pose: 'surprised', icon: '📲', to: '/attendance' },
   { id: 'advisory', name: 'Advisory Class', col: 4, row: 0, pose: 'happy', icon: '🏫', to: '/sections' },
@@ -52,7 +53,8 @@ export function UgopTileIcon({ item, size = 110, onClick }) {
         backgroundPosition: `${posX}% ${posY}%`,
         backgroundRepeat: 'no-repeat',
         boxShadow: '0 4px 14px rgba(18, 38, 28, 0.08)',
-        filter: 'contrast(106%) saturate(110%)',
+        filter: 'contrast(160%) brightness(99%) saturate(120%)',
+        mixBlendMode: 'darken',
         cursor: 'pointer',
         transition: 'transform 0.18s ease, box-shadow 0.18s ease',
       }}

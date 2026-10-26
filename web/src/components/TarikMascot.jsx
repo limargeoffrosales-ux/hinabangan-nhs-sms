@@ -31,7 +31,8 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
         backgroundRepeat: 'no-repeat',
         display: 'inline-block',
         flexShrink: 0,
-        filter: 'contrast(106%) saturate(110%)',
+        filter: 'contrast(160%) brightness(99%) saturate(120%)',
+        mixBlendMode: 'darken',
         ...style,
       }}
       title={`TARIK - ${pose}`}
