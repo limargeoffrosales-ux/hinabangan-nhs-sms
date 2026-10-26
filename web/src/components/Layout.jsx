@@ -562,26 +562,32 @@ export default function Layout({ children }) {
         </div>
       </aside>
       <div className="main" id="main-content" role="main">
-        <div className="topbar" role="banner" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px', background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
-          <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
-            <Menu size={17} aria-hidden="true" />
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--primary)' }}>TARIK</span>
-            <span style={{ color: 'var(--border)' }}>/</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Hinabangan NHS</span>
+        <div className="topbar" role="banner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 24px', background: 'var(--card)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
+              <Menu size={17} aria-hidden="true" />
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--primary)' }}>TARIK</span>
+              <span style={{ color: 'var(--border)' }}>/</span>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Hinabangan NHS</span>
+            </div>
+
+            {/* System Status Pills Group */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', padding: '4px 10px', borderRadius: 99, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--primary)' }}>
+                <Calendar size={13} />
+                <span>2026-2027 · First Term</span>
+              </div>
+              <span style={{ color: 'var(--border)' }}>|</span>
+              <SyncStatusPill />
+              <span style={{ color: 'var(--border)' }}>|</span>
+              <SystemHealthPill />
+            </div>
           </div>
 
-          {/* SY + Term Pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--primary-tint)', borderRadius: 99, fontSize: 12.5, fontWeight: 600, color: 'var(--primary)' }}>
-            <Calendar size={13} />
-            <span>2026-2027 · First Term</span>
-          </div>
-
-          <SyncStatusPill />
-          <SystemHealthPill />
-
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Action Tools & Controls Group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {/* Quick Launch Dropdown */}
             <QuickLaunchDropdown navigate={navigate} />
 
