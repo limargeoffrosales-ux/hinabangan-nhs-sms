@@ -313,17 +313,25 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
 
   const rowsKey = useCallback((list) => list.map((x) => x.id).join(','), []);
 
+  const effectiveRows = useMemo(() => {
+    if (radiusKm <= 0) return rows;
+    return rows.filter((r) => {
+      const km = haversine(SCHOOL_COORDS.lat, SCHOOL_COORDS.lng, Number(r.lat), Number(r.lng));
+      return km <= radiusKm;
+    });
+  }, [rows, radiusKm]);
+
   useEffect(() => {
     const map = mapRef.current, layer = layerRef.current;
     if (!map || !layer) return;
     layer.clearLayers();
     companyLayerRef.current.clearLayers();
     markerMapRef.current.clear();
-    if (!rows.length) return;
+    if (!effectiveRows.length) return;
 
     if (companyMode) {
       const groups = {};
-      rows.forEach((r) => {
+      effectiveRows.forEach((r) => {
         const key = r.partner_institution || 'Unknown';
         if (!groups[key]) groups[key] = { name: key, students: [], lat: null, lng: null };
         groups[key].students.push(r);
@@ -351,14 +359,14 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
       const coords = Object.values(groups).filter((g) => g.lat != null).map((g) => [g.lat, g.lng]);
       if (coords.length) map.fitBounds(L.latLngBounds(coords).pad(0.1));
     } else {
-      const doCluster = zoom < 12 && rows.length > 40;
+      const doCluster = zoom < 12 && effectiveRows.length > 40;
       setClusterHint(doCluster);
 
       if (doCluster) {
         const metersPerPx = 156543.03392 * Math.cos(SCHOOL_COORDS.lat * Math.PI / 180) / Math.pow(2, zoom);
         const cell = (70 * metersPerPx) / 111320;
         const groups = {};
-        rows.forEach((m) => {
+        effectiveRows.forEach((m) => {
           const k = `${Math.round(Number(m.lat) / cell)}|${Math.round(Number(m.lng) / cell)}`;
           (groups[k] = groups[k] || []).push(m);
         });
@@ -374,13 +382,13 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
             .addTo(layer);
         });
       } else {
-        rows.forEach((m) => addPin(m));
+        effectiveRows.forEach((m) => addPin(m));
       }
 
-      const key = rowsKey(rows);
+      const key = rowsKey(effectiveRows);
       if (rowsKeyRef.current !== key) {
         rowsKeyRef.current = key;
-        const ok = rows.filter((r) => {
+        const ok = effectiveRows.filter((r) => {
           if (r.lat == null || r.lng == null) return false;
           if (String(r.lat).trim() === '' || String(r.lng).trim() === '') return false;
           return Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng));
@@ -388,7 +396,7 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         if (ok.length) map.fitBounds(L.latLngBounds(ok.map((r) => [Number(r.lat), Number(r.lng)])).pad(0.06));
       }
     }
-  }, [rows, zoom, addPin, rowsKey, companyMode]);
+  }, [effectiveRows, zoom, addPin, rowsKey, companyMode]);
 
   useEffect(() => { rowsKeyRef.current = null; }, [isImmersion]);
 
