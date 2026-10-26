@@ -56,13 +56,17 @@ export default function Guidance() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [students, setStudents] = useState([]);
   const [studentSearch, setStudentSearch] = useState('');
+  const [atRisk, setAtRisk] = useState([]);
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     setLoading(true);
     try {
-      const [c, s] = await Promise.allSettled([api('/guidance/cases'), api('/guidance/cases/summary')]);
+      const [c, s, ar] = await Promise.allSettled([api('/guidance/cases'), api('/guidance/cases/summary'), api('/analytics/at-risk')]);
+      if (c.status === 'fulfilled') setCases(c.value.data);
+      if (s.status === 'fulfilled') setSummary(s.value);
+      if (ar.status === 'fulfilled') setAtRisk(ar.value.data || []);
       if (c.status === 'fulfilled') setCases(c.value.data);
       if (s.status === 'fulfilled') setSummary(s.value);
     } catch (e) { setError(e.message); } finally { setLoading(false); }
@@ -201,6 +205,52 @@ export default function Guidance() {
           </div>
         </div>
       )}
+
+      {/* Predictive At-Risk Analytics Section */}
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>⚡</span> Predictive At-Risk Student Analytics (TARIK AI)
+          </h3>
+          <span className="badge badge-red">{atRisk.length} Flagged Learner(s)</span>
+        </div>
+        <p className="sub" style={{ margin: '0 0 16px 0', fontSize: 13 }}>
+          Automated risk scoring flagging learners trending below 75% in core subjects or exhibiting attendance drop-offs.
+        </p>
+        {atRisk.length === 0 ? (
+          <Empty text="No at-risk students flagged for the current school term. Excellent standing!" />
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+            {atRisk.map(ar => (
+              <div key={ar.student_id} style={{ padding: 14, background: 'rgba(214, 69, 69, 0.04)', border: '1px solid rgba(214, 69, 69, 0.2)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <strong style={{ fontSize: 14 }}>{ar.name}</strong>
+                  <span className="badge badge-red">Grade {ar.grade_level}</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 8 }}>
+                  Section: {ar.section_name || 'Unassigned'} · LRN: {ar.lrn}
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ color: ar.average < 75 ? 'var(--danger)' : 'var(--text)' }}>Avg: {ar.average}%</span>
+                  <span style={{ color: ar.attendance_rate < 80 ? 'var(--danger)' : 'var(--text)' }}>Attendance: {ar.attendance_rate}%</span>
+                </div>
+                <div style={{ background: 'var(--card)', padding: 8, borderRadius: 8, fontSize: 12, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--danger)', marginBottom: 2 }}>Risk Factors:</div>
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    {ar.risk_factors.map((rf, idx) => <li key={idx}>{rf}</li>)}
+                  </ul>
+                </div>
+                <div style={{ background: 'var(--primary-tint)', padding: 8, borderRadius: 8, fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 2 }}>AI Intervention Strategy:</div>
+                  <ul style={{ margin: 0, paddingLeft: 16, color: 'var(--primary)' }}>
+                    {ar.ai_strategies.map((st, idx) => <li key={idx}>{st}</li>)}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Filters */}
       <div className="card" style={{ marginBottom: 12 }}>

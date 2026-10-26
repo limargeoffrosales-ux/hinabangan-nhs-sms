@@ -222,4 +222,45 @@ router.put('/honor-roll/settings', requireRole(...SETTINGS_WRITE), asyncH(async 
   res.json(value);
 }));
 
+// GET /analytics/at-risk — Predictive at-risk analytics (grades < 75 or low attendance)
+router.get('/at-risk', requireRole(...READ), asyncH(async (req, res) => {
+  const sy = req.query.school_year || await getCurrentSchoolYear();
+  const students = await enrolledStudents(sy);
+  const atRisk = [];
+
+  for (const st of students) {
+    const grades = await qa('SELECT computed_grade FROM grades WHERE student_id = ? AND school_year = ? AND computed_grade IS NOT NULL', [st.id, sy]);
+    const avg = grades.length ? grades.reduce((a, b) => a + Number(b.computed_grade), 0) / grades.length : 85;
+
+    const attendance = await qa('SELECT status FROM attendance WHERE student_id = ? AND school_year = ?', [st.id, sy]);
+    const totalAtt = attendance.length;
+    const presentAtt = attendance.filter(a => a.status === 'present').length;
+    const attRate = totalAtt > 0 ? (presentAtt / totalAtt) * 100 : 95;
+
+    if (avg < 75 || attRate < 80) {
+      const issues = [];
+      if (avg < 75) issues.push(`Low academic average (${avg.toFixed(1)}%)`);
+      if (attRate < 80) issues.push(`Attendance drop-off (${attRate.toFixed(1)}% present)`);
+
+      const strategies = [];
+      if (avg < 75) strategies.push('Assign peer tutoring & ARAL remedial modules');
+      if (attRate < 80) strategies.push('Conduct parent conference & home visitation');
+
+      atRisk.push({
+        student_id: st.id,
+        name: `${st.last_name}, ${st.first_name}`,
+        lrn: st.lrn,
+        grade_level: st.grade_level,
+        section_name: st.section_name,
+        average: Number(avg.toFixed(1)),
+        attendance_rate: Number(attRate.toFixed(1)),
+        risk_factors: issues,
+        ai_strategies: strategies,
+      });
+    }
+  }
+
+  res.json({ data: atRisk, count: atRisk.length });
+}));
+
 module.exports = router;
