@@ -223,7 +223,28 @@ async function chat(messages, opts = {}) {
 }
 
 function safeParse(text) {
-  try { return JSON.parse(text); } catch { return { raw: text }; }
+  if (typeof text !== 'string') return { raw: text };
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-z]*\n?/i, '').replace(/```\s*$/, '').trim();
+  }
+  try { return JSON.parse(cleaned); } catch {
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+      } catch {}
+    }
+    const firstBracket = cleaned.indexOf('[');
+    const lastBracket = cleaned.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+      try {
+        return JSON.parse(cleaned.slice(firstBracket, lastBracket + 1));
+      } catch {}
+    }
+    return { raw: text };
+  }
 }
 
 async function generateStudentReport(studentId) {
