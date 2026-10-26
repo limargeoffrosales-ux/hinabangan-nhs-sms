@@ -4,6 +4,7 @@ import { Save, UserRound } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Spinner, ErrorBanner, Empty, Badge } from '../components/ui';
+import DigitalStudentIdCard from '../components/DigitalStudentIdCard';
 
 export default function PortalProfile() {
   const { t } = useTranslation();
@@ -92,7 +93,9 @@ export default function PortalProfile() {
           </div>
 
           {loading ? <Spinner /> : !data || !s ? <Empty text={t('profile.noRecord')} /> : (
-            <form onSubmit={onSubmit}>
+            <>
+              <DigitalStudentIdCard student={s} />
+              <form onSubmit={onSubmit}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div className="card">
                   <h3 style={{ marginTop: 0 }}><UserRound size={15} style={{ verticalAlign: -2 }} /> {t('profile.schoolRecord')}</h3>
@@ -146,6 +149,7 @@ export default function PortalProfile() {
                 </div>
               </div>
             </form>
+            </>
           )}
         </>
       )}

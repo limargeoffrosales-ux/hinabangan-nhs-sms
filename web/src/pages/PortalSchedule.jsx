@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useLinkedStudents } from '../lib/portal';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 import PortalNoLinked from '../components/PortalNoLinked';
+import VisualTimetableGrid from '../components/VisualTimetableGrid';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -90,6 +91,7 @@ export default function PortalSchedule() {
           </table>
           {!data.data.length && <Empty text="No scheduled classes for this school year." />}
         </div>
+        <VisualTimetableGrid weekly={data.data} />
       )}
     </>
   );
