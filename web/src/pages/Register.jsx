@@ -8,6 +8,27 @@ import TarikCrestLogo from '../components/TarikCrestLogo';
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
 
+function getPasswordStrength(pwd) {
+  let score = 0;
+  if (!pwd) return { score: 0, label: '', color: 'var(--border)' };
+  const hasLen = pwd.length >= 12;
+  const hasUpper = /[A-Z]/.test(pwd);
+  const hasLower = /[a-z]/.test(pwd);
+  const hasNum = /\d/.test(pwd);
+  const hasSym = /[^A-Za-z0-9]/.test(pwd);
+
+  if (hasLen) score++;
+  if (hasUpper) score++;
+  if (hasLower) score++;
+  if (hasNum) score++;
+  if (hasSym) score++;
+
+  if (score <= 2) return { score: 25, label: 'Weak', color: 'var(--danger)' };
+  if (score === 3) return { score: 50, label: 'Fair', color: 'var(--warn)' };
+  if (score === 4) return { score: 75, label: 'Good', color: 'var(--accent-2)' };
+  return { score: 100, label: 'Strong', color: 'var(--success)' };
+}
+
 export default function Register() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -20,6 +41,7 @@ export default function Register() {
     registration_code: '',
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const strength = getPasswordStrength(form.password);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -150,8 +172,35 @@ export default function Register() {
                     <input id="reg-phone" name="phone" value={form.phone} onChange={set('phone')} autoComplete="tel" />
                   </div>
                 </div>
-                <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>{t('register.passwordHint', 'Password must be at least 12 characters and include uppercase, lowercase, numbers and symbols.')}</p>
-                <button type="submit" className="btn btn-primary login-submit" disabled={busy}>
+
+                {/* Live Password Strength Meter & Checklist */}
+                {form.password && (
+                  <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-soft)', borderRadius: 12, border: '1px solid var(--border)', fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontWeight: 700 }}>
+                      <span>Password Strength:</span>
+                      <span style={{ color: strength.color }}>{strength.label}</span>
+                    </div>
+                    <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+                      <div style={{ width: `${strength.score}%`, height: '100%', background: strength.color, transition: 'width 0.3s ease, background 0.3s ease' }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, color: 'var(--text-dim)' }}>
+                      <div style={{ color: form.password.length >= 12 ? 'var(--success)' : 'inherit' }}>
+                        {form.password.length >= 12 ? '✓' : '○'} At least 12 characters
+                      </div>
+                      <div style={{ color: /[A-Z]/.test(form.password) ? 'var(--success)' : 'inherit' }}>
+                        {/[A-Z]/.test(form.password) ? '✓' : '○'} Uppercase letter
+                      </div>
+                      <div style={{ color: /[a-z]/.test(form.password) ? 'var(--success)' : 'inherit' }}>
+                        {/[a-z]/.test(form.password) ? '✓' : '○'} Lowercase letter
+                      </div>
+                      <div style={{ color: /[^A-Za-z0-9]/.test(form.password) ? 'var(--success)' : 'inherit' }}>
+                        {/[^A-Za-z0-9]/.test(form.password) ? '✓' : '○'} Special symbol
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button type="submit" className="btn btn-primary login-submit" disabled={busy} style={{ marginTop: 14 }}>
                   {busy ? <span className="login-spinner" /> : <UserPlus size={15} />}
                   {busy ? t('login.signingIn') : t('register.submit', 'Create account')}
                 </button>
