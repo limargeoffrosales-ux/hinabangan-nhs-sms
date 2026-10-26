@@ -201,23 +201,34 @@ export default function Login() {
             </div>
             {pendingMfa ? (
               <form onSubmit={onMfaSubmit} ref={formRef} className="login-form">
-                <label htmlFor="login-mfa">{t('login.signInto')} — {t('login.mfaStep', 'Two-factor authentication')}</label>
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--primary-tint)', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                    <Shield size={24} />
+                  </div>
+                  <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>Two-Factor Authentication</h3>
+                  <p className="sub" style={{ fontSize: 13, margin: 0 }}>Enter the 6-digit OTP code from your authenticator app or security key.</p>
+                </div>
+                <label htmlFor="login-mfa">6-Digit OTP Code</label>
                 <input
                   id="login-mfa"
                   name="mfaCode"
-                  placeholder="••••••"
+                  placeholder="000000"
                   autoFocus
                   autoComplete="one-time-code"
                   inputMode="numeric"
-                  maxLength={8}
+                  maxLength={6}
+                  style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.3em', fontWeight: 700, fontFamily: 'var(--font-mono)' }}
                 />
-                <button type="submit" className="btn btn-primary login-submit" disabled={busy}>
+                <button type="submit" className="btn btn-primary login-submit" disabled={busy} style={{ marginTop: 12 }}>
                   {busy ? <span className="login-spinner" /> : <Shield size={15} />}
-                  {busy ? t('login.signingIn') : t('login.mfaVerify', 'Verify code')}
+                  {busy ? t('login.signingIn') : t('login.mfaVerify', 'Verify & Sign In')}
                 </button>
-                <div className="login-form-links">
+                <div className="login-form-links" style={{ justifyContent: 'center', marginTop: 12 }}>
                   <button type="button" className="login-request-btn" onClick={() => { setPendingMfa(null); setError(null); }}>
                     {t('login.back', 'Back to sign in')}
+                  </button>
+                </div>
+              </form>
                   </button>
                 </div>
               </form>
