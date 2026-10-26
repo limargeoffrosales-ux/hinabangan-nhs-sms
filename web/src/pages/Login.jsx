@@ -11,6 +11,7 @@ import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
 import { getStoredApiBase, setApiBase, api, warmServer, sanitizeError } from '../lib/api';
 import TarikCrestLogo from '../components/TarikCrestLogo';
+import TarikMascot from '../components/TarikMascot';
 
 const FEATURES = [
   { icon: QrCode, key: 'featAttendance' },
@@ -144,9 +145,16 @@ export default function Login() {
         </button>
       </div>
 
-      <header className="login-branding">
-        <TarikCrestLogo size={96} />
-        <h1 className="login-branding-name">{t('schoolName')}</h1>
+      <header className="login-branding" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <TarikCrestLogo size={84} />
+          <TarikMascot pose="waving" size={88} />
+        </div>
+        <div>
+          <span className="badge badge-amber" style={{ marginBottom: 6, background: '#D9A834', color: '#12261C', fontWeight: 800 }}>Region VIII · Schools Division of Samar</span>
+          <h1 className="login-branding-name" style={{ margin: '4px 0 2px 0', fontSize: 26, fontWeight: 800, fontFamily: 'var(--font-display)' }}>{t('schoolName')}</h1>
+          <p style={{ margin: 0, opacity: 0.85, fontSize: 13.5 }}>Hinabangan, Samar · School ID: 303606</p>
+        </div>
       </header>
 
       <div className="login-main">
