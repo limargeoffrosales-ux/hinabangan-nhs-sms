@@ -1,17 +1,43 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import AIText from './AIText';
 
-const CHAT_KEY = 'meridianed_ai_chat';
+const CHAT_KEY = 'tarik_ai_chat';
 const MAX_STORED = 100;
 
-const QUICK_PROMPTS = [
-  'How do I check student grades?',
-  'Explain the grading system',
-  'How to enroll a new student?',
-  'What is the attendance policy?',
-];
+const ROLE_PROMPTS = {
+  teacher: [
+    'Draft remediation plan for Aral students',
+    'Generate a DepEd DLL lesson plan',
+    'How do I enter term grades?',
+    'Check attendance reporting status',
+  ],
+  school_admin: [
+    'Verify SF1 enrollment counts',
+    'Review pending user approvals',
+    'Check 5-year data retention compliance',
+    'Generate SF6 promotion summary',
+  ],
+  super_admin: [
+    'Verify SF1 enrollment counts',
+    'Review pending user approvals',
+    'Check 5-year data retention compliance',
+    'Generate SF6 promotion summary',
+  ],
+  registrar: [
+    'Verify SF1 enrollment counts',
+    'Review pending student enrollments',
+    'Export SF10 permanent academic record',
+  ],
+  default: [
+    'How do I check my grades?',
+    'Explain the grading system',
+    'What is the attendance policy?',
+    'How to view my SF9 report card?',
+  ],
+};
 
 function loadMessages() {
   try {
@@ -27,12 +53,15 @@ function saveMessages(msgs) {
 }
 
 export default function AIChatbot() {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(loadMessages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const bottomRef = useRef(null);
+
+  const prompts = ROLE_PROMPTS[user?.role] || ROLE_PROMPTS.default;
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { saveMessages(messages); }, [messages]);
@@ -112,9 +141,9 @@ export default function AIChatbot() {
             {messages.length === 0 && (
               <div style={{ padding: '10px 0' }}>
                 <p style={{ fontSize: 13, color: 'var(--text-dim, #6b7280)', marginBottom: 12 }}>
-                  Hi! I can help you with grades, enrollment, attendance, and more.
+                  Maupay nga adlaw! I am TARIK AI. Choose a quick prompt below or ask me anything:
                 </p>
-                {QUICK_PROMPTS.map((p) => (
+                {prompts.map((p) => (
                   <button
                     key={p}
                     onClick={() => send(p)}
@@ -179,10 +208,9 @@ export default function AIChatbot() {
               onClick={() => send(input)}
               disabled={loading || !input.trim()}
               style={{
-                width: 36, height: 36, borderRadius: 10, border: 'none',
-                background: 'var(--accent, #1e3a5f)', color: '#fff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                opacity: loading || !input.trim() ? 0.5 : 1,
+                padding: '8px 14px', borderRadius: 10, border: 'none',
+                background: 'var(--accent, #1e3a5f)', color: '#fff',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
               <Send size={16} />
