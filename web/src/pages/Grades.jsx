@@ -9,6 +9,18 @@ import { useAuth } from '../lib/auth';
 
 const TERMS = [1, 2, 3];
 
+function getGradeBandStyle(grade) {
+  if (grade == null || grade === '') return {};
+  const g = Number(grade);
+  if (g < 75) {
+    return { background: 'rgba(214, 69, 69, 0.15)', color: 'var(--danger)', padding: '4px 10px', borderRadius: 8, fontWeight: 800, display: 'inline-block' };
+  }
+  if (g >= 90) {
+    return { background: 'rgba(46, 158, 91, 0.15)', color: 'var(--success)', padding: '4px 10px', borderRadius: 8, fontWeight: 800, display: 'inline-block' };
+  }
+  return { background: 'rgba(232, 163, 23, 0.15)', color: 'var(--warn)', padding: '4px 10px', borderRadius: 8, fontWeight: 700, display: 'inline-block' };
+}
+
 export default function Grades() {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -410,6 +422,10 @@ export default function Grades() {
               {t('grades.weights')} Written Work {weights.written_work}% · Performance Tasks {weights.performance_task}% · Term {weights.quarterly_exam}%
               {scale && <> · {t('grades.scaleLabel')} <strong>{scale.name}</strong></>}
             </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--primary-tint)', borderRadius: 99, fontSize: 12, fontWeight: 600, color: 'var(--primary)' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: saving ? 'var(--warn)' : 'var(--success)' }} />
+              <span>{saving ? 'Saving changes...' : 'Saved just now'}</span>
+            </div>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button className={`btn ${compMode ? 'btn-primary' : ''}`} onClick={() => { setCompMode(!compMode); if (!compMode) loadCompetencies(); }} type="button">
                 <Target size={14} /> {compMode ? 'Grade Mode' : 'Competency Mode'}
@@ -433,7 +449,8 @@ export default function Grades() {
           <table>
             <thead>
               <tr>
-                <th>{t('grades.lrn')}</th><th>{t('grades.learner')}</th>
+                <th style={{ position: 'sticky', left: 0, background: 'var(--card)', zIndex: 3 }}>{t('grades.lrn')}</th>
+                <th style={{ position: 'sticky', left: 110, background: 'var(--card)', zIndex: 3 }}>{t('grades.learner')}</th>
                 <th style={{ textAlign: 'center' }}>{t('grades.writtenWork')} ({weights.written_work}%)</th>
                 <th style={{ textAlign: 'center' }}>{t('grades.performanceTask')} ({weights.performance_task}%)</th>
                 <th style={{ textAlign: 'center' }}>{t('grades.termExam')} ({weights.quarterly_exam}%)</th>
@@ -441,7 +458,7 @@ export default function Grades() {
                 <th>{t('grades.remarks')}</th><th></th>
               </tr>
               <tr style={{ background: 'var(--bg-secondary)' }}>
-                <td colSpan={2} style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic' }}>{t('grades.quickFill')}</td>
+                <td colSpan={2} style={{ position: 'sticky', left: 0, background: 'var(--bg-secondary)', zIndex: 3, fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic' }}>{t('grades.quickFill')}</td>
                 <td style={{ textAlign: 'center' }}>
                   <input className="grade-input" type="number" min="0" max="100" placeholder="—" style={{ width: 60, fontSize: 11 }}
                     onKeyDown={(e) => { if (e.key === 'Enter') { quickFill('written_work', e.target.value); e.target.value = ''; } }} />
@@ -463,8 +480,8 @@ export default function Grades() {
             <tbody>
               {rows.map((r, ri) => (
                 <tr key={r.id}>
-                  <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }}>{r.lrn}</td>
-                  <td>{r.last_name}, {r.first_name}</td>
+                  <td style={{ position: 'sticky', left: 0, background: 'var(--card)', zIndex: 2, fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }}>{r.lrn}</td>
+                  <td style={{ position: 'sticky', left: 110, background: 'var(--card)', zIndex: 2, fontWeight: 600 }}>{r.last_name}, {r.first_name}</td>
                   <td style={{ textAlign: 'center' }}>
                     <input className="grade-input" type="number" min="0" max="100" value={r.written_work ?? ''} data-row={ri} data-col={0} onKeyDown={gradeNav} onChange={(e) => update(r.id, 'written_work', e.target.value)} />
                   </td>
@@ -475,9 +492,12 @@ export default function Grades() {
                     <input className="grade-input" type="number" min="0" max="100" value={r.quarterly_exam ?? ''} data-row={ri} data-col={2} onKeyDown={gradeNav} onChange={(e) => update(r.id, 'quarterly_exam', e.target.value)} />
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    {r.computed_grade != null
-                      ? <><strong>{r.computed_grade}</strong>{r.letter && <span style={{ color: 'var(--text-dim)', fontSize: 12, marginLeft: 4 }}>{r.letter}</span>}</>
-                      : '—'}
+                    {r.computed_grade != null ? (
+                      <span style={getGradeBandStyle(r.computed_grade)}>
+                        {r.computed_grade} {r.letter && <span style={{ fontSize: 11, marginLeft: 2 }}>({r.letter})</span>}
+                      </span>
+                    ) : '—'}
+                  </td>
                   </td>
                   <td>{r.remarks ? <Badge status={r.remarks} /> : '—'}</td>
                   <td>
