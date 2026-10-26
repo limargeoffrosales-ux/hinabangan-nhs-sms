@@ -19,6 +19,7 @@ import { subscribeLive } from '../lib/realtime';
 import { useTheme, GroupedNav, LanguageSwitch } from '../design-system';
 import TarikMascot from './TarikMascot';
 import TarikCrestLogo from './TarikCrestLogo';
+import SyncStatusPill from './SyncStatusPill';
 import { FEATURE_ICONS } from './UgopFeatureIcons';
 
 const NAV_GROUPS = [
@@ -317,6 +318,8 @@ export default function Layout({ children }) {
             <Calendar size={13} />
             <span>2026-2027 · First Term</span>
           </div>
+
+          <SyncStatusPill />
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Ask TARIK AI Trigger Button */}
