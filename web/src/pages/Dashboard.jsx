@@ -192,7 +192,6 @@ function DepedCalendarWidget() {
     </SectionCard>
   );
 }
-}
 
 function fmtWhen(iso) {
   if (!iso) return '';
