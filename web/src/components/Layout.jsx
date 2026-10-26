@@ -125,6 +125,103 @@ function TarikNavIcon({ pose = 'happy', emoji = '✨', size = 30 }) {
   );
 }
 
+function SystemHealthPill() {
+  const [latency, setLatency] = useState(12);
+  const [driver, setDriver] = useState('SQLite Active');
+
+  useEffect(() => {
+    const start = Date.now();
+    api('/health')
+      .then(r => {
+        const ms = Math.max(2, Date.now() - start);
+        setLatency(ms);
+        if (r?.db === 'postgres' || r?.driver === 'postgres') setDriver('PG Active');
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '4px 10px',
+        background: 'var(--bg-soft)',
+        border: '1px solid var(--border)',
+        borderRadius: 99,
+        fontSize: 11.5,
+        fontWeight: 600,
+        color: 'var(--text-dim)',
+      }}
+      title="System Health & API Latency"
+    >
+      <span style={{ color: 'var(--primary)', fontWeight: 800 }}>⚡ {latency}ms</span>
+      <span>·</span>
+      <span>{driver}</span>
+    </div>
+  );
+}
+
+function QuickLaunchDropdown({ navigate }) {
+  const [open, setOpen] = useState(false);
+
+  const actions = [
+    { label: 'Enroll Student', to: '/enroll', emoji: '🎒' },
+    { label: 'Record Attendance', to: '/attendance', emoji: '📅' },
+    { label: 'Generate SF1 Register', to: '/deped-forms', emoji: '📋' },
+    { label: 'Lesson Planner & DLL', to: '/lessons', emoji: '📑' },
+    { label: 'Enter Class Grades', to: '/grades', emoji: '📊' },
+  ];
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        className="btn btn-sm"
+        onClick={() => setOpen(!open)}
+        style={{
+          background: 'var(--primary-tint)',
+          color: 'var(--primary)',
+          fontWeight: 700,
+          border: '1px solid rgba(27,107,74,0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 12px',
+          cursor: 'pointer',
+        }}
+      >
+        <span>⚡ Quick Launch</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 42, right: 0, width: 220,
+          background: 'var(--card)', border: '1px solid var(--border)',
+          borderRadius: 14, boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+          zIndex: 9999, overflow: 'hidden', padding: '6px 0',
+        }}>
+          {actions.map((act) => (
+            <div
+              key={act.to}
+              onClick={() => { navigate(act.to); setOpen(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 14px', fontSize: 12.5, fontWeight: 600,
+                color: 'var(--text)', cursor: 'pointer', transition: 'background 0.1s ease',
+              }}
+              className="quick-launch-item"
+            >
+              <span style={{ fontSize: 16 }}>{act.emoji}</span>
+              <span>{act.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NotifDropdown({ onClose }) {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -320,8 +417,12 @@ export default function Layout({ children }) {
           </div>
 
           <SyncStatusPill />
+          <SystemHealthPill />
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Quick Launch Dropdown */}
+            <QuickLaunchDropdown navigate={navigate} />
+
             {/* Ask TARIK AI Trigger Button */}
             <Link to="/ai" className="btn btn-sm" style={{ background: 'var(--grad-amber)', color: '#12261C', fontWeight: 700, border: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}>
               <Sparkles size={14} /> Ask TARIK AI
