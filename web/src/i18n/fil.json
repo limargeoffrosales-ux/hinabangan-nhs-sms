@@ -1796,5 +1796,13 @@
   "weekday.tue": "Mar",
   "weekday.wed": "Miy",
   "quickNav.systemActive": "Katayuan ng Sistema: Online at Ligtas",
-  "quickNav.quickActions": "Mabilis na Aksyon"
+  "quickNav.quickActions": "Mabilis na Aksyon",
+  "dashboard.noRecentActivity": "Walang kamakailang aktibidad ng sistema.",
+  "dashboard.system": "Sistema",
+  "dashboard.systemActionsRecorded": "naitala na mga aksyon sa sistema",
+  "dashboard.viewAuditLogs": "Tingnan ang Lahat ng Audit Logs",
+  "depedForms.exportPdf": "I-export ang Opisyal na PDF",
+  "depedForms.pdfError": "Pormal na nabigong i-export ang opisyal na PDF: {{msg}}",
+  "depedForms.pdfReady": "Matagumpay na naisagawa ang opisyal na PDF!",
+  "depedForms.popupBlocked": "Na-block ang popup. Mangyaring payagan ang mga popup upang ma-export ang opisyal na PDF."
 }

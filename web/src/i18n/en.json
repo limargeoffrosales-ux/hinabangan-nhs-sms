@@ -1796,5 +1796,13 @@
   "weekday.tue": "Tue",
   "weekday.wed": "Wed",
   "quickNav.systemActive": "System Status: Online & Secured",
-  "quickNav.quickActions": "Quick Actions"
+  "quickNav.quickActions": "Quick Actions",
+  "dashboard.noRecentActivity": "No recent system activity recorded.",
+  "dashboard.system": "System",
+  "dashboard.systemActionsRecorded": "system actions recorded",
+  "dashboard.viewAuditLogs": "View All Audit Logs",
+  "depedForms.exportPdf": "Export Official PDF",
+  "depedForms.pdfError": "Failed to export official PDF: {{msg}}",
+  "depedForms.pdfReady": "Official PDF export generated successfully!",
+  "depedForms.popupBlocked": "Popup blocked. Please allow popups to export official PDF."
 }

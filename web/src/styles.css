@@ -66,7 +66,6 @@
   --text: #E8F2EC;
   --text-dim: #8BA897;
   --primary: #3FB784;
-}
   --rgb-accent: 77, 150, 255;
   --rgb-green: 47, 214, 160;
   --rgb-teal: 45, 212, 191;
@@ -441,16 +440,30 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 20px 24px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
   position: relative;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease;
   animation: rise 0.32s ease both;
 }
 .card:hover {
+  transform: translateY(-2px);
   border-color: var(--border-strong);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--glow-soft);
+  box-shadow: 0 8px 24px rgba(18, 38, 28, 0.08), 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 16px;
+  }
+}
+
+.gold-ring-avatar,
+.gold-ring-badge,
+.avatar {
+  border: 2px solid #D9A834 !important;
+  box-shadow: 0 0 10px rgba(217, 168, 52, 0.22);
 }
 
 @keyframes rise {
