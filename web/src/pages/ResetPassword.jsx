@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Shield, CheckCircle2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { ErrorBanner } from '../components/ui';
+import TarikMascot from '../components/TarikMascot';
 
 export default function ResetPassword() {
   const { t } = useTranslation();
@@ -44,7 +45,7 @@ export default function ResetPassword() {
       <div className="login-bg-orb login-bg-orb--3" />
 
       <header className="login-branding">
-        <img className="login-branding-logo" src="/logo.jpg" alt="School logo" />
+        <TarikMascot pose="happy" size={88} />
         <h1 className="login-branding-name">{t('schoolName')}</h1>
       </header>
 

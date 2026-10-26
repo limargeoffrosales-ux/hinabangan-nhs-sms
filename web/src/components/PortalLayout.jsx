@@ -11,6 +11,7 @@ import { GroupedNav, useTheme } from '../design-system';
 import { Modal, initials } from './ui';
 import PortalCommandPalette from './PortalCommandPalette';
 import { api } from '../lib/api';
+import TarikMascot from './TarikMascot';
 
 const PORTAL_NAV_GROUPS = [
   {
@@ -117,12 +118,10 @@ export default function PortalLayout({ children }) {
       <a href="#main-content" className="skip-link">{t('layout.skipToContent')}</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('portalTitle')}>
-        <div className="brand">
-          <div className="brand-seal">
-            <img className="brand-logo" src="/logo.jpg" alt="" />
-          </div>
+        <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px' }}>
+          <TarikMascot pose="happy" size={38} />
           <div className="brand-text-group">
-            <span className="brand-name">{t('brand')}</span>
+            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 20, fontWeight: 800, color: 'var(--primary)' }}>TARIK</span>
             <span className="brand-sub">{isParent ? t('portal.roleParent') : t('portal.roleStudent')}</span>
           </div>
         </div>
@@ -163,7 +162,7 @@ export default function PortalLayout({ children }) {
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(!menuOpen)} title={t('topbar.menu')} aria-label={t('topbar.menu')}>
             <Menu size={17} aria-hidden="true" />
           </button>
-          <img className="brand-logo" src="/logo.jpg" alt={t('portal.schoolLogo')} style={{ width: 34, height: 34, flexShrink: 0 }} />
+          <TarikMascot pose="happy" size={30} />
           <h1 style={{ fontSize: 16 }}>{t('brand')} · {t('portalTitle')}</h1>
           <div className="lang-wrap" style={{ position: 'relative' }}>
             <button className="icon-btn" onClick={() => { setLangOpen((o) => !o); setPwOpen(false); }} title={t('topbar.language')} aria-label={t('topbar.language')}>
