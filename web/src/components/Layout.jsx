@@ -98,6 +98,20 @@ const NAV_GROUPS = [
 const STAFF_HIDDEN = ['/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/privacy', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
 const AI_STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
 
+const FAV_KEY = 'tarik_sidebar_favs';
+const DEFAULT_FAVS = ['/grades', '/attendance', '/lessons', '/students', '/guidance'];
+
+function loadFavs() {
+  try {
+    const raw = localStorage.getItem(FAV_KEY);
+    if (!raw) return DEFAULT_FAVS;
+    const p = JSON.parse(raw);
+    return Array.isArray(p) ? p.slice(0, 5) : DEFAULT_FAVS;
+  } catch {
+    return DEFAULT_FAVS;
+  }
+}
+
 function FileSpreadsheet(props) {
   return <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
 }
@@ -317,6 +331,18 @@ export default function Layout({ children }) {
 
   const location = useLocation();
   const activeId = location.pathname;
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('tarik_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+
+  function toggleCollapse() {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem('tarik_sidebar_collapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }
+
   const [counts, setCounts] = useState({ pending_enrollments: 0, pending_users: 0, notifications: 0 });
 
   useEffect(() => {
@@ -344,7 +370,22 @@ export default function Layout({ children }) {
     return unsub;
   }, []);
 
-  const groups = NAV_GROUPS
+  const [favorites] = useState(loadFavs);
+
+  const allNavItems = NAV_GROUPS.flatMap((g) => g.items);
+  const favItems = favorites
+    .map((path) => allNavItems.find((n) => n.to === path))
+    .filter(Boolean)
+    .map((n) => {
+      const matchIcon = FEATURE_ICONS.find((f) => f.to === n.to) || { pose: 'happy', icon: '⭐' };
+      return {
+        id: n.to,
+        label: t(n.labelKey),
+        icon: <TarikNavIcon pose={matchIcon.pose} emoji={matchIcon.icon} size={30} />,
+      };
+    });
+
+  const baseGroups = NAV_GROUPS
     .map((group) => {
       const items = group.items
         .filter((n) => {
@@ -374,18 +415,25 @@ export default function Layout({ children }) {
     })
     .filter(Boolean);
 
+  const groups = [
+    ...(favItems.length > 0 ? [{ id: 'favorites', label: '⭐ Favorites', items: favItems }] : []),
+    ...baseGroups,
+  ];
+
   return (
     <div className="app-shell">
       <CommandPalette />
       <a href="#main-content" className="skip-link">{t('layout.skipToContent')}</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
+      <aside className={`sidebar ${menuOpen ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`} role="navigation" aria-label={t('nav.main')}>
         <div className="brand" style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10 }}>
-          <TarikCrestLogo size={96} />
-          <div className="brand-text-group">
-            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 32, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5, lineHeight: 1 }}>TARIK</span>
-            <span className="brand-sub" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginTop: 4 }}>Hinabangan NHS · Samar</span>
-          </div>
+          <TarikCrestLogo size={collapsed ? 42 : 96} />
+          {!collapsed && (
+            <div className="brand-text-group">
+              <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 32, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5, lineHeight: 1 }}>TARIK</span>
+              <span className="brand-sub" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginTop: 4 }}>Hinabangan NHS · Samar</span>
+            </div>
+          )}
         </div>
         <div className="brand-divider"></div>
         <GroupedNav
@@ -396,9 +444,22 @@ export default function Layout({ children }) {
           onNavigate={(itemId) => { navigate(itemId); setMenuOpen(false); }}
           aria-label={t('nav.main')}
         />
-        <div style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+        <div className="sidebar-footer" style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+          {/* Collapse Toggle Button */}
+          <button
+            className="btn btn-sm"
+            onClick={toggleCollapse}
+            style={{
+              width: '100%', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              background: 'var(--bg-soft)', border: '1px solid var(--border)', fontSize: 12, fontWeight: 700, color: 'var(--text-dim)',
+            }}
+            title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            {collapsed ? '»' : '« Collapse'}
+          </button>
+
           {/* AI Credits Meter */}
-          <div style={{ padding: '10px 12px', background: 'var(--primary-tint)', borderRadius: 12, marginBottom: 8, fontSize: 12 }}>
+          <div className="sidebar-ai-credits" style={{ padding: '10px 12px', background: 'var(--primary-tint)', borderRadius: 12, marginBottom: 8, fontSize: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: 'var(--primary)' }}>
               <span>Ask TARIK AI</span>
               <span>150/150</span>

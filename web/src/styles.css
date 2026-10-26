@@ -215,19 +215,47 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 .sidebar {
-  width: 244px;
+  width: 256px;
   flex-shrink: 0;
   background: color-mix(in srgb, var(--bg-soft) 78%, transparent);
   backdrop-filter: blur(16px);
-  border-right: 1px solid var(--border);
+  border-right: 1.5px solid var(--border-strong);
   padding: 20px 12px;
   position: sticky;
   top: 0;
   height: 100vh;
   overflow-y: auto;
-  transition: transform 0.28s ease;
+  transition: width 0.28s ease, transform 0.28s ease;
   display: flex;
   flex-direction: column;
+}
+
+.sidebar.collapsed {
+  width: 76px;
+  padding: 14px 6px;
+}
+.sidebar.collapsed .brand-name,
+.sidebar.collapsed .brand-sub,
+.sidebar.collapsed .brand-divider,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .sidebar-link span,
+.sidebar.collapsed .ds-navgroup__head-label,
+.sidebar.collapsed .ds-navgroup__label,
+.sidebar.collapsed .sidebar-user-info,
+.sidebar.collapsed .sidebar-ai-credits,
+.sidebar.collapsed .sidebar-search-box {
+  display: none !important;
+}
+.sidebar.collapsed .brand {
+  padding: 10px 4px;
+  justify-content: center;
+}
+.sidebar.collapsed .ds-navgroup__item {
+  justify-content: center;
+  padding: 10px 0;
+}
+.sidebar.collapsed .ds-navgroup__ico {
+  margin: 0 auto;
 }
 
 .sidebar-overlay {
