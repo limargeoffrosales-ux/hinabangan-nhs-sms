@@ -317,6 +317,32 @@ export default function Layout({ children }) {
 
   const location = useLocation();
   const activeId = location.pathname;
+  const [counts, setCounts] = useState({ pending_enrollments: 0, pending_users: 0, notifications: 0 });
+
+  useEffect(() => {
+    api('/dashboard/summary')
+      .then((res) => {
+        setCounts({
+          pending_enrollments: res.pending_enrollments || 0,
+          pending_users: res.pending_users || 0,
+          notifications: res.notification_count || 0,
+        });
+      })
+      .catch(() => {});
+
+    const unsub = subscribeLive(() => {
+      api('/dashboard/summary')
+        .then((res) => {
+          setCounts({
+            pending_enrollments: res.pending_enrollments || 0,
+            pending_users: res.pending_users || 0,
+            notifications: res.notification_count || 0,
+          });
+        })
+        .catch(() => {});
+    });
+    return unsub;
+  }, []);
 
   const groups = NAV_GROUPS
     .map((group) => {
@@ -331,10 +357,16 @@ export default function Layout({ children }) {
         })
         .map((n) => {
           const matchIcon = FEATURE_ICONS.find((f) => f.to === n.to) || { pose: 'happy', icon: '📌' };
+          let count = undefined;
+          if (n.to === '/enroll') count = counts.pending_enrollments;
+          if (n.to === '/users') count = counts.pending_users;
+          if (n.to === '/notifications') count = counts.notifications;
+
           return {
             id: n.to,
             label: t(n.labelKey),
             icon: <TarikNavIcon pose={matchIcon.pose} emoji={matchIcon.icon} size={30} />,
+            count: count > 0 ? count : undefined,
           };
         });
       if (!items.length) return null;
