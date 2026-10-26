@@ -15,6 +15,7 @@ export default function TarikCrestLogo({ size = 80, className = '', style = {} }
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
+        overflow: 'hidden',
         transition: 'transform 0.3s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.3s ease',
         cursor: 'pointer',
         ...style,
@@ -37,8 +38,8 @@ export default function TarikCrestLogo({ size = 80, className = '', style = {} }
           height: '100%',
           borderRadius: '50%',
           objectFit: 'cover',
-          background: '#0F5A36',
           display: 'block',
+          filter: 'contrast(106%) saturate(110%)',
         }}
       />
     </div>
