@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Search } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { sanitizeError } from '../lib/api';
+import TarikMascot from './TarikMascot';
 
 export function Badge({ status = '', children, ...rest }) {
   const map = {
@@ -30,14 +31,19 @@ export function PageHead({ title, sub, children }) {
 
 export function Empty({ text }) {
   const { t } = useTranslation();
-  return <div className="empty" role="status">{text || t('common.noData')}</div>;
+  return (
+    <div className="empty" role="status" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 32 }}>
+      <TarikMascot pose="thinking" size={72} />
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-dim)' }}>{text || t('common.noData')}</span>
+    </div>
+  );
 }
 
 export function EmptyState({ icon: Icon, text, children }) {
   return (
-    <div className="empty-state" role="status">
-      {Icon && <div className="empty-state-icon"><Icon size={24} /></div>}
-      {text && <div className="empty-state-text">{text}</div>}
+    <div className="empty-state" role="status" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 32 }}>
+      <TarikMascot pose="sleepy" size={72} />
+      {text && <div className="empty-state-text" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{text}</div>}
       {children}
     </div>
   );
