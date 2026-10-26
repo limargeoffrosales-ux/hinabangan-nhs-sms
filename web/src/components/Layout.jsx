@@ -98,6 +98,32 @@ const NAV_GROUPS = [
 const STAFF_HIDDEN = ['/compliance', '/announcements', '/users', '/audit', '/grading-scales', '/notifications', '/privacy', '/analytics', '/curriculum', '/rooms', '/deped-forms'];
 const AI_STAFF = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar', 'teacher', 'guidance'];
 
+const ROUTE_HOTKEYS = {
+  '/': 'G+D',
+  '/students': 'G+S',
+  '/teachers': 'G+T',
+  '/grades': 'G+G',
+  '/attendance': 'G+A',
+  '/enroll': 'G+E',
+  '/guidance': 'G+U',
+  '/analytics': 'G+N',
+  '/deped-forms': 'G+F',
+  '/ai': 'G+I',
+};
+
+const HOTKEY_MAP = {
+  d: '/',
+  s: '/students',
+  t: '/teachers',
+  g: '/grades',
+  a: '/attendance',
+  e: '/enroll',
+  u: '/guidance',
+  n: '/analytics',
+  f: '/deped-forms',
+  i: '/ai',
+};
+
 const FAV_KEY = 'tarik_sidebar_favs';
 const DEFAULT_FAVS = ['/grades', '/attendance', '/lessons', '/students', '/guidance'];
 
@@ -331,6 +357,39 @@ export default function Layout({ children }) {
 
   const location = useLocation();
   const activeId = location.pathname;
+
+  // Keyboard navigation shortcuts (G + key)
+  useEffect(() => {
+    let waitingForSecondKey = false;
+    let timer = null;
+
+    function onKeyDown(e) {
+      if (['input', 'textarea', 'select'].includes(document.activeElement?.tagName?.toLowerCase())) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const key = e.key.toLowerCase();
+      if (!waitingForSecondKey) {
+        if (key === 'g') {
+          waitingForSecondKey = true;
+          timer = setTimeout(() => { waitingForSecondKey = false; }, 800);
+        }
+      } else {
+        clearTimeout(timer);
+        waitingForSecondKey = false;
+        const targetRoute = HOTKEY_MAP[key];
+        if (targetRoute) {
+          e.preventDefault();
+          navigate(targetRoute);
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      if (timer) clearTimeout(timer);
+    };
+  }, [navigate]);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('tarik_sidebar_collapsed') === '1'; } catch { return false; }
   });
@@ -408,6 +467,7 @@ export default function Layout({ children }) {
             label: t(n.labelKey),
             icon: <TarikNavIcon pose={matchIcon.pose} emoji={matchIcon.icon} size={30} />,
             count: count > 0 ? count : undefined,
+            hotkey: ROUTE_HOTKEYS[n.to],
           };
         });
       if (!items.length) return null;

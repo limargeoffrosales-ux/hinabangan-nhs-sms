@@ -131,6 +131,9 @@ export function GroupedNav({
                       {typeof item.count === 'number' && (
                         <span className="ds-navgroup__badge">{item.count}</span>
                       )}
+                      {(item as any).hotkey && (
+                        <span className="ds-navgroup__hotkey" style={{ marginLeft: 'auto', fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'var(--bg-soft)', border: '1px solid var(--border)', color: 'var(--text-dim)', fontWeight: 600 }}>{(item as any).hotkey}</span>
+                      )}
                     </button>
                   </li>
                 );
