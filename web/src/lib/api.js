@@ -44,11 +44,9 @@ export function sanitizeError(err) {
   if (friendly) return friendly;
   if (typeof err === 'string') return err;
   if (err && typeof err === 'object') {
-    const e = /** @type {{ status?: number }} */ (/** @type {unknown} */ (err));
-    // A non-500 HTTP error still carries a deliberate server message.
-    const status = Number(e.status || 0);
-    if (status > 0 && status < 500 && typeof (/** @type {{ message?: unknown }} */ (err)).message === 'string') {
-      return /** @type {{ message: string }} */ (/** @type {unknown} */ (err)).message;
+    const e = /** @type {{ message?: string }} */ (/** @type {unknown} */ (err));
+    if (typeof e.message === 'string' && e.message.trim() && e.message !== 'Internal server error') {
+      return e.message;
     }
     return 'An unexpected error occurred. Please try again.';
   }
