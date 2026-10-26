@@ -2,13 +2,26 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
-import { UserPlus, CheckCircle2, ArrowLeft, Shield, Globe } from 'lucide-react';
+import {
+  UserPlus, CheckCircle2, ArrowLeft, Shield, Globe,
+  QrCode, BarChart3, Calendar, GraduationCap, ClipboardList, FileText,
+  Mail, Phone, ExternalLink,
+} from 'lucide-react';
 import { api, sanitizeError } from '../lib/api';
 import { ErrorBanner } from '../components/ui';
 import TarikCrestLogo from '../components/TarikCrestLogo';
 import TarikMascot from '../components/TarikMascot';
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
+
+const FEATURES = [
+  { icon: QrCode, key: 'featAttendance' },
+  { icon: ClipboardList, key: 'featGrades' },
+  { icon: Calendar, key: 'featScheduling' },
+  { icon: BarChart3, key: 'featAnalytics' },
+  { icon: GraduationCap, key: 'featCurriculum' },
+  { icon: FileText, key: 'featForms' },
+];
 
 function getPasswordStrength(pwd) {
   let score = 0;
@@ -132,6 +145,20 @@ export default function Register() {
       </header>
 
       <div className="login-main">
+        <div className="login-features-col">
+          {FEATURES.map(({ icon: Icon, key }) => (
+            <div className="login-feature-card" key={key}>
+              <div className="login-feature-icon"><Icon size={22} /></div>
+              <h3>{t(`login.${key}`)}</h3>
+              <p>{t(`login.${key}Desc`)}</p>
+            </div>
+          ))}
+          <div className="login-quote">
+            <p>&ldquo;The Glory of God is Man Fully Alive.&rdquo;</p>
+            <span>&mdash; Fr. Aloysius Schwartz</span>
+          </div>
+        </div>
+
         <div className="login-form-col">
           <div className="login-form-card card" style={{ maxWidth: 560 }}>
             <div className="login-form-header">
@@ -243,6 +270,52 @@ export default function Register() {
           </div>
         </div>
       </div>
+
+      <section className="login-everything-section">
+        <div className="login-everything-header">
+          <span className="login-everything-badge">ALL ACCESS</span>
+          <h2>{t('login.everythingTitle')}</h2>
+        </div>
+        <div className="login-everything-grid">
+          {Array.from({ length: 20 }, (_, i) => (
+            <div className="login-everything-item" key={i}>
+              <CheckCircle2 size={16} className="login-everything-check" />
+              <span>{t(`login.ef${i + 1}`)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="login-footer">
+        <div className="login-footer-inner">
+          <div className="login-footer-row">
+            <div className="login-footer-contact">
+              <Phone size={12} />
+              <span>{t('login.footerContact')}</span>
+            </div>
+            <div className="login-footer-contact">
+              <Mail size={12} />
+              <span>{t('login.footerEmail')}</span>
+            </div>
+          </div>
+          <div className="login-footer-row">
+            <a href="https://www.facebook.com/ugop.hinabangan" target="_blank" rel="noopener noreferrer" className="login-footer-social-link">
+              <ExternalLink size={11} /> UGO Hinabangan
+            </a>
+            <span className="login-footer-sep">·</span>
+            <a href="https://www.facebook.com/almamater.hinabangan" target="_blank" rel="noopener noreferrer" className="login-footer-social-link">
+              <ExternalLink size={11} /> Alma Mater
+            </a>
+          </div>
+          <div className="login-footer-bottom">
+            <span>{t('login.footerAddress')}</span>
+            <span className="login-footer-sep">·</span>
+            <span>&copy; {new Date().getFullYear()} {t('login.copyright')}</span>
+            <span className="login-footer-sep">·</span>
+            <span>{t('login.footerVersion')}</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
