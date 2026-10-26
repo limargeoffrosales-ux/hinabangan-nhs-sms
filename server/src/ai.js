@@ -28,6 +28,7 @@ const AI_TIMEOUT_MS = 30_000;
 //   hf    -> Qwen/Qwen3-14B       same family on HF Inference
 // All models can be overridden per-deploy with AI_MODEL; PROD runs groq (AI_PROVIDER default).
 const PROVIDERS = {
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/', defaultModel: 'gemini-1.5-flash', keyEnv: 'GEMINI_API_KEY' },
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o', keyEnv: 'OPENAI_API_KEY' },
   groq:   { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'openai/gpt-oss-120b', keyEnv: 'GROQ_API_KEY' },
   ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'qwen3:14b', keyEnv: '' },
