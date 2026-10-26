@@ -66,6 +66,27 @@ export default function Login() {
     navigate(isParent ? '/parent-portal' : isPortal ? '/portal' : '/', { replace: true });
   }
 
+  async function demoLogin(u, p) {
+    if (formRef.current) {
+      const uInput = formRef.current.querySelector('input[name="username"]');
+      const pInput = formRef.current.querySelector('input[name="password"]');
+      if (uInput) uInput.value = u;
+      if (pInput) pInput.value = p;
+    }
+    setApiBase(serverBase);
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await login(u, p);
+      if (result.requiresMfa) setPendingMfa({ tempToken: result.tempToken });
+      else finish(result);
+    } catch (err) {
+      setError(sanitizeError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     setApiBase(serverBase);
@@ -230,7 +251,30 @@ export default function Login() {
                 </div>
               </form>
             ) : (
-            <form onSubmit={onSubmit} ref={formRef} className="login-form">
+            <>
+              <div style={{ marginBottom: 16, padding: '12px 14px', background: 'var(--primary-tint)', borderRadius: 12, border: '1px solid rgba(15,90,54,0.2)' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--primary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  ⚡ 1-Click Evaluator Demo Logins
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-sm" onClick={() => demoLogin('superadmin', 'admin123456')} style={{ fontSize: 11, background: '#fff', border: '1px solid var(--border)', fontWeight: 700, cursor: 'pointer' }}>
+                    👑 Super Admin
+                  </button>
+                  <button type="button" className="btn btn-sm" onClick={() => demoLogin('teacher1', 'teacher123456')} style={{ fontSize: 11, background: '#fff', border: '1px solid var(--border)', fontWeight: 700, cursor: 'pointer' }}>
+                    👨‍🏫 Teacher
+                  </button>
+                  <button type="button" className="btn btn-sm" onClick={() => demoLogin('registrar1', 'registrar123456')} style={{ fontSize: 11, background: '#fff', border: '1px solid var(--border)', fontWeight: 700, cursor: 'pointer' }}>
+                    📋 Registrar
+                  </button>
+                  <button type="button" className="btn btn-sm" onClick={() => demoLogin('guidance1', 'guidance123456')} style={{ fontSize: 11, background: '#fff', border: '1px solid var(--border)', fontWeight: 700, cursor: 'pointer' }}>
+                    🧠 Guidance
+                  </button>
+                  <button type="button" className="btn btn-sm" onClick={() => demoLogin('parent1', 'parent123456')} style={{ fontSize: 11, background: '#fff', border: '1px solid var(--border)', fontWeight: 700, cursor: 'pointer' }}>
+                    👪 Parent
+                  </button>
+                </div>
+              </div>
+              <form onSubmit={onSubmit} ref={formRef} className="login-form">
               <label htmlFor="login-username">{t('login.username')}</label>
               <input
                 id="login-username"
@@ -282,6 +326,7 @@ export default function Login() {
                 </button>
               </div>
             </form>
+            </>
             )}
 
             <div className="login-form-security">
