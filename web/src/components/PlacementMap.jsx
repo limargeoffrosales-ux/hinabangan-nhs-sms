@@ -149,6 +149,16 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !mapEl.current) return;
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(mapEl.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map) return;
     if (radiusCircleRef.current) {
       map.removeLayer(radiusCircleRef.current);
