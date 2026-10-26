@@ -5,12 +5,12 @@ import { useAuth } from '../lib/auth';
 import {
   Users, UserCog, Layers, CalendarCheck, Megaphone, Activity,
   BookOpenCheck, ShieldAlert, GraduationCap, Target, Briefcase,
-  BadgeCheck, UserCheck, History, ArrowRight, Calendar,
+  BadgeCheck, UserCheck, History, ArrowRight, Calendar, Pencil, Plus, Trash2,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
 import { SEX_COLORS } from '../lib/constants';
-import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, FunnelBar, FeedItem, QuickActions } from '../components/ui';
+import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, FunnelBar, FeedItem, QuickActions, Modal } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import TarikMascot from '../components/TarikMascot';
 import TarikCrestLogo from '../components/TarikCrestLogo';
@@ -49,30 +49,149 @@ function AnimatedCounter({ value, durationMs = 800 }) {
 }
 
 function DepedCalendarWidget() {
-  const events = [
-    { date: 'Oct 8–12, 2026', title: 'First Quarter Examinations', type: 'Exams', badge: 'badge-red' },
-    { date: 'Oct 20, 2026', title: 'Q1 Grade Encoding & SF9 Closing', type: 'Grading', badge: 'badge-yellow' },
-    { date: 'Nov 5, 2026', title: 'ARAL Reading Remediation Review', type: 'ARAL', badge: 'badge-blue' },
-    { date: 'Dec 19, 2026', title: 'DepEd Christmas Vacation Starts', type: 'Holiday', badge: 'badge-green' },
-  ];
+  const { user } = useAuth();
+  const canWrite = ['super_admin', 'school_admin', 'principal', 'assistant_principal', 'registrar'].includes(user?.role);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [editingEvents, setEditingEvents] = useState([]);
+
+  const loadCalendar = useCallback(() => {
+    setLoading(true);
+    api('/dashboard/calendar')
+      .then((res) => setEvents(res?.events || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadCalendar(); }, [loadCalendar]);
+
+  function openEditModal() {
+    setEditingEvents(JSON.parse(JSON.stringify(events)));
+    setModalOpen(true);
+  }
+
+  function updateEvent(idx, field, val) {
+    setEditingEvents((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: val };
+      return next;
+    });
+  }
+
+  function addEvent() {
+    setEditingEvents((prev) => [
+      ...prev,
+      { id: Date.now(), date: 'Oct 25, 2026', title: 'New School Event', type: 'General', badge: 'badge-blue' },
+    ]);
+  }
+
+  function removeEvent(idx) {
+    setEditingEvents((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function saveCalendar() {
+    setBusy(true);
+    try {
+      await api('/dashboard/calendar', { method: 'PUT', body: { events: editingEvents } });
+      setEvents(editingEvents);
+      setModalOpen(false);
+    } catch (e) {
+      alert(e.message || 'Failed to update calendar');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <SectionCard title="DepEd School Calendar & Key Deadlines" icon={Calendar}>
-      <div style={{ display: 'grid', gap: 10 }}>
-        {events.map((ev, idx) => (
-          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-soft)', borderRadius: 12, border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ padding: '4px 8px', background: 'var(--primary-tint)', borderRadius: 8, fontSize: 11, fontWeight: 700, color: 'var(--primary)' }}>
-                {ev.date}
+      {canWrite && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button className="btn btn-sm" onClick={openEditModal} style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Pencil size={12} /> Edit Deadlines
+          </button>
+        </div>
+      )}
+      {loading ? (
+        <Spinner />
+      ) : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {events.map((ev, idx) => (
+            <div key={ev.id || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-soft)', borderRadius: 12, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ padding: '4px 8px', background: 'var(--primary-tint)', borderRadius: 8, fontSize: 11, fontWeight: 700, color: 'var(--primary)' }}>
+                  {ev.date}
+                </div>
+                <strong style={{ fontSize: 13, color: 'var(--text)' }}>{ev.title}</strong>
               </div>
-              <strong style={{ fontSize: 13, color: 'var(--text)' }}>{ev.title}</strong>
+              <span className={`badge ${ev.badge || 'badge-blue'}`}>{ev.type}</span>
             </div>
-            <span className={`badge ${ev.badge}`}>{ev.type}</span>
+          ))}
+        </div>
+      )}
+
+      {modalOpen && (
+        <Modal title="Edit DepEd Calendar & Key Deadlines" onClose={() => setModalOpen(false)}>
+          <div style={{ display: 'grid', gap: 12, maxHeight: 400, overflowY: 'auto', paddingRight: 4 }}>
+            {editingEvents.map((ev, idx) => (
+              <div key={idx} style={{ padding: 10, background: 'var(--bg-soft)', borderRadius: 10, border: '1px solid var(--border)', display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="input"
+                    value={ev.date}
+                    onChange={(e) => updateEvent(idx, 'date', e.target.value)}
+                    placeholder="Date (e.g. Oct 20, 2026)"
+                    style={{ flex: 1, fontSize: 12 }}
+                  />
+                  <input
+                    className="input"
+                    value={ev.type}
+                    onChange={(e) => updateEvent(idx, 'type', e.target.value)}
+                    placeholder="Type (e.g. Exams, Grading)"
+                    style={{ width: 110, fontSize: 12 }}
+                  />
+                  <select
+                    className="input"
+                    value={ev.badge}
+                    onChange={(e) => updateEvent(idx, 'badge', e.target.value)}
+                    style={{ width: 110, fontSize: 12 }}
+                  >
+                    <option value="badge-red">Red Badge</option>
+                    <option value="badge-yellow">Yellow Badge</option>
+                    <option value="badge-blue">Blue Badge</option>
+                    <option value="badge-green">Green Badge</option>
+                  </select>
+                  <button type="button" className="btn btn-sm btn-danger" onClick={() => removeEvent(idx)}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                <input
+                  className="input"
+                  value={ev.title}
+                  onChange={(e) => updateEvent(idx, 'title', e.target.value)}
+                  placeholder="Event Title / Deadline"
+                  style={{ fontSize: 13 }}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+            <button type="button" className="btn btn-sm" onClick={addEvent} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Plus size={13} /> Add Deadline Event
+            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="btn btn-sm" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button type="button" className="btn btn-sm btn-primary" onClick={saveCalendar} disabled={busy}>
+                {busy ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </SectionCard>
   );
+}
 }
 
 function fmtWhen(iso) {

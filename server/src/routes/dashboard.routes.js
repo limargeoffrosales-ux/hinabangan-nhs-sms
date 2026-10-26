@@ -831,6 +831,36 @@ router.put('/preferences', asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ── Calendar Deadlines ───────────────────────────────── */
+const DEFAULT_CALENDAR_EVENTS = [
+  { id: 1, date: 'Oct 8–12, 2026', title: 'First Quarter Examinations', type: 'Exams', badge: 'badge-red' },
+  { id: 2, date: 'Oct 20, 2026', title: 'Q1 Grade Encoding & SF9 Closing', type: 'Grading', badge: 'badge-yellow' },
+  { id: 3, date: 'Nov 5, 2026', title: 'ARAL Reading Remediation Review', type: 'ARAL', badge: 'badge-blue' },
+  { id: 4, date: 'Dec 19, 2026', title: 'DepEd Christmas Vacation Starts', type: 'Holiday', badge: 'badge-green' },
+];
+
+router.get('/calendar', asyncH(async (_req, res) => {
+  const row = await q("SELECT value FROM app_settings WHERE key = 'deped_calendar_events'");
+  if (!row || !row.value) return res.json({ events: DEFAULT_CALENDAR_EVENTS });
+  try {
+    const events = JSON.parse(row.value);
+    res.json({ events });
+  } catch {
+    res.json({ events: DEFAULT_CALENDAR_EVENTS });
+  }
+}));
+
+router.put('/calendar', requireRole(...WRITE), asyncH(async (req, res) => {
+  const events = Array.isArray(req.body?.events) ? req.body.events : [];
+  const value = JSON.stringify(events);
+  await qr(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+    ['deped_calendar_events', value]
+  );
+  await audit(req, 'UPDATE_CALENDAR_EVENTS', 'dashboard', null, { count: events.length });
+  res.json({ ok: true, events });
+}));
+
 module.exports = { router, invalidateDashboardCache };
 
 async function invalidateDashboardCache() {
