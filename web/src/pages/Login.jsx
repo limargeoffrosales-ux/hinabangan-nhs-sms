@@ -229,9 +229,6 @@ export default function Login() {
                   </button>
                 </div>
               </form>
-                  </button>
-                </div>
-              </form>
             ) : showForgot ? (
               <form onSubmit={onForgotSubmit} className="login-form">
                 <h3 className="login-forgot-title">{t('login.forgotTitle')}</h3>
