@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Users, UserCog, BookOpen, Layers, ClipboardList,
@@ -15,6 +15,7 @@ import {
 import { useAuth, can } from '../lib/auth';
 import { initials, Modal, CommandPalette } from './ui';
 import { api } from '../lib/api';
+import { subscribeLive } from '../lib/realtime';
 import { useTheme, GroupedNav, LanguageSwitch } from '../design-system';
 import TarikMascot from './TarikMascot';
 import TarikCrestLogo from './TarikCrestLogo';
@@ -123,6 +124,56 @@ function TarikNavIcon({ pose = 'happy', emoji = '✨', size = 30 }) {
   );
 }
 
+function NotifDropdown({ onClose }) {
+  const [notifs, setNotifs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api('/notifications?limit=10')
+      .then(r => setNotifs(r?.data || []))
+      .catch(() => setNotifs([]))
+      .finally(() => setLoading(false));
+
+    const unsub = subscribeLive((msg) => {
+      if (msg.type === 'notification') {
+        api('/notifications?limit=10').then(r => setNotifs(r?.data || [])).catch(() => {});
+      }
+    });
+    return unsub;
+  }, []);
+
+  return (
+    <div style={{
+      position: 'absolute', top: 50, right: 0, width: 340, maxHeight: 420,
+      background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16,
+      boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 9999, overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{ padding: '12px 16px', background: 'var(--primary)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <strong style={{ fontSize: 13.5 }}>🔔 Live Notifications (SSE)</strong>
+        <Link to="/notifications" onClick={onClose} style={{ fontSize: 11.5, color: '#fff', textDecoration: 'underline' }}>View all</Link>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+        {loading ? (
+          <div className="sub" style={{ textAlign: 'center', padding: 20 }}>Loading notifications...</div>
+        ) : notifs.length === 0 ? (
+          <div className="sub" style={{ textAlign: 'center', padding: 20 }}>No notifications yet.</div>
+        ) : (
+          notifs.map(n => (
+            <div key={n.id} style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: 12.5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--primary)' }}>
+                <span>{n.event}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{n.created_at?.slice(0, 10)}</span>
+              </div>
+              <div style={{ marginTop: 3, color: 'var(--text)' }}>{n.body}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -133,6 +184,7 @@ export default function Layout({ children }) {
   const isParent = can(user?.role, 'parent', 'guardian');
   const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
   const [pwBusy, setPwBusy] = useState(false);
@@ -267,15 +319,24 @@ export default function Layout({ children }) {
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Ask UGOP AI Trigger Button */}
+            {/* Ask TARIK AI Trigger Button */}
             <Link to="/ai" className="btn btn-sm" style={{ background: 'var(--grad-amber)', color: '#12261C', fontWeight: 700, border: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}>
               <Sparkles size={14} /> Ask TARIK AI
             </Link>
 
-            {/* Notification Bell */}
-            <Link to="/notifications" className="icon-btn" style={{ position: 'relative' }} title="Notifications">
-              <TarikNavIcon pose="surprised" emoji="🔔" size={32} />
-            </Link>
+            {/* Notification Bell with Real-Time SSE Live Drawer */}
+            <div style={{ position: 'relative' }}>
+              <button
+                className="icon-btn"
+                onClick={() => setNotifOpen(!notifOpen)}
+                title="Notifications"
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative' }}
+              >
+                <TarikNavIcon pose="surprised" emoji="🔔" size={32} />
+                <span style={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, background: 'var(--danger)', borderRadius: '50%' }} />
+              </button>
+              {notifOpen && <NotifDropdown onClose={() => setNotifOpen(false)} />}
+            </div>
 
             <LanguageSwitch
               storageKey="meridianed_lang"
