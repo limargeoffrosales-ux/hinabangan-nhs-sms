@@ -44,7 +44,12 @@ const PROVIDERS = {
 const MODEL_ALIASES = {};
 
 function getProvider() {
-  return process.env.AI_PROVIDER || 'groq';
+  if (process.env.AI_PROVIDER && process.env.AI_PROVIDER !== 'native') return process.env.AI_PROVIDER;
+  if (process.env.GEMINI_API_KEY) return 'gemini';
+  if (process.env.GROQ_API_KEY) return 'groq';
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  if (process.env.HF_API_KEY) return 'hf';
+  return process.env.AI_PROVIDER || 'native';
 }
 
 function getClient() {
