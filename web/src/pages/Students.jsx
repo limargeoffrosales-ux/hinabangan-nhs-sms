@@ -567,10 +567,10 @@ export default function Students() {
             <tbody>
               {rows.map((s) => (
                 <tr key={s.id}>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{s.lrn}</td>
+                  <td className="mono" style={{ fontVariantNumeric: 'tabular-nums' }}>{s.lrn}</td>
                   <td>
                     <Link to={`/students/${s.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                      <strong>{s.last_name}, {s.first_name} {s.middle_name || ''}</strong> {s.suffix}
+                      <strong style={{ fontFamily: 'var(--font-display)', fontSize: 14 }}>{s.last_name}, {s.first_name} {s.middle_name || ''}</strong> {s.suffix}
                     </Link>
                   </td>
                   <td>{s.sex}</td>
