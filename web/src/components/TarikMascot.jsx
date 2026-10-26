@@ -1,7 +1,7 @@
 import React from 'react';
 
 // "Tarik" — Samar Tarictic Hornbill (Penelopides samarensis)
-// Kawaii Anime Mascot Character Sheet Component for UGOP (DepEd Philippine Public Schools)
+// Kawaii Anime Mascot Character Sheet Component for TARIK (DepEd Philippine Public Schools)
 // Anatomy: Cream-white head/chest, black eye stripe, reddish bill (#C0503C) with ridged casque & amber ridges,
 // dark blue-black wings (#1F2A3A), rufous tail (#C97B3E), Salakot hat, and green DepEd school ID lanyard.
 
@@ -71,7 +71,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
     switch (pose) {
       case 'waving':
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             {/* Left Waving Wing */}
             <path d="M34 50 C 18 35, 12 20, 24 15 C 30 25, 34 40, 34 50 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
@@ -86,7 +86,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
 
       case 'reading':
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             <path d="M34 50 C 24 55, 24 68, 36 66 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
             <path d="M66 50 C 76 55, 76 68, 64 66 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
@@ -101,7 +101,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
 
       case 'cheering':
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             {/* Both Wings Raised */}
             <path d="M34 50 C 18 35, 12 15, 26 22 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
@@ -120,7 +120,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
 
       case 'thinking':
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             {/* Wing at Beak / Pensive */}
             <path d="M34 52 Q 48 48, 52 44" stroke="#1F2A3A" strokeWidth="5" strokeLinecap="round" fill="none" />
@@ -136,7 +136,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
 
       case 'clipboard':
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             <BaseHeadAndHat />
             <AnimeEyes expression="normal" />
@@ -150,7 +150,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
 
       case 'surprised':
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             <path d="M34 50 C 20 52, 20 68, 34 64 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
             <path d="M66 50 C 80 52, 80 68, 66 64 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
@@ -163,7 +163,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
 
       case 'sleepy':
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             <path d="M34 50 C 24 55, 24 68, 36 66 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
             <path d="M66 50 C 76 55, 76 68, 64 66 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
@@ -179,7 +179,7 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
       case 'happy':
       default:
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+          <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <DarkWingsAndTail />
             <path d="M34 50 C 24 55, 24 68, 36 66 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
             <path d="M66 50 C 76 55, 76 68, 64 66 Z" fill="#1F2A3A" stroke="#12261C" strokeWidth="2" />
@@ -193,5 +193,9 @@ export default function TarikMascot({ pose = 'happy', size = 120, className = ''
     }
   };
 
-  return renderPose();
+  return (
+    <div className={`tarik-mascot-hover ${className}`} style={{ display: 'inline-flex', ...style }}>
+      {renderPose()}
+    </div>
+  );
 }
