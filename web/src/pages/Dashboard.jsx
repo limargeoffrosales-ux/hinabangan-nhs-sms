@@ -13,6 +13,7 @@ import { SEX_COLORS } from '../lib/constants';
 import { PageHead, Spinner, Empty, Badge, KPICard, SectionCard, FunnelBar, FeedItem, QuickActions } from '../components/ui';
 import DashboardSections from '../components/DashboardSections';
 import TarikMascot from '../components/TarikMascot';
+import TarikCrestLogo from '../components/TarikCrestLogo';
 import UgopTeacherCorner from '../components/UgopTeacherCorner';
 import { UgopTileIcon, TarikIcon } from '../components/UgopFeatureIcons';
 import { LiveActivityFeed, LiveStatusPill, ModernBarChart, Sparkline } from '../design-system';
@@ -169,6 +170,21 @@ export default function Dashboard() {
         }
         sub={`${t('dashboard.schoolYearSnapshot')} ${data.school_year || '—'} · ${data.date}`}
       />
+
+      {/* TARIK Hero Welcome Banner */}
+      <div className="card" style={{ background: 'var(--grad)', color: '#fff', marginBottom: 20, borderRadius: 'var(--radius)', padding: '24px 28px', position: 'relative', overflow: 'hidden', boxShadow: '0 12px 35px rgba(27,107,74,0.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <TarikCrestLogo size={76} style={{ border: '3px solid #F5A623' }} />
+            <div>
+              <span className="badge badge-amber" style={{ marginBottom: 6, background: '#F5A623', color: '#12261C', fontWeight: 700 }}>TARIK Platform · DepEd Samar</span>
+              <h2 style={{ fontSize: 24, margin: '4px 0 2px 0', color: '#fff', fontFamily: 'var(--font-display)' }}>Maupay nga adlaw, {user?.name || 'Admin'}!</h2>
+              <p style={{ margin: 0, opacity: 0.9, fontSize: 13.5 }}>Hinabangan National High School Management System · 5-Year Data Retention Active</p>
+            </div>
+          </div>
+          <TarikMascot pose="cheering" size={100} />
+        </div>
+      </div>
 
       {/* Pending Approvals Alert Banner for Admins */}
       {!isTeacher && ((data.pending_users ?? 0) > 0 || (data.pending_enrollments ?? 0) > 0) && (
