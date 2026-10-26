@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import {
   Users, UserCog, Layers, CalendarCheck, Megaphone, Activity,
   BookOpenCheck, ShieldAlert, GraduationCap, Target, Briefcase,
-  BadgeCheck, UserCheck, History, ArrowRight,
+  BadgeCheck, UserCheck, History, ArrowRight, Calendar,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { subscribeLive } from '../lib/realtime';
@@ -24,6 +24,56 @@ const READINESS_STATUS = {
   pending: { badge: 'badge-yellow', tri: 'dashboard.readinessPending' },
   note: { badge: 'badge-gray', tri: 'dashboard.readinessNote' },
 };
+
+function AnimatedCounter({ value, durationMs = 800 }) {
+  const [count, setCount] = useState(0);
+  const target = typeof value === 'number' ? value : (parseInt(value, 10) || 0);
+
+  useEffect(() => {
+    if (target <= 0) { setCount(0); return; }
+    let start = 0;
+    const step = Math.max(1, Math.ceil(target / (durationMs / 16)));
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= target) {
+        setCount(target);
+        clearInterval(timer);
+      } else {
+        setCount(start);
+      }
+    }, 16);
+    return () => clearInterval(timer);
+  }, [target, durationMs]);
+
+  return <span>{count.toLocaleString()}</span>;
+}
+
+function DepedCalendarWidget() {
+  const events = [
+    { date: 'Oct 8–12, 2026', title: 'First Quarter Examinations', type: 'Exams', badge: 'badge-red' },
+    { date: 'Oct 20, 2026', title: 'Q1 Grade Encoding & SF9 Closing', type: 'Grading', badge: 'badge-yellow' },
+    { date: 'Nov 5, 2026', title: 'ARAL Reading Remediation Review', type: 'ARAL', badge: 'badge-blue' },
+    { date: 'Dec 19, 2026', title: 'DepEd Christmas Vacation Starts', type: 'Holiday', badge: 'badge-green' },
+  ];
+
+  return (
+    <SectionCard title="DepEd School Calendar & Key Deadlines" icon={Calendar}>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {events.map((ev, idx) => (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-soft)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ padding: '4px 8px', background: 'var(--primary-tint)', borderRadius: 8, fontSize: 11, fontWeight: 700, color: 'var(--primary)' }}>
+                {ev.date}
+              </div>
+              <strong style={{ fontSize: 13, color: 'var(--text)' }}>{ev.title}</strong>
+            </div>
+            <span className={`badge ${ev.badge}`}>{ev.type}</span>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
 
 function fmtWhen(iso) {
   if (!iso) return '';
@@ -66,13 +116,15 @@ export default function Dashboard() {
     .catch(() => setActivity([])), []);
 
   useEffect(() => {
-    api('/dashboard/summary')
-      .then(setData)
-      .catch((e) => setError(e.message));
-    api('/announcements?limit=4', { timeoutMs: 30000, retryNetwork: false })
-      .then((r) => setAnnouncements(r?.data || []))
+    let unmounted = false;
+    api('/dashboard/summary', { timeoutMs: 30000 })
+      .then((res) => { if (!unmounted) setData(res); })
+      .catch((e) => { if (!unmounted) setError(e.message); });
+    api('/announcements?limit=5', { timeoutMs: 30000 })
+      .then((res) => { if (!unmounted) setAnnouncements(res?.data || []); })
       .catch(() => {});
     loadActivity();
+    return () => { unmounted = true; };
   }, [loadActivity]);
 
   useEffect(() => {
@@ -86,12 +138,12 @@ export default function Dashboard() {
   if (!data) return <Spinner />;
 
   const kpis = [
-    { to: '/students', label: t('dashboard.enrolledLearners'), value: data.enrolled ?? 0, sub: t('dashboard.enrolledSub', { total: data.students ?? 0 }), icon: Users, color: 'var(--accent)' },
-    { to: '/enroll', label: t('dashboard.waitlisted'), value: data.waitlisted ?? 0, sub: t('dashboard.waitlistedSub'), icon: Users, color: 'var(--warn)' },
-    { to: '/teachers', label: t('dashboard.activeTeachers'), value: data.teachers ?? 0, sub: t('dashboard.activeTeachersSub'), icon: UserCog, color: 'var(--accent-2)' },
-    { to: '/sections', label: t('dashboard.sections'), value: data.sections ?? 0, sub: t('dashboard.activeSectionsSub'), icon: Layers, color: 'var(--accent-3)' },
-    { to: '/subjects', label: t('dashboard.subjectsOffered'), value: data.subjects ?? 0, sub: t('dashboard.offeredSub'), icon: BookOpenCheck, color: 'var(--purple)' },
-    { to: '/attendance', label: t('dashboard.attendanceLogged'), value: data.attendance_logged_today ?? 0, sub: t('dashboard.attendanceLoggedSub'), icon: CalendarCheck, color: 'var(--success)' },
+    { to: '/students', label: t('dashboard.enrolledLearners'), value: <AnimatedCounter value={data.enrolled ?? 0} />, sub: t('dashboard.enrolledSub', { total: data.students ?? 0 }), icon: Users, color: 'var(--accent)' },
+    { to: '/enroll', label: t('dashboard.waitlisted'), value: <AnimatedCounter value={data.waitlisted ?? 0} />, sub: t('dashboard.waitlistedSub'), icon: Users, color: 'var(--warn)' },
+    { to: '/teachers', label: t('dashboard.activeTeachers'), value: <AnimatedCounter value={data.teachers ?? 0} />, sub: t('dashboard.activeTeachersSub'), icon: UserCog, color: 'var(--accent-2)' },
+    { to: '/sections', label: t('dashboard.sections'), value: <AnimatedCounter value={data.sections ?? 0} />, sub: t('dashboard.activeSectionsSub'), icon: Layers, color: 'var(--accent-3)' },
+    { to: '/subjects', label: t('dashboard.subjectsOffered'), value: <AnimatedCounter value={data.subjects ?? 0} />, sub: t('dashboard.offeredSub'), icon: BookOpenCheck, color: 'var(--purple)' },
+    { to: '/attendance', label: t('dashboard.attendanceLogged'), value: <AnimatedCounter value={data.attendance_logged_today ?? 0} />, sub: t('dashboard.attendanceLoggedSub'), icon: CalendarCheck, color: 'var(--success)' },
   ];
 
   const r = data.readiness || {};
@@ -282,84 +334,9 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <Link to="/career-tvl" className="info-card" style={{ marginTop: 18, textDecoration: 'none' }}>
-        <div className="kpi-icon" style={{ background: 'color-mix(in srgb, var(--accent-2) 14%, transparent)', color: 'var(--accent-2)' }}>
-          <Briefcase size={20} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, color: 'var(--text)' }}>{t('dashboard.careerTvl')}</div>
-          <div className="sub" style={{ fontSize: 12.5, marginTop: 2 }}>{t('dashboard.careerTvlSub')}</div>
-        </div>
-        <ArrowRight size={16} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-      </Link>
-
       <div style={{ height: 18 }} />
 
-      <div className="grid grid-2">
-        <SectionCard title={t('dashboard.enrollmentPipeline')} icon={Activity}>
-          <div style={{ display: 'grid', gap: 14 }}>
-            {funnel.map((f) => (
-              <FunnelBar key={f.label} label={f.label} value={f.value} max={maxFunnel} color={f.color} />
-            ))}
-          </div>
-          <div className="sub" style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <History size={13} />
-            {t('dashboard.pipelineHint')}
-          </div>
-        </SectionCard>
-
-        <SectionCard title={t('dashboard.enrolledByGrade')} icon={Layers}>
-          {gradeData.length > 0 ? (
-            <ModernBarChart
-              data={gradeData}
-              categoryKey="grade"
-              series={[
-                { key: 'Male', color: SEX_COLORS.Male },
-                { key: 'Female', color: SEX_COLORS.Female },
-              ]}
-              height={190}
-              showLabels={false}
-              barCategoryGap="24%"
-              unavailable={t('dashboard.chartUnavailable', 'Chart could not be loaded.')}
-            />
-          ) : (
-            <Empty text={t('dashboard.noEnrolledGrade', 'No enrolled learners for the current school year yet.')} />
-          )}
-          <div className="sub" style={{ display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'center', fontSize: 13, marginTop: 8 }}>
-            {Object.entries(SEX_COLORS).map(([sex, color]) => (
-              <span key={sex} style={{ color: 'var(--text-dim)' }}>
-                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: color, marginRight: 6 }} />
-                {sex}: <strong style={{ color: 'var(--text)' }}>{data.enrolled_by_grade_level ? Object.values(data.enrolled_by_grade_level).reduce((a, v) => a + (sex === 'Male' ? v.male : v.female), 0) : 0}</strong>
-              </span>
-            ))}
-            {gradeSpark.length > 1 && <Sparkline data={gradeSpark} ariaLabel={t('dashboard.enrolledByGrade')} />}
-          </div>
-        </SectionCard>
-      </div>
-
-      <div style={{ height: 18 }} />
-
-      <SectionCard title={t('dashboard.dataReadiness')} icon={Activity}>
-        <div className="split-2">
-          {readinessItems.map((item) => {
-            const st = READINESS_STATUS[item.status] || READINESS_STATUS.note;
-            return (
-              <div key={item.key} className="readiness-item">
-                <div className="kpi-icon" style={{ background: 'var(--card)', color: 'var(--text-dim)', flexShrink: 0 }}>
-                  <item.icon size={18} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <Link to={item.to} style={{ fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>{item.label}</Link>
-                    <span className={`badge ${st.badge}`}>{t(st.tri)}</span>
-                  </div>
-                  <div className="sub" style={{ fontSize: 12.5, marginTop: 2 }}>{item.detail}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </SectionCard>
+      <DepedCalendarWidget />
 
       <div style={{ height: 18 }} />
 
@@ -411,37 +388,40 @@ export default function Dashboard() {
                 lastUpdated={lastLive}
                 staleAfterMs={90000}
                 ageFormatter={(ms) => fmtWhen(new Date(Date.now() - ms))}
-                aria-label={t('dashboard.recentActivity')}
               />
             </div>
-            <LiveActivityFeed
-              items={activity ?? []}
-              loading={activity === null}
-              itemKey={(a) => String(a.id)}
-              renderItem={(a) => {
-                const detail = (() => {
-                  try {
-                    const raw = a.details;
-                    const d = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
-                    return d?.name || d?.title || d?.username || d?.lrn || '';
-                  } catch { return ''; }
-                })();
-                return (
-                  <FeedItem icon={Activity}>
-                    <div style={{ fontSize: 13.5 }}><strong>{a.username || 'system'}</strong> {actionLabel(a.action, t)}{detail ? ` — ${detail}` : ''}</div>
-                    <div className="sub" style={{ fontSize: 12, marginTop: 2 }}>{fmtWhen(a.created_at)}</div>
+            {activity === null ? (
+              <div style={{ padding: '12px 0' }}><Spinner /></div>
+            ) : activity.length === 0 ? (
+              <Empty text={t('dashboard.noRecentActivity')} />
+            ) : (
+              <div>
+                {activity.slice(0, 6).map((item) => (
+                  <FeedItem key={item.id}>
+                    <div style={{ fontSize: 13 }}>
+                      <strong>{item.user_name || item.user_role || t('dashboard.system')}</strong>{' '}
+                      <span style={{ color: 'var(--text-dim)' }}>{actionLabel(item.action, t)}</span>
+                      {item.target_type && (
+                        <span style={{ color: 'var(--text-dim)' }}>
+                          {' '}
+                          · {item.target_type}
+                        </span>
+                      )}
+                    </div>
+                    <div className="sub" style={{ fontSize: 11.5, marginTop: 2 }}>{fmtWhen(item.created_at)}</div>
                   </FeedItem>
-                );
-              }}
-              emptyState={<Empty text={t('dashboard.noActivity')} />}
-            />
-            <Link to="/audit" className="btn btn-sm" style={{ marginTop: 14 }}>{t('dashboard.auditLogs')}</Link>
+                ))}
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', textAlign: 'right' }}>
+                  <Link to="/audit" style={{ fontSize: 12.5, fontWeight: 600 }}>{t('dashboard.viewAuditLogs')}</Link>
+                </div>
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard title={t('dashboard.quickActions')} icon={Activity}>
             <QuickActions items={quick} />
-            <div className="sub" style={{ marginTop: 16 }}>
-              {t('dashboard.auditLast7', { n: r.audit?.last7 ?? 0 })}
+            <div className="sub" style={{ marginTop: 14, fontSize: 12, color: 'var(--text-dim)' }}>
+              {data.audit_count ?? 0} {t('dashboard.systemActionsRecorded')}
             </div>
           </SectionCard>
         </div>
