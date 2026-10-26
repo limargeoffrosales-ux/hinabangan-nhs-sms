@@ -157,6 +157,15 @@ function TarikNavIcon({ pose = 'happy', emoji = '✨', size = 32 }) {
         position: 'relative',
         flexShrink: 0,
         boxShadow: '0 2px 6px rgba(18,38,28,0.08)',
+        transition: 'transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'scale(1.08)';
+        e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 90, 54, 0.22)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'scale(1)';
+        e.currentTarget.style.boxShadow = '0 2px 6px rgba(18,38,28,0.08)';
       }}
     >
       <TarikMascot pose={pose} size={size * 0.78} />
