@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { UserPlus, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { api, sanitizeError } from '../lib/api';
 import { ErrorBanner } from '../components/ui';
-import TarikMascot from '../components/TarikMascot';
+import TarikCrestLogo from '../components/TarikCrestLogo';
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
 
@@ -84,7 +84,7 @@ export default function Register() {
       <div className="login-bg-orb login-bg-orb--3" />
 
       <header className="login-branding">
-        <TarikMascot pose="happy" size={88} />
+        <TarikCrestLogo size={96} />
         <h1 className="login-branding-name">{t('schoolName')}</h1>
       </header>
 

@@ -10,7 +10,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { ErrorBanner } from '../components/ui';
 import { getStoredApiBase, setApiBase, api, warmServer, sanitizeError } from '../lib/api';
-import TarikMascot from '../components/TarikMascot';
+import TarikCrestLogo from '../components/TarikCrestLogo';
 
 const FEATURES = [
   { icon: QrCode, key: 'featAttendance' },
@@ -145,7 +145,7 @@ export default function Login() {
       </div>
 
       <header className="login-branding">
-        <TarikMascot pose="happy" size={88} />
+        <TarikCrestLogo size={96} />
         <h1 className="login-branding-name">{t('schoolName')}</h1>
       </header>
 
