@@ -1,0 +1,47 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer Gold & Green Crest Border -->
+  <circle cx="100" cy="100" r="92" fill="#0F4530" stroke="#D4A359" stroke-width="6" />
+  <circle cx="100" cy="100" r="82" fill="#1B6B4A" stroke="#D4A359" stroke-width="2" opacity="0.9" />
+
+  <!-- Laurel Leaves Wreath Bottom -->
+  <path d="M 60 160 Q 100 185, 140 160 Q 100 170, 60 160 Z" fill="#2E9E5B" opacity="0.6" />
+
+  <!-- Tarik Mascot (Cheering pose with trophy) -->
+  <g transform="translate(10, 10) scale(1.6)">
+    <!-- Body -->
+    <circle cx="50" cy="55" r="28" fill="#1F2A3A" stroke="#0F4530" stroke-width="2.5" />
+    <circle cx="50" cy="60" r="16" fill="#FFFDF7" />
+
+    <!-- Salakot Hat -->
+    <path d="M 32 24 Q 50 14, 68 24 L 72 28 Q 50 20, 28 28 Z" fill="#D4A359" stroke="#8C6227" stroke-width="2" />
+    <polygon points="50,10 44,20 56,20" fill="#8C6227" />
+
+    <!-- Head -->
+    <path d="M 36 28 C 36 18, 64 18, 64 28 C 64 42, 58 52, 50 54 C 42 52, 36 42, 36 28 Z" fill="#FFFDF7" stroke="#12261C" stroke-width="2" />
+    <path d="M 40 32 Q 34 38, 32 48 Q 36 50, 40 42 Z" fill="#12261C" />
+
+    <!-- Reddish Bill & Casque -->
+    <path d="M 50 36 Q 78 34, 74 46 Q 58 48, 50 42 Z" fill="#C0503C" stroke="#12261C" stroke-width="2" />
+    <path d="M 48 30 Q 68 26, 64 34 Q 52 36, 48 30 Z" fill="#A03828" stroke="#12261C" stroke-width="1" />
+
+    <!-- Eye -->
+    <circle cx="42" cy="36" r="5" fill="#FFFFFF" stroke="#12261C" stroke-width="1.5" />
+    <circle cx="43" cy="36" r="3" fill="#8B1E22" />
+    <circle cx="44" cy="35" r="1" fill="#FFFFFF" />
+    <ellipse cx="37" cy="41" rx="3" ry="1.5" fill="#FF8A9E" opacity="0.6" />
+
+    <!-- Lanyard & ID -->
+    <path d="M 42 56 L 50 64 L 58 56" stroke="#1B6B4A" stroke-width="2.5" fill="none" />
+    <rect x="45" y="62" width="10" height="12" rx="1.5" fill="#FFFFFF" stroke="#12261C" stroke-width="1" />
+
+    <!-- Golden Trophy -->
+    <path d="M 64 40 L 78 40 L 76 58 Q 71 63, 66 58 Z" fill="#F5A623" stroke="#DB8F10" stroke-width="1.5" />
+    <rect x="67" y="58" width="8" height="6" fill="#DB8F10" />
+    <rect x="64" y="64" width="14" height="3" rx="1" fill="#12261C" />
+  </g>
+
+  <!-- Gold Emblem Star Accents -->
+  <circle cx="100" cy="18" r="3" fill="#F5A623" />
+  <circle cx="24" cy="100" r="2.5" fill="#F5A623" />
+  <circle cx="176" cy="100" r="2.5" fill="#F5A623" />
+</svg>
