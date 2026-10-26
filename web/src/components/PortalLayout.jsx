@@ -12,6 +12,7 @@ import { Modal, initials } from './ui';
 import PortalCommandPalette from './PortalCommandPalette';
 import { api } from '../lib/api';
 import TarikMascot from './TarikMascot';
+import TarikCrestLogo from './TarikCrestLogo';
 
 const PORTAL_NAV_GROUPS = [
   {
@@ -119,7 +120,7 @@ export default function PortalLayout({ children }) {
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('portalTitle')}>
         <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px' }}>
-          <TarikMascot pose="happy" size={38} />
+          <TarikCrestLogo size={42} />
           <div className="brand-text-group">
             <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 20, fontWeight: 800, color: 'var(--primary)' }}>TARIK</span>
             <span className="brand-sub">{isParent ? t('portal.roleParent') : t('portal.roleStudent')}</span>
