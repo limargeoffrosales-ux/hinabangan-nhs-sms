@@ -197,11 +197,11 @@ export default function Layout({ children }) {
       <a href="#main-content" className="skip-link">{t('layout.skipToContent')}</a>
       <div className={`sidebar-overlay ${menuOpen ? 'show' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`} role="navigation" aria-label={t('nav.main')}>
-        <div className="brand" style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <TarikMascot pose="happy" size={80} />
+        <div className="brand" style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10 }}>
+          <TarikMascot pose="happy" size={110} />
           <div className="brand-text-group">
-            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 28, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5 }}>UGOP</span>
-            <span className="brand-sub" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)' }}>Hinabangan NHS · Samar</span>
+            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 32, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5, lineHeight: 1 }}>UGOP</span>
+            <span className="brand-sub" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginTop: 4 }}>Hinabangan NHS · Samar</span>
           </div>
         </div>
         <div className="brand-divider"></div>
