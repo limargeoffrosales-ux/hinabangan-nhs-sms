@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { UserPlus, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { UserPlus, CheckCircle2, ArrowLeft, Shield } from 'lucide-react';
 import { api, sanitizeError } from '../lib/api';
 import { ErrorBanner } from '../components/ui';
 import TarikCrestLogo from '../components/TarikCrestLogo';
@@ -208,6 +208,16 @@ export default function Register() {
             )}
             <div className="login-form-links" style={{ marginTop: 14 }}>
               <Link to="/login" className="login-request-btn"><ArrowLeft size={12} /> {t('register.backLogin', 'Back to sign in')}</Link>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16, padding: '10px 12px', background: 'var(--bg-soft)', borderRadius: 10, fontSize: 11.5, color: 'var(--text-dim)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: 'var(--primary)' }}>
+                <Shield size={14} /> Official DepEd Compliance &amp; Security
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                <span>🔒 SSL Encrypted</span>
+                <span>🛡️ RA 10173 Compliant</span>
+                <span>🗄️ 5-Yr Retention</span>
+              </div>
             </div>
           </div>
         </div>

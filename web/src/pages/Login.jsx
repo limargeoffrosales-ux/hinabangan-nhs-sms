@@ -329,9 +329,15 @@ export default function Login() {
             </>
             )}
 
-            <div className="login-form-security">
-              <Shield size={12} />
-              <span>{t('login.secureLogin')}</span>
+            <div className="login-form-security" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16, padding: '10px 12px', background: 'var(--bg-soft)', borderRadius: 10, fontSize: 11.5, color: 'var(--text-dim)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: 'var(--primary)' }}>
+                <Shield size={14} /> Official DepEd Compliance &amp; Security
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                <span>🔒 SSL Encrypted</span>
+                <span>🛡️ RA 10173 Compliant</span>
+                <span>🗄️ 5-Yr Retention</span>
+              </div>
             </div>
 
             <button
