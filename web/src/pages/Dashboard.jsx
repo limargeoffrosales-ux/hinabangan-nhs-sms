@@ -235,7 +235,7 @@ export default function Dashboard() {
             <div style={{ flex: 1 }}>
               <h2 style={{ fontSize: 22, margin: '0 0 6px 0', color: '#fff' }}>Maupay nga adlaw, {user?.name || 'Teacher'}!</h2>
               <p style={{ margin: '0 0 16px 0', opacity: 0.9, fontSize: 14 }}>
-                Access your dedicated UGOP teacher tools: view your weekly class program, enter class grades, record attendance, and post assignments.
+                Access your dedicated TARIK teacher tools: view your weekly class program, enter class grades, record attendance, and post assignments.
               </p>
             </div>
             <TarikMascot pose="happy" size={130} />

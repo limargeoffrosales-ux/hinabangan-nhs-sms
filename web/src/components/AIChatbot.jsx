@@ -98,7 +98,7 @@ export default function AIChatbot() {
             padding: '14px 18px', background: 'var(--accent, #1e3a5f)', color: '#fff',
             fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Bot size={18} /> UGOP AI Assistant</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Bot size={18} /> TARIK AI Assistant</span>
             {messages.length > 0 && (
               <button
                 onClick={() => { setMessages([]); localStorage.removeItem(CHAT_KEY); }}

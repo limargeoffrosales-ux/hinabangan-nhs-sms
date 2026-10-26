@@ -30,7 +30,7 @@ export const FEATURE_ICONS = [
   { id: 'aral', name: 'ARAL Program', pose: 'reading', icon: '🎓', color: '#1B6B4A', desc: 'Reading & numeracy remediation', to: '/aral' },
   { id: 'immersion', name: 'Work Immersion', pose: 'happy', icon: '💼', color: '#F5A623', desc: 'SHS TVL Work Immersion & JDVP', to: '/immersion' },
   { id: 'messages', name: 'Messages', pose: 'happy', icon: '💬', color: '#1E88B5', desc: 'Parent & teacher chat', to: '/notifications' },
-  { id: 'ask_ugop', name: 'Ask UGOP AI', pose: 'ai', icon: '✨', color: '#F5A623', desc: 'AI virtual assistant', to: '/ai' },
+  { id: 'ask_ugop', name: 'Ask TARIK AI', pose: 'ai', icon: '✨', color: '#F5A623', desc: 'AI virtual assistant', to: '/ai' },
   { id: 'compliance', name: 'Compliance', pose: 'thinking', icon: '📜', color: '#1B6B4A', desc: 'RA 10173 & 5-year retention', to: '/compliance' },
   { id: 'audit_logs', name: 'Audit Logs', pose: 'thinking', icon: '🛡️', color: '#1B6B4A', desc: 'Security & system history', to: '/audit' },
   { id: 'privacy_shield', name: 'Privacy Shield', pose: 'happy', icon: '🔒', color: '#2E9E5B', desc: 'RA 10173 data protection', to: '/privacy' },
@@ -106,10 +106,10 @@ export default function UgopFeatureIconsGrid() {
       <div style={{ marginBottom: 24, borderBottom: '1px solid #DCE7E0', paddingBottom: 16 }}>
         <span className="badge badge-green" style={{ marginBottom: 6 }}>Master 30 App-Feature Tiles</span>
         <h2 style={{ margin: '4px 0 2px 0', fontSize: 24, fontWeight: 800, color: '#12261C', fontFamily: 'var(--font-display)' }}>
-          UGOP System-Wide Tarik Feature Icons (6x5 Grid)
+          TARIK System-Wide Feature Icons (6x5 Grid)
         </h2>
         <p style={{ margin: 0, color: '#5B6F63', fontSize: 13.5 }}>
-          Integrated across all UGOP modules, quick actions, dashboards, and portals.
+          Integrated across all TARIK modules, quick actions, dashboards, and portals.
         </p>
       </div>
 

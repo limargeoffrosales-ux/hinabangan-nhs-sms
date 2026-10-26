@@ -200,7 +200,7 @@ export default function Layout({ children }) {
         <div className="brand" style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10 }}>
           <TarikMascot pose="happy" size={110} />
           <div className="brand-text-group">
-            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 32, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5, lineHeight: 1 }}>UGOP</span>
+            <span className="brand-name" style={{ fontFamily: 'var(--font-logo)', fontSize: 32, fontWeight: 800, color: 'var(--primary)', letterSpacing: 0.5, lineHeight: 1 }}>TARIK</span>
             <span className="brand-sub" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginTop: 4 }}>Hinabangan NHS · Samar</span>
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function Layout({ children }) {
           {/* AI Credits Meter */}
           <div style={{ padding: '10px 12px', background: 'var(--primary-tint)', borderRadius: 12, marginBottom: 8, fontSize: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: 'var(--primary)' }}>
-              <span>Ask UGOP AI</span>
+              <span>Ask TARIK AI</span>
               <span>150/150</span>
             </div>
             <div style={{ height: 5, background: 'rgba(27,107,74,0.2)', borderRadius: 3, marginTop: 5, overflow: 'hidden' }}>
@@ -254,7 +254,7 @@ export default function Layout({ children }) {
             <Menu size={17} aria-hidden="true" />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--primary)' }}>UGOP</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--primary)' }}>TARIK</span>
             <span style={{ color: 'var(--border)' }}>/</span>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Hinabangan NHS</span>
           </div>
@@ -268,7 +268,7 @@ export default function Layout({ children }) {
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Ask UGOP AI Trigger Button */}
             <Link to="/ai" className="btn btn-sm" style={{ background: 'var(--grad-amber)', color: '#12261C', fontWeight: 700, border: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}>
-              <Sparkles size={14} /> Ask UGOP AI
+              <Sparkles size={14} /> Ask TARIK AI
             </Link>
 
             {/* Notification Bell */}

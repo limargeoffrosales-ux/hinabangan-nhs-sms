@@ -18,7 +18,7 @@ export default function TarikMascotSheet() {
     <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '20px', border: '1px solid #DCE7E0', boxShadow: '0 4px 20px rgba(18,38,28,0.06)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #DCE7E0' }}>
         <div>
-          <span className="badge badge-green" style={{ marginBottom: 6 }}>Official UGOP Mascot Character Sheet</span>
+          <span className="badge badge-green" style={{ marginBottom: 6 }}>Official TARIK Mascot Character Sheet</span>
           <h2 style={{ margin: '4px 0 2px 0', fontSize: 24, fontWeight: 800, color: '#12261C', fontFamily: 'var(--font-display)' }}>
             Tarik — Samar Tarictic Hornbill <span style={{ fontSize: 16, fontWeight: 500, color: '#5B6F63' }}>(Penelopides samarensis)</span>
           </h2>

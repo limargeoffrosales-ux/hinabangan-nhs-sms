@@ -25,7 +25,7 @@ export default function UgopTeacherCorner() {
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#12261C', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span>📚</span> TEACHER &amp; ADMIN CORNER
         </h3>
-        <span className="badge badge-green">UGOP Platform</span>
+        <span className="badge badge-green">TARIK Platform</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
