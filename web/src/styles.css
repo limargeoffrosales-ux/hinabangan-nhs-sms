@@ -2100,21 +2100,6 @@ tr.row-active td { background: rgba(var(--rgb-accent), 0.08); }
   .sidebar-overlay { transition: none !important; }
 
   /* Disable modal backdrop transition */
-}
-
-@keyframes tarik-bounce {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-6px) scale(1.04); }
-}
-
-.tarik-mascot-hover {
-  display: inline-block;
-  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
-  cursor: pointer;
-}
-.tarik-mascot-hover:hover {
-  animation: tarik-bounce 0.8s ease infinite;
-}
   .modal-backdrop { transition: none !important; }
 
   /* Disable focus ring animation */
@@ -2141,4 +2126,18 @@ tr.row-active td { background: rgba(var(--rgb-accent), 0.08); }
   outline-offset: -1px;
   box-shadow: 0 0 0 3px rgba(var(--rgb-accent), 0.2);
   background: rgba(var(--rgb-accent), 0.06);
+}
+
+@keyframes tarik-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.04); }
+}
+
+.tarik-mascot-hover {
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  cursor: pointer;
+}
+.tarik-mascot-hover:hover {
+  animation: tarik-bounce 0.8s ease infinite;
 }

@@ -10,21 +10,17 @@ const SCHOOL_COORDS = { lat: 11.700467025288065, lng: 125.06423660590201 };
 const SCHOOL_LABEL = 'Hinabangan NHS';
 const SCHOOL_ADDRESS = 'Rawis, Hinabangan, 6714 Eastern Visayas, Philippines';
 
-// CartoDB is the primary: good rural coverage, rarely blocked by ad-blockers or
-// school firewalls.  ArcGIS is the fallback for networks that block CartoDB.
+// OpenStreetMap & Esri ArcGIS tile layers require NO API keys.
 const BASE = {
   street: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     label: 'Streets',
     options: {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      className: 'tile-street',
-      minZoom: 0,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }
   },
-  satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite', maxZoom: 17 },
+  satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite', maxZoom: 18 },
   labels: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
 };
 const STREET_FALLBACK = {
@@ -169,10 +165,11 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
         radius: radiusKm * 1000,
         color: '#7c3aed',
         fillColor: '#7c3aed',
-        fillOpacity: 0.05,
+        fillOpacity: 0.08,
         weight: 2,
         dashArray: '4 4',
       }).addTo(map);
+      map.fitBounds(radiusCircleRef.current.getBounds().pad(0.12));
     }
   }, [radiusKm]);
 
@@ -672,10 +669,16 @@ export default function PlacementMap({ rows = [], missing = [], isImmersion = tr
       <div className="gm-layers-ctl" style={{ bottom: 132 }}>
         <div className="gm-layers-row">
           <span style={{ fontSize: 11.5, fontWeight: 600 }}>Radius:</span>
-          {[0, 1, 3, 5, 10].map((km) => (
-            <button key={km} type="button" className={`gm-layer-btn ${radiusKm === km ? 'active' : ''}`}
-              onClick={() => setRadiusKm(km)}>
-              {km === 0 ? 'Off' : `${km}km`}
+          {[
+            { val: 0, label: 'Off' },
+            { val: 0.2, label: '200m' },
+            { val: 0.5, label: '500m' },
+            { val: 1, label: '1km' },
+            { val: 2, label: '2km' },
+          ].map((item) => (
+            <button key={item.val} type="button" className={`gm-layer-btn ${radiusKm === item.val ? 'active' : ''}`}
+              onClick={() => setRadiusKm(item.val)}>
+              {item.label}
             </button>
           ))}
         </div>
