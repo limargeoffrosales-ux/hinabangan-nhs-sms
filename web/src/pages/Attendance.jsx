@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { downloadFromApi } from '../lib/export';
 import { PageHead, Empty, ErrorBanner, Spinner } from '../components/ui';
 import { useToast } from '../components/Toast';
+import { queueOfflineAction } from '../lib/offlineSync';
 
 const STATUSES = ['present', 'late', 'absent', 'excused'];
 const STATUS_SHORTCUTS = { '1': 'present', '2': 'late', '3': 'absent', '4': 'excused' };
@@ -127,26 +128,30 @@ export default function Attendance() {
   async function save() {
     setLoading(true);
     setError(null);
+    const payload = {
+      section_id: Number(sectionId),
+      date,
+      session: session || undefined,
+      records: roster.map((r) => ({
+        student_id: r.id,
+        status: r.status,
+        remarks: r.remarks || null,
+        time_in: r.time_in || null,
+        time_out: r.time_out || null,
+      })),
+    };
     try {
-      const res = await api('/attendance/bulk', {
-        method: 'POST',
-        body: {
-          section_id: Number(sectionId),
-          date,
-          session: session || undefined,
-          records: roster.map((r) => ({
-            student_id: r.id,
-            status: r.status,
-            remarks: r.remarks || null,
-            time_in: r.time_in || null,
-            time_out: r.time_out || null,
-          })),
-        },
-      });
+      if (!navigator.onLine) throw new Error('Offline');
+      const res = await api('/attendance/bulk', { method: 'POST', body: payload });
       toast.success(`Attendance saved for ${res.recorded} learner(s).`);
       load();
     } catch (e) {
-      setError(e.message);
+      if (!navigator.onLine || /failed to fetch|networkerror|offline|timed out/i.test(e.message)) {
+        await queueOfflineAction('attendance', payload);
+        toast.warning('Saved locally (Offline Mode) — will auto-sync when reconnected.');
+      } else {
+        setError(e.message);
+      }
     } finally {
       setLoading(false);
     }
