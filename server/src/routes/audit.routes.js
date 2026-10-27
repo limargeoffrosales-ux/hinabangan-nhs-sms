@@ -43,4 +43,30 @@ router.get('/recycle-bin', asyncH(async (req, res) => {
   res.json({ data: all });
 }));
 
+router.get('/anomalies', asyncH(async (req, res) => {
+  const sensitiveActions = [
+    'EXPORT', 'EXPORT_ANALYTICS', 'EXPORT_STUDENTS',
+    'UPDATE_USER_ROLE', 'CREATE_USER', 'DELETE_USER',
+    'SUPERADMIN_LOGIN', 'LOGIN_LOCKED_OUT', 'SECURITY_INCIDENT',
+    'CHANGE_PASSWORD', 'PASSWORD_RESET', 'DELETE_TEACHER'
+  ];
+  const placeholders = sensitiveActions.map(() => '?').join(',');
+  const rows = await qa(
+    `SELECT * FROM audit_logs
+     WHERE action IN (${placeholders}) OR ip IN (
+       SELECT ip FROM audit_logs WHERE action = 'LOGIN_LOCKED_OUT' GROUP BY ip HAVING COUNT(*) >= 3
+     )
+     ORDER BY created_at DESC LIMIT 50`,
+    sensitiveActions
+  );
+
+  const anomalies = rows.map((r) => ({
+    ...r,
+    severity: ['LOGIN_LOCKED_OUT', 'SECURITY_INCIDENT', 'DELETE_USER'].includes(r.action) ? 'high' : 'medium',
+    warning: `Suspicious action detected: ${r.action} by ${r.username || 'unknown'} from IP ${r.ip || 'N/A'}`
+  }));
+
+  res.json({ data: anomalies, total: anomalies.length });
+}));
+
 module.exports = router;
