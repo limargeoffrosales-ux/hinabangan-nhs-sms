@@ -124,4 +124,17 @@ router.get('/utilization', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ data: stats });
 }));
 
+router.get('/auto-match', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { subject_title, subject_code } = req.query;
+  const title = String(subject_title || subject_code || '').toLowerCase();
+
+  let requiredType = 'classroom';
+  if (/computer|ict|programming|net|tech/i.test(title)) requiredType = 'computer_lab';
+  else if (/science|chem|bio|phys|physics|chemistry|biology/i.test(title)) requiredType = 'science_lab';
+  else if (/workshop|home ec|agri|fishery|tvl|epv|tled/i.test(title)) requiredType = 'workshop';
+
+  const rooms = await qa('SELECT * FROM rooms WHERE active = TRUE AND (room_type = ? OR room_type = \'classroom\' OR room_type IS NULL) ORDER BY room_type DESC, code', [requiredType]);
+  res.json({ suggested_room_type: requiredType, rooms });
+}));
+
 module.exports = router;
