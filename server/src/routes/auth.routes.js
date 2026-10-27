@@ -465,9 +465,47 @@ router.post('/register',
 
     await qr("UPDATE registration_codes SET used_count = used_count + 1 WHERE id = ?", [codeRow.id]);
 
-await audit(req, 'STUDENT_REGISTER', 'auth', userId, { student_id: studentId, username });
-  await notifyEvent('account_registered', { user_id: userId, data: { username, url: APP_URL ? APP_URL.replace(/\/+$/, '') : '' } });
-  res.status(201).json({ ok: true, status: 'pending', message: 'Registration submitted. The school administrator will approve the link to your learner record.' });
+    await audit(req, 'STUDENT_REGISTER', 'auth', userId, { student_id: studentId, username });
+    await notifyEvent('account_registered', { user_id: userId, data: { username, url: APP_URL ? APP_URL.replace(/\/+$/, '') : '' } });
+    res.status(201).json({ ok: true, status: 'pending', message: 'Registration submitted. The school administrator will approve the link to your learner record.' });
   }));
+
+// GET /sessions — list active sessions for current user (or all users if superadmin)
+router.get('/sessions', authenticate, asyncH(async (req, res) => {
+  const isAdmin = ['super_admin', 'school_admin'].includes(req.user.role);
+  let rows;
+  if (isAdmin && req.query.all === '1') {
+    rows = await qa(
+      `SELECT rt.id, rt.user_id, rt.created_at, rt.expires_at, rt.revoked, u.username, u.role, u.name
+       FROM refresh_tokens rt
+       JOIN users u ON u.id = rt.user_id
+       WHERE rt.revoked = FALSE AND rt.expires_at > ${db.nowSql()}
+       ORDER BY rt.created_at DESC LIMIT 100`
+    );
+  } else {
+    rows = await qa(
+      `SELECT id, created_at, expires_at, revoked
+       FROM refresh_tokens
+       WHERE user_id = ? AND revoked = FALSE AND expires_at > ${db.nowSql()}
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+  }
+  res.json({ data: rows });
+}));
+
+// DELETE /sessions/:id — revoke a specific session token by ID
+router.delete('/sessions/:id', authenticate, asyncH(async (req, res) => {
+  const sessionId = Number(req.params.id);
+  const isAdmin = ['super_admin', 'school_admin'].includes(req.user.role);
+  const token = await q('SELECT * FROM refresh_tokens WHERE id = ?', [sessionId]);
+  if (!token) return res.status(404).json({ error: 'Session not found' });
+  if (!isAdmin && token.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Unauthorized to revoke this session' });
+  }
+  await qr('UPDATE refresh_tokens SET revoked = TRUE WHERE id = ?', [sessionId]);
+  await audit(req, 'REVOKE_SESSION', 'refresh_tokens', sessionId, { target_user_id: token.user_id });
+  res.json({ ok: true });
+}));
 
 module.exports = router;
