@@ -103,4 +103,53 @@ router.delete('/:id', requireRole(...WRITE), asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
+router.get('/workload-summary', requireRole(...WRITE, 'teacher'), asyncH(async (req, res) => {
+  const { school_year } = req.query;
+  const teachers = await qa('SELECT id, employee_no, first_name, last_name, position, room, status FROM teachers WHERE status = \'active\' ORDER BY last_name, first_name');
+  const assignments = await qa(
+    `SELECT ca.teacher_id, ca.meetings_per_week, ca.duration_minutes, sub.title AS subject_name, sec.name AS section_name
+     FROM class_assignments ca
+     JOIN subjects sub ON sub.id = ca.subject_id
+     JOIN sections sec ON sec.id = ca.section_id
+     ${school_year ? 'WHERE ca.school_year = ?' : ''}`,
+    school_year ? [school_year] : []
+  );
+
+  const byTeacher = {};
+  for (const t of teachers) {
+    byTeacher[t.id] = {
+      ...t,
+      classes: [],
+      total_meetings_per_week: 0,
+      total_teaching_minutes_per_week: 0,
+      teaching_hours_per_day: 0,
+      is_overload: false,
+      overload_hours: 0,
+    };
+  }
+
+  for (const a of assignments) {
+    if (!a.teacher_id || !byTeacher[a.teacher_id]) continue;
+    const tData = byTeacher[a.teacher_id];
+    tData.classes.push(a);
+    const meetings = Number(a.meetings_per_week) || 1;
+    const dur = Number(a.duration_minutes) || 60;
+    tData.total_meetings_per_week += meetings;
+    tData.total_teaching_minutes_per_week += meetings * dur;
+  }
+
+  for (const id of Object.keys(byTeacher)) {
+    const tData = byTeacher[id];
+    const hoursPerWeek = tData.total_teaching_minutes_per_week / 60;
+    const hoursPerDay = hoursPerWeek / 5;
+    tData.teaching_hours_per_day = Math.round(hoursPerDay * 10) / 10;
+    if (tData.teaching_hours_per_day > 6) {
+      tData.is_overload = true;
+      tData.overload_hours = Math.round((tData.teaching_hours_per_day - 6) * 10) / 10;
+    }
+  }
+
+  res.json({ data: Object.values(byTeacher) });
+}));
+
 module.exports = router;
