@@ -309,4 +309,55 @@ router.get('/years/:studentId', requireRole(...WRITE, 'registrar', 'student', 'p
   res.json({ data: rows });
 }));
 
+router.get('/honor-roll', requireRole(...WRITE, 'registrar', 'student', 'parent'), asyncH(async (req, res) => {
+  const { school_year, term, section_id } = req.query;
+  if (!school_year || !term) return res.status(400).json({ error: 'school_year and term are required' });
+  const period = String(term).trim();
+
+  let sectionFilter = '';
+  const params = [school_year, period];
+  if (section_id) {
+    sectionFilter = 'AND e.section_id = ?';
+    params.push(section_id);
+  }
+
+  const query = `
+    SELECT st.id AS student_id, st.first_name, st.last_name, st.lrn, st.grade_level,
+           sec.name AS section_name,
+           AVG(g.computed_grade) AS gpa,
+           MIN(g.computed_grade) AS lowest_grade
+    FROM enrollments e
+    JOIN students st ON st.id = e.student_id
+    LEFT JOIN sections sec ON sec.id = e.section_id
+    LEFT JOIN grades g ON g.student_id = st.id AND g.school_year = ? AND g.quarter = ?
+    WHERE e.status = 'enrolled' ${sectionFilter}
+    GROUP BY st.id
+    HAVING gpa IS NOT NULL
+    ORDER BY gpa DESC
+  `;
+  const students = await qa(query, params);
+
+  const honorRoll = students.map((s) => {
+    const gwa = Math.round(Number(s.gpa) * 100) / 100;
+    const lowest = Number(s.lowest_grade);
+    let honor = 'None';
+    if (gwa >= 98 && lowest >= 90) honor = 'Highest Honors';
+    else if (gwa >= 95 && lowest >= 85) honor = 'High Honors';
+    else if (gwa >= 90 && lowest >= 80) honor = 'With Honors';
+
+    return {
+      student_id: s.student_id,
+      name: `${s.last_name}, ${s.first_name}`,
+      lrn: s.lrn,
+      grade_level: s.grade_level,
+      section_name: s.section_name,
+      gwa,
+      lowest_grade: lowest,
+      honor,
+    };
+  }).filter((s) => s.honor !== 'None');
+
+  res.json({ data: honorRoll, school_year, term: period });
+}));
+
 module.exports = router;
