@@ -123,24 +123,33 @@ const messagesRoutes = require('./routes/messages.routes');
     app.use(Sentry.Handlers.requestHandler());
   }
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com", "https://lh3.googleusercontent.com", "https://tile.openstreetmap.org", "https://*.tile.openstreetmap.org", "https://server.arcgisonline.com"],
-        mediaSrc: ["'self'", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com"],
-        connectSrc: ["'self'", "https://*.r2.dev", "wss:", "https://nominatim.openstreetmap.org"],
-        frameSrc: ["'none'"],
-        objectSrc: ["'none'"],
-        baseUri: ["'self'"],
-        formAction: ["'self'"],
+  app.use((req, res, next) => {
+    res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+    next();
+  });
+
+  app.use((req, res, next) => {
+    const nonce = res.locals.cspNonce;
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", `'nonce-${nonce}'`],
+          styleSrc: ["'self'", `'nonce-${nonce}'`, "https://fonts.googleapis.com"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com"],
+          imgSrc: ["'self'", "data:", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com", "https://lh3.googleusercontent.com", "https://tile.openstreetmap.org", "https://*.tile.openstreetmap.org", "https://server.arcgisonline.com"],
+          mediaSrc: ["'self'", "blob:", "https://*.r2.dev", "https://*.cloudflarestorage.com"],
+          connectSrc: ["'self'", "https://*.r2.dev", "wss:", "https://nominatim.openstreetmap.org"],
+          frameSrc: ["'none'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: [],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
+      crossOriginEmbedderPolicy: false,
+    })(req, res, next);
+  });
   const ALLOWED_ORIGINS = [
     process.env.APP_URL,           // e.g. https://hinabangan-nhs.onrender.com
     'http://localhost:5173',       // Vite dev server
