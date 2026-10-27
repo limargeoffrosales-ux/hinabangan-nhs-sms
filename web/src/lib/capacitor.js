@@ -1,19 +1,30 @@
-// Native app bridge (Capacitor shell removed). Every helper here degrades to
-// the plain-web implementation; isNative() is always false in the browser.
+// Native app bridge for Capacitor (Android & iOS) with graceful web fallback.
 export function isNative() {
-  return false;
+  if (typeof window === 'undefined') return false;
+  return Boolean(/** @type {any} */ (window).Capacitor?.isNativePlatform());
 }
 
 export function getPlatform() {
-  return 'web';
+  if (typeof window === 'undefined') return 'web';
+  const cap = /** @type {any} */ (window).Capacitor;
+  if (!cap?.isNativePlatform()) return 'web';
+  return cap.getPlatform() || 'android';
 }
 
 export async function requestNotificationPermission() {
-  return Notification?.permission === 'granted';
+  if (isNative()) return true;
+  return Notification?.permission === 'granted' || (await Notification?.requestPermission()) === 'granted';
 }
 
 export async function registerForPushNotifications() {
+  if (!isNative()) return null;
   return null;
+}
+
+export async function triggerHapticFeedback() {
+  if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+    try { navigator.vibrate(40); } catch {}
+  }
 }
 
 export async function pickImage() {

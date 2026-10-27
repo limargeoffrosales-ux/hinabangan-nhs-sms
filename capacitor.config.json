@@ -1,0 +1,14 @@
+{
+  "appId": "com.tarik.hinabangan.nhs",
+  "appName": "TARIK Hinabangan NHS",
+  "webDir": "web/dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "",
+      "keystoreAlias": ""
+    }
+  }
+}
