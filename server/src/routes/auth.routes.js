@@ -7,7 +7,7 @@ const { signAccess, authenticate, hashToken, clearUserCache, generateCsrfToken, 
 const { JWT_SECRET, REFRESH_TTL_DAYS, JWT_AUDIENCE, JWT_ISSUER, APP_URL } = require('../config');
 const { asyncH, audit } = require('../utils');
 const { userRateLimit } = require('../middleware/rate-limit');
-const { resetAuthLimit } = require('../middleware/auth-rate-limit');
+const { resetAuthLimit, recordIpFailure } = require('../middleware/auth-rate-limit');
 const { notifyEvent } = require('../notify');
 const { POLICY_KEYS, checkPasswordPolicy } = require('../password-policy');
 const { RESET_CODE_TTL_MS, RESET_MAX_ATTEMPTS, genResetCode } = require('../reset-codes');
@@ -144,6 +144,7 @@ router.post('/login', userRateLimit({ windowMs: 15 * 60 * 1000, limit: 15, messa
   if (!user || user.status !== 'active' || !(await bcrypt.compare(String(password), user.password_hash || DUMMY_PASSWORD_HASH))) {
     await audit(req, 'LOGIN_FAILED', 'auth', null, { username });
     await recordFailedLogin(String(username).trim(), user?.id || null, req.ip);
+    await recordIpFailure(req);
     return res.status(401).json({ error: 'Invalid username or password' });
   }
   await clearFailedLogins(user.id);
