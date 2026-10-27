@@ -210,4 +210,36 @@ router.post('/:id/copy', requireRole(...WRITE), asyncH(async (req, res) => {
   res.status(201).json({ id: newId });
 }));
 
+router.get('/pacing-check', requireRole(...WRITE), asyncH(async (req, res) => {
+  const { school_year, quarter } = req.query;
+  const teacherId = req.user.teacher_id;
+  const where = [];
+  const params = [];
+  if (school_year) { where.push('l.school_year = ?'); params.push(school_year); }
+  if (quarter) { where.push('l.quarter = ?'); params.push(Number(quarter)); }
+  if (req.role === 'teacher' && teacherId) { where.push('l.teacher_id = ?'); params.push(teacherId); }
+
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const lessons = await qa(`SELECT l.id, l.title, l.quarter, l.scheduled_date, l.status, l.submission_status, s.title AS subject_name FROM lessons l LEFT JOIN subjects s ON s.id = l.subject_id ${whereSql}`, params);
+
+  const byQuarter = {};
+  for (const l of lessons) {
+    const qKey = l.quarter || 1;
+    byQuarter[qKey] = (byQuarter[qKey] || 0) + 1;
+  }
+
+  const pacingAnalysis = Object.keys(byQuarter).map((qNum) => {
+    const count = byQuarter[qNum];
+    const status = count >= 8 ? 'on_track' : count >= 4 ? 'moderate' : 'lagging';
+    return {
+      quarter: Number(qNum),
+      lessons_logged: count,
+      status,
+      alert: status === 'lagging' ? 'Instructional pacing is falling behind the DepEd quarterly schedule. Consider adding supplementary lesson modules.' : null,
+    };
+  });
+
+  res.json({ data: pacingAnalysis, total_lessons: lessons.length });
+}));
+
 module.exports = router;
