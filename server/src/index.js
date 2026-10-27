@@ -73,6 +73,7 @@ const aiRoutes = require('./routes/ai.routes');
 const achievementsRoutes = require('./routes/achievements.routes');
 const consentsRoutes = require('./routes/consents.routes');
 const parentRoutes = require('./routes/parent.routes');
+const messagesRoutes = require('./routes/messages.routes');
 
 (async () => {
   await db.init();
@@ -358,6 +359,7 @@ const parentRoutes = require('./routes/parent.routes');
   app.use('/api/v1/achievements', achievementsRoutes);
   app.use('/api/v1/consents', consentsRoutes);
   app.use('/api/v1/parent', parentRoutes);
+  app.use('/api/v1/messages', messagesRoutes);
   app.use('/api/v1/lms', lmsRoutes);
 
   app.get('/api/v1/realtime/stream', streamHandler);
