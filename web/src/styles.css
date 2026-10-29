@@ -1,3 +1,10 @@
+body {
+  margin: 0;
+  background-color: var(--bg-page, #F5F8F4);
+  color: var(--text, #12261C);
+  font-family: var(--font-ui, 'Inter', system-ui, sans-serif);
+}
+
 :root {
   /* TARIK Brand Palette (DepEd Philippine Public Schools / Samar Edition) */
   --primary: #0F5A36;
