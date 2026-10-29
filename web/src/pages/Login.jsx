@@ -197,6 +197,12 @@ export default function Login() {
           <div className="login-form-card card">
             <div className="login-form-header">
               <h2>{t('login.signInto')} <span className="login-form-brand">{t('brand')}</span></h2>
+              {slow && (
+                <div style={{ background: '#FEF3C7', color: '#92400E', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #F59E0B' }}>
+                  <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block', width: 14, height: 14, border: '2px solid #92400E', borderTopColor: 'transparent', borderRadius: '50%' }} />
+                  <span><strong>Server is waking up from hibernation (Render free tier)</strong> — please wait up to 30s.</span>
+                </div>
+              )}
               <ErrorBanner error={error} />
             </div>
             {pendingMfa ? (
