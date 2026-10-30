@@ -47,8 +47,7 @@ async function init() {
       ssl: useSsl,
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-      options: '-c search_path=public'
+      connectionTimeoutMillis: 10000
     });
     // search_path is pinned by the pool's `options` parameter above, which the
     // server applies during connection setup - before the client is handed
